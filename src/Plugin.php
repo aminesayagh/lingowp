@@ -79,7 +79,9 @@ class Plugin
      */
     private function registerAdmin(): void
     {
-        // (new Admin\SettingsPage())->register();
+        (new \TransLangs\Admin\Assets())->register();
+        (new \TransLangs\Admin\SettingsPage())->register();
+
         // (new Admin\TranslationsPage($this->services['translator']))->register();
     }
 }

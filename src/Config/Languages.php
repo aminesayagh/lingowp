@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Support;
+namespace TransLangs\Config;
 
 /**
  * Static catalog of supported languages.

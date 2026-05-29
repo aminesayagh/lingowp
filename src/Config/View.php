@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Support;
+namespace TransLangs\Config;
 
 /**
  * Minimal template renderer.
@@ -17,7 +17,14 @@ class View
     {
         $file = TRANSLANGS_DIR . 'templates/' . ltrim($template, '/');
 
-        if (!file_exists($file)) {
+        if (!is_readable($file)) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                trigger_error(
+                    sprintf('TransLangs template not found: %s', $template),
+                    E_USER_WARNING
+                );
+            }
+
             return;
         }
 

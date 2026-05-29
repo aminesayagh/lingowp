@@ -2,8 +2,8 @@
 
 namespace TransLangs\Admin;
 
-use TransLangs\Support\Languages;
-use TransLangs\Support\View;
+use TransLangs\Config\Languages;
+use TransLangs\Config\View;
 
 /**
  * The TransLangs settings screen.
@@ -66,7 +66,7 @@ class SettingsPage
 
         $this->maybeHandleSave();
 
-        View::render('admin/settings.php', [
+        View::render('settings.php', [
             'settings'  => $this->currentSettings(),
             'languages' => Languages::all(),
             'tabs'      => self::tabs(),
