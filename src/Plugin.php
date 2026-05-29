@@ -7,7 +7,16 @@ use TransLangs\Core\HashGenerator;
 use TransLangs\Core\Normalizer;
 use TransLangs\Core\TranslationRepository;
 use TransLangs\Core\Translator;
+use TransLangs\Frontend\HtmlGuard;
 use TransLangs\Frontend\LanguageResolver;
+use TransLangs\Frontend\OutputBuffer;
+use TransLangs\Frontend\Parser\ParserFactory;
+use TransLangs\Frontend\Parser\SkipRules;
+use TransLangs\Frontend\Renderer;
+use TransLangs\Frontend\RequestContext;
+use TransLangs\Frontend\Router;
+use TransLangs\Frontend\StringExtractor;
+use TransLangs\Frontend\TranslationLookup;
 
 /**
  * Plugin container.
@@ -54,6 +63,9 @@ class Plugin
         $cache      = new CacheManager();
 
         $this->services['repository'] = $repository;
+        $this->services['normalizer'] = $normalizer;
+        $this->services['hasher']     = $hasher;
+        $this->services['cache']      = $cache;
         $this->services['translator'] = new Translator(
             $repository,
             $normalizer,
@@ -62,16 +74,40 @@ class Plugin
         );
     }
 
-    /**
-     * Public translation layer. Filled out in later phases.
-     */
     private function registerFrontend(): void
     {
         $resolver = new LanguageResolver();
-        $this->services['resolver'] = $resolver;
+        $router   = new Router($resolver);
+        $context  = new RequestContext();
+        $guard    = new HtmlGuard();
 
-        // Phase 5+ will register the output buffer here, e.g.:
-        // (new Frontend\OutputBuffer($resolver, $this->services['translator']))->register();
+        /** @var TranslationRepository $repository */
+        $repository = $this->services['repository'];
+        /** @var Normalizer $normalizer */
+        $normalizer = $this->services['normalizer'];
+        /** @var HashGenerator $hasher */
+        $hasher = $this->services['hasher'];
+
+        $rules         = new SkipRules();
+        $parserFactory = new ParserFactory($rules);
+        $extractor     = new StringExtractor($normalizer, $hasher);
+        $lookup        = new TranslationLookup($repository);
+        $renderer      = new Renderer($parserFactory, $extractor, $lookup, $resolver);
+        $buffer        = new OutputBuffer($resolver, $context, $guard, [$renderer, 'render']);
+
+        $this->services['resolver']       = $resolver;
+        $this->services['router']         = $router;
+        $this->services['requestContext'] = $context;
+        $this->services['htmlGuard']      = $guard;
+        $this->services['parserRules']    = $rules;
+        $this->services['parserFactory']  = $parserFactory;
+        $this->services['extractor']      = $extractor;
+        $this->services['lookup']         = $lookup;
+        $this->services['renderer']       = $renderer;
+        $this->services['outputBuffer']   = $buffer;
+
+        $router->register();
+        $buffer->register();
     }
 
     /**
@@ -81,7 +117,6 @@ class Plugin
     {
         (new \TransLangs\Admin\Assets())->register();
         (new \TransLangs\Admin\SettingsPage())->register();
-
-        // (new Admin\TranslationsPage($this->services['translator']))->register();
+        (new \TransLangs\Admin\TranslationsPage($this->services['repository']))->register();
     }
 }

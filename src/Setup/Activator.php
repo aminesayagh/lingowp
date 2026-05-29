@@ -16,9 +16,13 @@ class Activator
     {
         Schema::install();
         Schema::setDefaultOptions();
-
-        // Rewrite rules for /fr/ etc. are registered on 'init' (Phase 4).
-        // We flush once here so those rules take effect immediately.
+        
+        // Register our rewrite rules now, then flush so they take effect
+        // immediately. The init hook hasn't run during activation, so we
+        // register them directly here before flushing.
+        $resolver = new \TransLangs\Frontend\LanguageResolver();
+        (new \TransLangs\Frontend\Router($resolver))->addRewriteRules();
+ 
         // Flushing is expensive, so it happens only on activation, never per request.
         flush_rewrite_rules();
     }

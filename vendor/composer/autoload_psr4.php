@@ -7,4 +7,5 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'TransLangs\\' => array($baseDir . '/src'),
+    'Masterminds\\' => array($vendorDir . '/masterminds/html5/src'),
 );

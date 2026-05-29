@@ -11,6 +11,10 @@ class ComposerStaticInit1a2974ec01b961dc67ffdd78d53ce292
         array (
             'TransLangs\\' => 11,
         ),
+        'M' =>
+        array (
+            'Masterminds\\' => 12,
+        ),
     );
 
     public static $prefixDirsPsr4 = array (
@@ -18,10 +22,58 @@ class ComposerStaticInit1a2974ec01b961dc67ffdd78d53ce292
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
+        'Masterminds\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/masterminds/html5/src',
+        ),
     );
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
+        'Masterminds\\HTML5' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5.php',
+        'Masterminds\\HTML5\\Elements' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Elements.php',
+        'Masterminds\\HTML5\\Entities' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Entities.php',
+        'Masterminds\\HTML5\\Exception' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Exception.php',
+        'Masterminds\\HTML5\\InstructionProcessor' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/InstructionProcessor.php',
+        'Masterminds\\HTML5\\Parser\\CharacterReference' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/CharacterReference.php',
+        'Masterminds\\HTML5\\Parser\\DOMTreeBuilder' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/DOMTreeBuilder.php',
+        'Masterminds\\HTML5\\Parser\\EventHandler' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/EventHandler.php',
+        'Masterminds\\HTML5\\Parser\\FileInputStream' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/FileInputStream.php',
+        'Masterminds\\HTML5\\Parser\\InputStream' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/InputStream.php',
+        'Masterminds\\HTML5\\Parser\\ParseError' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/ParseError.php',
+        'Masterminds\\HTML5\\Parser\\Scanner' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/Scanner.php',
+        'Masterminds\\HTML5\\Parser\\StringInputStream' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/StringInputStream.php',
+        'Masterminds\\HTML5\\Parser\\Tokenizer' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/Tokenizer.php',
+        'Masterminds\\HTML5\\Parser\\TreeBuildingRules' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/TreeBuildingRules.php',
+        'Masterminds\\HTML5\\Parser\\UTF8Utils' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Parser/UTF8Utils.php',
+        'Masterminds\\HTML5\\Serializer\\HTML5Entities' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Serializer/HTML5Entities.php',
+        'Masterminds\\HTML5\\Serializer\\OutputRules' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Serializer/OutputRules.php',
+        'Masterminds\\HTML5\\Serializer\\RulesInterface' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Serializer/RulesInterface.php',
+        'Masterminds\\HTML5\\Serializer\\Traverser' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Serializer/Traverser.php',
+        'TransLangs\\Admin\\Assets' => __DIR__ . '/../..' . '/src/Admin/Assets.php',
+        'TransLangs\\Admin\\SettingsPage' => __DIR__ . '/../..' . '/src/Admin/SettingsPage.php',
+        'TransLangs\\Config\\Languages' => __DIR__ . '/../..' . '/src/Config/Languages.php',
+        'TransLangs\\Config\\View' => __DIR__ . '/../..' . '/src/Config/View.php',
+        'TransLangs\\Core\\CacheManager' => __DIR__ . '/../..' . '/src/Core/CacheManager.php',
+        'TransLangs\\Core\\HashGenerator' => __DIR__ . '/../..' . '/src/Core/HashGenerator.php',
+        'TransLangs\\Core\\Normalizer' => __DIR__ . '/../..' . '/src/Core/Normalizer.php',
+        'TransLangs\\Core\\TranslationRepository' => __DIR__ . '/../..' . '/src/Core/TranslationRepository.php',
+        'TransLangs\\Core\\Translator' => __DIR__ . '/../..' . '/src/Core/Translator.php',
+        'TransLangs\\Frontend\\HtmlGuard' => __DIR__ . '/../..' . '/src/Frontend/HtmlGuard.php',
+        'TransLangs\\Frontend\\LanguageResolver' => __DIR__ . '/../..' . '/src/Frontend/LanguageResolver.php',
+        'TransLangs\\Frontend\\OutputBuffer' => __DIR__ . '/../..' . '/src/Frontend/OutputBuffer.php',
+        'TransLangs\\Frontend\\Parser\\Html5Parser' => __DIR__ . '/../..' . '/src/Frontend/Parser/Html5Parser.php',
+        'TransLangs\\Frontend\\Parser\\ParserFactory' => __DIR__ . '/../..' . '/src/Frontend/Parser/ParserFactory.php',
+        'TransLangs\\Frontend\\Parser\\ParserInterface' => __DIR__ . '/../..' . '/src/Frontend/Parser/ParserInterface.php',
+        'TransLangs\\Frontend\\Parser\\Segment' => __DIR__ . '/../..' . '/src/Frontend/Parser/Segment.php',
+        'TransLangs\\Frontend\\Parser\\SkipRules' => __DIR__ . '/../..' . '/src/Frontend/Parser/SkipRules.php',
+        'TransLangs\\Frontend\\Parser\\WpHtmlParser' => __DIR__ . '/../..' . '/src/Frontend/Parser/WpHtmlParser.php',
+        'TransLangs\\Frontend\\RequestContext' => __DIR__ . '/../..' . '/src/Frontend/RequestContext.php',
+        'TransLangs\\Frontend\\Router' => __DIR__ . '/../..' . '/src/Frontend/Router.php',
+        'TransLangs\\Plugin' => __DIR__ . '/../..' . '/src/Plugin.php',
+        'TransLangs\\Setup\\Activator' => __DIR__ . '/../..' . '/src/Setup/Activator.php',
+        'TransLangs\\Setup\\Deactivator' => __DIR__ . '/../..' . '/src/Setup/Deactivator.php',
+        'TransLangs\\Setup\\Schema' => __DIR__ . '/../..' . '/src/Setup/Schema.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

@@ -1,0 +1,131 @@
+<?php
+
+namespace TransLangs\Frontend;
+
+use TransLangs\Frontend\Parser\ParserFactory;
+
+/**
+ * Replaces original strings with translations in the rendered page.
+ *
+ * This is the join point of the public pipeline. It implements the Step 16
+ * flow end to end:
+ *
+ *   1. parse the captured HTML once (ParserFactory picks the driver)
+ *   2. read translatable segments
+ *   3. extract -> normalize -> hash -> dedupe into candidates
+ *   4. bulk lookup + discover missing (TranslationLookup)
+ *   5. map each translated hash back onto every locator that produced it
+ *   6. replace in place and return the serialized HTML
+ *
+ * Missing/untranslated strings are simply absent from the replacement map, so
+ * they remain in the source language — the page never breaks.
+ *
+ * The render() method is shaped to be used directly as the OutputBuffer
+ * pipeline: fn(string $html, string $targetLang): string.
+ */
+class Renderer
+{
+    public function __construct(
+        private ParserFactory $parserFactory,
+        private StringExtractor $extractor,
+        private TranslationLookup $lookup,
+        private LanguageResolver $resolver
+    ) {
+    }
+
+    /**
+     * Pipeline entry point. Returns translated HTML, or the original on any
+     * condition where translation cannot or should not happen.
+     */
+    public function render(string $html, string $targetLang): string
+    {
+        $sourceLang = $this->resolver->getDefaultLanguage();
+
+        // Nothing to do if the target is the source language.
+        if ($targetLang === $sourceLang) {
+            return $html;
+        }
+
+        $parser = $this->parserFactory->create();
+
+        if ($parser === null || !$parser->load($html)) {
+            return $html; // no usable parser, or unparseable input: leave as-is
+        }
+
+        $segments = $parser->segments();
+
+        if ($segments === []) {
+            return $html;
+        }
+
+        // candidates: hash => Candidate (deduped, with all locators per string)
+        $candidates = $this->extractor->extract($segments);
+
+        if ($candidates === []) {
+            return $html;
+        }
+
+        // hash => translated_text for strings that already have a translation;
+        // newly discovered strings are inserted as "discovered" inside resolve().
+        $translationsByHash = $this->lookup->resolve(
+            $candidates,
+            $sourceLang,
+            $targetLang,
+            $this->currentSourceUrl()
+        );
+
+        if ($translationsByHash === []) {
+            // Strings were discovered this request but none are translated yet.
+            return $html;
+        }
+
+        // Fan the per-hash translation out to every locator that string occupies.
+        $replacements = $this->mapToLocators($candidates, $translationsByHash);
+
+        if ($replacements === []) {
+            return $html;
+        }
+
+        return $parser->render($replacements);
+    }
+
+    /**
+     * Build locator => translated_text from hash => translated_text by walking
+     * each candidate's locator list. This is what lets one stored translation
+     * replace every on-page occurrence of the same string.
+     *
+     * @param Candidate[]            $candidates         hash => Candidate
+     * @param array<string, string>  $translationsByHash hash => translated_text
+     * @return array<string, string>                     locator => translated_text
+     */
+    private function mapToLocators(array $candidates, array $translationsByHash): array
+    {
+        $replacements = [];
+
+        foreach ($translationsByHash as $hash => $translated) {
+            if (!isset($candidates[$hash])) {
+                continue;
+            }
+
+            foreach ($candidates[$hash]->locators as $locator) {
+                $replacements[$locator] = $translated;
+            }
+        }
+
+        return $replacements;
+    }
+
+    /**
+     * Best-effort current URL, stored with discovered strings for context.
+     */
+    private function currentSourceUrl(): ?string
+    {
+        $path = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+
+        if ($path === '') {
+            return null;
+        }
+
+        return function_exists('esc_url_raw') ? esc_url_raw($path) : $path;
+    }
+}

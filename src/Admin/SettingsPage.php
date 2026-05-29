@@ -25,7 +25,6 @@ class SettingsPage
     {
         return [
             'translangs'              => __('Settings', 'translangs'),
-            'translangs-languages'    => __('Languages', 'translangs'),
             'translangs-translations' => __('Translations', 'translangs'),
         ];
     }
@@ -95,6 +94,10 @@ class SettingsPage
             return;
         }
 
+        $oldDefault       = (string) get_option('translangs_default_language', 'en');
+        $oldEnabled       = $this->normalizeLanguageList((array) get_option('translangs_enabled_languages', ['en', 'fr']));
+        $oldPrefixDefault = (bool) get_option('translangs_prefix_default_language', false);
+
         $default = isset($_POST['default_language'])
             ? sanitize_key(wp_unslash($_POST['default_language']))
             : 'en';
@@ -113,12 +116,24 @@ class SettingsPage
             $enabled[] = $default;
         }
 
-        update_option('translangs_default_language', Languages::exists($default) ? $default : 'en');
-        update_option('translangs_enabled_languages', $enabled ?: ['en']);
-        update_option('translangs_prefix_default_language', !empty($_POST['prefix_default_language']));
+        $default       = Languages::exists($default) ? $default : 'en';
+        $enabled       = $this->normalizeLanguageList($enabled ?: ['en']);
+        $prefixDefault = !empty($_POST['prefix_default_language']);
+
+        update_option('translangs_default_language', $default);
+        update_option('translangs_enabled_languages', $enabled);
+        update_option('translangs_prefix_default_language', $prefixDefault);
         update_option('translangs_cookie_preference', !empty($_POST['cookie_preference']));
         update_option('translangs_browser_detection', !empty($_POST['browser_detection']));
         update_option('translangs_auto_redirect', !empty($_POST['auto_redirect']));
+
+        if (
+            $oldDefault !== $default
+            || $oldEnabled !== $enabled
+            || $oldPrefixDefault !== $prefixDefault
+        ) {
+            flush_rewrite_rules(false);
+        }
 
         $this->notice(__('Settings saved.', 'translangs'), 'success');
     }
@@ -147,5 +162,21 @@ class SettingsPage
             esc_attr($class),
             esc_html($message)
         );
+    }
+
+    /**
+     * @param string[] $languages
+     * @return string[]
+     */
+    private function normalizeLanguageList(array $languages): array
+    {
+        $languages = array_values(array_unique(array_filter(
+            array_map('sanitize_key', $languages),
+            [Languages::class, 'exists']
+        )));
+
+        sort($languages);
+
+        return $languages;
     }
 }
