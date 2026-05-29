@@ -1,0 +1,17 @@
+{
+    "name": "translangs/translangs",
+    "description": "TranslatePress-like translation layer for WordPress.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "TransLangs\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

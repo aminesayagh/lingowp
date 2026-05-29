@@ -1,0 +1,270 @@
+/**
+ * TransLangs centralized admin styles.
+ *
+ * One stylesheet, loaded only on plugin admin pages. Everything pulls from the
+ * design tokens below, so changing one variable updates the whole UI.
+ *
+ * Component classes provided:
+ *   .translangs-page        page shell
+ *   .translangs-navbar      top tab navigation
+ *   .translangs-card        panel/section container
+ *   .translangs-form        form layout (label + field rows)
+ *   .translangs-table       data table
+ *   .translangs-drawer      slide-in side panel
+ *   .translangs-badge       status pills
+ */
+
+/* ----------------------------------------------------------------------
+   Design tokens
+---------------------------------------------------------------------- */
+.translangs-page {
+    --tl-color-primary: #2271b1;        /* WP admin blue */
+    --tl-color-primary-hover: #135e96;
+    --tl-color-text: #1d2327;
+    --tl-color-muted: #646970;
+    --tl-color-border: #c3c4c7;
+    --tl-color-bg: #fff;
+    --tl-color-bg-alt: #f6f7f7;
+    --tl-color-success: #00a32a;
+    --tl-color-warning: #dba617;
+    --tl-color-danger: #d63638;
+
+    --tl-radius: 4px;
+    --tl-space: 16px;
+    --tl-space-sm: 8px;
+    --tl-space-lg: 24px;
+    --tl-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --tl-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --tl-drawer-width: 420px;
+}
+
+/* ----------------------------------------------------------------------
+   Page shell
+---------------------------------------------------------------------- */
+.translangs-page {
+    font-family: var(--tl-font);
+    color: var(--tl-color-text);
+    max-width: 980px;
+}
+
+.translangs-page__title {
+    font-size: 23px;
+    font-weight: 400;
+    margin: 0 0 var(--tl-space) 0;
+}
+
+/* ----------------------------------------------------------------------
+   Navbar (tabs)
+---------------------------------------------------------------------- */
+.translangs-navbar {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--tl-color-border);
+    margin-bottom: var(--tl-space-lg);
+}
+
+.translangs-navbar__item {
+    padding: 10px 16px;
+    text-decoration: none;
+    color: var(--tl-color-muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: var(--tl-radius) var(--tl-radius) 0 0;
+    font-weight: 500;
+}
+
+.translangs-navbar__item:hover {
+    color: var(--tl-color-primary);
+}
+
+.translangs-navbar__item.is-active {
+    color: var(--tl-color-text);
+    background: var(--tl-color-bg);
+    border-color: var(--tl-color-border);
+    margin-bottom: -1px;
+}
+
+/* ----------------------------------------------------------------------
+   Card
+---------------------------------------------------------------------- */
+.translangs-card {
+    background: var(--tl-color-bg);
+    border: 1px solid var(--tl-color-border);
+    border-radius: var(--tl-radius);
+    box-shadow: var(--tl-shadow);
+    padding: var(--tl-space-lg);
+    margin-bottom: var(--tl-space-lg);
+}
+
+.translangs-card__title {
+    margin: 0 0 var(--tl-space) 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.translangs-card__desc {
+    color: var(--tl-color-muted);
+    margin: -8px 0 var(--tl-space) 0;
+    font-size: 13px;
+}
+
+/* ----------------------------------------------------------------------
+   Form
+---------------------------------------------------------------------- */
+.translangs-form__row {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--tl-space);
+    align-items: start;
+    padding: var(--tl-space) 0;
+    border-bottom: 1px solid var(--tl-color-bg-alt);
+}
+
+.translangs-form__row:last-child {
+    border-bottom: none;
+}
+
+.translangs-form__label {
+    font-weight: 600;
+    padding-top: 4px;
+}
+
+.translangs-form__hint {
+    display: block;
+    color: var(--tl-color-muted);
+    font-size: 12px;
+    font-weight: 400;
+    margin-top: 4px;
+}
+
+.translangs-form__field input[type="text"],
+.translangs-form__field select {
+    min-width: 260px;
+}
+
+.translangs-form__field--toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--tl-space-sm);
+}
+
+/* Checkbox list for enabled languages */
+.translangs-checklist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--tl-space-sm) var(--tl-space-lg);
+    margin: 0;
+}
+
+.translangs-checklist label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ----------------------------------------------------------------------
+   Table
+---------------------------------------------------------------------- */
+.translangs-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--tl-color-bg);
+    border: 1px solid var(--tl-color-border);
+    border-radius: var(--tl-radius);
+    overflow: hidden;
+}
+
+.translangs-table th,
+.translangs-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--tl-color-bg-alt);
+}
+
+.translangs-table th {
+    background: var(--tl-color-bg-alt);
+    font-weight: 600;
+}
+
+.translangs-table tr:last-child td {
+    border-bottom: none;
+}
+
+.translangs-table tr:hover td {
+    background: var(--tl-color-bg-alt);
+}
+
+/* ----------------------------------------------------------------------
+   Drawer (slide-in panel)
+---------------------------------------------------------------------- */
+.translangs-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: var(--tl-drawer-width);
+    max-width: 90vw;
+    height: 100vh;
+    background: var(--tl-color-bg);
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+}
+
+.translangs-drawer.is-open {
+    transform: translateX(0);
+}
+
+.translangs-drawer__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--tl-space);
+    border-bottom: 1px solid var(--tl-color-border);
+}
+
+.translangs-drawer__body {
+    padding: var(--tl-space);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.translangs-drawer__footer {
+    padding: var(--tl-space);
+    border-top: 1px solid var(--tl-color-border);
+}
+
+.translangs-drawer__overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.translangs-drawer__overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ----------------------------------------------------------------------
+   Badge (status pills)
+---------------------------------------------------------------------- */
+.translangs-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.translangs-badge--discovered { background: #f0f0f1; color: var(--tl-color-muted); }
+.translangs-badge--machine    { background: #e5f0fb; color: var(--tl-color-primary); }
+.translangs-badge--reviewed   { background: #edfaef; color: var(--tl-color-success); }
+.translangs-badge--review     { background: #fcf6e1; color: var(--tl-color-warning); }
+.translangs-badge--ignored    { background: #f0f0f1; color: var(--tl-color-muted); text-decoration: line-through; }
