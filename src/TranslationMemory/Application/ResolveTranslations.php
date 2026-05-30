@@ -3,6 +3,7 @@
 namespace TransLangs\TranslationMemory\Application;
 
 use TransLangs\PageTranslation\Domain\TranslationCandidate;
+use TransLangs\TranslationMemory\Domain\TranslationSourceIdentity;
 use TransLangs\TranslationMemory\Domain\TranslationMemoryRepository;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
 
@@ -30,59 +31,104 @@ class ResolveTranslations
      * @param TranslationCandidate[] $candidates Keyed by hash (as the extractor returns).
      * @return array<string, string> hash => translated_text (only translated rows)
      */
-    public function resolve(array $candidates, string $sourceLang, string $targetLang, ?string $sourceUrl = null): array
+    public function resolve(
+        array $candidates,
+        string $sourceLang,
+        string $targetLang,
+        int $sourceId,
+        string $sourceType
+    ): array
     {
         if ($candidates === []) {
             return [];
         }
 
-        $hashes = array_keys($candidates);
+        $translations = [];
 
-        // 3. Bulk lookup of everything already known.
-        $existing = $this->repository->findManyByHashes($hashes, $sourceLang, $targetLang);
+        foreach ($this->groupByContext($candidates) as $context => $contextCandidates) {
+            $hashes = array_keys($contextCandidates);
 
-        // 4. Insert the ones we have never seen before, as discovered.
-        $missing = $this->buildMissingRows($candidates, $existing, $sourceUrl);
+            // 3. Bulk lookup of everything already known for this source identity.
+            $existing = $this->repository->findManyByHashes(
+                $hashes,
+                $sourceLang,
+                $targetLang,
+                $sourceId,
+                $sourceType,
+                $context
+            );
 
-        if ($missing !== []) {
-            $this->repository->insertMissingStrings($missing, $sourceLang, $targetLang);
+            // 4. Insert the ones we have never seen before, as discovered.
+            $missing = $this->buildMissingIdentities($contextCandidates, $existing, $sourceId, $sourceType, $context);
+
+            if ($missing !== []) {
+                $this->repository->insertMissingStrings($missing, $sourceLang, $targetLang);
+            }
+
+            // Best-effort freshness marker for strings we did already have.
+            if ($existing !== []) {
+                $this->repository->touchLastSeen(
+                    array_keys($existing),
+                    $sourceLang,
+                    $targetLang,
+                    $sourceId,
+                    $sourceType,
+                    $context
+                );
+            }
+
+            $translations = array_replace($translations, $this->collectTranslations($existing));
         }
 
-        // Best-effort freshness marker for strings we did already have.
-        if ($existing !== []) {
-            $this->repository->touchLastSeen(array_keys($existing), $sourceLang, $targetLang);
-        }
-
-        // 5. Return only rows that carry a usable translation.
-        return $this->collectTranslations($existing);
+        return $translations;
     }
 
     /**
-     * Rows for hashes present in candidates but absent from the DB.
-     *
-     * @param TranslationCandidate[]                              $candidates
-     * @param array<string, array<string, mixed>>      $existing
-     * @return array<int, array<string, mixed>>
+     * @param TranslationCandidate[] $candidates
+     * @return array<string, array<string, TranslationCandidate>>
      */
-    private function buildMissingRows(array $candidates, array $existing, ?string $sourceUrl): array
+    private function groupByContext(array $candidates): array
     {
-        $rows = [];
+        $grouped = [];
+
+        foreach ($candidates as $hash => $candidate) {
+            $grouped[$candidate->context][$hash] = $candidate;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * @param TranslationCandidate[]                   $candidates
+     * @param array<string, array<string, mixed>>      $existing
+     * @return TranslationSourceIdentity[]
+     */
+    private function buildMissingIdentities(
+        array $candidates,
+        array $existing,
+        int $sourceId,
+        string $sourceType,
+        string $context
+    ): array
+    {
+        $identities = [];
 
         foreach ($candidates as $hash => $candidate) {
             if (isset($existing[$hash])) {
                 continue;
             }
 
-            $rows[] = [
-                'hash'            => $candidate->hash,
-                'original_text'   => $candidate->originalText,
-                'normalized_text' => $candidate->normalizedText,
-                'context'         => $candidate->context,
-                'source_url'      => $sourceUrl,
-            ];
+            $identities[] = TranslationSourceIdentity::source(
+                $sourceId,
+                $sourceType,
+                $context,
+                $candidate->originalText,
+                $candidate->hash,
+                $candidate->normalizedText
+            );
         }
 
-        return $rows;
+        return $identities;
     }
 
     /**

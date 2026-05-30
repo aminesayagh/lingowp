@@ -108,9 +108,58 @@
     font-size: 13px;
 }
 
+.translangs-list-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--tl-space);
+    margin-bottom: var(--tl-space);
+}
+
+.translangs-list-header .translangs-card__desc {
+    margin-bottom: 0;
+}
+
+.translangs-list-count {
+    color: var(--tl-color-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.translangs-page-actions {
+    margin: 0 0 var(--tl-space-lg) 0;
+}
+
+.translangs-icon-button {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    width: 28px !important;
+    height: 28px !important;
+}
+
+.translangs-icon-button .dashicons {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.translangs-icon-button.is-busy {
+    cursor: progress;
+    opacity: 0.7;
+}
+
 /* ----------------------------------------------------------------------
    Form
 ---------------------------------------------------------------------- */
+
+.translangs-filters {
+    display: flex;
+    align-items: center;
+    gap: var(--tl-space-sm);
+}
 .translangs-form__row {
     display: grid;
     grid-template-columns: 220px 1fr;
@@ -167,6 +216,7 @@
 ---------------------------------------------------------------------- */
 .translangs-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     background: var(--tl-color-bg);
     border: 1px solid var(--tl-color-border);
@@ -174,11 +224,25 @@
     overflow: hidden;
 }
 
+.translangs-table__col--text {
+    width: 31%;
+}
+
+.translangs-table__col--status {
+    width: 10%;
+}
+
+.translangs-table__col--actions {
+    width: 21%;
+}
+
 .translangs-table th,
 .translangs-table td {
     text-align: left;
+    vertical-align: top;
     padding: 10px 12px;
     border-bottom: 1px solid var(--tl-color-bg-alt);
+    overflow-wrap: anywhere;
 }
 
 .translangs-table th {
@@ -192,6 +256,25 @@
 
 .translangs-table tr:hover td {
     background: var(--tl-color-bg-alt);
+}
+
+.translangs-status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.translangs-status-icon .dashicons {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--tl-color-primary);
+}
+
+.translangs-translation-field {
+    overflow: hidden;
+    resize: none;
 }
 
 /* ----------------------------------------------------------------------

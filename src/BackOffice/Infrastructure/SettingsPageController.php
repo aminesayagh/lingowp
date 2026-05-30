@@ -24,8 +24,8 @@ class SettingsPageController
     public static function tabs(): array
     {
         return [
-            'translangs'              => __('Settings', 'translangs'),
             'translangs-translations' => __('Translations', 'translangs'),
+            'translangs'              => __('Settings', 'translangs'),
         ];
     }
 

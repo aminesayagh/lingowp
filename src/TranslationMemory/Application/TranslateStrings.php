@@ -30,7 +30,14 @@ class TranslateStrings
      * @param string[] $strings
      * @return array<string, string> Map of original string => translated string.
      */
-    public function translateBatch(array $strings, string $sourceLang, string $targetLang): array
+    public function translateBatch(
+        array $strings,
+        string $sourceLang,
+        string $targetLang,
+        int $sourceId,
+        string $sourceType,
+        string $context
+    ): array
     {
         $hashes = [];
 
@@ -42,7 +49,10 @@ class TranslateStrings
         $found = $this->repository->findManyByHashes(
             array_values($hashes),
             $sourceLang,
-            $targetLang
+            $targetLang,
+            $sourceId,
+            $sourceType,
+            $context
         );
 
         $output = [];

@@ -4,10 +4,11 @@ namespace TransLangs\BackOffice\Infrastructure;
 
 use TransLangs\Language\Infrastructure\SupportedLanguages;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
-use TransLangs\TranslationMemory\Application\DeleteTranslation;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
+use TransLangs\TranslationMemory\Application\PutTranslationForReview;
 use TransLangs\TranslationMemory\Application\QueryTranslations;
 use TransLangs\TranslationMemory\Application\ReviewTranslation;
+use TransLangs\TranslationMemory\Application\ResetIgnoredTranslation;
 use TransLangs\TranslationMemory\Application\SaveTranslation;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
 
@@ -27,9 +28,10 @@ class TranslationMemoryPageController
     public function __construct(
         private QueryTranslations $queryTranslations,
         private SaveTranslation $saveTranslation,
+        private PutTranslationForReview $putTranslationForReview,
         private ReviewTranslation $reviewTranslation,
         private IgnoreTranslation $ignoreTranslation,
-        private DeleteTranslation $deleteTranslation
+        private ResetIgnoredTranslation $resetIgnoredTranslation
     ) {
     }
 
@@ -38,6 +40,7 @@ class TranslationMemoryPageController
         add_action('admin_menu', [$this, 'addMenu'], 11);
         // Process writes before any HTML is sent, so wp_safe_redirect() works.
         add_action('admin_init', [$this, 'handleWrites']);
+        add_action('wp_ajax_translangs_save_translation', [$this, 'handleAjaxSave']);
     }
 
     public function addMenu(): void
@@ -89,8 +92,19 @@ class TranslationMemoryPageController
                 $this->redirectWithNotice('saved');
                 break;
 
+            case 'put_for_review':
+                if (!$this->putTranslationForReview->putForReview($id)) {
+                    $this->redirectWithNotice('already_needs_review');
+                }
+
+                $this->redirectWithNotice('put_for_review');
+                break;
+
             case 'review':
-                $this->reviewTranslation->review($id);
+                if (!$this->reviewTranslation->review($id)) {
+                    $this->redirectWithNotice('not_reviewable');
+                }
+
                 $this->redirectWithNotice('reviewed');
                 break;
 
@@ -99,11 +113,48 @@ class TranslationMemoryPageController
                 $this->redirectWithNotice('ignored');
                 break;
 
+            case 'reset_ignored':
+                if (!$this->resetIgnoredTranslation->reset($id)) {
+                    $this->redirectWithNotice('not_ignored');
+                }
+
+                $this->redirectWithNotice('reset_ignored');
+                break;
+
             case 'delete':
-                $this->deleteTranslation->delete($id);
-                $this->redirectWithNotice('deleted');
+                $this->redirectWithNotice('invalid');
                 break;
         }
+    }
+
+    public function handleAjaxSave(): void
+    {
+        if (!check_ajax_referer('translangs_translation_action', 'translangs_nonce', false)) {
+            wp_send_json_error(['message' => __('Invalid security token.', 'translangs')], 403);
+        }
+
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_send_json_error(['message' => __('Permission denied.', 'translangs')], 403);
+        }
+
+        if (!isset($_POST['translangs_screen']) || $_POST['translangs_screen'] !== self::SLUG) {
+            wp_send_json_error(['message' => __('Invalid screen.', 'translangs')], 400);
+        }
+
+        $id = (int) ($_POST['string_id'] ?? 0);
+
+        if ($id <= 0) {
+            wp_send_json_error(['message' => __('Invalid string.', 'translangs')], 400);
+        }
+
+        $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
+        $this->saveTranslation->save($id, $text);
+
+        wp_send_json_success([
+            'message' => __('Translation saved.', 'translangs'),
+            'translated_text' => $text,
+            'has_translation' => trim(wp_strip_all_tags($text)) !== '',
+        ]);
     }
 
     public function renderPage(): void
@@ -117,22 +168,29 @@ class TranslationMemoryPageController
             : null;
 
         $filters = $this->readFilters();
-        $page    = max(1, (int) ($_GET['paged'] ?? 1));
-        $result  = $this->queryTranslations->query($filters, $page, self::PER_PAGE);
+        $view    = $this->viewMode();
+        $page    = $view === 'ignored' ? max(1, (int) ($_GET['paged'] ?? 1)) : 1;
+        $groups  = $view === 'ignored'
+            ? $this->ignoredGroups($filters, $page)
+            : $this->activeGroups($filters);
+        $total   = array_sum(array_map(static fn(array $group): int => (int) $group['total'], $groups));
 
         PhpTemplateRenderer::render('translations.php', [
-            'rows'        => $result['rows'],
-            'total'       => $result['total'],
+            'groups'      => $groups,
+            'total'       => $total,
             'page'        => $page,
             'perPage'     => self::PER_PAGE,
             'filters'     => $filters,
-            'languages'   => SupportedLanguages::all(),
+            'languages'   => $this->filterLanguages(),
             'statuses'    => TranslationStatus::labels(),
-            'pairs'       => $this->queryTranslations->languagePairs(),
+            'defaultLanguage' => $this->defaultLanguage(),
             'notice'      => $notice,
             'tabs'        => SettingsPageController::tabs(),
             'current'     => self::SLUG,
             'pageSlug'    => self::SLUG,
+            'view'        => $view,
+            'showIgnoredUrl' => $this->pageUrl($filters, 'ignored'),
+            'activeUrl'   => $this->pageUrl($filters, 'active'),
         ]);
     }
 
@@ -148,7 +206,7 @@ class TranslationMemoryPageController
         ];
 
         // Preserve the current filter/pagination context across the redirect.
-        foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_translated', 'source_url', 'paged'] as $key) {
+        foreach (['source_lang', 'target_lang', 'search_original', 'search_translated', 'paged', 'translated_paged', 'discovered_paged', 'needs_review_paged', 'translangs_view'] as $key) {
             if (isset($_GET[$key]) && $_GET[$key] !== '') {
                 $args[$key] = sanitize_text_field(wp_unslash($_GET[$key]));
             }
@@ -167,10 +225,14 @@ class TranslationMemoryPageController
     {
         $map = [
             'saved'    => [__('Translation saved.', 'translangs'), 'success'],
+            'put_for_review' => [__('Marked as needs review.', 'translangs'), 'success'],
             'reviewed' => [__('Marked as reviewed.', 'translangs'), 'success'],
             'ignored'  => [__('String ignored.', 'translangs'), 'success'],
-            'deleted'  => [__('String deleted.', 'translangs'), 'success'],
+            'reset_ignored' => [__('String reset to discovered.', 'translangs'), 'success'],
             'invalid'  => [__('Invalid string.', 'translangs'), 'error'],
+            'already_needs_review' => [__('This string is already marked as needs review.', 'translangs'), 'error'],
+            'not_reviewable' => [__('Only strings marked as needs review can be reviewed.', 'translangs'), 'error'],
+            'not_ignored' => [__('Only ignored strings can be reset.', 'translangs'), 'error'],
         ];
 
         return $map[$flag] ?? null;
@@ -183,15 +245,166 @@ class TranslationMemoryPageController
      */
     private function readFilters(): array
     {
-        $statusRaw = $_GET['status'] ?? '';
+        $defaultLanguage = $this->defaultLanguage();
+        $enabledLanguages = $this->filterLanguages();
+        $targetLang = isset($_GET['target_lang']) ? sanitize_key($_GET['target_lang']) : '';
+
+        if ($targetLang === '' || !isset($enabledLanguages[$targetLang])) {
+            $targetLang = array_key_first($enabledLanguages) ?: $defaultLanguage;
+        }
 
         return [
             'source_lang'       => isset($_GET['source_lang']) ? sanitize_key($_GET['source_lang']) : '',
-            'target_lang'       => isset($_GET['target_lang']) ? sanitize_key($_GET['target_lang']) : '',
-            'status'            => ($statusRaw === '' ? null : (int) $statusRaw),
+            'target_lang'       => $targetLang,
             'search_original'   => isset($_GET['search_original']) ? sanitize_text_field(wp_unslash($_GET['search_original'])) : '',
             'search_translated' => isset($_GET['search_translated']) ? sanitize_text_field(wp_unslash($_GET['search_translated'])) : '',
-            'source_url'        => isset($_GET['source_url']) ? sanitize_text_field(wp_unslash($_GET['source_url'])) : '',
         ];
+    }
+
+    private function viewMode(): string
+    {
+        $view = isset($_GET['translangs_view'])
+            ? sanitize_key(wp_unslash($_GET['translangs_view']))
+            : 'active';
+
+        return $view === 'ignored' ? 'ignored' : 'active';
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeGroups(array $filters): array
+    {
+        return [
+            'translated' => $this->group(
+                __('Translated', 'translangs'),
+                __('Reviewed and machine translated strings.', 'translangs'),
+                $filters,
+                [TranslationStatus::REVIEWED, TranslationStatus::MACHINE],
+                $this->pageNumber('translated_paged'),
+                'translated_paged'
+            ),
+            'discovered' => $this->group(
+                __('Discovered', 'translangs'),
+                __('New strings waiting for translation.', 'translangs'),
+                $filters,
+                [TranslationStatus::DISCOVERED],
+                $this->pageNumber('discovered_paged'),
+                'discovered_paged'
+            ),
+            'needs_review' => $this->group(
+                __('Needs review', 'translangs'),
+                __('Strings flagged for human review.', 'translangs'),
+                $filters,
+                [TranslationStatus::NEEDS_REVIEW],
+                $this->pageNumber('needs_review_paged'),
+                'needs_review_paged'
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<string, array<string, mixed>>
+     */
+    private function ignoredGroups(array $filters, int $page): array
+    {
+        return [
+            'ignored' => $this->group(
+                __('Ignored', 'translangs'),
+                __('Strings intentionally kept in the source language.', 'translangs'),
+                $filters,
+                [TranslationStatus::IGNORED],
+                $page,
+                'paged'
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @param int[] $statuses
+     * @return array<string, mixed>
+     */
+    private function group(string $title, string $description, array $filters, array $statuses, int $page = 1, string $pageParam = 'paged'): array
+    {
+        $result = $this->queryTranslations->query(
+            array_merge($filters, ['statuses' => $statuses]),
+            $page,
+            self::PER_PAGE
+        );
+
+        return [
+            'title'       => $title,
+            'description' => $description,
+            'rows'        => $result['rows'],
+            'total'       => $result['total'],
+            'page'        => $page,
+            'page_param'  => $pageParam,
+        ];
+    }
+
+    private function pageNumber(string $key): int
+    {
+        return max(1, (int) ($_GET[$key] ?? 1));
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     */
+    private function pageUrl(array $filters, string $view): string
+    {
+        $args = ['page' => self::SLUG];
+
+        if ($view === 'ignored') {
+            $args['translangs_view'] = 'ignored';
+        }
+
+        foreach ($filters as $key => $value) {
+            if ($value !== '' && $value !== null) {
+                $args[$key] = $value;
+            }
+        }
+
+        return add_query_arg($args, admin_url('admin.php'));
+    }
+
+    /**
+     * @return array<string, array{name: string, native: string, dir: string}>
+     */
+    private function defaultLanguage(): string
+    {
+        $default = (string) get_option('translangs_default_language', 'en');
+
+        return SupportedLanguages::exists($default) ? $default : 'en';
+    }
+
+    /**
+     * @return array<string, array{name: string, native: string, dir: string}>
+     */
+    private function filterLanguages(): array
+    {
+        $all = SupportedLanguages::all();
+        $enabledCodes = (array) get_option('translangs_enabled_languages', ['en', 'fr']);
+        $default = $this->defaultLanguage();
+
+        $enabled = [];
+
+        foreach (array_map('sanitize_key', $enabledCodes) as $code) {
+            if ($code !== $default && isset($all[$code])) {
+                $enabled[$code] = $all[$code];
+            }
+        }
+
+        if ($enabled === []) {
+            foreach ($all as $code => $meta) {
+                if ($code !== $default) {
+                    $enabled[$code] = $meta;
+                }
+            }
+        }
+
+        return $enabled;
     }
 }

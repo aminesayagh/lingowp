@@ -8,25 +8,41 @@ interface TranslationMemoryRepository
      * @param string[] $hashes
      * @return array<string, array<string, mixed>>
      */
-    public function findManyByHashes(array $hashes, string $sourceLang, string $targetLang): array;
+    public function findManyByHashes(
+        array $hashes,
+        string $sourceLang,
+        string $targetLang,
+        int $sourceId,
+        string $sourceType,
+        string $context
+    ): array;
 
     /**
-     * @param array<int, array<string, mixed>> $rows
+     * @param TranslationSourceIdentity[] $identities
      */
-    public function insertMissingStrings(array $rows, string $sourceLang, string $targetLang): int;
+    public function insertMissingStrings(array $identities, string $sourceLang, string $targetLang): int;
 
     /**
      * @param string[] $hashes
      */
-    public function touchLastSeen(array $hashes, string $sourceLang, string $targetLang): void;
+    public function touchLastSeen(
+        array $hashes,
+        string $sourceLang,
+        string $targetLang,
+        int $sourceId,
+        string $sourceType,
+        string $context
+    ): void;
 
     public function saveTranslation(int $id, string $translatedText, int $status): void;
 
+    public function markDiscovered(int $id): void;
+
     public function markReviewed(int $id): void;
 
-    public function ignoreString(int $id): void;
+    public function markNeedsReview(int $id): void;
 
-    public function delete(int $id): void;
+    public function ignoreString(int $id): void;
 
     /**
      * @return array<string, mixed>|null

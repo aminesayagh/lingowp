@@ -7,6 +7,7 @@ use TransLangs\PageTranslation\Domain\TranslationCandidate;
 use TransLangs\PageTranslation\Infrastructure\Html\HtmlParserFactory;
 use TransLangs\PublicSite\Infrastructure\LinkRewriter;
 use TransLangs\TranslationMemory\Application\ResolveTranslations;
+use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
  * Replaces original strings with translations in the rendered page.
@@ -66,13 +67,16 @@ class TranslateHtmlPage
             $candidates = $this->extractor->extract($segments);
 
             if ($candidates !== []) {
+                $source = $this->resolveCurrentSource();
+
                 // hash => translated_text for already-translated strings; newly
                 // discovered strings are inserted as "discovered" inside resolve().
                 $translationsByHash = $this->lookup->resolve(
                     $candidates,
                     $sourceLang,
                     $targetLang,
-                    $this->currentSourceUrl()
+                    $source['source_id'],
+                    $source['source_type']
                 );
 
                 // Fan each per-hash translation out to every locator it occupies.
@@ -89,6 +93,36 @@ class TranslateHtmlPage
         }
 
         return $parser->render($replacements);
+    }
+
+    /**
+     * @return array{source_id: int, source_type: string}
+     */
+    private function resolveCurrentSource(): array
+    {
+        $object = function_exists('get_queried_object') ? get_queried_object() : null;
+
+        if ($object instanceof \WP_Post) {
+            return [
+                'source_id'   => (int) $object->ID,
+                'source_type' => $this->normalizePostSourceType((string) $object->post_type),
+            ];
+        }
+
+        return [
+            'source_id'   => 0,
+            'source_type' => TranslationSourceType::PAGE,
+        ];
+    }
+
+    private function normalizePostSourceType(string $postType): string
+    {
+        return match ($postType) {
+            TranslationSourceType::PAGE => TranslationSourceType::PAGE,
+            TranslationSourceType::POST => TranslationSourceType::POST,
+            TranslationSourceType::PRODUCT => TranslationSourceType::PRODUCT,
+            default => $postType !== '' ? $postType : TranslationSourceType::PAGE,
+        };
     }
 
     /**
@@ -138,17 +172,4 @@ class TranslateHtmlPage
         return $replacements;
     }
 
-    /**
-     * Best-effort current URL, stored with discovered strings for context.
-     */
-    private function currentSourceUrl(): ?string
-    {
-        $path = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
-
-        if ($path === '') {
-            return null;
-        }
-
-        return function_exists('esc_url_raw') ? esc_url_raw($path) : $path;
-    }
 }
