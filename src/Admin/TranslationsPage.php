@@ -28,6 +28,8 @@ class TranslationsPage
     public function register(): void
     {
         add_action('admin_menu', [$this, 'addMenu'], 11);
+        // Process writes before any HTML is sent, so wp_safe_redirect() works.
+        add_action('admin_init', [$this, 'handleWrites']);
     }
 
     public function addMenu(): void
@@ -42,13 +44,77 @@ class TranslationsPage
         );
     }
 
+    /**
+     * Runs on admin_init. Only acts on a POST to this screen; otherwise no-op.
+     * Performs the write and redirects (Post-Redirect-Get) before output.
+     */
+    public function handleWrites(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['translangs_action'])) {
+            return;
+        }
+
+        // Only handle our own screen.
+        if (!isset($_POST['translangs_screen']) || $_POST['translangs_screen'] !== self::SLUG) {
+            return;
+        }
+
+        // Verifies nonce AND admin referer; dies on failure.
+        check_admin_referer('translangs_translation_action', 'translangs_nonce');
+
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_die(esc_html__('Permission denied.', 'translangs'));
+        }
+
+        $action = sanitize_key($_POST['translangs_action']);
+        $id     = (int) ($_POST['string_id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->redirectWithNotice('invalid');
+        }
+
+        switch ($action) {
+            case 'save':
+                // Sanitize input; allow only post-safe HTML in the translation.
+                $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
+
+                // Manual save by an admin marks the string reviewed (status = 2).
+                // An emptied translation reverts to discovered (status 0) so the
+                // renderer falls back to the original text.
+                $status = $text === ''
+                    ? TranslationRepository::STATUS_DISCOVERED
+                    : TranslationRepository::STATUS_REVIEWED;
+
+                $this->repository->saveTranslation($id, $text, $status);
+                $this->redirectWithNotice('saved');
+                break;
+
+            case 'review':
+                $this->repository->markReviewed($id);
+                $this->redirectWithNotice('reviewed');
+                break;
+
+            case 'ignore':
+                $this->repository->ignoreString($id);
+                $this->redirectWithNotice('ignored');
+                break;
+
+            case 'delete':
+                $this->repository->delete($id);
+                $this->redirectWithNotice('deleted');
+                break;
+        }
+    }
+
     public function renderPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
             wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
         }
 
-        $notice = $this->maybeHandleAction();
+        $notice = isset($_GET['translangs_notice'])
+            ? $this->noticeFromFlag(sanitize_key($_GET['translangs_notice']))
+            : null;
 
         $filters = $this->readFilters();
         $page    = max(1, (int) ($_GET['paged'] ?? 1));
@@ -71,57 +137,43 @@ class TranslationsPage
     }
 
     /**
-     * Handle a row action POST. Returns a [message, type] notice or null.
+     * Redirect back to the list, preserving filters/page, with a result flag.
+     * Never returns.
+     */
+    private function redirectWithNotice(string $flag): void
+    {
+        $args = [
+            'page'              => self::SLUG,
+            'translangs_notice' => $flag,
+        ];
+
+        // Preserve the current filter/pagination context across the redirect.
+        foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_translated', 'source_url', 'paged'] as $key) {
+            if (isset($_GET[$key]) && $_GET[$key] !== '') {
+                $args[$key] = sanitize_text_field(wp_unslash($_GET[$key]));
+            }
+        }
+
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')));
+        exit;
+    }
+
+    /**
+     * Map a redirect flag to a [message, type] notice.
      *
      * @return array{0: string, 1: string}|null
      */
-    private function maybeHandleAction(): ?array
+    private function noticeFromFlag(string $flag): ?array
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['translangs_action'])) {
-            return null;
-        }
+        $map = [
+            'saved'    => [__('Translation saved.', 'translangs'), 'success'],
+            'reviewed' => [__('Marked as reviewed.', 'translangs'), 'success'],
+            'ignored'  => [__('String ignored.', 'translangs'), 'success'],
+            'deleted'  => [__('String deleted.', 'translangs'), 'success'],
+            'invalid'  => [__('Invalid string.', 'translangs'), 'error'],
+        ];
 
-        if (
-            !isset($_POST['translangs_nonce'])
-            || !wp_verify_nonce(sanitize_key($_POST['translangs_nonce']), 'translangs_translation_action')
-        ) {
-            return [__('Security check failed. Please try again.', 'translangs'), 'error'];
-        }
-
-        if (!current_user_can(self::CAPABILITY)) {
-            return [__('Permission denied.', 'translangs'), 'error'];
-        }
-
-        $action = sanitize_key($_POST['translangs_action']);
-        $id     = (int) ($_POST['string_id'] ?? 0);
-
-        if ($id <= 0) {
-            return [__('Invalid string.', 'translangs'), 'error'];
-        }
-
-        switch ($action) {
-            case 'save':
-                $text   = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
-                $status = $text === ''
-                    ? TranslationRepository::STATUS_DISCOVERED
-                    : TranslationRepository::STATUS_REVIEWED;
-                $this->repository->saveTranslation($id, $text, $status);
-                return [__('Translation saved.', 'translangs'), 'success'];
-
-            case 'review':
-                $this->repository->markReviewed($id);
-                return [__('Marked as reviewed.', 'translangs'), 'success'];
-
-            case 'ignore':
-                $this->repository->ignoreString($id);
-                return [__('String ignored.', 'translangs'), 'success'];
-
-            case 'delete':
-                $this->repository->delete($id);
-                return [__('String deleted.', 'translangs'), 'success'];
-        }
-
-        return null;
+        return $map[$flag] ?? null;
     }
 
     /**

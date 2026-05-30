@@ -7,16 +7,7 @@ use TransLangs\Core\HashGenerator;
 use TransLangs\Core\Normalizer;
 use TransLangs\Core\TranslationRepository;
 use TransLangs\Core\Translator;
-use TransLangs\Frontend\HtmlGuard;
 use TransLangs\Frontend\LanguageResolver;
-use TransLangs\Frontend\OutputBuffer;
-use TransLangs\Frontend\Parser\ParserFactory;
-use TransLangs\Frontend\Parser\SkipRules;
-use TransLangs\Frontend\Renderer;
-use TransLangs\Frontend\RequestContext;
-use TransLangs\Frontend\Router;
-use TransLangs\Frontend\StringExtractor;
-use TransLangs\Frontend\TranslationLookup;
 
 /**
  * Plugin container.
@@ -65,49 +56,74 @@ class Plugin
         $this->services['repository'] = $repository;
         $this->services['normalizer'] = $normalizer;
         $this->services['hasher']     = $hasher;
-        $this->services['cache']      = $cache;
         $this->services['translator'] = new Translator(
             $repository,
             $normalizer,
             $hasher,
             $cache
         );
+
+        // Extractor turns parser segments into candidates; lookup
+        // resolves them against the memory (bulk select + idempotent insert).
+        $this->services['extractor'] = new \TransLangs\Frontend\StringExtractor(
+            $normalizer,
+            $hasher
+        );
+        $this->services['lookup'] = new \TransLangs\Frontend\TranslationLookup($repository);
     }
 
+    /**
+     * Public translation layer. Filled out in later phases.
+     */
     private function registerFrontend(): void
     {
         $resolver = new LanguageResolver();
-        $router   = new Router($resolver);
-        $context  = new RequestContext();
-        $guard    = new HtmlGuard();
+        $this->services['resolver'] = $resolver;
 
-        /** @var TranslationRepository $repository */
-        $repository = $this->services['repository'];
-        /** @var Normalizer $normalizer */
-        $normalizer = $this->services['normalizer'];
-        /** @var HashGenerator $hasher */
-        $hasher = $this->services['hasher'];
+        (new \TransLangs\Frontend\Router($resolver))->register();
 
-        $rules         = new SkipRules();
-        $parserFactory = new ParserFactory($rules);
-        $extractor     = new StringExtractor($normalizer, $hasher);
-        $lookup        = new TranslationLookup($repository);
-        $renderer      = new Renderer($parserFactory, $extractor, $lookup, $resolver);
-        $buffer        = new OutputBuffer($resolver, $context, $guard, [$renderer, 'render']);
+        $context = new \TransLangs\Frontend\RequestContext();
+        $guard   = new \TransLangs\Frontend\HtmlGuard();
 
-        $this->services['resolver']       = $resolver;
-        $this->services['router']         = $router;
-        $this->services['requestContext'] = $context;
-        $this->services['htmlGuard']      = $guard;
-        $this->services['parserRules']    = $rules;
-        $this->services['parserFactory']  = $parserFactory;
-        $this->services['extractor']      = $extractor;
-        $this->services['lookup']         = $lookup;
-        $this->services['renderer']       = $renderer;
-        $this->services['outputBuffer']   = $buffer;
+        $buffer = new \TransLangs\Frontend\OutputBuffer($resolver, $context, $guard);
 
-        $router->register();
+        // Step 16: assemble the real pipeline and inject it. parser -> extract
+        // -> lookup -> replace. The buffer calls this only on translated,
+        // HTML, front-end GET requests (see RequestContext + HtmlGuard).
+        $renderer = new \TransLangs\Frontend\Renderer(
+            new \TransLangs\Frontend\Parser\ParserFactory(
+                new \TransLangs\Frontend\Parser\SkipRules()
+            ),
+            $this->services['extractor'],
+            $this->services['lookup'],
+            $resolver,
+            new \TransLangs\Frontend\LinkRewriter(
+                $resolver,
+                new \TransLangs\Frontend\UrlPrefixer($resolver)
+            )
+        );
+
+        $buffer->setPipeline(
+            static fn(string $html, string $lang): string => $renderer->render($html, $lang)
+        );
+
         $buffer->register();
+
+        $this->services['renderer']      = $renderer;
+        $this->services['output_buffer'] = $buffer;
+
+        // language switcher shortcode [tls_language_switcher].
+        (new \TransLangs\Frontend\LanguageSwitcher(
+            $resolver,
+            new \TransLangs\Frontend\UrlPrefixer($resolver)
+        ))->register();
+
+        // hreflang alternate tags in <head>.
+        (new \TransLangs\Frontend\SeoManager(
+            $resolver,
+            new \TransLangs\Frontend\UrlPrefixer($resolver),
+            $context
+        ))->register();
     }
 
     /**

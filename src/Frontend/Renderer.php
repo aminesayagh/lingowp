@@ -29,7 +29,8 @@ class Renderer
         private ParserFactory $parserFactory,
         private StringExtractor $extractor,
         private TranslationLookup $lookup,
-        private LanguageResolver $resolver
+        private LanguageResolver $resolver,
+        private LinkRewriter $linkRewriter
     ) {
     }
 
@@ -54,39 +55,57 @@ class Renderer
 
         $segments = $parser->segments();
 
-        if ($segments === []) {
-            return $html;
+        // Build text replacements (locator => translated text), if any.
+        $replacements = [];
+
+        if ($segments !== []) {
+            $candidates = $this->extractor->extract($segments);
+
+            if ($candidates !== []) {
+                // hash => translated_text for already-translated strings; newly
+                // discovered strings are inserted as "discovered" inside resolve().
+                $translationsByHash = $this->lookup->resolve(
+                    $candidates,
+                    $sourceLang,
+                    $targetLang,
+                    $this->currentSourceUrl()
+                );
+
+                // Fan each per-hash translation out to every locator it occupies.
+                $replacements = $this->mapToLocators($candidates, $translationsByHash);
+            }
         }
 
-        // candidates: hash => Candidate (deduped, with all locators per string)
-        $candidates = $this->extractor->extract($segments);
-
-        if ($candidates === []) {
-            return $html;
-        }
-
-        // hash => translated_text for strings that already have a translation;
-        // newly discovered strings are inserted as "discovered" inside resolve().
-        $translationsByHash = $this->lookup->resolve(
-            $candidates,
-            $sourceLang,
-            $targetLang,
-            $this->currentSourceUrl()
-        );
-
-        if ($translationsByHash === []) {
-            // Strings were discovered this request but none are translated yet.
-            return $html;
-        }
-
-        // Fan the per-hash translation out to every locator that string occupies.
-        $replacements = $this->mapToLocators($candidates, $translationsByHash);
+        // Always rewrite internal links so the visitor stays in this language,
+        // even on pages where no text is translated yet.
+        $replacements += $this->buildLinkReplacements($parser->links(), $targetLang);
 
         if ($replacements === []) {
             return $html;
         }
 
         return $parser->render($replacements);
+    }
+
+    /**
+     * Compute locator => prefixed-href for every rewritable internal link.
+     *
+     * @param \TransLangs\Frontend\Parser\Segment[] $links
+     * @return array<string, string>
+     */
+    private function buildLinkReplacements(array $links, string $targetLang): array
+    {
+        $out = [];
+
+        foreach ($links as $link) {
+            $rewritten = $this->linkRewriter->rewrite($link->value, $targetLang);
+
+            if ($rewritten !== null && $rewritten !== $link->value) {
+                $out[$link->locator] = $rewritten;
+            }
+        }
+
+        return $out;
     }
 
     /**

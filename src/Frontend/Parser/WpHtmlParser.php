@@ -27,6 +27,9 @@ class WpHtmlParser implements ParserInterface
     /** @var Segment[] */
     private array $segments = [];
 
+    /** @var Segment[] link hrefs collected during the same scan */
+    private array $links = [];
+
     /**
      * Replacement plan captured during segments(), keyed by bookmark/locator.
      * For text:      ['kind' => 'text']
@@ -67,6 +70,7 @@ class WpHtmlParser implements ParserInterface
         $this->html      = $html;
         $this->processor = $processor;
         $this->segments  = [];
+        $this->links     = [];
         $this->plan      = [];
         $this->scanned   = false;
 
@@ -94,6 +98,7 @@ class WpHtmlParser implements ParserInterface
 
             if ($type === '#tag') {
                 $this->captureAttributes($p, $counter);
+                $this->captureLink($p, $counter);
                 continue;
             }
 
@@ -121,6 +126,18 @@ class WpHtmlParser implements ParserInterface
         $this->scanned = true;
 
         return $this->segments;
+    }
+
+    /**
+     * @return Segment[]
+     */
+    public function links(): array
+    {
+        if (!$this->scanned) {
+            $this->segments();
+        }
+
+        return $this->links;
     }
 
     /**
@@ -228,9 +245,68 @@ class WpHtmlParser implements ParserInterface
                 continue;
             }
 
-            $this->segments[]     = Segment::attribute($value, $tagLower . '@' . $attr, $locator);
+            $context = $this->attributeContext($p, $tagLower, $attr);
+
+            $this->segments[]     = Segment::attribute($value, $context, $locator);
             $this->plan[$locator] = ['kind' => 'attr', 'attr' => $attr];
         }
+    }
+
+    /**
+     * Capture an <a href> as a link segment so the LinkRewriter can prefix it.
+     * Skipped subtrees and opted-out elements are ignored, matching text rules.
+     */
+    private function captureLink(\WP_HTML_Processor $p, int &$counter): void
+    {
+        if (strtolower((string) $p->get_tag()) !== 'a') {
+            return;
+        }
+
+        if ($this->insideSkippedSubtree($p) || $this->elementOptedOut($p)) {
+            return;
+        }
+
+        // Language-switcher links manage their own per-language URLs. Rewriting
+        // them with the active language would clobber the "switch to X" target
+        // (e.g. turning the back-to-English /about link into /fr/about).
+        if ($p->get_attribute('data-tls-lang') !== null) {
+            return;
+        }
+
+        $href = $p->get_attribute('href');
+
+        if (!is_string($href) || $href === '') {
+            return;
+        }
+
+        $locator = 'tl' . (++$counter);
+
+        if (!$p->set_bookmark($locator)) {
+            return;
+        }
+
+        $this->links[]        = Segment::attribute($href, 'a@href', $locator);
+        $this->plan[$locator] = ['kind' => 'attr', 'attr' => 'href'];
+    }
+
+    /**
+     * Build the context label for a translatable attribute. For an image alt we
+     * append the image source as a reference, so the admin screen can show which
+     * image is being translated:  "img@alt|https://site/uploads/team.jpg".
+     * Stored in the existing context column — no schema change.
+     */
+    private function attributeContext(\WP_HTML_Processor $p, string $tagLower, string $attr): string
+    {
+        $context = $tagLower . '@' . $attr;
+
+        if ($tagLower === 'img' && $attr === 'alt') {
+            $src = $p->get_attribute('src');
+            if (is_string($src) && $src !== '') {
+                $context .= '|' . $src;
+            }
+        }
+
+        return $context;
     }
 
     private function elementOptedOut(\WP_HTML_Processor $p): bool

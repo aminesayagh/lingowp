@@ -23,9 +23,11 @@ if (!defined('ABSPATH')) {
 /** @var array<int, string> $statuses */
 /** @var array<int, array{source_lang:string,target_lang:string}> $pairs */
 /** @var array{0:string,1:string}|null $notice */
-/** @var array<int, array<string, mixed>> $tabs */
-/** @var string $current */
 /** @var string $pageSlug */
+/** @var string|null $current */
+
+$tabs = $tabs ?? [];
+$current = $current ?? '';
 
 $badgeClass = static function (int $status): string {
     return [
@@ -39,24 +41,11 @@ $badgeClass = static function (int $status): string {
 
 $totalPages = max(1, (int) ceil($total / $perPage));
 $baseUrl    = admin_url('admin.php?page=' . $pageSlug);
-$paginationArgs = ['page' => $pageSlug];
-
-foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_translated', 'source_url'] as $key) {
-    if (!array_key_exists($key, $filters)) {
-        continue;
-    }
-
-    if ($filters[$key] === '' || $filters[$key] === null) {
-        continue;
-    }
-
-    $paginationArgs[$key] = $filters[$key];
-}
 ?>
 <div class="wrap translangs-page">
     <h1 class="translangs-page__title"><?php esc_html_e('Translations', 'translangs'); ?></h1>
 
-    <?php View::render('admin-navbar.php', ['tabs' => $tabs, 'current' => $current]); ?>
+    <?php View::render('admin/navbar.php', ['tabs' => $tabs, 'current' => $current]); ?>
 
     <?php if ($notice !== null) : ?>
         <div class="notice notice-<?php echo $notice[1] === 'error' ? 'error' : 'success'; ?> is-dismissible">
@@ -145,6 +134,7 @@ foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_tra
 
                             <form method="post" action="" class="translangs-cell-edit" data-row="<?php echo esc_attr((string) $id); ?>" style="display:none;">
                                 <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
+                                <input type="hidden" name="translangs_screen" value="translangs-translations">
                                 <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
                                 <input type="hidden" name="translangs_action" value="save">
                                 <textarea name="translated_text" rows="2" class="large-text"><?php
@@ -163,7 +153,22 @@ foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_tra
                             </span>
                         </td>
 
-                        <td><?php echo esc_html((string) ($row['context'] ?? '')); ?></td>
+                        <td>
+                            <?php
+                            $ctx = (string) ($row['context'] ?? '');
+                            if (strpos($ctx, 'img@alt|') === 0) {
+                                $imgSrc = substr($ctx, strlen('img@alt|'));
+                                ?>
+                                <span class="translangs-context-img">
+                                    <img src="<?php echo esc_url($imgSrc); ?>" alt="" class="translangs-thumb" loading="lazy">
+                                    <span class="translangs-context-label"><?php esc_html_e('Image alt', 'translangs'); ?></span>
+                                </span>
+                                <?php
+                            } else {
+                                echo esc_html($ctx);
+                            }
+                            ?>
+                        </td>
                         <td><?php echo esc_html((string) ($row['source_url'] ?? '')); ?></td>
                         <td><?php echo esc_html((string) ($row['last_seen_at'] ?? '')); ?></td>
 
@@ -172,6 +177,7 @@ foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_tra
 
                             <form method="post" action="" style="display:inline;">
                                 <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
+                                <input type="hidden" name="translangs_screen" value="translangs-translations">
                                 <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
                                 <input type="hidden" name="translangs_action" value="review">
                                 <button type="submit" class="button button-small"><?php esc_html_e('Review', 'translangs'); ?></button>
@@ -179,6 +185,7 @@ foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_tra
 
                             <form method="post" action="" style="display:inline;">
                                 <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
+                                <input type="hidden" name="translangs_screen" value="translangs-translations">
                                 <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
                                 <input type="hidden" name="translangs_action" value="ignore">
                                 <button type="submit" class="button button-small"><?php esc_html_e('Ignore', 'translangs'); ?></button>
@@ -186,6 +193,7 @@ foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_tra
 
                             <form method="post" action="" style="display:inline;" onsubmit="return confirm('<?php echo esc_js(__('Delete this string?', 'translangs')); ?>');">
                                 <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
+                                <input type="hidden" name="translangs_screen" value="translangs-translations">
                                 <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
                                 <input type="hidden" name="translangs_action" value="delete">
                                 <button type="submit" class="button button-small button-link-delete"><?php esc_html_e('Delete', 'translangs'); ?></button>
@@ -199,12 +207,13 @@ foreach (['source_lang', 'target_lang', 'status', 'search_original', 'search_tra
         <?php if ($totalPages > 1) : ?>
             <div class="translangs-pagination">
                 <?php
+                $query = $_GET;
                 for ($i = 1; $i <= $totalPages; $i++) :
-                    $query = array_merge($paginationArgs, ['paged' => $i]);
-
+                    $query['paged'] = $i;
+                    $url = $baseUrl . '&' . http_build_query(array_diff_key($query, ['page' => '']));
                     ?>
                     <a class="button button-small <?php echo $i === $page ? 'button-primary' : ''; ?>"
-                       href="<?php echo esc_url(add_query_arg($query, admin_url('admin.php'))); ?>"><?php echo (int) $i; ?></a>
+                       href="<?php echo esc_url(add_query_arg('paged', $i, $baseUrl)); ?>"><?php echo (int) $i; ?></a>
                 <?php endfor; ?>
             </div>
         <?php endif; ?>

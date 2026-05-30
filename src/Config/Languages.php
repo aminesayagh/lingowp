@@ -34,6 +34,17 @@ class Languages
         return $all[$code]['name'] ?? strtoupper($code);
     }
 
+    /**
+     * The language's name in its own language, e.g. "Français", "Español".
+     * Falls back to the English name, then the uppercased code.
+     */
+    public static function nativeLabel(string $code): string
+    {
+        $all = self::all();
+
+        return $all[$code]['native'] ?? ($all[$code]['name'] ?? strtoupper($code));
+    }
+
     public static function exists(string $code): bool
     {
         return isset(self::all()[$code]);

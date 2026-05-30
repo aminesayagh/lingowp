@@ -125,6 +125,38 @@ class Html5Parser implements ParserInterface
     }
 
     /**
+     * @return Segment[]
+     */
+    public function links(): array
+    {
+        if ($this->dom === null) {
+            return [];
+        }
+
+        $links = [];
+        $xpath = new \DOMXPath($this->dom);
+
+        foreach ($xpath->query('//a[@href]') as $el) {
+            if (!$el instanceof \DOMElement || $this->ancestorSkipped($el) || $this->elementSkipped($el)) {
+                continue;
+            }
+
+            $href = $el->getAttribute('href');
+            if ($href === '') {
+                continue;
+            }
+
+            $attrNode = $el->getAttributeNode('href');
+            $id       = spl_object_id($attrNode);
+            $this->nodes[$id] = $attrNode;
+
+            $links[] = Segment::attribute($href, 'a@href', (string) $id);
+        }
+
+        return $links;
+    }
+
+    /**
      * @param array<string, string> $replacements
      */
     public function render(array $replacements): string

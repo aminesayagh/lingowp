@@ -5,21 +5,28 @@ namespace TransLangs\Frontend\Parser;
 /**
  * Contract for an HTML parser driver.
  *
- * Implementations load a full HTML document, walk it while honoring the skip
- * rules, expose the translatable segments, and can write replacement values
- * back, returning the serialized HTML. Downstream code (extractor, renderer)
- * depends only on this interface, never on a concrete parser.
+ * Lifecycle (single-parse guarantee):
+ *   1. load($html)          parse ONCE, keep the loaded state internally
+ *   2. segments()           read translatable segments from that state
+ *   3. render($replacements) mutate that same state in place, serialize
+ *
+ * Implementations MUST parse the document at most once per load() and reuse
+ * that parsed state for both segments() and render(). They must NOT re-parse
+ * inside render(), because the locators handed out by segments() are only
+ * meaningful against the exact parse that produced them. Downstream code
+ * (extractor, renderer) depends only on this interface, never on a concrete
+ * parser.
  */
 interface ParserInterface
 {
     /**
-     * Load an HTML document for processing. Returns false if the input cannot
+     * Load and parse an HTML document once. Returns false if the input cannot
      * be handled, in which case the caller should leave the HTML untouched.
      */
     public function load(string $html): bool;
 
     /**
-     * Walk the loaded document and return every translatable segment, in
+     * Return every translatable segment from the already-parsed document, in
      * document order, skipping the configured non-translatable subtrees.
      *
      * @return Segment[]
@@ -27,8 +34,18 @@ interface ParserInterface
     public function segments(): array;
 
     /**
-     * Apply replacements keyed by Segment::$locator, then serialize.
-     * Locators with no entry in the map are left as-is.
+     * Return the navigable link hrefs found in the document as attribute
+     * segments (one per <a href>), using the same locator scheme as
+     * segments() so render() can replace them by locator. Collected during the
+     * same single parse; calling this does not re-parse.
+     *
+     * @return Segment[]
+     */
+    public function links(): array;
+
+    /**
+     * Apply replacements keyed by Segment::$locator against the SAME parsed
+     * state, then serialize. Locators with no entry in the map are left as-is.
      *
      * @param array<string, string> $replacements locator => translated value
      */
