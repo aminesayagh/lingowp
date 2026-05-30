@@ -60,6 +60,14 @@ class OutputBufferMiddleware
 
     /**
      * Start output buffering if this request qualifies.
+     *
+     * We now buffer on BOTH default-language and translated requests:
+     *   - default language  -> discover strings, do not replace text
+     *   - translated         -> discover strings AND replace text
+     * Discovery must happen on every front-end visit (including the default
+     * language) so the translation memory fills without anyone having to surf
+     * the site in each non-default language. The discover/translate decision is
+     * made downstream in the pipeline based on target vs. source language.
      */
     public function start(): void
     {
@@ -68,12 +76,6 @@ class OutputBufferMiddleware
         }
 
         if (!$this->context->shouldTranslate()) {
-            return;
-        }
-
-        // Only translated requests need processing. The default-language page
-        // is served as-is, with no buffering overhead.
-        if (!$this->resolver->isTranslatedRequest()) {
             return;
         }
 

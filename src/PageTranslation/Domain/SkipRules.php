@@ -45,7 +45,9 @@ class SkipRules
      */
     private const TRANSLATABLE_ATTRIBUTES = [
         '*'        => ['title', 'aria-label'],
-        'img'      => ['alt'],
+        // 'img' => ['alt'] intentionally removed: image alt/title/caption/
+        // description belong to the attachment (media source), discovered and
+        // replaced by the dedicated media reader — not parsed from the HTML.
         'input'    => ['placeholder', 'value'],
         'textarea' => ['placeholder'],
         'a'        => ['title'],

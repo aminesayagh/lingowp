@@ -45,7 +45,19 @@ class CoreServiceProvider
             $hasher
         ));
 
-        $container->set('translation_memory.resolve_translations', new ResolveTranslations($repository));
+        $languageResolver = new \TransLangs\Language\Application\ResolveRequestLanguage();
+
+        $discovery = new \TransLangs\TranslationMemory\Application\DiscoverSourceStrings(
+            $repository,
+            $languageResolver
+        );
+        $container->set('translation_memory.discover_source_strings', $discovery);
+
+        $container->set('translation_memory.resolve_translations', new ResolveTranslations(
+            $repository,
+            $languageResolver,
+            $discovery
+        ));
         $container->set('translation_memory.query_translations', new QueryTranslations($repository));
         $container->set('translation_memory.save_translation', new SaveTranslation($repository));
         $container->set('translation_memory.put_translation_for_review', new PutTranslationForReview($repository));

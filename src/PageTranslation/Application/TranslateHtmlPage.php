@@ -3,7 +3,7 @@
 namespace TransLangs\PageTranslation\Application;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\PageTranslation\Domain\TranslationCandidate;
+use TransLangs\PageTranslation\Domain\ClassifiedTranslationCandidate;
 use TransLangs\PageTranslation\Infrastructure\Html\HtmlParserFactory;
 use TransLangs\PublicSite\Infrastructure\LinkRewriter;
 use TransLangs\TranslationMemory\Application\ResolveTranslations;
@@ -40,17 +40,19 @@ class TranslateHtmlPage
     }
 
     /**
-     * Pipeline entry point. Returns translated HTML, or the original on any
-     * condition where translation cannot or should not happen.
+     * Pipeline entry point. Returns translated HTML, or the original when the
+     * request is in the default language (discover-only mode).
+     *
+     * Two modes, decided by target vs. source language:
+     *   - default language  -> parse, DISCOVER for all languages, no text replace
+     *   - translated         -> parse, DISCOVER, then REPLACE text + rewrite links
+     *
+     * Discovery runs in both modes so the memory fills on every visit.
      */
     public function render(string $html, string $targetLang): string
     {
-        $sourceLang = $this->resolver->getDefaultLanguage();
-
-        // Nothing to do if the target is the source language.
-        if ($targetLang === $sourceLang) {
-            return $html;
-        }
+        $sourceLang  = $this->resolver->getDefaultLanguage();
+        $isTranslating = $targetLang !== $sourceLang;
 
         $parser = $this->parserFactory->create();
 
@@ -60,32 +62,42 @@ class TranslateHtmlPage
 
         $segments = $parser->segments();
 
-        // Build text replacements (locator => translated text), if any.
-        $replacements = [];
-
-        if ($segments !== []) {
-            $candidates = $this->extractor->extract($segments);
-
-            if ($candidates !== []) {
-                $source = $this->resolveCurrentSource();
-
-                // hash => translated_text for already-translated strings; newly
-                // discovered strings are inserted as "discovered" inside resolve().
-                $translationsByHash = $this->lookup->resolve(
-                    $candidates,
-                    $sourceLang,
-                    $targetLang,
-                    $source['source_id'],
-                    $source['source_type']
-                );
-
-                // Fan each per-hash translation out to every locator it occupies.
-                $replacements = $this->mapToLocators($candidates, $translationsByHash);
-            }
+        if ($segments === [] && $parser->links() === []) {
+            return $html;
         }
 
-        // Always rewrite internal links so the visitor stays in this language,
-        // even on pages where no text is translated yet.
+        $source     = $this->resolveCurrentSource();
+        $candidates = $segments !== []
+            ? $this->extractor->extract($segments, $source['source_id'], $source['source_type'])
+            : [];
+
+        // DISCOVERY (both modes): record every candidate for all enabled
+        // non-default languages, so the memory fills even on default visits.
+        if ($candidates !== []) {
+            $this->lookup->discoverForAllLanguages($candidates);
+        }
+
+        // Default-language request: discover only, do not alter the page text.
+        // (Links are already in the default language, so no rewrite needed.)
+        if (!$isTranslating) {
+            return $html;
+        }
+
+        // TRANSLATION mode: resolve translations for this target and replace.
+        $replacements = [];
+
+        if ($candidates !== []) {
+            $translationsByIdentity = $this->lookup->resolve(
+                $candidates,
+                $sourceLang,
+                $targetLang
+            );
+
+            $replacements = $this->mapToLocators($candidates, $translationsByIdentity);
+        }
+
+        // Rewrite internal links so the visitor stays in this language, even on
+        // pages where no text is translated yet.
         $replacements += $this->buildLinkReplacements($parser->links(), $targetLang);
 
         if ($replacements === []) {
@@ -147,24 +159,26 @@ class TranslateHtmlPage
     }
 
     /**
-     * Build locator => translated_text from hash => translated_text by walking
-     * each candidate's locator list. This is what lets one stored translation
-     * replace every on-page occurrence of the same string.
+     * Build locator => translated_text from identityKey => translated_text by
+     * walking each candidate's locator list. One stored translation replaces
+     * every on-page occurrence that shares its identity.
      *
-     * @param TranslationCandidate[]            $candidates         hash => TranslationCandidate
-     * @param array<string, string>  $translationsByHash hash => translated_text
-     * @return array<string, string>                     locator => translated_text
+     * @param ClassifiedTranslationCandidate[] $candidates          keyed by identity key
+     * @param array<string, string>            $translationsByIdentity identityKey => translated_text
+     * @return array<string, string>                                  locator => translated_text
      */
-    private function mapToLocators(array $candidates, array $translationsByHash): array
+    private function mapToLocators(array $candidates, array $translationsByIdentity): array
     {
         $replacements = [];
 
-        foreach ($translationsByHash as $hash => $translated) {
-            if (!isset($candidates[$hash])) {
+        foreach ($candidates as $identityKey => $candidate) {
+            if (!isset($translationsByIdentity[$identityKey])) {
                 continue;
             }
 
-            foreach ($candidates[$hash]->locators as $locator) {
+            $translated = $translationsByIdentity[$identityKey];
+
+            foreach ($candidate->locators as $locator) {
                 $replacements[$locator] = $translated;
             }
         }
