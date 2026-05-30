@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
     <?php
     $tabs = $tabs ?? [];
     $current = $current ?? '';
-    \TransLangs\Config\View::render('admin-navbar.php', ['tabs' => $tabs, 'current' => $current]);
+    \TransLangs\Shared\Infrastructure\PhpTemplateRenderer::render('admin-navbar.php', ['tabs' => $tabs, 'current' => $current]);
     ?>
 
     <form method="post" action="">

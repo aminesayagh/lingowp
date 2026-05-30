@@ -8,7 +8,7 @@
  * @package TransLangs
  */
 
-use TransLangs\Config\View;
+use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -45,7 +45,7 @@ $baseUrl    = admin_url('admin.php?page=' . $pageSlug);
 <div class="wrap translangs-page">
     <h1 class="translangs-page__title"><?php esc_html_e('Translations', 'translangs'); ?></h1>
 
-    <?php View::render('admin/navbar.php', ['tabs' => $tabs, 'current' => $current]); ?>
+    <?php PhpTemplateRenderer::render('admin-navbar.php', ['tabs' => $tabs, 'current' => $current]); ?>
 
     <?php if ($notice !== null) : ?>
         <div class="notice notice-<?php echo $notice[1] === 'error' ? 'error' : 'success'; ?> is-dismissible">
@@ -210,10 +210,10 @@ $baseUrl    = admin_url('admin.php?page=' . $pageSlug);
                 $query = $_GET;
                 for ($i = 1; $i <= $totalPages; $i++) :
                     $query['paged'] = $i;
-                    $url = $baseUrl . '&' . http_build_query(array_diff_key($query, ['page' => '']));
+                    $url = add_query_arg($query, admin_url('admin.php'));
                     ?>
                     <a class="button button-small <?php echo $i === $page ? 'button-primary' : ''; ?>"
-                       href="<?php echo esc_url(add_query_arg('paged', $i, $baseUrl)); ?>"><?php echo (int) $i; ?></a>
+                       href="<?php echo esc_url($url); ?>"><?php echo (int) $i; ?></a>
                 <?php endfor; ?>
             </div>
         <?php endif; ?>
