@@ -101,7 +101,7 @@ class TranslationMemorySchema
         if (!self::columnExists($table, 'source_type')) {
             $wpdb->query(
                 $wpdb->prepare(
-                    "ALTER TABLE {$table} ADD source_type varchar(20) NOT NULL DEFAULT %s AFTER source_id",
+                    "ALTER TABLE {$table} ADD source_type varchar(50) NOT NULL DEFAULT %s AFTER source_id",
                     $fallbackSourceType
                 )
             );
@@ -116,7 +116,7 @@ class TranslationMemorySchema
         );
         $wpdb->query("UPDATE {$table} SET context = '' WHERE context IS NULL");
         $wpdb->query("ALTER TABLE {$table} MODIFY source_id bigint(20) unsigned NOT NULL DEFAULT 0");
-        $wpdb->query("ALTER TABLE {$table} MODIFY source_type varchar(20) NOT NULL");
+        $wpdb->query("ALTER TABLE {$table} MODIFY source_type varchar(50) NOT NULL");
         $wpdb->query("ALTER TABLE {$table} MODIFY context varchar(255) NOT NULL");
 
         if (self::columnExists($table, 'source_id_key')) {

@@ -10,6 +10,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat >/dev/null || true; git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph update --skip-flows --repo \"/mnt/c/Users/amine/Local Sites/translangs/app/public/wp-content/plugins/translangs\" || true",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -19,6 +29,16 @@
           {
             "type": "command",
             "command": "cat >/dev/null || true; git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph status --repo \"C:/Users/ROG ZEPHYRUS/Local Sites/translangs/app/public/wp-content/plugins/translangs\" || echo 'Not a git repo, skipping'",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat >/dev/null || true; git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph status --repo \"/mnt/c/Users/amine/Local Sites/translangs/app/public/wp-content/plugins/translangs\" || echo 'Not a git repo, skipping'",
             "timeout": 10
           }
         ]

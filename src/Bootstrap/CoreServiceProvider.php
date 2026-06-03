@@ -2,13 +2,19 @@
 
 namespace TransLangs\Bootstrap;
 
+use TransLangs\ContentSource\Application\BuildScanTargets;
+use TransLangs\ContentSource\Application\ScanRenderedArchetypes;
 use TransLangs\ContentSource\Application\ScanStructuredSources;
+use TransLangs\ContentSource\Infrastructure\WordPress\ArchetypeUrlSampler;
 use TransLangs\ContentSource\Infrastructure\WordPress\MediaSourceReader;
 use TransLangs\ContentSource\Infrastructure\WordPress\MenuSourceReader;
 use TransLangs\ContentSource\Infrastructure\WordPress\PostTypeSourceReader;
 use TransLangs\ContentSource\Infrastructure\WordPress\TaxonomySourceReader;
 use TransLangs\ContentSource\Infrastructure\WordPress\WooCommerceProductSourceReader;
+use TransLangs\PageTranslation\Application\ClassifyRenderedSegments;
 use TransLangs\PageTranslation\Application\ExtractTranslationCandidates;
+use TransLangs\PageTranslation\Domain\SkipRules;
+use TransLangs\PageTranslation\Infrastructure\Html\HtmlParserFactory;
 use TransLangs\Shared\Infrastructure\CacheManager;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
 use TransLangs\TranslationMemory\Application\PutTranslationForReview;
@@ -51,6 +57,12 @@ class CoreServiceProvider
             $hasher
         ));
 
+        $container->set('page_translation.classify_rendered_segments', new ClassifyRenderedSegments(
+            $normalizer,
+            $hasher,
+            $repository
+        ));
+
         $languageResolver = new \TransLangs\Language\Application\ResolveRequestLanguage();
 
         $discovery = new \TransLangs\TranslationMemory\Application\DiscoverSourceStrings(
@@ -72,6 +84,27 @@ class CoreServiceProvider
         $container->set('translation_memory.reset_ignored_translation', new ResetIgnoredTranslation($repository));
 
         $this->registerContentSourceScanner($container, $discovery, $normalizer, $hasher);
+        $this->registerArchetypeScanner($container, $discovery, $languageResolver);
+    }
+
+    private function registerArchetypeScanner(
+        ServiceContainer $container,
+        \TransLangs\TranslationMemory\Application\DiscoverSourceStrings $discovery,
+        \TransLangs\Language\Application\ResolveRequestLanguage $languageResolver
+    ): void {
+        $classifier  = $container->get('page_translation.classify_rendered_segments');
+        $buildTargets = new BuildScanTargets(new ArchetypeUrlSampler());
+
+        $scanner = new ScanRenderedArchetypes(
+            $buildTargets,
+            new HtmlParserFactory(new SkipRules()),
+            $classifier,
+            $discovery,
+            $languageResolver
+        );
+
+        $container->set('content_source.build_scan_targets', $buildTargets);
+        $container->set('content_source.scan_rendered_archetypes', $scanner);
     }
 
     private function registerContentSourceScanner(

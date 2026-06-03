@@ -35,7 +35,7 @@ class PublicSiteServiceProvider
 
         $renderer = new TranslateHtmlPage(
             new HtmlParserFactory(new SkipRules()),
-            $container->get('page_translation.extract_candidates'),
+            $container->get('page_translation.classify_rendered_segments'),
             $container->get('translation_memory.resolve_translations'),
             $resolver,
             new LinkRewriter($resolver, $urlBuilder)

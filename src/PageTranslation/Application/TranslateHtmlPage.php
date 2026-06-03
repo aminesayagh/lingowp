@@ -12,15 +12,17 @@ use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 /**
  * Replaces original strings with translations in the rendered page.
  *
- * This is the join point of the public pipeline. It implements the Step 16
- * flow end to end:
+ * This is the join point of the public pipeline:
  *
  *   1. parse the captured HTML once (HtmlParserFactory picks the driver)
- *   2. read translatable segments
- *   3. extract -> normalize -> hash -> dedupe into candidates
- *   4. bulk lookup + discover missing (ResolveTranslations)
- *   5. map each translated hash back onto every locator that produced it
- *   6. replace in place and return the serialized HTML
+ *   2. read translatable segments from the parsed document
+ *   3. classify each segment: match hash → known structured identity or fall
+ *      back to (currentSourceType, 0, segmentContext) for template chrome
+ *   4. discover all candidates for every enabled non-default language
+ *   5. resolve translations for the target language by full identity
+ *   6. map translated values back onto every locator that holds that identity
+ *   7. rewrite internal links to the target-language prefix
+ *   8. render and return the mutated HTML
  *
  * Missing/untranslated strings are simply absent from the replacement map, so
  * they remain in the source language — the page never breaks.
@@ -32,7 +34,7 @@ class TranslateHtmlPage
 {
     public function __construct(
         private HtmlParserFactory $parserFactory,
-        private ExtractTranslationCandidates $extractor,
+        private ClassifyRenderedSegments $classifier,
         private ResolveTranslations $lookup,
         private ResolveRequestLanguage $resolver,
         private LinkRewriter $linkRewriter
@@ -68,7 +70,7 @@ class TranslateHtmlPage
 
         $source     = $this->resolveCurrentSource();
         $candidates = $segments !== []
-            ? $this->extractor->extract($segments, $source['source_id'], $source['source_type'])
+            ? $this->classifier->classify($segments, $source['source_id'], $source['source_type'], $sourceLang)
             : [];
 
         // DISCOVERY (both modes): record every candidate for all enabled

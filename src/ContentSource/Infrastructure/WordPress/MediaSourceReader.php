@@ -4,6 +4,7 @@ namespace TransLangs\ContentSource\Infrastructure\WordPress;
 
 use TransLangs\ContentSource\Domain\SourceReader;
 use TransLangs\ContentSource\Domain\SourceString;
+use TransLangs\TranslationMemory\Domain\TranslationSourceContext;
 use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
@@ -54,7 +55,7 @@ class MediaSourceReader implements SourceReader
 
             $alt = (string) get_post_meta($id, '_wp_attachment_image_alt', true);
             if ($alt !== '') {
-                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, 'alt', $alt);
+                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, TranslationSourceContext::MEDIA_ALT, $alt);
             }
 
             $post = get_post($id);
@@ -63,13 +64,13 @@ class MediaSourceReader implements SourceReader
             }
 
             if ((string) $post->post_title !== '') {
-                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, 'title', (string) $post->post_title);
+                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, TranslationSourceContext::MEDIA_TITLE, (string) $post->post_title);
             }
             if ((string) $post->post_excerpt !== '') {
-                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, 'caption', (string) $post->post_excerpt);
+                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, TranslationSourceContext::MEDIA_CAPTION, (string) $post->post_excerpt);
             }
             if ((string) $post->post_content !== '') {
-                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, 'description', (string) $post->post_content);
+                $strings[] = new SourceString($id, TranslationSourceType::MEDIA, TranslationSourceContext::MEDIA_DESCRIPTION, (string) $post->post_content);
             }
         }
 

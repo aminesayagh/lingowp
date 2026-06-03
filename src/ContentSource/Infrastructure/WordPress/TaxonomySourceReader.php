@@ -4,6 +4,7 @@ namespace TransLangs\ContentSource\Infrastructure\WordPress;
 
 use TransLangs\ContentSource\Domain\SourceReader;
 use TransLangs\ContentSource\Domain\SourceString;
+use TransLangs\TranslationMemory\Domain\TranslationSourceContext;
 use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
@@ -71,7 +72,7 @@ class TaxonomySourceReader implements SourceReader
                 $strings[] = new SourceString(
                     $termId,
                     TranslationSourceType::TAXONOMY,
-                    $taxonomy . '.name',
+                    TranslationSourceContext::taxonomyName($taxonomy),
                     (string) $term->name
                 );
             }
@@ -80,7 +81,7 @@ class TaxonomySourceReader implements SourceReader
                 $strings[] = new SourceString(
                     $termId,
                     TranslationSourceType::TAXONOMY,
-                    $taxonomy . '.description',
+                    TranslationSourceContext::taxonomyDescription($taxonomy),
                     (string) $term->description
                 );
             }

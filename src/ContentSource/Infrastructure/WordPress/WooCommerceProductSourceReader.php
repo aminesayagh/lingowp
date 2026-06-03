@@ -4,6 +4,7 @@ namespace TransLangs\ContentSource\Infrastructure\WordPress;
 
 use TransLangs\ContentSource\Domain\SourceReader;
 use TransLangs\ContentSource\Domain\SourceString;
+use TransLangs\TranslationMemory\Domain\TranslationSourceContext;
 use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
@@ -68,9 +69,9 @@ class WooCommerceProductSourceReader implements SourceReader
     private function ownedFields(\WP_Post $post): array
     {
         $fields = [
-            'post_title'   => (string) $post->post_title,
-            'post_content' => (string) $post->post_content,
-            'post_excerpt' => (string) $post->post_excerpt,
+            TranslationSourceContext::POST_TITLE   => (string) $post->post_title,
+            TranslationSourceContext::POST_CONTENT => (string) $post->post_content,
+            TranslationSourceContext::POST_EXCERPT => (string) $post->post_excerpt,
         ];
 
         $product = wc_get_product($post->ID);
@@ -81,13 +82,13 @@ class WooCommerceProductSourceReader implements SourceReader
 
         $purchaseNote = $this->methodString($product, 'get_purchase_note');
         if ($purchaseNote !== '') {
-            $fields['purchase_note'] = $purchaseNote;
+            $fields[TranslationSourceContext::PRODUCT_PURCHASE_NOTE] = $purchaseNote;
         }
 
         if ($this->productIsType($product, 'external')) {
             $buttonText = $this->methodString($product, 'get_button_text');
             if ($buttonText !== '') {
-                $fields['external_button_text'] = $buttonText;
+                $fields[TranslationSourceContext::PRODUCT_EXTERNAL_BUTTON_TEXT] = $buttonText;
             }
         }
 
@@ -128,7 +129,7 @@ class WooCommerceProductSourceReader implements SourceReader
             $name       = $this->methodString($attribute, 'get_name');
 
             if ($name !== '') {
-                $fields['attribute.' . $contextKey . '.name'] = $name;
+                $fields[TranslationSourceContext::attributeName($contextKey)] = $name;
             }
 
             foreach ($this->attributeOptions($attribute) as $index => $option) {
@@ -136,7 +137,7 @@ class WooCommerceProductSourceReader implements SourceReader
                     continue;
                 }
 
-                $fields['attribute.' . $contextKey . '.option.' . $index] = $option;
+                $fields[TranslationSourceContext::attributeOption($contextKey, $index)] = $option;
             }
         }
 

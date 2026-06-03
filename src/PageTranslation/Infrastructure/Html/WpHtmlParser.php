@@ -293,24 +293,9 @@ class WpHtmlParser implements HtmlParser
         $this->plan[$locator] = ['kind' => 'attr', 'attr' => 'href'];
     }
 
-    /**
-     * Build the context label for a translatable attribute. For an image alt we
-     * append the image source as a reference, so the admin screen can show which
-     * image is being translated:  "img@alt|https://site/uploads/team.jpg".
-     * Stored in the existing context column — no schema change.
-     */
     private function attributeContext(\WP_HTML_Processor $p, string $tagLower, string $attr): string
     {
-        $context = $tagLower . '@' . $attr;
-
-        if ($tagLower === 'img' && $attr === 'alt') {
-            $src = $p->get_attribute('src');
-            if (is_string($src) && $src !== '') {
-                $context .= '|' . $src;
-            }
-        }
-
-        return $context;
+        return $tagLower . '@' . $attr;
     }
 
     private function elementOptedOut(\WP_HTML_Processor $p): bool

@@ -160,6 +160,54 @@ class WpDbTranslationMemoryRepository implements TranslationMemoryRepository
     }
 
     /**
+     * Find distinct structured source identities for a set of hashes.
+     *
+     * One SELECT covers many hashes; DISTINCT collapses the per-target-language
+     * rows down to one identity tuple per (source_id, source_type, context, hash).
+     * source_id > 0 filter keeps template rows out of the result.
+     *
+     * @param  string[] $hashes
+     * @return array<string, list<array{source_id: int, source_type: string, context: string}>>
+     */
+    public function findStructuredIdentitiesByHashes(array $hashes, string $sourceLang): array
+    {
+        $hashes = array_values(array_unique(array_filter($hashes)));
+
+        if ($hashes === []) {
+            return [];
+        }
+
+        global $wpdb;
+        $table  = $this->table();
+        $result = [];
+
+        foreach (array_chunk($hashes, self::CHUNK) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '%s'));
+
+            $sql = $wpdb->prepare(
+                "SELECT DISTINCT source_id, source_type, context, original_hash
+                 FROM {$table}
+                 WHERE source_lang = %s
+                   AND source_id > 0
+                   AND original_hash IN ({$placeholders})",
+                array_merge([$sourceLang], $chunk)
+            );
+
+            $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
+
+            foreach ($rows as $row) {
+                $result[$row['original_hash']][] = [
+                    'source_id'   => (int) $row['source_id'],
+                    'source_type' => (string) $row['source_type'],
+                    'context'     => (string) $row['context'],
+                ];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Touch last_seen_at for strings still appearing on pages, so stale ones
      * can be pruned later. Bulk, best-effort; failures are non-fatal.
      *

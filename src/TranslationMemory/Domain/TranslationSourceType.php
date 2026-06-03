@@ -33,4 +33,32 @@ final class TranslationSourceType
             self::PRODUCT,
         ];
     }
+
+    /**
+     * Returns true if the type is one of the fixed constants defined here.
+     *
+     * Custom post types use their runtime post type name, so they will return
+     * false — that is expected and correct.
+     */
+    public static function isFixed(string $sourceType): bool
+    {
+        return in_array($sourceType, self::all(), true);
+    }
+
+    /**
+     * Returns true if the type represents a post-like entity whose structured
+     * fields are post_title / post_content / post_excerpt.
+     *
+     * Returns true for page, post, product, and any custom post type (runtime
+     * name). Returns false for media, taxonomy, menu, and widget.
+     */
+    public static function isPostLike(string $sourceType): bool
+    {
+        return !in_array($sourceType, [
+            self::MEDIA,
+            self::TAXONOMY,
+            self::MENU,
+            self::WIDGET,
+        ], true);
+    }
 }

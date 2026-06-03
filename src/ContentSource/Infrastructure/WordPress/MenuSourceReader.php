@@ -4,6 +4,7 @@ namespace TransLangs\ContentSource\Infrastructure\WordPress;
 
 use TransLangs\ContentSource\Domain\SourceReader;
 use TransLangs\ContentSource\Domain\SourceString;
+use TransLangs\TranslationMemory\Domain\TranslationSourceContext;
 use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
@@ -65,17 +66,17 @@ class MenuSourceReader implements SourceReader
 
             $label = (string) ($item->title ?? '');
             if ($label !== '') {
-                $strings[] = new SourceString($id, TranslationSourceType::MENU, 'title', $label);
+                $strings[] = new SourceString($id, TranslationSourceType::MENU, TranslationSourceContext::MENU_TITLE, $label);
             }
 
             $attrTitle = (string) ($item->attr_title ?? '');
             if ($attrTitle !== '') {
-                $strings[] = new SourceString($id, TranslationSourceType::MENU, 'attr_title', $attrTitle);
+                $strings[] = new SourceString($id, TranslationSourceType::MENU, TranslationSourceContext::MENU_ATTR_TITLE, $attrTitle);
             }
 
             $description = (string) ($item->description ?? '');
             if ($description !== '') {
-                $strings[] = new SourceString($id, TranslationSourceType::MENU, 'description', $description);
+                $strings[] = new SourceString($id, TranslationSourceType::MENU, TranslationSourceContext::MENU_DESCRIPTION, $description);
             }
         }
 

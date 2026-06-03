@@ -23,6 +23,23 @@ interface TranslationMemoryRepository
     public function insertMissingStrings(array $identities, string $sourceLang, string $targetLang): int;
 
     /**
+     * Find all known structured source strings for the given hashes.
+     *
+     * Returns distinct (source_id, source_type, context) identity tuples for
+     * every hash in the list. source_id > 0 only — template text (source_id = 0)
+     * is never returned because template strings are discovered by the classifier
+     * itself, not matched from prior structured discovery.
+     *
+     * Used by ClassifyRenderedSegments to assign proper source identities to
+     * rendered HTML segments before discovery/resolve.
+     *
+     * @param  string[] $hashes
+     * @return array<string, list<array{source_id: int, source_type: string, context: string}>>
+     *         Keyed by original_hash; each value is a list of matching identities.
+     */
+    public function findStructuredIdentitiesByHashes(array $hashes, string $sourceLang): array;
+
+    /**
      * @param string[] $hashes
      */
     public function touchLastSeen(

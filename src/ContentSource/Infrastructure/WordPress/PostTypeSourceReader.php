@@ -4,6 +4,7 @@ namespace TransLangs\ContentSource\Infrastructure\WordPress;
 
 use TransLangs\ContentSource\Domain\SourceReader;
 use TransLangs\ContentSource\Domain\SourceString;
+use TransLangs\TranslationMemory\Domain\TranslationSourceContext;
 use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
@@ -86,9 +87,9 @@ class PostTypeSourceReader implements SourceReader
     protected function ownedFields(\WP_Post $post): array
     {
         return [
-            'post_title'   => (string) $post->post_title,
-            'post_content' => (string) $post->post_content,
-            'post_excerpt' => (string) $post->post_excerpt,
+            TranslationSourceContext::POST_TITLE   => (string) $post->post_title,
+            TranslationSourceContext::POST_CONTENT => (string) $post->post_content,
+            TranslationSourceContext::POST_EXCERPT => (string) $post->post_excerpt,
         ];
     }
 
