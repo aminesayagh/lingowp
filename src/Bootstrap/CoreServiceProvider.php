@@ -14,7 +14,6 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
 use TransLangs\PageTranslation\Application\ClassifyRenderedSegments;
-use TransLangs\PageTranslation\Application\ExtractTranslationCandidates;
 use TransLangs\PageTranslation\Domain\SkipRules;
 use TransLangs\PageTranslation\Infrastructure\Html\HtmlParserFactory;
 use TransLangs\Shared\Infrastructure\CacheManager;
@@ -114,14 +113,7 @@ class CoreServiceProvider
             $hasher,
         ));
 
-        // ── 7. Extraction helper (admin scan) ─────────────────────────────────
-
-        $container->set('page_translation.extract_candidates', new ExtractTranslationCandidates(
-            $normalizer,
-            $hasher,
-        ));
-
-        // ── 8. Translation memory write services ──────────────────────────────
+        // ── 7. Translation memory write services ──────────────────────────────
 
         $container->set('translation_memory.translate_strings', new TranslateStrings(
             $repository,
@@ -137,12 +129,12 @@ class CoreServiceProvider
         $container->set('translation_memory.ignore_translation',        new IgnoreTranslation($repository));
         $container->set('translation_memory.reset_ignored_translation', new ResetIgnoredTranslation($repository));
 
-        // ── 9. Content source scanners ────────────────────────────────────────
+        // ── 8. Content source scanners ────────────────────────────────────────
 
         $this->registerContentSourceScanner($container, $discovery, $normalizer, $hasher);
         $this->registerArchetypeScanner($container, $discovery, $normalizer, $hasher);
 
-        // ── 10. Lifecycle hooks ───────────────────────────────────────────────
+        // ── 9. Lifecycle hooks ────────────────────────────────────────────────
 
         $lifecycleHooks = new TranslationLifecycleHooks(
             $postRepo,

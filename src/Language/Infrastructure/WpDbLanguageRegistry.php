@@ -8,6 +8,7 @@ use TransLangs\Language\Domain\LocaleNormalizer;
 final class WpDbLanguageRegistry implements LanguageRegistry
 {
     private ?array $cachedTargets = null;
+    private ?array $cachedTargetDetails = null;
 
     public function __construct(
         private \wpdb             $wpdb,
@@ -26,11 +27,41 @@ final class WpDbLanguageRegistry implements LanguageRegistry
             return $this->cachedTargets;
         }
 
-        $rows = (array) $this->wpdb->get_col( // phpcs:ignore WordPress.DB
-            "SELECT code FROM {$this->table()} WHERE status = 1 ORDER BY sort_order ASC, code ASC"
+        return $this->cachedTargets = array_keys($this->getTargetLanguageDetails());
+    }
+
+    /** @return array<string, array{name: string, native: string, dir: string}> */
+    public function getTargetLanguageDetails(): array
+    {
+        if ($this->cachedTargetDetails !== null) {
+            return $this->cachedTargetDetails;
+        }
+
+        $rows = (array) $this->wpdb->get_results( // phpcs:ignore WordPress.DB
+            "SELECT code, name, native_name, direction
+             FROM {$this->table()}
+             WHERE status = 1
+             ORDER BY sort_order ASC, code ASC",
+            ARRAY_A
         );
 
-        return $this->cachedTargets = array_values(array_map('strval', $rows));
+        $details = [];
+
+        foreach ($rows as $row) {
+            $code = (string) ($row['code'] ?? '');
+
+            if ($code === '') {
+                continue;
+            }
+
+            $details[$code] = [
+                'name'   => (string) ($row['name'] ?? $code),
+                'native' => (string) ($row['native_name'] ?? ''),
+                'dir'    => (string) ($row['direction'] ?? 'ltr'),
+            ];
+        }
+
+        return $this->cachedTargetDetails = $details;
     }
 
     /** @return string[] */
@@ -71,12 +102,14 @@ final class WpDbLanguageRegistry implements LanguageRegistry
         );
 
         $this->cachedTargets = null;
+        $this->cachedTargetDetails = null;
     }
 
     public function disableLanguage(string $code): void
     {
         $this->wpdb->delete($this->table(), ['code' => $code], ['%s']); // phpcs:ignore WordPress.DB
         $this->cachedTargets = null;
+        $this->cachedTargetDetails = null;
     }
 
     /**

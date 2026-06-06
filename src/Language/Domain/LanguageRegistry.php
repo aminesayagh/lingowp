@@ -21,6 +21,13 @@ interface LanguageRegistry
     public function getTargetLanguages(): array;
 
     /**
+     * Active target language metadata from storage, keyed by language code.
+     *
+     * @return array<string, array{name: string, native: string, dir: string}>
+     */
+    public function getTargetLanguageDetails(): array;
+
+    /**
      * Source language + active target languages.
      * Use this for URL routing, switchers, hreflang, and link rewriting.
      *

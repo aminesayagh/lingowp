@@ -4,7 +4,6 @@ namespace TransLangs\BackOffice\Infrastructure;
 
 use InvalidArgumentException;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Infrastructure\SupportedLanguages;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
 use TransLangs\TranslationMemory\Application\PutTranslationForReview;
@@ -386,9 +385,7 @@ class TranslationMemoryPageController
 
     private function defaultLanguage(): string
     {
-        $default = (string) get_option('translangs_default_language', 'en');
-
-        return SupportedLanguages::exists($default) ? $default : 'en';
+        return $this->registry->getDefaultLanguage();
     }
 
     /**
@@ -396,26 +393,6 @@ class TranslationMemoryPageController
      */
     private function filterLanguages(): array
     {
-        $all          = SupportedLanguages::all();
-        $enabledCodes = (array) get_option('translangs_enabled_languages', ['en', 'fr']);
-        $default      = $this->defaultLanguage();
-
-        $enabled = [];
-
-        foreach (array_map('sanitize_key', $enabledCodes) as $code) {
-            if ($code !== $default && isset($all[$code])) {
-                $enabled[$code] = $all[$code];
-            }
-        }
-
-        if ($enabled === []) {
-            foreach ($all as $code => $meta) {
-                if ($code !== $default) {
-                    $enabled[$code] = $meta;
-                }
-            }
-        }
-
-        return $enabled;
+        return $this->registry->getTargetLanguageDetails();
     }
 }
