@@ -2,6 +2,8 @@
 
 namespace TransLangs\BackOffice\Infrastructure;
 
+use InvalidArgumentException;
+use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Infrastructure\SupportedLanguages;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
@@ -10,41 +12,49 @@ use TransLangs\TranslationMemory\Application\QueryTranslations;
 use TransLangs\TranslationMemory\Application\ReviewTranslation;
 use TransLangs\TranslationMemory\Application\ResetIgnoredTranslation;
 use TransLangs\TranslationMemory\Application\SaveTranslation;
+use TransLangs\TranslationMemory\Domain\RowRef;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
 
 /**
  * The Translation Memory admin screen.
  *
  * Lets an admin browse discovered strings, filter them, and translate/review/
- * ignore/delete them. The controller owns WordPress admin concerns; translation
+ * ignore them. The controller owns WordPress admin concerns; all translation
  * memory reads/writes go through application services.
+ *
+ * Each form submission carries a row_ref field (e.g. "post:123") that
+ * identifies the specific translation row. RowRef::parse() is called exactly
+ * once in each write handler; the resulting RowRef is passed to services.
  */
 class TranslationMemoryPageController
 {
     private const CAPABILITY = 'manage_options';
-    private const SLUG       = 'translangs-translations';
+    public const SLUG        = 'translangs-translations';
     private const PER_PAGE   = 20;
 
     public function __construct(
+        private LanguageRegistry $registry,
         private QueryTranslations $queryTranslations,
         private SaveTranslation $saveTranslation,
         private PutTranslationForReview $putTranslationForReview,
         private ReviewTranslation $reviewTranslation,
         private IgnoreTranslation $ignoreTranslation,
         private ResetIgnoredTranslation $resetIgnoredTranslation
-    ) {
-    }
+    ) {}
 
     public function register(): void
     {
         add_action('admin_menu', [$this, 'addMenu'], 11);
-        // Process writes before any HTML is sent, so wp_safe_redirect() works.
         add_action('admin_init', [$this, 'handleWrites']);
         add_action('wp_ajax_translangs_save_translation', [$this, 'handleAjaxSave']);
     }
 
     public function addMenu(): void
     {
+        if ($this->registry->getTargetLanguages() === []) {
+            return;
+        }
+
         add_submenu_page(
             'translangs',
             __('Translations', 'translangs'),
@@ -65,12 +75,10 @@ class TranslationMemoryPageController
             return;
         }
 
-        // Only handle our own screen.
         if (!isset($_POST['translangs_screen']) || $_POST['translangs_screen'] !== self::SLUG) {
             return;
         }
 
-        // Verifies nonce AND admin referer; dies on failure.
         check_admin_referer('translangs_translation_action', 'translangs_nonce');
 
         if (!current_user_can(self::CAPABILITY)) {
@@ -78,51 +86,44 @@ class TranslationMemoryPageController
         }
 
         $action = sanitize_key($_POST['translangs_action']);
-        $id     = (int) ($_POST['string_id'] ?? 0);
 
-        if ($id <= 0) {
+        $rowRef = $this->parseRowRef(sanitize_text_field(wp_unslash($_POST['row_ref'] ?? '')));
+
+        if ($rowRef === null) {
             $this->redirectWithNotice('invalid');
         }
 
         switch ($action) {
             case 'save':
-                // Sanitize input; allow only post-safe HTML in the translation.
                 $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
-                $this->saveTranslation->save($id, $text);
+                $this->saveTranslation->save($rowRef, $text);
                 $this->redirectWithNotice('saved');
                 break;
 
             case 'put_for_review':
-                if (!$this->putTranslationForReview->putForReview($id)) {
+                if (!$this->putTranslationForReview->putForReview($rowRef)) {
                     $this->redirectWithNotice('already_needs_review');
                 }
-
                 $this->redirectWithNotice('put_for_review');
                 break;
 
             case 'review':
-                if (!$this->reviewTranslation->review($id)) {
+                if (!$this->reviewTranslation->review($rowRef)) {
                     $this->redirectWithNotice('not_reviewable');
                 }
-
                 $this->redirectWithNotice('reviewed');
                 break;
 
             case 'ignore':
-                $this->ignoreTranslation->ignore($id);
+                $this->ignoreTranslation->ignore($rowRef);
                 $this->redirectWithNotice('ignored');
                 break;
 
             case 'reset_ignored':
-                if (!$this->resetIgnoredTranslation->reset($id)) {
+                if (!$this->resetIgnoredTranslation->reset($rowRef)) {
                     $this->redirectWithNotice('not_ignored');
                 }
-
                 $this->redirectWithNotice('reset_ignored');
-                break;
-
-            case 'delete':
-                $this->redirectWithNotice('invalid');
                 break;
         }
     }
@@ -141,19 +142,19 @@ class TranslationMemoryPageController
             wp_send_json_error(['message' => __('Invalid screen.', 'translangs')], 400);
         }
 
-        $id = (int) ($_POST['string_id'] ?? 0);
+        $rowRef = $this->parseRowRef(sanitize_text_field(wp_unslash($_POST['row_ref'] ?? '')));
 
-        if ($id <= 0) {
-            wp_send_json_error(['message' => __('Invalid string.', 'translangs')], 400);
+        if ($rowRef === null) {
+            wp_send_json_error(['message' => __('Invalid string reference.', 'translangs')], 400);
         }
 
         $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
-        $this->saveTranslation->save($id, $text);
+        $this->saveTranslation->save($rowRef, $text);
 
         wp_send_json_success([
-            'message' => __('Translation saved.', 'translangs'),
-            'translated_text' => $text,
-            'has_translation' => trim(wp_strip_all_tags($text)) !== '',
+            'message'          => __('Translation saved.', 'translangs'),
+            'translated_text'  => $text,
+            'has_translation'  => trim(wp_strip_all_tags($text)) !== '',
         ]);
     }
 
@@ -176,22 +177,39 @@ class TranslationMemoryPageController
         $total   = array_sum(array_map(static fn(array $group): int => (int) $group['total'], $groups));
 
         PhpTemplateRenderer::render('translations.php', [
-            'groups'      => $groups,
-            'total'       => $total,
-            'page'        => $page,
-            'perPage'     => self::PER_PAGE,
-            'filters'     => $filters,
-            'languages'   => $this->filterLanguages(),
-            'statuses'    => TranslationStatus::labels(),
+            'groups'          => $groups,
+            'total'           => $total,
+            'page'            => $page,
+            'perPage'         => self::PER_PAGE,
+            'filters'         => $filters,
+            'languages'       => $this->filterLanguages(),
+            'statuses'        => TranslationStatus::labels(),
             'defaultLanguage' => $this->defaultLanguage(),
-            'notice'      => $notice,
-            'tabs'        => SettingsPageController::tabs(),
-            'current'     => self::SLUG,
-            'pageSlug'    => self::SLUG,
-            'view'        => $view,
-            'showIgnoredUrl' => $this->pageUrl($filters, 'ignored'),
-            'activeUrl'   => $this->pageUrl($filters, 'active'),
+            'notice'          => $notice,
+            'tabs'            => SettingsPageController::tabs(true),
+            'current'         => self::SLUG,
+            'pageSlug'        => self::SLUG,
+            'view'            => $view,
+            'showIgnoredUrl'  => $this->pageUrl($filters, 'ignored'),
+            'activeUrl'       => $this->pageUrl($filters, 'active'),
         ]);
+    }
+
+    /**
+     * Parse a raw row_ref string from POST input.
+     * Returns null on any parse failure; caller redirects or sends JSON error.
+     */
+    private function parseRowRef(string $raw): ?RowRef
+    {
+        if ($raw === '') {
+            return null;
+        }
+
+        try {
+            return RowRef::parse($raw);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
     }
 
     /**
@@ -205,8 +223,7 @@ class TranslationMemoryPageController
             'translangs_notice' => $flag,
         ];
 
-        // Preserve the current filter/pagination context across the redirect.
-        foreach (['source_lang', 'target_lang', 'search_original', 'search_translated', 'paged', 'translated_paged', 'discovered_paged', 'needs_review_paged', 'translangs_view'] as $key) {
+        foreach (['target_lang', 'search_original', 'search_translated', 'paged', 'translated_paged', 'discovered_paged', 'needs_review_paged', 'translangs_view'] as $key) {
             if (isset($_GET[$key]) && $_GET[$key] !== '') {
                 $args[$key] = sanitize_text_field(wp_unslash($_GET[$key]));
             }
@@ -217,22 +234,20 @@ class TranslationMemoryPageController
     }
 
     /**
-     * Map a redirect flag to a [message, type] notice.
-     *
      * @return array{0: string, 1: string}|null
      */
     private function noticeFromFlag(string $flag): ?array
     {
         $map = [
-            'saved'    => [__('Translation saved.', 'translangs'), 'success'],
-            'put_for_review' => [__('Marked as needs review.', 'translangs'), 'success'],
-            'reviewed' => [__('Marked as reviewed.', 'translangs'), 'success'],
-            'ignored'  => [__('String ignored.', 'translangs'), 'success'],
-            'reset_ignored' => [__('String reset to discovered.', 'translangs'), 'success'],
-            'invalid'  => [__('Invalid string.', 'translangs'), 'error'],
+            'saved'               => [__('Translation saved.', 'translangs'), 'success'],
+            'put_for_review'      => [__('Marked as needs review.', 'translangs'), 'success'],
+            'reviewed'            => [__('Marked as reviewed.', 'translangs'), 'success'],
+            'ignored'             => [__('String ignored.', 'translangs'), 'success'],
+            'reset_ignored'       => [__('String reset to discovered.', 'translangs'), 'success'],
+            'invalid'             => [__('Invalid string reference.', 'translangs'), 'error'],
             'already_needs_review' => [__('This string is already marked as needs review.', 'translangs'), 'error'],
-            'not_reviewable' => [__('Only strings marked as needs review can be reviewed.', 'translangs'), 'error'],
-            'not_ignored' => [__('Only ignored strings can be reset.', 'translangs'), 'error'],
+            'not_reviewable'      => [__('Only strings marked as needs review can be reviewed.', 'translangs'), 'error'],
+            'not_ignored'         => [__('Only ignored strings can be reset.', 'translangs'), 'error'],
         ];
 
         return $map[$flag] ?? null;
@@ -240,23 +255,22 @@ class TranslationMemoryPageController
 
     /**
      * Read and sanitize filters from the query string.
+     * source_lang is intentionally absent — source language is never stored.
      *
      * @return array<string, mixed>
      */
     private function readFilters(): array
     {
-        $defaultLanguage = $this->defaultLanguage();
         $enabledLanguages = $this->filterLanguages();
-        $targetLang = isset($_GET['target_lang']) ? sanitize_key($_GET['target_lang']) : '';
+        $targetLang       = isset($_GET['target_lang']) ? sanitize_key($_GET['target_lang']) : '';
 
         if ($targetLang === '' || !isset($enabledLanguages[$targetLang])) {
-            $targetLang = array_key_first($enabledLanguages) ?: $defaultLanguage;
+            $targetLang = array_key_first($enabledLanguages) ?: $this->defaultLanguage();
         }
 
         return [
-            'source_lang'       => isset($_GET['source_lang']) ? sanitize_key($_GET['source_lang']) : '',
             'target_lang'       => $targetLang,
-            'search_original'   => isset($_GET['search_original']) ? sanitize_text_field(wp_unslash($_GET['search_original'])) : '',
+            'search_original'   => isset($_GET['search_original'])   ? sanitize_text_field(wp_unslash($_GET['search_original']))   : '',
             'search_translated' => isset($_GET['search_translated']) ? sanitize_text_field(wp_unslash($_GET['search_translated'])) : '',
         ];
     }
@@ -271,7 +285,7 @@ class TranslationMemoryPageController
     }
 
     /**
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed> $filters
      * @return array<string, array<string, mixed>>
      */
     private function activeGroups(array $filters): array
@@ -305,7 +319,7 @@ class TranslationMemoryPageController
     }
 
     /**
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed> $filters
      * @return array<string, array<string, mixed>>
      */
     private function ignoredGroups(array $filters, int $page): array
@@ -323,8 +337,8 @@ class TranslationMemoryPageController
     }
 
     /**
-     * @param array<string, mixed> $filters
-     * @param int[] $statuses
+     * @param  array<string, mixed> $filters
+     * @param  int[]                $statuses
      * @return array<string, mixed>
      */
     private function group(string $title, string $description, array $filters, array $statuses, int $page = 1, string $pageParam = 'paged'): array
@@ -370,9 +384,6 @@ class TranslationMemoryPageController
         return add_query_arg($args, admin_url('admin.php'));
     }
 
-    /**
-     * @return array<string, array{name: string, native: string, dir: string}>
-     */
     private function defaultLanguage(): string
     {
         $default = (string) get_option('translangs_default_language', 'en');
@@ -385,9 +396,9 @@ class TranslationMemoryPageController
      */
     private function filterLanguages(): array
     {
-        $all = SupportedLanguages::all();
+        $all          = SupportedLanguages::all();
         $enabledCodes = (array) get_option('translangs_enabled_languages', ['en', 'fr']);
-        $default = $this->defaultLanguage();
+        $default      = $this->defaultLanguage();
 
         $enabled = [];
 

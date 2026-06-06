@@ -15,16 +15,26 @@ use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 class SettingsPageController
 {
     public const CAPABILITY = 'manage_options';
-    public const SLUG       = 'translangs-settings';
+    public const SLUG       = 'translangs';
 
     public function __construct(private LanguageRegistry $registry) {}
 
-    /** @return array<string, string> */
-    private static function tabs(): array
+    /**
+     * Tab set for TransLangs admin screens.
+     * The Translations tab is omitted when no target languages are configured,
+     * so the admin is nudged to set up languages before accessing translations.
+     *
+     * @return array<string, string>  slug => label
+     */
+    public static function tabs(bool $translationsEnabled = true): array
     {
-        return [
-            self::SLUG => __('General', 'translangs'),
-        ];
+        $tabs = [self::SLUG => __('Settings', 'translangs')];
+
+        if ($translationsEnabled) {
+            $tabs[TranslationMemoryPageController::SLUG] = __('Translations', 'translangs');
+        }
+
+        return $tabs;
     }
 
     public function register(): void
@@ -34,9 +44,22 @@ class SettingsPageController
 
     public function addMenu(): void
     {
-        add_options_page(
-            __('TransLangs Settings', 'translangs'),
+        // Register the top-level TransLangs menu.
+        add_menu_page(
             __('TransLangs', 'translangs'),
+            __('TransLangs', 'translangs'),
+            self::CAPABILITY,
+            self::SLUG,
+            [$this, 'renderPage'],
+            'dashicons-translation',
+            30
+        );
+
+        // Rename the auto-created first submenu entry to "Settings".
+        add_submenu_page(
+            self::SLUG,
+            __('TransLangs Settings', 'translangs'),
+            __('Settings', 'translangs'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
@@ -51,10 +74,12 @@ class SettingsPageController
 
         $this->maybeHandleSave();
 
+        $hasTargetLanguages = $this->registry->getTargetLanguages() !== [];
+
         PhpTemplateRenderer::render('settings.php', [
             'settings'  => $this->currentSettings(),
             'languages' => SupportedLanguages::all(),
-            'tabs'      => self::tabs(),
+            'tabs'      => self::tabs($hasTargetLanguages),
             'current'   => self::SLUG,
         ]);
     }
@@ -123,7 +148,13 @@ class SettingsPageController
         update_option('translangs_auto_redirect', !empty($_POST['auto_redirect']));
 
         if ($toEnable !== [] || $toDisable !== [] || $oldPrefix !== $prefixDefault) {
-            flush_rewrite_rules(false);
+            // Do NOT call flush_rewrite_rules() here. At this point in the
+            // request, init has already fired and addRewriteRules() ran before
+            // these languages were saved — so a flush now would regenerate
+            // rules without the new prefixes and cache them in the option.
+            // Emptying the option forces WordPress to regenerate on the NEXT
+            // request, after init has added the updated language routes.
+            update_option('rewrite_rules', '');
         }
 
         $this->notice(__('Settings saved.', 'translangs'), 'success');

@@ -40,15 +40,12 @@ class TranslationMemorySchema
 
         $charsetCollate = $wpdb->get_charset_collate();
 
-        // 1. Drop old single-table schema (no data migration — clean rebuild).
-        $wpdb->query('DROP TABLE IF EXISTS ' . self::stringsTable()); // phpcs:ignore WordPress.DB
-
-        // 2. Create language registry first — it is the FK target for all translation tables.
+        // 1. Create language registry first — it is the FK target for all translation tables.
         $wpdb->query( // phpcs:ignore WordPress.DB
             TableDefinitions::languages(self::tlLanguagesTable(), $charsetCollate)
         );
 
-        // 3. Create the four translation tables with inline FK clauses.
+        // 2. Create the four translation tables with inline FK clauses.
         $wpdb->query( // phpcs:ignore WordPress.DB
             TableDefinitions::post(
                 self::tlPostTable(),
@@ -81,7 +78,7 @@ class TranslationMemorySchema
             )
         );
 
-        // 4. Verify every FK exists in information_schema.
+        // 3. Verify every FK exists in information_schema.
         $missing = (new ConstraintVerifier($wpdb))->findMissing([
             'fk_post_parent'     => self::tlPostTable(),
             'fk_post_lang'       => self::tlPostTable(),
@@ -92,7 +89,7 @@ class TranslationMemorySchema
             'fk_i18n_lang'       => self::tlI18nTable(),
         ]);
 
-        // 5. On any missing FK: drop translation tables then languages, then fail.
+        // 4. On any missing FK: drop translation tables then languages, then fail.
         if ($missing !== []) {
             $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nTable());    // phpcs:ignore WordPress.DB
             $wpdb->query('DROP TABLE IF EXISTS ' . self::tlTermsTable());   // phpcs:ignore WordPress.DB
@@ -151,12 +148,5 @@ class TranslationMemorySchema
     {
         global $wpdb;
         return $wpdb->prefix . 'tl_translations_i18n';
-    }
-
-    /** Old single-table name — used only for the DROP during upgrade. */
-    public static function stringsTable(): string
-    {
-        global $wpdb;
-        return $wpdb->prefix . 'translangs_strings';
     }
 }

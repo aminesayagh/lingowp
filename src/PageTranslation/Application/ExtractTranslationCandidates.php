@@ -48,7 +48,7 @@ class ExtractTranslationCandidates
                 continue;
             }
 
-            $hash = $this->hasher->generate($normalized);
+            $hash = bin2hex($this->hasher->hashNormalized($normalized));
 
             $key = ClassifiedTranslationCandidate::makeIdentityKey(
                 $sourceType,

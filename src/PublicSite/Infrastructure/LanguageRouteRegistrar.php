@@ -64,8 +64,18 @@ class LanguageRouteRegistrar
         $rest = $this->pathAfterPrefix($segment);
 
         if ($rest === '') {
-            // Language home page maps to the site front page.
+            // Language home page — serve whatever WordPress serves at /.
             $vars['translangs_is_front'] = '1';
+
+            // For a static front page WordPress normally routes via page_id.
+            // Without it, WP_Query sees no routing vars, defaults to is_home,
+            // and may return an empty result (→ 404) when show_on_front=page.
+            if ('page' === get_option('show_on_front')) {
+                $frontPageId = (int) get_option('page_on_front');
+                if ($frontPageId > 0) {
+                    $vars['page_id'] = $frontPageId;
+                }
+            }
         } else {
             // Re-feed the remaining path through WordPress's own parser.
             $vars['pagename'] = $rest;

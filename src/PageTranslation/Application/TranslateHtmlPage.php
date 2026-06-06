@@ -3,146 +3,142 @@
 namespace TransLangs\PageTranslation\Application;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\PageTranslation\Domain\ClassifiedTranslationCandidate;
 use TransLangs\PageTranslation\Infrastructure\Html\HtmlParserFactory;
 use TransLangs\PublicSite\Infrastructure\LinkRewriter;
 use TransLangs\TranslationMemory\Application\ResolveTranslations;
-use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
  * Replaces original strings with translations in the rendered page.
  *
- * This is the join point of the public pipeline:
+ * Public pipeline:
+ *   1. Parse captured HTML once (HtmlParserFactory picks the driver).
+ *   2. Determine current page context: postId, term taxonomy IDs.
+ *   3. For translated requests: preload translation map → classify segments →
+ *      discover misses → replace text → rewrite links → render.
+ *   4. For default-language requests: discover all segments (discovery-only,
+ *      no text replacement needed).
  *
- *   1. parse the captured HTML once (HtmlParserFactory picks the driver)
- *   2. read translatable segments from the parsed document
- *   3. classify each segment: match hash → known structured identity or fall
- *      back to (currentSourceType, 0, segmentContext) for template chrome
- *   4. discover all candidates for every enabled non-default language
- *   5. resolve translations for the target language by full identity
- *   6. map translated values back onto every locator that holds that identity
- *   7. rewrite internal links to the target-language prefix
- *   8. render and return the mutated HTML
- *
- * Missing/untranslated strings are simply absent from the replacement map, so
- * they remain in the source language — the page never breaks.
- *
- * The render() method is shaped to be used directly as the OutputBufferMiddleware
- * pipeline: fn(string $html, string $targetLang): string.
+ * No per-string DB query: one preload per render covers the full page.
+ * Missing/untranslated strings stay in the source language — the page never
+ * breaks.
  */
 class TranslateHtmlPage
 {
     public function __construct(
         private HtmlParserFactory $parserFactory,
-        private ClassifyRenderedSegments $classifier,
         private ResolveTranslations $lookup,
         private ResolveRequestLanguage $resolver,
         private LinkRewriter $linkRewriter
-    ) {
-    }
+    ) {}
 
     /**
      * Pipeline entry point. Returns translated HTML, or the original when the
      * request is in the default language (discover-only mode).
-     *
-     * Two modes, decided by target vs. source language:
-     *   - default language  -> parse, DISCOVER for all languages, no text replace
-     *   - translated         -> parse, DISCOVER, then REPLACE text + rewrite links
-     *
-     * Discovery runs in both modes so the memory fills on every visit.
      */
     public function render(string $html, string $targetLang): string
     {
-        $sourceLang  = $this->resolver->getDefaultLanguage();
+        $sourceLang    = $this->resolver->getDefaultLanguage();
         $isTranslating = $targetLang !== $sourceLang;
 
         $parser = $this->parserFactory->create();
 
         if ($parser === null || !$parser->load($html)) {
-            return $html; // no usable parser, or unparseable input: leave as-is
+            return $html;
         }
 
         $segments = $parser->segments();
+        $links    = $parser->links();
 
-        if ($segments === [] && $parser->links() === []) {
+        if ($segments === [] && $links === []) {
             return $html;
         }
 
-        $source     = $this->resolveCurrentSource();
-        $candidates = $segments !== []
-            ? $this->classifier->classify($segments, $source['source_id'], $source['source_type'], $sourceLang)
-            : [];
+        if ($isTranslating) {
+            [$postId, $termTaxonomyIds] = $this->resolvePageContext();
 
-        // DISCOVERY (both modes): record every candidate for all enabled
-        // non-default languages, so the memory fills even on default visits.
-        if ($candidates !== []) {
-            $this->lookup->discoverForAllLanguages($candidates);
+            $replacements = $segments !== []
+                ? $this->lookup->resolveForRender($segments, $targetLang, $postId, $termTaxonomyIds)
+                : [];
+
+            $replacements += $this->buildLinkReplacements($links, $targetLang);
+
+            if ($replacements === []) {
+                return $html;
+            }
+
+            return $parser->render($replacements);
         }
 
-        // Default-language request: discover only, do not alter the page text.
-        // (Links are already in the default language, so no rewrite needed.)
-        if (!$isTranslating) {
-            return $html;
+        // Default-language request: discover all segments for future translation,
+        // but leave the page text unchanged.
+        if ($segments !== []) {
+            $this->lookup->discoverAll($segments);
         }
 
-        // TRANSLATION mode: resolve translations for this target and replace.
-        $replacements = [];
-
-        if ($candidates !== []) {
-            $translationsByIdentity = $this->lookup->resolve(
-                $candidates,
-                $sourceLang,
-                $targetLang
-            );
-
-            $replacements = $this->mapToLocators($candidates, $translationsByIdentity);
-        }
-
-        // Rewrite internal links so the visitor stays in this language, even on
-        // pages where no text is translated yet.
-        $replacements += $this->buildLinkReplacements($parser->links(), $targetLang);
-
-        if ($replacements === []) {
-            return $html;
-        }
-
-        return $parser->render($replacements);
+        return $html;
     }
 
     /**
-     * @return array{source_id: int, source_type: string}
+     * Determine the primary entity and associated terms for the current request.
+     *
+     * @return array{int, int[]} [postId, termTaxonomyIds]
      */
-    private function resolveCurrentSource(): array
+    private function resolvePageContext(): array
     {
         $object = function_exists('get_queried_object') ? get_queried_object() : null;
 
         if ($object instanceof \WP_Post) {
-            return [
-                'source_id'   => (int) $object->ID,
-                'source_type' => $this->normalizePostSourceType((string) $object->post_type),
-            ];
+            return [(int) $object->ID, $this->collectTermTaxonomyIds((int) $object->ID)];
         }
 
-        return [
-            'source_id'   => 0,
-            'source_type' => TranslationSourceType::PAGE,
-        ];
+        if ($object instanceof \WP_Term) {
+            return [0, [(int) $object->term_taxonomy_id]];
+        }
+
+        return [0, []];
     }
 
-    private function normalizePostSourceType(string $postType): string
+    /**
+     * Collect term_taxonomy_ids for all terms attached to a post so their
+     * translations are preloaded alongside the post's own fields.
+     *
+     * @return int[]
+     */
+    private function collectTermTaxonomyIds(int $postId): array
     {
-        return match ($postType) {
-            TranslationSourceType::PAGE => TranslationSourceType::PAGE,
-            TranslationSourceType::POST => TranslationSourceType::POST,
-            TranslationSourceType::PRODUCT => TranslationSourceType::PRODUCT,
-            default => $postType !== '' ? $postType : TranslationSourceType::PAGE,
-        };
+        if (
+            !function_exists('get_post_type') ||
+            !function_exists('get_object_taxonomies') ||
+            !function_exists('wp_get_object_terms')
+        ) {
+            return [];
+        }
+
+        $postType = get_post_type($postId);
+
+        if ($postType === false || $postType === '') {
+            return [];
+        }
+
+        $taxonomies = get_object_taxonomies($postType, 'names');
+
+        if ($taxonomies === []) {
+            return [];
+        }
+
+        $terms = wp_get_object_terms($postId, $taxonomies, ['fields' => 'tt_ids']);
+
+        if (is_wp_error($terms) || !is_array($terms)) {
+            return [];
+        }
+
+        return array_map('intval', $terms);
     }
 
     /**
      * Compute locator => prefixed-href for every rewritable internal link.
      *
-     * @param \TransLangs\PageTranslation\Domain\TranslatableSegment[] $links
+     * @param  \TransLangs\PageTranslation\Domain\TranslatableSegment[] $links
      * @return array<string, string>
      */
     private function buildLinkReplacements(array $links, string $targetLang): array
@@ -159,33 +155,4 @@ class TranslateHtmlPage
 
         return $out;
     }
-
-    /**
-     * Build locator => translated_text from identityKey => translated_text by
-     * walking each candidate's locator list. One stored translation replaces
-     * every on-page occurrence that shares its identity.
-     *
-     * @param ClassifiedTranslationCandidate[] $candidates          keyed by identity key
-     * @param array<string, string>            $translationsByIdentity identityKey => translated_text
-     * @return array<string, string>                                  locator => translated_text
-     */
-    private function mapToLocators(array $candidates, array $translationsByIdentity): array
-    {
-        $replacements = [];
-
-        foreach ($candidates as $identityKey => $candidate) {
-            if (!isset($translationsByIdentity[$identityKey])) {
-                continue;
-            }
-
-            $translated = $translationsByIdentity[$identityKey];
-
-            foreach ($candidate->locators as $locator) {
-                $replacements[$locator] = $translated;
-            }
-        }
-
-        return $replacements;
-    }
-
 }

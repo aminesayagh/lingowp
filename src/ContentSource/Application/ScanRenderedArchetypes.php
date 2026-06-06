@@ -2,22 +2,26 @@
 
 namespace TransLangs\ContentSource\Application;
 
-use TransLangs\ContentSource\Domain\ScanTarget;
 use TransLangs\ContentSource\Domain\SourceRoute;
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\PageTranslation\Application\ClassifyRenderedSegments;
+use TransLangs\ContentSource\Domain\ScanTarget;
 use TransLangs\PageTranslation\Infrastructure\Html\HtmlParserFactory;
 use TransLangs\TranslationMemory\Application\DiscoverSourceStrings;
 use TransLangs\TranslationMemory\Domain\StringHashGenerator;
+use TransLangs\TranslationMemory\Domain\StringNormalizer;
 use TransLangs\TranslationMemory\Domain\TranslationSourceIdentity;
 
 /**
- * Fetches each archetype URL, parses the rendered HTML, classifies segments,
- * and discovers new strings into the translation memory.
+ * Fetches each archetype URL, parses the rendered HTML, and discovers all
+ * visible segments as i18n strings.
  *
- * NOTE: candidatesToIdentities() uses a temporary bridge mapping pre-Step-8
- * ClassifiedTranslationCandidate (old shape) to the new identity model.
- * Step 8 will replace this with a proper SourceRoute-aware classifier.
+ * Only template chrome (things not already covered by the structured source
+ * readers) ends up here permanently. Structured entity text (post fields, term
+ * names, media alt) is discovered more precisely by ScanStructuredSources; the
+ * i18n rows created here serve as a safety net for dynamic/widget/shortcode
+ * text that has no DB-backed origin.
+ *
+ * All segments are routed to SourceRoute::I18n with source='theme' and
+ * reference=<DOM context hint>. INSERT IGNORE makes repeated scans idempotent.
  */
 class ScanRenderedArchetypes
 {
@@ -26,24 +30,21 @@ class ScanRenderedArchetypes
     public function __construct(
         private BuildScanTargets $targets,
         private HtmlParserFactory $parserFactory,
-        private ClassifyRenderedSegments $classifier,
         private DiscoverSourceStrings $discovery,
-        private ResolveRequestLanguage $languages,
+        private StringNormalizer $normalizer,
         private StringHashGenerator $hasher,
     ) {}
 
     public function scan(): ArchetypeScanResult
     {
-        $sourceLang = $this->languages->getDefaultLanguage();
         $targets    = $this->targets->build();
-
         $scanned    = 0;
         $discovered = 0;
         $errors     = [];
 
         foreach ($targets as $target) {
             $scanned++;
-            ['discovered' => $d, 'error' => $err] = $this->scanOne($target, $sourceLang);
+            ['discovered' => $d, 'error' => $err] = $this->scanOne($target);
             $discovered += $d;
 
             if ($err !== null) {
@@ -61,7 +62,7 @@ class ScanRenderedArchetypes
     /**
      * @return array{discovered: int, error: string|null}
      */
-    private function scanOne(ScanTarget $target, string $sourceLang): array
+    private function scanOne(ScanTarget $target): array
     {
         $html = $this->fetchHtml($target->url);
 
@@ -81,20 +82,13 @@ class ScanRenderedArchetypes
             return ['discovered' => 0, 'error' => null];
         }
 
-        // classifier signature will be updated in Step 8
-        $candidates = $this->classifier->classify(
-            $segments,
-            $target->sourceId,
-            $target->sourceType,
-            $sourceLang
-        );
+        $identities = $this->segmentsToI18nIdentities($segments);
 
-        if ($candidates === []) {
+        if ($identities === []) {
             return ['discovered' => 0, 'error' => null];
         }
 
-        $identities = $this->candidatesToIdentities($candidates);
-        $inserted   = $this->discovery->discover($identities);
+        $inserted = $this->discovery->discover($identities);
 
         return ['discovered' => $inserted, 'error' => null];
     }
@@ -124,57 +118,47 @@ class ScanRenderedArchetypes
     }
 
     /**
-     * Convert pre-Step-8 ClassifiedTranslationCandidate objects to the new
-     * TranslationSourceIdentity shape.
+     * Convert parser segments to i18n-route identities.
+     * DOM context (e.g. "h1", "img@alt") becomes the i18n reference.
+     * Deduped by (context + normalized) before handing to the discovery service.
      *
-     * Mapping:
-     *   sourceId = 0  → SourceRoute::I18n  (template chrome, no entity FK)
-     *   sourceId > 0  → SourceRoute::Post  (entity-owned; Step 8 will refine
-     *                                        routing for media/taxonomy segments)
-     *
-     * @param \TransLangs\PageTranslation\Domain\ClassifiedTranslationCandidate[] $candidates
+     * @param  \TransLangs\PageTranslation\Domain\TranslatableSegment[] $segments
      * @return TranslationSourceIdentity[]
      */
-    private function candidatesToIdentities(array $candidates): array
+    private function segmentsToI18nIdentities(array $segments): array
     {
         $identities = [];
+        $seen       = [];
 
-        foreach ($candidates as $candidate) {
-            $originalHash = $this->hasher->hashNormalized($candidate->normalizedText);
+        foreach ($segments as $segment) {
+            $normalized = $this->normalizer->normalize($segment->value);
 
-            if ($candidate->sourceId === 0) {
-                $identities[] = new TranslationSourceIdentity(
-                    routeTable:    SourceRoute::I18n,
-                    parentId:      0,
-                    field:         null,
-                    metaKey:       null,
-                    metaKeyHash:   null,
-                    context:       null,
-                    contextHash:   null,
-                    source:        'theme',
-                    reference:     $candidate->context,
-                    referenceHash: $this->hasher->hashReference($candidate->context),
-                    originalText:  $candidate->originalText,
-                    normalizedText: $candidate->normalizedText,
-                    originalHash:  $originalHash,
-                );
+            if ($normalized === '') {
                 continue;
             }
 
+            $dedupeKey = $segment->context . "\0" . $normalized;
+
+            if (isset($seen[$dedupeKey])) {
+                continue;
+            }
+
+            $seen[$dedupeKey] = true;
+
             $identities[] = new TranslationSourceIdentity(
-                routeTable:    SourceRoute::Post,
-                parentId:      $candidate->sourceId,
-                field:         $candidate->context,
-                metaKey:       null,
-                metaKeyHash:   null,
-                context:       null,
-                contextHash:   null,
-                source:        null,
-                reference:     null,
-                referenceHash: null,
-                originalText:  $candidate->originalText,
-                normalizedText: $candidate->normalizedText,
-                originalHash:  $originalHash,
+                routeTable:     SourceRoute::I18n,
+                parentId:       0,
+                field:          null,
+                metaKey:        null,
+                metaKeyHash:    null,
+                context:        null,
+                contextHash:    null,
+                source:         'theme',
+                reference:      $segment->context,
+                referenceHash:  $this->hasher->hashReference($segment->context),
+                originalText:   $segment->value,
+                normalizedText: $normalized,
+                originalHash:   $this->hasher->hashNormalized($normalized),
             );
         }
 

@@ -102,6 +102,13 @@ final class AdminTranslationsQuery
             'i18n'     => 'reference',
             default    => 'NULL',
         };
+        // parent_ref: the entity FK used by the admin "View" link.
+        // post/postmeta → post_id (permalink); terms → term_taxonomy_id; i18n → NULL.
+        $parentRefExpr = match ($routeTable) {
+            'post', 'postmeta' => 'post_id',
+            'terms'            => 'term_taxonomy_id',
+            default            => 'NULL',
+        };
 
         [$where, $whereParams] = $this->buildWhere($filters);
 
@@ -111,7 +118,8 @@ final class AdminTranslationsQuery
                        HEX(original_hash) AS original_hash,
                        original_text, translated_text,
                        status, provider, created_at, updated_at,
-                       {$ctx1Expr} AS ctx1, {$ctx2Expr} AS ctx2
+                       {$ctx1Expr} AS ctx1, {$ctx2Expr} AS ctx2,
+                       {$parentRefExpr} AS parent_ref
                 FROM {$table}
                 {$where}";
 

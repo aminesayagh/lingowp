@@ -5,14 +5,16 @@ namespace TransLangs\Bootstrap;
 use TransLangs\BackOffice\Infrastructure\AdminAssets;
 use TransLangs\BackOffice\Infrastructure\SettingsPageController;
 use TransLangs\BackOffice\Infrastructure\TranslationMemoryPageController;
+use TransLangs\Language\Domain\LanguageRegistry;
 
 class AdminServiceProvider
 {
     public function register(ServiceContainer $container): void
     {
         (new AdminAssets())->register();
-        (new SettingsPageController())->register();
+        (new SettingsPageController($container->get('language.registry')))->register();
         (new TranslationMemoryPageController(
+            $container->get('language.registry'),
             $container->get('translation_memory.query_translations'),
             $container->get('translation_memory.save_translation'),
             $container->get('translation_memory.put_translation_for_review'),

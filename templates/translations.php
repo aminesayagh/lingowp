@@ -30,7 +30,7 @@ if (!defined('ABSPATH')) {
 /** @var string $showIgnoredUrl */
 /** @var string $activeUrl */
 
-$tabs = $tabs ?? [];
+$tabs    = $tabs    ?? [];
 $current = $current ?? '';
 $isIgnoredView = ($view ?? 'active') === 'ignored';
 
@@ -52,26 +52,35 @@ $badgeClass = static function (int $status): string {
     ][$status] ?? 'translangs-badge--discovered';
 };
 
+/**
+ * Resolve the front-end "View" URL for a row using route_table + parent_ref.
+ *   post / postmeta  → permalink of the parent post (post_id)
+ *   terms            → front-end term archive (term_taxonomy_id)
+ *   i18n             → no direct URL (returns '')
+ */
 $viewUrl = static function (array $row): string {
-    $sourceId = isset($row['source_id']) ? (int) $row['source_id'] : 0;
-    $sourceType = isset($row['source_type']) ? (string) $row['source_type'] : '';
+    $table     = (string) ($row['route_table'] ?? '');
+    $parentRef = isset($row['parent_ref']) ? (int) $row['parent_ref'] : 0;
 
-    if ($sourceId <= 0 || $sourceType === '') {
+    if ($parentRef <= 0) {
         return '';
     }
 
-    if ($sourceType === 'media') {
-        $url = wp_get_attachment_url($sourceId);
+    if ($table === 'post' || $table === 'postmeta') {
+        $url = get_permalink($parentRef);
         return is_string($url) ? $url : '';
     }
 
-    if ($sourceType === 'taxonomy') {
-        $url = get_term_link($sourceId);
+    if ($table === 'terms') {
+        $term = get_term_by('term_taxonomy_id', $parentRef);
+        if (!($term instanceof \WP_Term)) {
+            return '';
+        }
+        $url = get_term_link($term);
         return is_wp_error($url) ? '' : (string) $url;
     }
 
-    $url = get_permalink($sourceId);
-    return is_string($url) ? $url : '';
+    return '';
 };
 
 $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStatusColumn = true) use ($badgeClass, &$statuses, $viewUrl, $iconLabel): void {
@@ -101,22 +110,23 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
             <?php endif; ?>
 
             <?php foreach ($rows as $row) :
-                $id     = (int) $row['id'];
-                $status = (int) $row['status'];
+                $rowRef  = (string) ($row['row_ref'] ?? '');
+                $formId  = 'translangs-save-form-' . str_replace(':', '-', $rowRef);
+                $status  = (int) ($row['status'] ?? 0);
                 ?>
                 <tr>
                     <!-- Original Text -->
-                    <td><?php echo esc_html((string) $row['original_text']); ?></td>
+                    <td><?php echo esc_html((string) ($row['original_text'] ?? '')); ?></td>
 
                     <!-- Translated Text -->
                     <td>
                         <?php if ($isIgnoredView) : ?>
                             <?php echo esc_html((string) ($row['translated_text'] ?? '')); ?>
                         <?php else : ?>
-                            <form method="post" action="" class="translangs-cell-edit" id="translangs-save-form-<?php echo esc_attr((string) $id); ?>">
+                            <form method="post" action="" class="translangs-cell-edit" id="<?php echo esc_attr($formId); ?>">
                                 <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
                                 <input type="hidden" name="translangs_screen" value="translangs-translations">
-                                <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
+                                <input type="hidden" name="row_ref" value="<?php echo esc_attr($rowRef); ?>">
                                 <input type="hidden" name="translangs_action" value="save">
                                 <?php $translatedText = (string) ($row['translated_text'] ?? ''); ?>
                                 <textarea name="translated_text" rows="1" class="large-text translangs-translation-field" data-initial-value="<?php echo esc_attr($translatedText); ?>"><?php
@@ -143,7 +153,7 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
 
                     <td class="translangs-actions">
                         <?php if (!$isIgnoredView) : ?>
-                            <button type="submit" form="translangs-save-form-<?php echo esc_attr((string) $id); ?>" class="button button-primary button-small translangs-icon-button translangs-save-button" aria-label="<?php esc_attr_e('Save', 'translangs'); ?>" title="<?php esc_attr_e('Save', 'translangs'); ?>"><?php echo $iconLabel(__('Save', 'translangs'), 'yes'); ?></button>
+                            <button type="submit" form="<?php echo esc_attr($formId); ?>" class="button button-primary button-small translangs-icon-button translangs-save-button" aria-label="<?php esc_attr_e('Save', 'translangs'); ?>" title="<?php esc_attr_e('Save', 'translangs'); ?>"><?php echo $iconLabel(__('Save', 'translangs'), 'yes'); ?></button>
                         <?php endif; ?>
 
                         <?php $targetUrl = $viewUrl($row); ?>
@@ -155,7 +165,7 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
                             <form method="post" action="" style="display:inline;">
                                 <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
                                 <input type="hidden" name="translangs_screen" value="translangs-translations">
-                                <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
+                                <input type="hidden" name="row_ref" value="<?php echo esc_attr($rowRef); ?>">
                                 <input type="hidden" name="translangs_action" value="reset_ignored">
                                 <button type="submit" class="button button-small translangs-icon-button" aria-label="<?php esc_attr_e('Reset to discovered', 'translangs'); ?>" title="<?php esc_attr_e('Reset to discovered', 'translangs'); ?>"><?php echo $iconLabel(__('Reset to discovered', 'translangs'), 'undo'); ?></button>
                             </form>
@@ -164,7 +174,7 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
                                 <form method="post" action="" style="display:inline;">
                                     <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
                                     <input type="hidden" name="translangs_screen" value="translangs-translations">
-                                    <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
+                                    <input type="hidden" name="row_ref" value="<?php echo esc_attr($rowRef); ?>">
                                     <input type="hidden" name="translangs_action" value="review">
                                     <button type="submit" class="button button-small translangs-icon-button" aria-label="<?php esc_attr_e('Review', 'translangs'); ?>" title="<?php esc_attr_e('Review', 'translangs'); ?>"><?php echo $iconLabel(__('Review', 'translangs'), 'yes'); ?></button>
                                 </form>
@@ -173,7 +183,7 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
                                     <form method="post" action="" style="display:inline;">
                                         <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
                                         <input type="hidden" name="translangs_screen" value="translangs-translations">
-                                        <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
+                                        <input type="hidden" name="row_ref" value="<?php echo esc_attr($rowRef); ?>">
                                         <input type="hidden" name="translangs_action" value="put_for_review">
                                         <button type="submit" class="button button-small translangs-icon-button translangs-put-review-button" aria-label="<?php esc_attr_e('Put for review', 'translangs'); ?>" title="<?php esc_attr_e('Put for review', 'translangs'); ?>" disabled><?php echo $iconLabel(__('Put for review', 'translangs'), 'edit'); ?></button>
                                     </form>
@@ -182,7 +192,7 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
                                     <form method="post" action="" style="display:inline;">
                                         <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
                                         <input type="hidden" name="translangs_screen" value="translangs-translations">
-                                        <input type="hidden" name="string_id" value="<?php echo esc_attr((string) $id); ?>">
+                                        <input type="hidden" name="row_ref" value="<?php echo esc_attr($rowRef); ?>">
                                         <input type="hidden" name="translangs_action" value="ignore">
                                         <button type="submit" class="button button-small translangs-icon-button translangs-ignore-button" aria-label="<?php esc_attr_e('Ignore', 'translangs'); ?>" title="<?php esc_attr_e('Ignore', 'translangs'); ?>"><?php echo $iconLabel(__('Ignore', 'translangs'), 'no-alt'); ?></button>
                                     </form>
@@ -267,7 +277,7 @@ $baseUrl = admin_url('admin.php?page=' . $pageSlug);
             <?php $renderTable((array) $group['rows'], $isIgnoredView, $isIgnoredView); ?>
 
             <?php
-            $groupPage = max(1, (int) ($group['page'] ?? 1));
+            $groupPage      = max(1, (int) ($group['page'] ?? 1));
             $groupPageParam = (string) ($group['page_param'] ?? 'paged');
             $groupTotalPages = max(1, (int) ceil((int) $group['total'] / $perPage));
             ?>
@@ -299,9 +309,9 @@ $baseUrl = admin_url('admin.php?page=' . $pageSlug);
     const forms = document.querySelectorAll('.translangs-cell-edit');
 
     forms.forEach(function (form) {
-        const field = form.querySelector('.translangs-translation-field');
-        const row = form.closest('tr');
-        const button = row ? row.querySelector('.translangs-save-button') : form.querySelector('.translangs-save-button');
+        const field        = form.querySelector('.translangs-translation-field');
+        const row          = form.closest('tr');
+        const button       = row ? row.querySelector('.translangs-save-button') : form.querySelector('.translangs-save-button');
         const reviewButton = row ? row.querySelector('.translangs-put-review-button') : null;
         const ignoreButton = row ? row.querySelector('.translangs-ignore-button') : null;
 

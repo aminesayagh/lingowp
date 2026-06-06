@@ -2,166 +2,94 @@
 
 namespace TransLangs\PageTranslation\Application;
 
-use TransLangs\PageTranslation\Domain\ClassifiedTranslationCandidate;
 use TransLangs\PageTranslation\Domain\TranslatableSegment;
 use TransLangs\TranslationMemory\Domain\StringHashGenerator;
 use TransLangs\TranslationMemory\Domain\StringNormalizer;
-use TransLangs\TranslationMemory\Domain\TranslationMemoryRepository;
-use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
- * Assigns each rendered HTML segment its correct source identity by matching it
- * against known structured source strings already stored in the translation
- * memory.
+ * Classifies rendered HTML segments against the preloaded translation map.
  *
- * The HTML parser emits segments with a DOM-level context (e.g. "h1", "img@alt")
- * but no entity identity. This service resolves the real identity so lookups and
- * discovery use the same (source_type, source_id, context) key as the structured
- * source readers — preventing the same text being stored twice under different
- * identities.
+ * No database queries are issued here. The caller (ResolveTranslations) builds
+ * the preload map in one shot and passes it in; this service normalizes and
+ * hashes each segment then looks it up in-memory.
  *
- * Classification priority (applied per segment hash):
- *   1. Current entity's own field   — source matches (currentSourceType, currentSourceId)
- *   2. Referenced structured entity — source is media / taxonomy / menu (source_id > 0)
- *   3. Rendered / template chrome   — no structured match; falls back to
- *                                     (currentSourceType, 0, segmentContext)
+ * Lookup strategy: every preload map key ends with original_hash_hex as its
+ * last colon-delimited token (field:<field>:<hex>, meta:<mkh>:<cth>:<hex>,
+ * term:<ttId>:<field>:<hex>, i18n:<src>:<refh>:<hex>). A reverse index
+ * hexHash => translation is built once and shared across all segments.
  *
- * All segments with the same resolved identity are collapsed to one candidate;
- * each occurrence records its locator so render() can replace every spot.
+ * When two map keys share the same original hash (same normalized text under
+ * different entities), the reverse index keeps the first match — collisions are
+ * rare and acceptable for the render path.
  */
-class ClassifyRenderedSegments
+final class ClassifyRenderedSegments
 {
-    /** Source types that can be referenced from any page without being owned. */
-    private const REFERENCED_TYPES = [
-        TranslationSourceType::MEDIA,
-        TranslationSourceType::TAXONOMY,
-        TranslationSourceType::MENU,
-    ];
-
     public function __construct(
         private StringNormalizer $normalizer,
         private StringHashGenerator $hasher,
-        private TranslationMemoryRepository $repository
-    ) {
-    }
+    ) {}
 
     /**
-     * Classify raw parser segments into identity-keyed candidates.
-     *
-     * @param  TranslatableSegment[] $segments
-     * @param  int                   $currentSourceId   Queried-object ID; 0 for archives/404.
-     * @param  string                $currentSourceType TranslationSourceType value for this page.
-     * @param  string                $sourceLang        Default / source language code.
-     * @return ClassifiedTranslationCandidate[]         Keyed by identity key.
+     * @param  TranslatableSegment[]  $segments
+     * @param  array<string, string>  $preloadMap  mapKey => translated_text (from PreloadTranslations)
+     * @return array{found: array<string, string>, missed: TranslatableSegment[]}
      */
-    public function classify(
-        array $segments,
-        int $currentSourceId,
-        string $currentSourceType,
-        string $sourceLang
-    ): array {
+    public function classify(array $segments, array $preloadMap): array
+    {
         if ($segments === []) {
-            return [];
+            return ['found' => [], 'missed' => []];
         }
 
-        // Step 1: normalize and hash every non-empty segment.
-        $normalizedMap = [];
-        $hashMap       = [];
+        $byHash = $this->buildHashIndex($preloadMap);
 
-        foreach ($segments as $i => $segment) {
-            $norm = $this->normalizer->normalize($segment->value);
+        $found  = [];
+        $missed = [];
 
-            if ($norm === '') {
+        foreach ($segments as $segment) {
+            $normalized = $this->normalizer->normalize($segment->value);
+
+            if ($normalized === '') {
                 continue;
             }
 
-            $normalizedMap[$i] = $norm;
-            $hashMap[$i]       = $this->hasher->generate($norm);
-        }
+            $hexHash = bin2hex($this->hasher->hashNormalized($normalized));
 
-        if ($hashMap === []) {
-            return [];
-        }
-
-        // Step 2: one bulk DB lookup for all distinct hashes.
-        $knownByHash = $this->repository->findStructuredIdentitiesByHashes(
-            array_unique(array_values($hashMap)),
-            $sourceLang
-        );
-
-        // Step 3: apply priority rules and dedupe by identity key.
-        $byIdentity = [];
-
-        foreach ($segments as $i => $segment) {
-            if (!isset($hashMap[$i])) {
-                continue;
+            if (isset($byHash[$hexHash])) {
+                $found[$segment->locator] = $byHash[$hexHash];
+            } else {
+                $missed[] = $segment;
             }
-
-            $hash = $hashMap[$i];
-            $norm = $normalizedMap[$i];
-
-            [$sourceId, $sourceType, $context] = $this->pickIdentity(
-                $currentSourceId,
-                $currentSourceType,
-                $segment->context,
-                $knownByHash[$hash] ?? []
-            );
-
-            $identityKey = ClassifiedTranslationCandidate::makeIdentityKey(
-                $sourceType,
-                $sourceId,
-                $context,
-                $hash
-            );
-
-            if (isset($byIdentity[$identityKey])) {
-                $byIdentity[$identityKey]->addLocator($segment->locator);
-                continue;
-            }
-
-            $byIdentity[$identityKey] = new ClassifiedTranslationCandidate(
-                sourceId: $sourceId,
-                sourceType: $sourceType,
-                context: $context,
-                originalText: $segment->value,
-                normalizedText: $norm,
-                originalHash: $hash,
-                type: $segment->type,
-                locators: [$segment->locator]
-            );
         }
 
-        return $byIdentity;
+        return ['found' => $found, 'missed' => $missed];
     }
 
     /**
-     * Pick the best source identity for one segment given the structured
-     * candidates found in the DB for its hash.
+     * Build a reverse index: original_hash_hex => translated_text.
+     * Every map key format has the original hash hex as its last colon token.
+     * First match wins when multiple keys share the same hash.
      *
-     * @param  list<array{source_id: int, source_type: string, context: string}> $candidates
-     * @return array{0: int, 1: string, 2: string}  [sourceId, sourceType, context]
+     * @param  array<string, string> $preloadMap
+     * @return array<string, string>
      */
-    private function pickIdentity(
-        int $currentSourceId,
-        string $currentSourceType,
-        string $segmentContext,
-        array $candidates
-    ): array {
-        // Priority 1: current entity's own field.
-        foreach ($candidates as $c) {
-            if ($c['source_type'] === $currentSourceType && $c['source_id'] === $currentSourceId) {
-                return [$c['source_id'], $c['source_type'], $c['context']];
+    private function buildHashIndex(array $preloadMap): array
+    {
+        $index = [];
+
+        foreach ($preloadMap as $key => $translation) {
+            $pos = strrpos($key, ':');
+
+            if ($pos === false) {
+                continue;
+            }
+
+            $hashHex = substr($key, $pos + 1);
+
+            if (!isset($index[$hashHex])) {
+                $index[$hashHex] = $translation;
             }
         }
 
-        // Priority 2: referenced structured entity (media / taxonomy / menu).
-        foreach ($candidates as $c) {
-            if (in_array($c['source_type'], self::REFERENCED_TYPES, true)) {
-                return [$c['source_id'], $c['source_type'], $c['context']];
-            }
-        }
-
-        // Priority 3: rendered / template chrome.
-        return [0, $currentSourceType, $segmentContext];
+        return $index;
     }
 }

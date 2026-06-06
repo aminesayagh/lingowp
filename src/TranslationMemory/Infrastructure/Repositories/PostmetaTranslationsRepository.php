@@ -157,6 +157,37 @@ final class PostmetaTranslationsRepository
         return $map;
     }
 
+    /**
+     * Delete rows for $postId whose original_hash is no longer in $currentHashesRaw.
+     * Removes stale meta translations when meta values change or are cleared.
+     * When $currentHashesRaw is empty, all rows for the post are removed.
+     *
+     * @param string[] $currentHashesRaw  Raw SHA-256 bytes of the post's current meta hashes.
+     */
+    public function deleteStaleForPost(int $postId, array $currentHashesRaw): void
+    {
+        $table = $this->table();
+
+        if ($currentHashesRaw === []) {
+            $this->wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+                $table,
+                ['post_id' => $postId],
+                ['%d']
+            );
+            return;
+        }
+
+        $hexHashes = array_values(array_unique(array_map('bin2hex', $currentHashesRaw)));
+        $inClause  = implode(', ', array_fill(0, count($hexHashes), 'UNHEX(%s)'));
+
+        $this->wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            $this->wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                "DELETE FROM {$table} WHERE post_id = %d AND original_hash NOT IN ({$inClause})",
+                ...array_merge([$postId], $hexHashes)
+            )
+        );
+    }
+
     private function table(): string
     {
         return $this->wpdb->prefix . 'tl_translations_postmeta';

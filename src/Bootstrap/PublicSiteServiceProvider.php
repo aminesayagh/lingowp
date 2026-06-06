@@ -19,12 +19,14 @@ class PublicSiteServiceProvider
 {
     public function register(ServiceContainer $container): void
     {
-        $resolver   = new ResolveRequestLanguage();
+        // CoreServiceProvider wires ResolveRequestLanguage with LanguageRegistry;
+        // reuse the same instance so language state is shared across providers.
+        /** @var ResolveRequestLanguage $resolver */
+        $resolver   = $container->get('language.resolve_request');
         $urlBuilder = new LocalizedUrlBuilder($resolver);
         $context    = new RequestContext();
         $guard      = new HtmlResponseGuard();
 
-        $container->set('language.resolve_request', $resolver);
         $container->set('public_site.localized_url_builder', $urlBuilder);
         $container->set('public_site.request_context', $context);
         $container->set('public_site.html_response_guard', $guard);
@@ -35,7 +37,6 @@ class PublicSiteServiceProvider
 
         $renderer = new TranslateHtmlPage(
             new HtmlParserFactory(new SkipRules()),
-            $container->get('page_translation.classify_rendered_segments'),
             $container->get('translation_memory.resolve_translations'),
             $resolver,
             new LinkRewriter($resolver, $urlBuilder)

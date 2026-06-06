@@ -65,6 +65,7 @@ if (!defined('ABSPATH')) {
                     <div class="translangs-form__field">
                         <div class="translangs-checklist">
                             <?php foreach ($languages as $code => $meta) : ?>
+                                <?php if ($code === $settings['default_language']) : continue; endif; ?>
                                 <label>
                                     <input
                                         type="checkbox"
