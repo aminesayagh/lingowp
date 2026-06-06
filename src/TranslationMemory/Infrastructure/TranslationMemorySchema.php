@@ -2,75 +2,20 @@
 
 namespace TransLangs\TranslationMemory\Infrastructure;
 
-use TransLangs\TranslationMemory\Domain\TranslationSourceType;
+use TransLangs\TranslationMemory\Infrastructure\Schema\ConstraintVerifier;
+use TransLangs\TranslationMemory\Infrastructure\Schema\SchemaFailure;
+use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
 
 /**
- * Database schema and default options.
+ * Schema orchestrator — install, verify, and version-gate the TransLangs tables.
  *
- * Keeps all table SQL in one place so the Activator stays small and
- * future migrations have a single source of truth.
+ * Delegates SQL to TableDefinitions; delegates FK verification to ConstraintVerifier.
+ * Never uses dbDelta. Version is bumped only after FK verification passes.
  */
 class TranslationMemorySchema
 {
-    /**
-     * Bump this when the table structure changes, so upgrades can re-run dbDelta.
-     */
-    public const DB_VERSION = '4';
-
+    public const DB_VERSION        = '5';
     public const OPTION_DB_VERSION = 'translangs_db_version';
-
-    /**
-     * Create or update plugin tables using dbDelta.
-     */
-    public static function install(): void
-    {
-        global $wpdb;
-
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-        $charsetCollate = $wpdb->get_charset_collate();
-        $table          = self::stringsTable();
-
-        // dbDelta is strict about formatting: two spaces after PRIMARY KEY,
-        // one field per line, lowercase types.
-        $sql = "CREATE TABLE {$table} (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-
-            source_lang varchar(10) NOT NULL,
-            target_lang varchar(10) NOT NULL,
-
-            source_id bigint(20) unsigned NOT NULL DEFAULT 0,
-            source_type varchar(50) NOT NULL,
-
-            original_hash char(64) NOT NULL,
-            original_text longtext NOT NULL,
-            normalized_text longtext NULL,
-            translated_text longtext NULL,
-
-            context varchar(255) NOT NULL,
-
-            status tinyint(3) unsigned NOT NULL DEFAULT 0,
-            provider varchar(50) NULL,
-
-            last_seen_at datetime NULL,
-            created_at datetime NOT NULL,
-            updated_at datetime NOT NULL,
-
-            PRIMARY KEY  (id),
-
-            UNIQUE KEY uniq_translation (source_lang,target_lang,source_id,source_type,context(191),original_hash),
-            KEY idx_original_hash (source_lang,target_lang,original_hash),
-            KEY idx_lang_pair (source_lang,target_lang),
-            KEY idx_source (source_type,source_id),
-            KEY idx_status (status),
-            KEY idx_last_seen_at (last_seen_at)
-        ) {$charsetCollate};";
-
-        dbDelta($sql);
-        self::migrateIdentitySchema();
-
-        update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
-    }
 
     public static function maybeUpgrade(): void
     {
@@ -83,103 +28,135 @@ class TranslationMemorySchema
         self::install();
     }
 
-    private static function migrateIdentitySchema(): void
+    /**
+     * Full install: drop old table → create five new tables → verify FKs → bump version.
+     *
+     * @throws SchemaFailure if any FK constraint is absent after creation.
+     *                       All created tables are dropped before throwing.
+     */
+    public static function install(): void
     {
         global $wpdb;
 
-        $table              = self::stringsTable();
-        $fallbackSourceType = TranslationSourceType::PAGE;
+        $charsetCollate = $wpdb->get_charset_collate();
 
-        if (self::indexExists($table, 'uniq_translation')) {
-            $wpdb->query("ALTER TABLE {$table} DROP INDEX uniq_translation");
-        }
+        // 1. Drop old single-table schema (no data migration — clean rebuild).
+        $wpdb->query('DROP TABLE IF EXISTS ' . self::stringsTable()); // phpcs:ignore WordPress.DB
 
-        if (!self::columnExists($table, 'source_id')) {
-            $wpdb->query("ALTER TABLE {$table} ADD source_id bigint(20) unsigned NOT NULL DEFAULT 0 AFTER target_lang");
-        }
+        // 2. Create language registry first — it is the FK target for all translation tables.
+        $wpdb->query( // phpcs:ignore WordPress.DB
+            TableDefinitions::languages(self::tlLanguagesTable(), $charsetCollate)
+        );
 
-        if (!self::columnExists($table, 'source_type')) {
-            $wpdb->query(
-                $wpdb->prepare(
-                    "ALTER TABLE {$table} ADD source_type varchar(50) NOT NULL DEFAULT %s AFTER source_id",
-                    $fallbackSourceType
-                )
-            );
-        }
-
-        $wpdb->query("UPDATE {$table} SET source_id = 0 WHERE source_id IS NULL");
-        $wpdb->query(
-            $wpdb->prepare(
-                "UPDATE {$table} SET source_type = %s WHERE source_type IS NULL OR source_type = '' OR source_type = 'template'",
-                $fallbackSourceType
+        // 3. Create the four translation tables with inline FK clauses.
+        $wpdb->query( // phpcs:ignore WordPress.DB
+            TableDefinitions::post(
+                self::tlPostTable(),
+                self::tlLanguagesTable(),
+                $wpdb->posts,
+                $charsetCollate
             )
         );
-        $wpdb->query("UPDATE {$table} SET context = '' WHERE context IS NULL");
-        $wpdb->query("ALTER TABLE {$table} MODIFY source_id bigint(20) unsigned NOT NULL DEFAULT 0");
-        $wpdb->query("ALTER TABLE {$table} MODIFY source_type varchar(50) NOT NULL");
-        $wpdb->query("ALTER TABLE {$table} MODIFY context varchar(255) NOT NULL");
-
-        if (self::columnExists($table, 'source_id_key')) {
-            $wpdb->query("ALTER TABLE {$table} DROP COLUMN source_id_key");
-        }
-
-        if (self::columnExists($table, 'source_type_key')) {
-            $wpdb->query("ALTER TABLE {$table} DROP COLUMN source_type_key");
-        }
-
-        $wpdb->query(
-            "ALTER TABLE {$table}
-             ADD UNIQUE KEY uniq_translation
-             (source_lang,target_lang,source_id,source_type,context(191),original_hash)"
+        $wpdb->query( // phpcs:ignore WordPress.DB
+            TableDefinitions::postmeta(
+                self::tlPostmetaTable(),
+                self::tlLanguagesTable(),
+                $wpdb->posts,
+                $charsetCollate
+            )
+        );
+        $wpdb->query( // phpcs:ignore WordPress.DB
+            TableDefinitions::terms(
+                self::tlTermsTable(),
+                self::tlLanguagesTable(),
+                $wpdb->term_taxonomy,
+                $charsetCollate
+            )
+        );
+        $wpdb->query( // phpcs:ignore WordPress.DB
+            TableDefinitions::i18n(
+                self::tlI18nTable(),
+                self::tlLanguagesTable(),
+                $charsetCollate
+            )
         );
 
-        if (!self::indexExists($table, 'idx_source')) {
-            $wpdb->query("ALTER TABLE {$table} ADD KEY idx_source (source_type,source_id)");
+        // 4. Verify every FK exists in information_schema.
+        $missing = (new ConstraintVerifier($wpdb))->findMissing([
+            'fk_post_parent'     => self::tlPostTable(),
+            'fk_post_lang'       => self::tlPostTable(),
+            'fk_postmeta_parent' => self::tlPostmetaTable(),
+            'fk_postmeta_lang'   => self::tlPostmetaTable(),
+            'fk_term_parent'     => self::tlTermsTable(),
+            'fk_term_lang'       => self::tlTermsTable(),
+            'fk_i18n_lang'       => self::tlI18nTable(),
+        ]);
+
+        // 5. On any missing FK: drop translation tables then languages, then fail.
+        if ($missing !== []) {
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nTable());    // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlTermsTable());   // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostmetaTable()); // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostTable());    // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlLanguagesTable()); // phpcs:ignore WordPress.DB
+
+            throw SchemaFailure::missingForeignKeys($missing);
         }
 
-        if (self::columnExists($table, 'source_url')) {
-            $wpdb->query("ALTER TABLE {$table} DROP COLUMN source_url");
-        }
-    }
-
-    private static function columnExists(string $table, string $column): bool
-    {
-        global $wpdb;
-
-        return (bool) $wpdb->get_var(
-            $wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", $column)
-        );
-    }
-
-    private static function indexExists(string $table, string $index): bool
-    {
-        global $wpdb;
-
-        return (bool) $wpdb->get_var(
-            $wpdb->prepare("SHOW INDEX FROM {$table} WHERE Key_name = %s", $index)
-        );
+        // 6. Version is written only after verification passes.
+        update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
     }
 
     /**
-     * Set default options only if they do not already exist.
+     * Set behavior options on first activation only (add_option is a no-op if they exist).
+     * Source language is NOT stored — it comes from get_locale().
+     * translangs_enabled_languages is kept for backward-compat seeding only.
      */
     public static function setDefaultOptions(): void
     {
-        add_option('translangs_default_language', 'en');
-        add_option('translangs_enabled_languages', ['en', 'fr']);
+        add_option('translangs_enabled_languages', []);
         add_option('translangs_prefix_default_language', false);
         add_option('translangs_cookie_preference', true);
         add_option('translangs_browser_detection', false);
         add_option('translangs_auto_redirect', false);
     }
 
-    /**
-     * Fully qualified strings table name.
-     */
+    // ── Table name helpers ────────────────────────────────────────────────────
+
+    public static function tlLanguagesTable(): string
+    {
+        global $wpdb;
+        return $wpdb->prefix . 'tl_languages';
+    }
+
+    public static function tlPostTable(): string
+    {
+        global $wpdb;
+        return $wpdb->prefix . 'tl_translations_post';
+    }
+
+    public static function tlPostmetaTable(): string
+    {
+        global $wpdb;
+        return $wpdb->prefix . 'tl_translations_postmeta';
+    }
+
+    public static function tlTermsTable(): string
+    {
+        global $wpdb;
+        return $wpdb->prefix . 'tl_translations_terms';
+    }
+
+    public static function tlI18nTable(): string
+    {
+        global $wpdb;
+        return $wpdb->prefix . 'tl_translations_i18n';
+    }
+
+    /** Old single-table name — used only for the DROP during upgrade. */
     public static function stringsTable(): string
     {
         global $wpdb;
-
         return $wpdb->prefix . 'translangs_strings';
     }
 }

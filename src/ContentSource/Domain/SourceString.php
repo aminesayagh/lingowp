@@ -3,27 +3,31 @@
 namespace TransLangs\ContentSource\Domain;
 
 /**
- * One translatable string pulled directly from a WordPress source (an entity
- * field, a term, a menu item, …) — before normalization/hashing.
+ * One translatable string emitted by a reader — before normalization/hashing.
  *
- * Readers emit these; the orchestrator turns them into TranslationSourceIdentity
- * and hands them to the discovery service. Keeping this separate from the
- * identity object means readers stay free of normalization/hash concerns.
+ * Readers produce SourceStrings; the discovery service normalizes, hashes, and
+ * routes them into TranslationSourceIdentity for DB insertion.
  */
 final class SourceString
 {
     /**
-     * @param int    $sourceId   Owning entity ID (attachment/term/post/…); 0 if none.
-     * @param string $sourceType TranslationSourceType value (media/taxonomy/page/…).
-     * @param string $context    Field identifier, e.g. "alt", "post_title",
-     *                           "category.name". Pure metadata + part of identity.
-     * @param string $text       The raw source text.
+     * @param SourceRoute $routeTable Which translation table this string belongs to.
+     * @param int         $parentId   post_id | term_taxonomy_id; 0 for i18n.
+     * @param string|null $field      post: 'post_title'; terms: 'name'; null for postmeta/i18n.
+     * @param string|null $metaKey    Postmeta only: e.g. '_wp_attachment_image_alt'.
+     * @param string|null $context    Postmeta: nested path into meta value; null/'' for flat.
+     * @param string|null $source     i18n only: 'plugin'|'theme'|'core'.
+     * @param string|null $reference  i18n only: e.g. 'woocommerce/woocommerce.php'.
+     * @param string      $text       Raw original text, un-normalized.
      */
     public function __construct(
-        public readonly int $sourceId,
-        public readonly string $sourceType,
-        public readonly string $context,
-        public readonly string $text
-    ) {
-    }
+        public readonly SourceRoute $routeTable,
+        public readonly int         $parentId,
+        public readonly ?string     $field,
+        public readonly ?string     $metaKey,
+        public readonly ?string     $context,
+        public readonly ?string     $source,
+        public readonly ?string     $reference,
+        public readonly string      $text,
+    ) {}
 }

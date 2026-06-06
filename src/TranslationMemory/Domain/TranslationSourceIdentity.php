@@ -2,62 +2,39 @@
 
 namespace TransLangs\TranslationMemory\Domain;
 
+use TransLangs\ContentSource\Domain\SourceRoute;
+
 /**
- * Identity of a single translation-memory source string.
+ * A SourceString after normalization and hashing — ready for DB insertion.
+ *
+ * Built by the discovery service from a SourceString. Holds all fields needed
+ * to INSERT into the correct split table (one per active target language).
+ * INSERT IGNORE on the table's unique key makes discovery idempotent.
+ *
+ * All *Hash fields are raw SHA-256 bytes (binary(32) in the DB).
+ * Use bin2hex() only when building preload map keys or displaying to users.
  */
 final class TranslationSourceIdentity
 {
-    public function __construct(
-        public readonly int $sourceId,
-        public readonly string $sourceType,
-        public readonly string $context,
-        public readonly string $originalText,
-        public readonly string $originalHash,
-        public readonly string $normalizedText
-    ) {
-    }
-
-    public static function source(
-        int $sourceId,
-        string $sourceType,
-        string $context,
-        string $originalText,
-        string $originalHash,
-        string $normalizedText
-    ): self {
-        return new self($sourceId, $sourceType, $context, $originalText, $originalHash, $normalizedText);
-    }
-
-    public static function entity(
-        int $sourceId,
-        string $sourceType,
-        string $context,
-        string $originalText,
-        string $originalHash,
-        string $normalizedText
-    ): self {
-        return self::source($sourceId, $sourceType, $context, $originalText, $originalHash, $normalizedText);
-    }
-
     /**
-     * @return array{
-     *   source_id: int,
-     *   source_type: string,
-     *   original_hash: string,
-     *   original_text: string,
-     *   normalized_text: string,
-     *   context: string
-     * }
+     * @param string      $originalHash   sha256(normalizedText), raw bytes.
+     * @param string|null $metaKeyHash    sha256(metaKey), raw bytes. Postmeta only.
+     * @param string|null $contextHash    sha256(context ?? ''), raw bytes. Never null for postmeta.
+     * @param string|null $referenceHash  sha256(normalized reference), raw bytes. i18n only.
      */
-    public function toDatabaseRow(): array
-    {
-        return [
-            'source_id'       => $this->sourceId,
-            'source_type'     => $this->sourceType,
-            'original_hash'   => $this->originalHash,
-            'original_text'   => $this->originalText,
-            'normalized_text' => $this->normalizedText,
-            'context'         => $this->context,
-        ];
-    }
+    public function __construct(
+        public readonly SourceRoute $routeTable,
+        public readonly int         $parentId,
+        public readonly ?string     $field,
+        public readonly ?string     $metaKey,
+        public readonly ?string     $metaKeyHash,
+        public readonly ?string     $context,
+        public readonly ?string     $contextHash,
+        public readonly ?string     $source,
+        public readonly ?string     $reference,
+        public readonly ?string     $referenceHash,
+        public readonly string      $originalText,
+        public readonly string      $normalizedText,
+        public readonly string      $originalHash,
+    ) {}
 }

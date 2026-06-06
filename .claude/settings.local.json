@@ -5,7 +5,9 @@
       "mcp__code-review-graph__get_architecture_overview_tool",
       "mcp__code-review-graph__semantic_search_nodes_tool",
       "mcp__serena__find_symbol",
-      "mcp__serena__get_symbols_overview"
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__replace_content",
+      "mcp__serena__replace_symbol_body"
     ]
   },
   "enableAllProjectMcpServers": true,
