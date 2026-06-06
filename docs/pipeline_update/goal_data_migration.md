@@ -12,7 +12,7 @@
 ```
 Frontend render performance first — render never joins.
 Admin can join freely (cold path, paginated).
-Source/default language is plugin state (the languages table), not a per-row column.
+Source/default language is WordPress core state, not a per-row column.
 Original text is stored inline in each translation table (self-contained rows).
 Translation identity is context/field-specific.
 Tables are split by parent so each can carry a real foreign key.
@@ -21,9 +21,16 @@ Tables are split by parent so each can carry a real foreign key.
 This stays within the approved architecture: URL-based public pages, separated
 WordPress admin, local translation memory, reusable core engine.
 
+**Current repository alignment:** the cleaned code creates `wp_tl_languages`,
+`_post`, `_postmeta`, `_terms`, `_i18n`, and `_i18n_meta` through raw SQL.
+`_i18n_meta` is added by schema version `6` through
+`TableDefinitions::i18nMeta()`, `TranslationMemorySchema::tlI18nMetaTable()`,
+FK verification for `fk_i18n_meta`, and reverse drop order that drops
+`_i18n_meta` before `_i18n`.
+
 ---
 
-## 2. Target shape (1 registry + 4 translation tables)
+## 2. Target shape (1 registry + 4 translation tables + i18n metadata)
 
 ```
 wp_tl_languages              code (PK) — authoritative TARGET-language registry
@@ -156,7 +163,7 @@ CREATE TABLE {$terms} (
 CREATE TABLE {$i18n} (
     id              bigint(20) unsigned NOT NULL AUTO_INCREMENT,
     target_lang     varchar(10)  NOT NULL,
-    source          varchar(20)  NOT NULL,            -- 'plugin' | 'theme' | 'core'
+    source          varchar(20)  NOT NULL,            -- 'gettext' | 'rendered_html'
     reference       varchar(191) NOT NULL DEFAULT '', -- readable: "woocommerce/woocommerce.php"
     reference_hash  binary(32)   NOT NULL,            -- sha256(normalized reference); used in the key
     original_hash   binary(32)   NOT NULL,
@@ -206,8 +213,8 @@ plugin **uninstall** reconciliation (§6).
 ### 3.6 `wp_tl_translations_i18n_meta` — observation metadata (admin only)
 
 Where an i18n string was last seen. Kept out of `_i18n` so the hot render table
-stays lean; only the cold admin "View" path joins it. Written in the
-background/shutdown phase, never on the render hot path.
+stays lean; only the cold admin "View" path joins it. Written in the Action
+Scheduler worker, never in `shutdown` and never on the render hot path.
 
 ```sql
 CREATE TABLE {$i18n_meta} (
@@ -420,7 +427,8 @@ cascades away its translations (intended).
   - `term_taxonomy_id` → `bigint(20) unsigned` (mirror `wp_term_taxonomy.term_taxonomy_id`).
   - `target_lang` → `varchar(10)`, same charset/collation as `languages.code`.
 - **Creation order:** `wp_tl_languages` first (FK target must pre-exist), then
-  the three translation tables. **Drop order:** reverse.
+  `_post`, `_postmeta`, `_terms`, `_i18n`, and finally `_i18n_meta` because it
+  FKs to `_i18n`. **Drop order:** exact reverse.
 - Engine **InnoDB**; charset **utf8mb4** asserted explicitly on activation.
 - `status` / `field` / `source` domains enforced in code (value objects);
   cross-host CHECK constraints aren't dependable.
@@ -448,12 +456,15 @@ count validation) entirely.
    languages (the source language is `get_locale()`, never stored here). Must
    exist before the FK tables.
 3. **Create the four translation tables** (`_post`, `_postmeta`, `_terms`,
-   `_i18n`) with inline FK clauses via `$wpdb->query()`, then `_i18n_meta`
-   (after `_i18n`, since it FKs to it).
-4. **Verify every FK** (§7). On any failure: drop the created tables + languages
-   table, abort activation, show admin notice.
-5. **Bump the DB version option** so the rebuild runs once.
-6. **Point all code at the new tables** — repositories, render, admin; target
+   `_i18n`) with inline FK clauses via `$wpdb->query()`.
+4. **Create `_i18n_meta` explicitly** after `_i18n`, using
+   `TableDefinitions::i18nMeta()`, `TranslationMemorySchema::tlI18nMetaTable()`,
+   and `fk_i18n_meta` in `ConstraintVerifier::findMissing(...)`.
+5. **Verify every FK** (§7), including `fk_i18n_meta`. On any failure: drop the
+   created tables in reverse order (`_i18n_meta`, `_i18n`, `_terms`,
+   `_postmeta`, `_post`, languages), abort activation, show admin notice.
+6. **Bump the DB version option** so the rebuild/additive schema step runs once.
+7. **Point all code at the new tables** — repositories, render, admin; target
    languages read from `wp_tl_languages`, source language from `get_locale()`.
 
 Because there is no data to preserve, activation is create-verify-or-rollback
@@ -467,12 +478,15 @@ than running degraded.
 1. `wp_tl_languages` table + language registry; rewire
    `ResolveRequestLanguage` / `SupportedLanguages` to read target languages from
    it and the source language from `get_locale()`.
-2. The four translation tables + `_i18n_meta` (raw `$wpdb->query()`, exact FK
-   column types, InnoDB, utf8mb4).
+2. The four translation tables plus `_i18n_meta` (raw `$wpdb->query()`, exact
+   FK column types, InnoDB, utf8mb4). `_i18n_meta` uses
+   `TableDefinitions::i18nMeta()`, `tlI18nMetaTable()`, `fk_i18n_meta`
+   verification, reverse drop order, and schema version `6`.
 3. Activation create-verify-rollback; correct create/drop ordering.
-4. Three repositories + the §5 render lookup (no join); discovery routed through
-   them; `DiscoverSourceStrings` writes per enabled language (which now means
-   per active `wp_tl_languages` row).
+4. Split repositories + the §5 render lookup (no join); structured discovery
+   under `TransLangs\TranslationMemory` produces `TranslationSourceIdentity`
+   directly for each active `wp_tl_languages` row. Do not restore
+   `ContentSource`, `SourceString`, or the old discovery namespace.
 5. Cleanup hooks: `before_delete_post`, `delete_term` (covered by CASCADE too,
    belt-and-braces), language-delete (CASCADE), i18n uninstall reconciliation,
    `save_post` entity re-scan + stale-hash delete.

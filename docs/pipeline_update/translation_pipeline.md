@@ -3,7 +3,7 @@
 > The end-to-end pipeline: how strings are first discovered, kept fresh on
 > content changes, captured from gettext, and replaced at render — and the
 > ownership rules that stop the same string being stored twice. Builds on the
-> five-table schema (`goal_data_migration.md`) plus the i18n additions in §6.
+> split translation-memory schema in `goal_data_migration.md`.
 
 ---
 
@@ -24,12 +24,34 @@ C. Render-time         — replace on the page; capture only genuine orphans
 All three fan out to enabled target languages and obey one ownership rule
 (§5) before anything lands in `i18n`.
 
+## 0.1 Current implementation boundary
+
+This pipeline is an extension of the cleaned repository, not a rebuild of the
+old architecture:
+
+- Wire new services directly in `src/Bootstrap/Plugin.php`, alongside the
+  current language registry, split repositories, admin controllers, and public
+  routing classes.
+- Do **not** recreate `ServiceContainer`, `CoreServiceProvider`,
+  `PublicSiteServiceProvider`, `AdminServiceProvider`, `ContentSource`,
+  `SourceString`, or the old `PageTranslation` layer.
+- Keep feature classes only where they map to real behavior: structured
+  discovery, public render pipeline, gettext capture, queue worker, and cache
+  invalidation.
+- Keep current admin mutation services (`SaveTranslation`,
+  `PutTranslationForReview`, `ReviewTranslation`, `IgnoreTranslation`,
+  `ResetIgnoredTranslation`) and the split repositories. Add cache invalidation
+  around those mutations instead of replacing them.
+- `SourceRoute` lives in `TransLangs\TranslationMemory\Domain`; documentation
+  and new code should refer to that location.
+
 ---
 
 ## A. Initial discovery (structured scan)
 
-Runs on demand (admin "Scan" button) or first activation. Reads content from
-where WordPress actually stores it — never by rendering pages.
+Runs from an admin "Scan" action/button, and may be invoked after activation if
+we choose to seed a fresh site. Reads content from where WordPress actually
+stores it — never by rendering pages.
 
 **Scan order (global/reusable before ordinary content, so references resolve):**
 ```
@@ -49,12 +71,18 @@ where WordPress actually stores it — never by rendering pages.
 | Media (attachment) | **alt** (`_wp_attachment_image_alt`) | `_postmeta` | meta_key, empty context |
 | Post meta (named keys) | selected frontend meta | `_postmeta` | meta_key (+ context) |
 
-Each reader emits `SourceString[]` → `ScanStructuredSources` normalizes + hashes
-→ `DiscoverSourceStrings.discover()` inserts one `discovered` row per **active
-target language** (never the source language), `INSERT IGNORE` (idempotent).
+Build structured discovery under `TransLangs\TranslationMemory`. Each reader
+normalizes and hashes strings into `TranslationSourceIdentity` instances
+directly, with the correct `SourceRoute` (`post`, `postmeta`, `terms`, `i18n`).
+Repository insertion then writes one `discovered` row per **active target
+language** (never the source language), using `INSERT IGNORE` semantics for
+idempotency.
 
 **This is the bulk of the table.** Most translatable text is owned content and
 is discovered here, not by parsing pages.
+
+The admin Scan action should run the structured scan and report counts by route:
+new rows, already-present rows, skipped empty/unsupported values, and failures.
 
 ---
 
@@ -103,7 +131,7 @@ frontend request starts
   → collector validates request area (frontend/ajax_frontend/opt-in rest)
   → normalized strings held IN MEMORY only (de-duped in the request)
   → request finishes
-  → shutdown: push the memory buffer to a transient/cache + enqueue ONE job
+  → shutdown: push the memory buffer to one batch transient + enqueue ONE job
               (NO database INSERTs here — see §C.1)
   → Action Scheduler worker: bulk INSERT IGNORE into _i18n (source='gettext'),
                              ownership-validated, off the request
@@ -120,10 +148,23 @@ in a reliable background worker.
 
 **Queue backend: Action Scheduler.** Battle-tested, ships with WooCommerce, and
 designed for exactly this (reliable batched background processing that won't
-time out a page load or get killed). **Bundle it** when WooCommerce is absent
-(it supports bundling with version arbitration). Chosen over WP-Cron because
-WP-Cron is request-triggered and stalls on low-traffic sites — unacceptable when
-the whole point is not losing captured strings.
+time out a page load or get killed). Chosen over WP-Cron because WP-Cron is
+request-triggered and stalls on low-traffic sites — unacceptable when the whole
+point is not losing captured strings.
+
+Load rules:
+- If WooCommerce already provides Action Scheduler, use it.
+- If WooCommerce is absent, bundle Action Scheduler and include its loader when
+  the plugin file is loaded, before `plugins_loaded` priority `0`. Its own docs
+  require inclusion before that point so version arbitration can register the
+  newest copy.
+- Register worker callbacks with normal WordPress hooks:
+  `add_action($hook, [$worker, 'handle'], 10, 1)`.
+- Enqueue a single async worker per request with:
+  `as_enqueue_async_action($hook, ['batch_id' => $batchId], 'translangs', true, $priority)`.
+- Store the request capture payload in one transient named
+  `translangs_capture_batch_{uuid}`. The queued job receives only that batch ID,
+  loads the transient, processes it once, and deletes it.
 
 Capture areas: `frontend`, `ajax_frontend`. REST is **default OFF** (Gutenberg
 and SaaS integrations flood it with backend strings); capture a REST route only
@@ -145,11 +186,18 @@ in **two tiers** so the frontend never queries per string.
 ### Tier 1 — fast in-memory check (hot path, zero new queries)
 
 The render path already preloads this page's owned translations into memory maps
-(§7, step 7). Extract every `original_hash` from those maps into one flat set:
+(§7). Existing repository preload methods return `mapKey => translated_text`,
+where each `TranslationMapKey` shape ends with the final
+`original_hash_hex` token. Extract every owned `original_hash` from those keys
+into one flat set:
 
 ```
 $pageOwnedHashes = all original_hash keys from the post/postmeta/term preload maps
 ```
+
+Add a tiny helper either on `TranslationMapKey` or inside the render pipeline,
+for example `originalHashHexFromMapKey(string $key): ?string`, that returns the
+final 64-character hash token only when the key shape is valid.
 
 When the parser finds a candidate string:
 ```
@@ -228,9 +276,9 @@ hierarchy, **never from CSS classes**.
 **Selector construction:** `{nearest landmark ancestor} > {intermediate tag} >
 {element tag}`, where a landmark is an HTML5 sectioning element (`header`, `nav`,
 `main`, `footer`, `aside`, `article`, `section`, `form`). The parser
-(`WP_HTML_Processor`) reads this cheaply from its breadcrumb stack: find the
-nearest landmark ancestor, take the immediate child tag on the path, then the
-element's own tag. Falls back to fewer levels if no landmark/intermediate
+The parser reads this from the current tag path/breadcrumbs when available: find
+the nearest landmark ancestor, take the immediate child tag on the path, then
+the element's own tag. Falls back to fewer levels if no landmark/intermediate
 exists (`nav>a`, or bare `a`).
 
 Examples:
@@ -286,19 +334,26 @@ CREATE TABLE {$i18n_meta} (
   analytics).
 - Separate table keeps the **hot** `_i18n` lean: render preload reads `_i18n`
   only; admin "View" joins `_i18n_meta` (cold path).
-- Written in the **background/shutdown** phase, never on the render hot path.
+- Written in the **Action Scheduler worker**, never in `shutdown` and never on
+  the render hot path.
 - This is the one legitimate `last_seen_at` — i18n has no FK-parent lifecycle,
   so a recency signal is genuinely useful here (unlike the owned tables, where
   cascade handles lifecycle).
 
 ---
 
-## 7. Render-time page process (the hot path)
+## 7. Public render pipeline (the hot path)
 
 **Cache first — parsing is the exception, not the rule.** Parsing the full HTML
 on every request is real CPU cost even with zero per-string queries. A
 translated-page cache makes the heavy pipeline run only once per
 page-version-per-language; every later visitor gets near-static speed.
+
+Add one public render pipeline class wired directly from `Plugin::boot()`. It
+owns cache lookup, gettext capture start, output buffering, parser selection,
+preload, replacement, fallback candidate collection, cache store, and queue
+enqueue. Do not split those steps into generic providers or a page-translation
+service layer.
 
 ```
 1. Detect request area; bail if not frontend.
@@ -319,10 +374,11 @@ page-version-per-language; every later visitor gets near-static speed.
      getI18nTranslations(lang, activeDomains/sources)
    (only renderable statuses: machine/reviewed/needs_review)
 9. Replace matching segments from the in-memory maps (array lookups).
-10. STORE the translated HTML in the page cache (key from step 2).
-11. Collect UNKNOWN visible segments as fallback candidates, filtered by the
+10. Collect UNKNOWN visible segments as fallback candidates, filtered by the
     **Tier-1 in-memory ownership check** (§5): drop any candidate whose hash is
     in `$pageOwnedHashes`; keep only the misses.
+11. STORE the translated HTML in the page cache (key from step 2), but only
+    after parse and replacement succeeded.
 12. Shutdown: push the gettext buffer + surviving candidates to a transient and
     **enqueue ONE Action Scheduler job** — NO DB writes here. The worker runs
     Tier-2 ownership validation and bulk-inserts genuine orphans + observation.
@@ -330,9 +386,21 @@ page-version-per-language; every later visitor gets near-static speed.
 
 ### 7.1 Parser failure = fail open (never break render)
 
-`WP_HTML_Processor` parses a *subset* of HTML5 and aborts on markup it can't
-handle; `MastermindsHtmlParser` is the fallback behind the shared `HtmlParser`
-interface (the factory picks). If **both** fail or abort on a page:
+Keep WordPress 6.0 support. Prefer WordPress' native HTML API only when the
+required class and methods exist:
+
+```
+WP_HTML_Processor available + every method the pipeline uses exists
+  → use WP_HTML_Processor
+otherwise
+  → use Masterminds\HTML5 fallback parser
+```
+
+Restore `masterminds/html5` as a Composer dependency for that fallback.
+`WP_HTML_Processor` parses a subset of HTML5 and can abort on markup it can't
+handle; Masterminds can parse and serialize full documents or fragments through
+`loadHTML()`, `loadHTMLFragment()`, and `saveHTML()`. If **both** fail or abort
+on a page:
 ```
 → return the ORIGINAL HTML unchanged   (the page must always render)
 → log a debug event
@@ -344,9 +412,16 @@ corrupt discovery.
 
 ### 7.2 Cache invalidation
 
+Cache key:
+
+```
+translangs_page:{target_lang}:{content_version}:{sha256(canonical_url)}
+```
+
 Invalidate the page's cache entry (and bump `content_version`) when:
 - the post/page/product saves (`save_post`),
-- a translation affecting that page is edited/reviewed/ignored in admin,
+- a translation affecting that page is saved, put for review, reviewed, ignored,
+  or reset from ignored in admin,
 - the enabled-language set changes,
 - the theme changes (template chrome may differ).
 Keep invalidation **targeted** (per page/per language) where possible; fall back
@@ -390,21 +465,33 @@ identity solve the duplication problem without it.
 ## 9. Build order (this pipeline)
 
 ```
-1. Stop using post_id = 0 for no-owner strings (chrome → i18n, not _post).
-2. Render preload already builds owned-hash maps → expose $pageOwnedHashes (Tier-1).
-3. Parser with fail-open fallback (WP_HTML_Processor → Masterminds → original HTML
+1. Keep all new services wired directly from Plugin::boot(); do not recreate
+   containers/providers or the old page translation layer.
+2. Stop using post_id = 0 for no-owner strings (chrome → i18n, not _post).
+3. Render preload already builds owned-hash maps → expose $pageOwnedHashes (Tier-1)
+   by extracting the final original_hash_hex token from TranslationMapKey keys.
+4. Parser with fail-open fallback (WP_HTML_Processor when class/methods exist
+   → Masterminds → original HTML
    unchanged); parser failure never breaks render, discovers nothing.
-4. Rendered HTML discovery → produces fallback CANDIDATES (Tier-1 filtered).
-5. Full-page translated cache (lookup first, store on miss, targeted invalidation)
+5. Rendered HTML discovery → produces fallback CANDIDATES (Tier-1 filtered).
+6. Full-page translated cache (lookup first, store on miss, targeted invalidation)
    — makes parsing the exception, not the rule.
-6. Action Scheduler integration (bundle if WooCommerce absent): shutdown buffers
-   to transient + enqueues one job; worker does all DB writes.
-7. OwnedStringIndex (Tier-2, runs in the worker) → simple cross-table gate.
-8. Frontend gettext collector (memory-only) + request-area guard (REST off by default).
-9. _i18n_meta table + observation upsert (in the worker).
-10. Lifecycle hooks: terms, posts, postmeta, plugins/themes (+ save_post guard);
+7. Action Scheduler integration (bundle if WooCommerce absent before
+   plugins_loaded priority 0): shutdown buffers to one
+   translangs_capture_batch_{uuid} transient + enqueues one unique job with
+   as_enqueue_async_action(..., 'translangs', true, $priority); worker callbacks
+   are normal add_action() callbacks and do all DB writes.
+8. OwnedStringIndex (Tier-2, runs in the worker) → simple cross-table gate.
+9. Frontend gettext collector (memory-only) + request-area guard (REST off by default).
+10. _i18n_meta table + observation upsert (in the worker). The schema base now
+    creates _i18n_meta with TableDefinitions::i18nMeta(),
+    TranslationMemorySchema::tlI18nMetaTable(), fk_i18n_meta verification,
+    reverse drop order, and schema version 6; the remaining work is the worker
+    observation upsert.
+11. Lifecycle hooks: terms, posts, postmeta, plugins/themes (+ save_post guard);
     deleted_plugin / switch_theme → enqueue stale-gettext cleanup;
     save_post / translation-edit / language-change → invalidate page cache.
+12. Structured discovery admin Scan action/button with per-route counts.
 ```
 
 ---
@@ -434,6 +521,8 @@ identity solve the duplication problem without it.
 
 Reliable background batches require a real queue, not `shutdown` or WP-Cron.
 **Action Scheduler** is the chosen backend (ships with WooCommerce; **bundle**
-it when WooCommerce is absent, using its version-arbitration loader). All
-DB-writing steps (gettext flush, fallback insert, observation upsert, stale
-cleanup) run as Action Scheduler jobs. `shutdown` only buffers + enqueues.
+it when WooCommerce is absent, using its version-arbitration loader before
+`plugins_loaded` priority `0`). All DB-writing steps (gettext flush, fallback
+insert, observation upsert, stale cleanup) run as Action Scheduler jobs.
+`shutdown` only writes the per-request transient and enqueues one unique async
+action in the `translangs` group.

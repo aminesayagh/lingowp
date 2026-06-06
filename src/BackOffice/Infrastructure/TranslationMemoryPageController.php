@@ -4,6 +4,7 @@ namespace TransLangs\BackOffice\Infrastructure;
 
 use InvalidArgumentException;
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
 use TransLangs\TranslationMemory\Application\PutTranslationForReview;
@@ -13,6 +14,7 @@ use TransLangs\TranslationMemory\Application\ResetIgnoredTranslation;
 use TransLangs\TranslationMemory\Application\SaveTranslation;
 use TransLangs\TranslationMemory\Domain\RowRef;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
+use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
 
 /**
  * The Translation Memory admin screen.
@@ -38,13 +40,16 @@ class TranslationMemoryPageController
         private PutTranslationForReview $putTranslationForReview,
         private ReviewTranslation $reviewTranslation,
         private IgnoreTranslation $ignoreTranslation,
-        private ResetIgnoredTranslation $resetIgnoredTranslation
+        private ResetIgnoredTranslation $resetIgnoredTranslation,
+        private TranslatedPageCacheInvalidator $cacheInvalidator,
+        private StructuredSourceScanner $structuredSourceScanner
     ) {}
 
     public function register(): void
     {
         add_action('admin_menu', [$this, 'addMenu'], 11);
         add_action('admin_init', [$this, 'handleWrites']);
+        add_action('admin_post_translangs_scan_structured_sources', [$this, 'handleStructuredScan']);
         add_action('wp_ajax_translangs_save_translation', [$this, 'handleAjaxSave']);
     }
 
@@ -96,6 +101,7 @@ class TranslationMemoryPageController
             case 'save':
                 $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
                 $this->saveTranslation->save($rowRef, $text);
+                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('saved');
                 break;
 
@@ -103,6 +109,7 @@ class TranslationMemoryPageController
                 if (!$this->putTranslationForReview->putForReview($rowRef)) {
                     $this->redirectWithNotice('already_needs_review');
                 }
+                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('put_for_review');
                 break;
 
@@ -110,11 +117,13 @@ class TranslationMemoryPageController
                 if (!$this->reviewTranslation->review($rowRef)) {
                     $this->redirectWithNotice('not_reviewable');
                 }
+                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('reviewed');
                 break;
 
             case 'ignore':
                 $this->ignoreTranslation->ignore($rowRef);
+                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('ignored');
                 break;
 
@@ -122,6 +131,7 @@ class TranslationMemoryPageController
                 if (!$this->resetIgnoredTranslation->reset($rowRef)) {
                     $this->redirectWithNotice('not_ignored');
                 }
+                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('reset_ignored');
                 break;
         }
@@ -149,12 +159,41 @@ class TranslationMemoryPageController
 
         $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
         $this->saveTranslation->save($rowRef, $text);
+        $this->cacheInvalidator->invalidateTranslations();
 
         wp_send_json_success([
             'message'          => __('Translation saved.', 'translangs'),
             'translated_text'  => $text,
             'has_translation'  => trim(wp_strip_all_tags($text)) !== '',
         ]);
+    }
+
+    public function handleStructuredScan(): void
+    {
+        check_admin_referer('translangs_scan_structured_sources', 'translangs_nonce');
+
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_die(esc_html__('Permission denied.', 'translangs'));
+        }
+
+        $result = $this->structuredSourceScanner->scan();
+
+        wp_safe_redirect(add_query_arg([
+            'page'                   => self::SLUG,
+            'translangs_notice'      => 'scan_complete',
+            'scan_sources'           => $result->totalSourceStrings(),
+            'scan_inserted'          => $result->totalInsertedRows(),
+            'scan_existing'          => $result->totalExistingRows(),
+            'scan_skipped'           => $result->skipped,
+            'scan_target_languages'  => $result->targetLanguageCount,
+            'scan_source_post'       => $result->sourceByRoute['post'] ?? 0,
+            'scan_source_postmeta'   => $result->sourceByRoute['postmeta'] ?? 0,
+            'scan_source_terms'      => $result->sourceByRoute['terms'] ?? 0,
+            'scan_inserted_post'     => $result->insertedByRoute['post'] ?? 0,
+            'scan_inserted_postmeta' => $result->insertedByRoute['postmeta'] ?? 0,
+            'scan_inserted_terms'    => $result->insertedByRoute['terms'] ?? 0,
+        ], admin_url('admin.php')));
+        exit;
     }
 
     public function renderPage(): void
@@ -185,6 +224,7 @@ class TranslationMemoryPageController
             'statuses'        => TranslationStatus::labels(),
             'defaultLanguage' => $this->defaultLanguage(),
             'notice'          => $notice,
+            'scanStats'       => $this->scanStatsFromQuery(),
             'tabs'            => SettingsPageController::tabs(true),
             'current'         => self::SLUG,
             'pageSlug'        => self::SLUG,
@@ -243,6 +283,7 @@ class TranslationMemoryPageController
             'reviewed'            => [__('Marked as reviewed.', 'translangs'), 'success'],
             'ignored'             => [__('String ignored.', 'translangs'), 'success'],
             'reset_ignored'       => [__('String reset to discovered.', 'translangs'), 'success'],
+            'scan_complete'       => [__('Structured scan completed.', 'translangs'), 'success'],
             'invalid'             => [__('Invalid string reference.', 'translangs'), 'error'],
             'already_needs_review' => [__('This string is already marked as needs review.', 'translangs'), 'error'],
             'not_reviewable'      => [__('Only strings marked as needs review can be reviewed.', 'translangs'), 'error'],
@@ -386,6 +427,37 @@ class TranslationMemoryPageController
     private function defaultLanguage(): string
     {
         return $this->registry->getDefaultLanguage();
+    }
+
+    /**
+     * @return array<string, int>|null
+     */
+    private function scanStatsFromQuery(): ?array
+    {
+        if (!isset($_GET['translangs_notice']) || sanitize_key($_GET['translangs_notice']) !== 'scan_complete') {
+            return null;
+        }
+
+        $keys = [
+            'scan_sources',
+            'scan_inserted',
+            'scan_existing',
+            'scan_skipped',
+            'scan_target_languages',
+            'scan_source_post',
+            'scan_source_postmeta',
+            'scan_source_terms',
+            'scan_inserted_post',
+            'scan_inserted_postmeta',
+            'scan_inserted_terms',
+        ];
+
+        $stats = [];
+        foreach ($keys as $key) {
+            $stats[$key] = isset($_GET[$key]) ? max(0, (int) $_GET[$key]) : 0;
+        }
+
+        return $stats;
     }
 
     /**

@@ -46,4 +46,49 @@ final class TranslationMapKey
     {
         return 'i18n:' . $source . ':' . bin2hex($referenceHashRaw) . ':' . bin2hex($originalHashRaw);
     }
+
+    public static function originalHashHexFromMapKey(string $key): ?string
+    {
+        $parts = explode(':', $key);
+
+        if (!self::hasValidShape($parts)) {
+            return null;
+        }
+
+        return $parts[count($parts) - 1];
+    }
+
+    /**
+     * @param string[] $parts
+     */
+    private static function hasValidShape(array $parts): bool
+    {
+        if ($parts === []) {
+            return false;
+        }
+
+        return match ($parts[0]) {
+            'field' => count($parts) === 3
+                && $parts[1] !== ''
+                && self::isSha256Hex($parts[2]),
+            'meta' => count($parts) === 4
+                && self::isSha256Hex($parts[1])
+                && self::isSha256Hex($parts[2])
+                && self::isSha256Hex($parts[3]),
+            'term' => count($parts) === 4
+                && ctype_digit($parts[1])
+                && $parts[2] !== ''
+                && self::isSha256Hex($parts[3]),
+            'i18n' => count($parts) === 4
+                && $parts[1] !== ''
+                && self::isSha256Hex($parts[2])
+                && self::isSha256Hex($parts[3]),
+            default => false,
+        };
+    }
+
+    private static function isSha256Hex(string $value): bool
+    {
+        return (bool) preg_match('/\\A[a-f0-9]{64}\\z/', $value);
+    }
 }

@@ -3,7 +3,7 @@
  * Translation Memory table screen.
  *
  * Expects: groups, total, page, perPage, filters, languages, statuses,
- *          notice, tabs, current, pageSlug, view, showIgnoredUrl, activeUrl
+ *          notice, scanStats, tabs, current, pageSlug, view, showIgnoredUrl, activeUrl
  *
  * @package TransLangs
  */
@@ -24,6 +24,7 @@ if (!defined('ABSPATH')) {
 /** @var string $defaultLanguage */
 /** @var array<int, string> $statuses */
 /** @var array{0:string,1:string}|null $notice */
+/** @var array<string, int>|null $scanStats */
 /** @var string $pageSlug */
 /** @var string|null $current */
 /** @var string $view */
@@ -32,6 +33,7 @@ if (!defined('ABSPATH')) {
 
 $tabs    = $tabs    ?? [];
 $current = $current ?? '';
+$scanStats = $scanStats ?? null;
 $isIgnoredView = ($view ?? 'active') === 'ignored';
 
 $iconLabel = static function (string $label, string $icon): string {
@@ -56,7 +58,6 @@ $badgeClass = static function (int $status): string {
  * Resolve the front-end "View" URL only for rows tied to a post.
  */
 $viewUrl = static function (array $row): string {
-    echo $row['route_table'] ?? '';
     $postId = isset($row['post_id']) ? (int) $row['post_id'] : 0;
 
     if ($postId <= 0) {
@@ -203,6 +204,42 @@ $baseUrl = admin_url('admin.php?page=' . $pageSlug);
     <?php if ($notice !== null) : ?>
         <div class="notice notice-<?php echo $notice[1] === 'error' ? 'error' : 'success'; ?> is-dismissible">
             <p><?php echo esc_html($notice[0]); ?></p>
+            <?php if ($scanStats !== null) : ?>
+                <p>
+                    <?php
+                    printf(
+                        /* translators: 1: source strings, 2: inserted rows, 3: existing rows, 4: skipped fields, 5: target languages */
+                        esc_html__('%1$d source strings, %2$d new rows, %3$d existing rows, %4$d skipped fields, %5$d target languages.', 'translangs'),
+                        (int) $scanStats['scan_sources'],
+                        (int) $scanStats['scan_inserted'],
+                        (int) $scanStats['scan_existing'],
+                        (int) $scanStats['scan_skipped'],
+                        (int) $scanStats['scan_target_languages']
+                    );
+                    ?>
+                </p>
+                <p>
+                    <?php
+                    printf(
+                        /* translators: 1: post source count, 2: postmeta source count, 3: term source count */
+                        esc_html__('Sources by route: post %1$d, postmeta %2$d, terms %3$d.', 'translangs'),
+                        (int) $scanStats['scan_source_post'],
+                        (int) $scanStats['scan_source_postmeta'],
+                        (int) $scanStats['scan_source_terms']
+                    );
+                    ?>
+                </p>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!$isIgnoredView) : ?>
+        <div class="translangs-page-actions">
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                <?php wp_nonce_field('translangs_scan_structured_sources', 'translangs_nonce'); ?>
+                <input type="hidden" name="action" value="translangs_scan_structured_sources">
+                <button type="submit" class="button"><?php esc_html_e('Scan sources', 'translangs'); ?></button>
+            </form>
         </div>
     <?php endif; ?>
 

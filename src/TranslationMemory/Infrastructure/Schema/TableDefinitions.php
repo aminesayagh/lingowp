@@ -146,4 +146,23 @@ final class TableDefinitions
         FOREIGN KEY (target_lang) REFERENCES {$languagesTable} (code) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
+
+    public static function i18nMeta(
+        string $table,
+        string $i18nTable,
+        string $charsetCollate
+    ): string {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    i18n_id       bigint(20) unsigned NOT NULL,
+    source_url    text                NULL,
+    selector      text                NULL,
+    request_area  varchar(20)         NULL,
+    seen_count    bigint(20) unsigned NOT NULL DEFAULT 0,
+    first_seen_at datetime            NOT NULL,
+    last_seen_at  datetime            NOT NULL,
+    PRIMARY KEY (i18n_id),
+    CONSTRAINT fk_i18n_meta
+        FOREIGN KEY (i18n_id) REFERENCES {$i18nTable} (id) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
 }

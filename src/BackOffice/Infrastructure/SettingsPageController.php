@@ -4,6 +4,7 @@ namespace TransLangs\BackOffice\Infrastructure;
 
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Infrastructure\SupportedLanguages;
+use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 
 /**
@@ -17,7 +18,10 @@ class SettingsPageController
     public const CAPABILITY = 'manage_options';
     public const SLUG       = 'translangs';
 
-    public function __construct(private LanguageRegistry $registry) {}
+    public function __construct(
+        private LanguageRegistry $registry,
+        private TranslatedPageCacheInvalidator $cacheInvalidator
+    ) {}
 
     /**
      * Tab set for TransLangs admin screens.
@@ -155,6 +159,7 @@ class SettingsPageController
             // Emptying the option forces WordPress to regenerate on the NEXT
             // request, after init has added the updated language routes.
             update_option('rewrite_rules', '');
+            $this->cacheInvalidator->invalidateLanguageSet();
         }
 
         $this->notice(__('Settings saved.', 'translangs'), 'success');

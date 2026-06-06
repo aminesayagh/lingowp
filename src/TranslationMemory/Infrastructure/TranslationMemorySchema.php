@@ -14,11 +14,12 @@ use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '5';
+    public const DB_VERSION        = '6';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     public static function maybeUpgrade(): void
     {
+        // If the version is current or higher, do nothing. Otherwise, run a full install.
         $installed = (string) get_option(self::OPTION_DB_VERSION, '0');
 
         if (version_compare($installed, self::DB_VERSION, '>=')) {
@@ -29,7 +30,7 @@ class TranslationMemorySchema
     }
 
     /**
-     * Full install: drop old table → create five new tables → verify FKs → bump version.
+     * Full install: create registry + translation tables → verify FKs → bump version.
      *
      * @throws SchemaFailure if any FK constraint is absent after creation.
      *                       All created tables are dropped before throwing.
@@ -77,6 +78,13 @@ class TranslationMemorySchema
                 $charsetCollate
             )
         );
+        $wpdb->query( // phpcs:ignore WordPress.DB
+            TableDefinitions::i18nMeta(
+                self::tlI18nMetaTable(),
+                self::tlI18nTable(),
+                $charsetCollate
+            )
+        );
 
         // 3. Verify every FK exists in information_schema.
         $missing = (new ConstraintVerifier($wpdb))->findMissing([
@@ -87,20 +95,22 @@ class TranslationMemorySchema
             'fk_term_parent'     => self::tlTermsTable(),
             'fk_term_lang'       => self::tlTermsTable(),
             'fk_i18n_lang'       => self::tlI18nTable(),
+            'fk_i18n_meta'       => self::tlI18nMetaTable(),
         ]);
 
-        // 4. On any missing FK: drop translation tables then languages, then fail.
+        // 4. On any missing FK: drop translation tables in reverse dependency order, then fail.
         if ($missing !== []) {
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nTable());    // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlTermsTable());   // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nMetaTable()); // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nTable());     // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlTermsTable());    // phpcs:ignore WordPress.DB
             $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostmetaTable()); // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostTable());    // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostTable());     // phpcs:ignore WordPress.DB
             $wpdb->query('DROP TABLE IF EXISTS ' . self::tlLanguagesTable()); // phpcs:ignore WordPress.DB
 
             throw SchemaFailure::missingForeignKeys($missing);
         }
 
-        // 6. Version is written only after verification passes.
+        // 5. Version is written only after verification passes.
         update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
     }
 
@@ -148,5 +158,11 @@ class TranslationMemorySchema
     {
         global $wpdb;
         return $wpdb->prefix . 'tl_translations_i18n';
+    }
+
+    public static function tlI18nMetaTable(): string
+    {
+        global $wpdb;
+        return $wpdb->prefix . 'tl_translations_i18n_meta';
     }
 }
