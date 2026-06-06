@@ -3,31 +3,24 @@
 namespace TransLangs\ContentSource\Application;
 
 use TransLangs\ContentSource\Domain\ScanTarget;
+use TransLangs\ContentSource\Domain\SourceRoute;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\PageTranslation\Application\ClassifyRenderedSegments;
 use TransLangs\PageTranslation\Infrastructure\Html\HtmlParserFactory;
 use TransLangs\TranslationMemory\Application\DiscoverSourceStrings;
+use TransLangs\TranslationMemory\Domain\StringHashGenerator;
 use TransLangs\TranslationMemory\Domain\TranslationSourceIdentity;
 
 /**
  * Fetches each archetype URL, parses the rendered HTML, classifies segments,
  * and discovers new strings into the translation memory.
  *
- * This is the rendered-HTML auditor in batch mode. The normal render pipeline
- * (OutputBufferMiddleware → TranslateHtmlPage) does the same work on live
- * requests; this service does it proactively on a representative set of pages
- * so the admin doesn't need to visit every URL manually.
- *
- * Pipeline per URL:
- *   wp_remote_get → HtmlParser → ClassifyRenderedSegments → DiscoverSourceStrings
- *
- * The HTTP fetch uses WordPress's own HTTP API. Self-requests can fail in some
- * hosting environments (loopback blocked). When that happens the URL is skipped
- * and reported in ArchetypeScanResult::$errors, never throwing.
+ * NOTE: candidatesToIdentities() uses a temporary bridge mapping pre-Step-8
+ * ClassifiedTranslationCandidate (old shape) to the new identity model.
+ * Step 8 will replace this with a proper SourceRoute-aware classifier.
  */
 class ScanRenderedArchetypes
 {
-    /** Seconds to wait for one page response. */
     private const FETCH_TIMEOUT = 30;
 
     public function __construct(
@@ -35,13 +28,10 @@ class ScanRenderedArchetypes
         private HtmlParserFactory $parserFactory,
         private ClassifyRenderedSegments $classifier,
         private DiscoverSourceStrings $discovery,
-        private ResolveRequestLanguage $languages
-    ) {
-    }
+        private ResolveRequestLanguage $languages,
+        private StringHashGenerator $hasher,
+    ) {}
 
-    /**
-     * Run the full archetype scan and return a summary.
-     */
     public function scan(): ArchetypeScanResult
     {
         $sourceLang = $this->languages->getDefaultLanguage();
@@ -91,6 +81,7 @@ class ScanRenderedArchetypes
             return ['discovered' => 0, 'error' => null];
         }
 
+        // classifier signature will be updated in Step 8
         $candidates = $this->classifier->classify(
             $segments,
             $target->sourceId,
@@ -108,12 +99,6 @@ class ScanRenderedArchetypes
         return ['discovered' => $inserted, 'error' => null];
     }
 
-    /**
-     * Fetch the HTML of a URL using the WordPress HTTP API.
-     *
-     * Both 200 and 404 responses are accepted — 404 is intentionally requested
-     * to capture the not-found page template chrome.
-     */
     private function fetchHtml(string $url): ?string
     {
         $response = wp_remote_get($url, [
@@ -139,6 +124,14 @@ class ScanRenderedArchetypes
     }
 
     /**
+     * Convert pre-Step-8 ClassifiedTranslationCandidate objects to the new
+     * TranslationSourceIdentity shape.
+     *
+     * Mapping:
+     *   sourceId = 0  → SourceRoute::I18n  (template chrome, no entity FK)
+     *   sourceId > 0  → SourceRoute::Post  (entity-owned; Step 8 will refine
+     *                                        routing for media/taxonomy segments)
+     *
      * @param \TransLangs\PageTranslation\Domain\ClassifiedTranslationCandidate[] $candidates
      * @return TranslationSourceIdentity[]
      */
@@ -147,13 +140,41 @@ class ScanRenderedArchetypes
         $identities = [];
 
         foreach ($candidates as $candidate) {
-            $identities[] = TranslationSourceIdentity::source(
-                $candidate->sourceId,
-                $candidate->sourceType,
-                $candidate->context,
-                $candidate->originalText,
-                $candidate->originalHash,
-                $candidate->normalizedText
+            $originalHash = $this->hasher->hashNormalized($candidate->normalizedText);
+
+            if ($candidate->sourceId === 0) {
+                $identities[] = new TranslationSourceIdentity(
+                    routeTable:    SourceRoute::I18n,
+                    parentId:      0,
+                    field:         null,
+                    metaKey:       null,
+                    metaKeyHash:   null,
+                    context:       null,
+                    contextHash:   null,
+                    source:        'theme',
+                    reference:     $candidate->context,
+                    referenceHash: $this->hasher->hashReference($candidate->context),
+                    originalText:  $candidate->originalText,
+                    normalizedText: $candidate->normalizedText,
+                    originalHash:  $originalHash,
+                );
+                continue;
+            }
+
+            $identities[] = new TranslationSourceIdentity(
+                routeTable:    SourceRoute::Post,
+                parentId:      $candidate->sourceId,
+                field:         $candidate->context,
+                metaKey:       null,
+                metaKeyHash:   null,
+                context:       null,
+                contextHash:   null,
+                source:        null,
+                reference:     null,
+                referenceHash: null,
+                originalText:  $candidate->originalText,
+                normalizedText: $candidate->normalizedText,
+                originalHash:  $originalHash,
             );
         }
 

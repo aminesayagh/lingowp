@@ -2,479 +2,126 @@
 
 namespace TransLangs\TranslationMemory\Infrastructure;
 
+use TransLangs\ContentSource\Domain\SourceRoute;
+use TransLangs\TranslationMemory\Domain\RowRef;
 use TransLangs\TranslationMemory\Domain\TranslationMemoryRepository;
 use TransLangs\TranslationMemory\Domain\TranslationSourceIdentity;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminTranslationsQuery;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\I18nTranslationsRepository;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslationsRepository;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\PostTranslationsRepository;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\TermsTranslationsRepository;
 
 /**
- * Database access layer for the translation memory.
+ * Facade over the four split table repositories.
  *
- * Hard rule: always operate in bulk. A page with 100 strings must cost one
- * SELECT and at most one INSERT, never one query per string.
- *
- * Idempotent discovery: insertMissingStrings() relies on the table's source
- * identity UNIQUE KEY plus INSERT IGNORE, so repeated discovery does not create
- * duplicate translation-memory rows.
+ * Routes every operation to the correct table repository based on
+ * RowRef::$table (SourceRoute enum) or the identity's routeTable field.
+ * Never queries the DB directly — all SQL lives in the split repos.
  */
-class WpDbTranslationMemoryRepository implements TranslationMemoryRepository
+final class WpDbTranslationMemoryRepository implements TranslationMemoryRepository
 {
-    /** Status: discovered but not yet translated. */
-    public const STATUS_DISCOVERED = TranslationStatus::DISCOVERED;
-    /** Status: filled by a machine translation provider. */
-    public const STATUS_MACHINE = TranslationStatus::MACHINE;
-    /** Status: confirmed by a human. */
-    public const STATUS_REVIEWED = TranslationStatus::REVIEWED;
-    /** Status: deliberately left in the source language. */
-    public const STATUS_IGNORED = TranslationStatus::IGNORED;
-    /** Status: translated but flagged for a human to check. */
-    public const STATUS_NEEDS_REVIEW = TranslationStatus::NEEDS_REVIEW;
+    public function __construct(
+        private PostTranslationsRepository     $postRepo,
+        private PostmetaTranslationsRepository $postmetaRepo,
+        private TermsTranslationsRepository    $termsRepo,
+        private I18nTranslationsRepository     $i18nRepo,
+        private AdminTranslationsQuery         $adminQuery,
+    ) {}
 
-    /**
-     * @return array<int, string> status code => human label
-     */
-    public static function statusLabels(): array
-    {
-        return TranslationStatus::labels();
-    }
-
-    /**
-     * Safety cap so a single huge page cannot build an unbounded SQL statement.
-     * Lookups and inserts are chunked to this size.
-     */
-    private const CHUNK = 200;
-
-    /**
-     * Look up many translations at once by hash.
-     *
-     * @param string[] $hashes
-     * @return array<string, array<string, mixed>> Keyed by original_hash.
-     */
-    public function findManyByHashes(
-        array $hashes,
-        string $sourceLang,
-        string $targetLang,
-        int $sourceId,
-        string $sourceType,
-        string $context
-    ): array
-    {
-        $hashes = array_values(array_unique(array_filter($hashes)));
-
-        if ($hashes === []) {
-            return [];
-        }
-
-        global $wpdb;
-        $table  = $this->table();
-        $result = [];
-
-        foreach (array_chunk($hashes, self::CHUNK) as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '%s'));
-
-            [$sourceWhere, $sourceParams] = $this->sourceIdentityWhere($sourceId, $sourceType, $context);
-
-            // $table is sanitized in table(); placeholders are bound values.
-            $sql = $wpdb->prepare(
-                "SELECT * FROM {$table}
-                 WHERE source_lang = %s AND target_lang = %s
-                 {$sourceWhere}
-                 AND original_hash IN ({$placeholders})",
-                array_merge([$sourceLang, $targetLang], $sourceParams, $chunk)
-            );
-
-            $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
-
-            foreach ($rows as $row) {
-                $result[$row['original_hash']] = $row;
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Insert discovered strings that are not yet stored.
-     *
-     * Each identity provides the structural source key and original text.
-     * Duplicates are ignored at the DB level.
-     *
-     * @param TranslationSourceIdentity[] $identities
-     * @return int Number of rows actually inserted (new discoveries).
-     */
-    public function insertMissingStrings(array $identities, string $sourceLang, string $targetLang): int
+    public function insertMissingStrings(array $identities, string $targetLang): int
     {
         if ($identities === []) {
             return 0;
         }
 
-        global $wpdb;
-        $table = $this->table();
-        $now   = current_time('mysql');
-        $inserted = 0;
-
-        foreach (array_chunk($identities, self::CHUNK) as $chunk) {
-            $values       = [];
-            $placeholders = [];
-
-            foreach ($chunk as $identity) {
-                if (!$identity instanceof TranslationSourceIdentity) {
-                    continue;
-                }
-
-                $row = $identity->toDatabaseRow();
-                $placeholders[] = '(%s,%s,%d,%s,%s,%s,%s,%s,%d,%s,%s,%s)';
-
-                array_push(
-                    $values,
-                    $sourceLang,
-                    $targetLang,
-                    $row['source_id'],
-                    $row['source_type'],
-                    $row['original_hash'],
-                    $row['original_text'],
-                    $row['normalized_text'],
-                    $row['context'],
-                    self::STATUS_DISCOVERED,
-                    $now, // last_seen_at
-                    $now, // created_at
-                    $now  // updated_at
-                );
-            }
-
-            $cols = 'source_lang, target_lang, source_id, source_type, original_hash, original_text, '
-                  . 'normalized_text, context, status, '
-                  . 'last_seen_at, created_at, updated_at';
-
-            // INSERT IGNORE skips rows that collide with the UNIQUE KEY, making
-            // re-discovery a no-op. $table is sanitized; all values are bound.
-            $sql = $wpdb->prepare(
-                "INSERT IGNORE INTO {$table} ({$cols}) VALUES " . implode(',', $placeholders),
-                $values
-            );
-
-            $wpdb->query($sql);
-            $inserted += (int) $wpdb->rows_affected;
+        // Pre-group once to avoid 4× array traversal inside each repo.
+        $byRoute = [];
+        foreach ($identities as $identity) {
+            $byRoute[$identity->routeTable->value][] = $identity;
         }
 
-        return $inserted;
-    }
+        $count = 0;
 
-    /**
-     * Find distinct structured source identities for a set of hashes.
-     *
-     * One SELECT covers many hashes; DISTINCT collapses the per-target-language
-     * rows down to one identity tuple per (source_id, source_type, context, hash).
-     * source_id > 0 filter keeps template rows out of the result.
-     *
-     * @param  string[] $hashes
-     * @return array<string, list<array{source_id: int, source_type: string, context: string}>>
-     */
-    public function findStructuredIdentitiesByHashes(array $hashes, string $sourceLang): array
-    {
-        $hashes = array_values(array_unique(array_filter($hashes)));
-
-        if ($hashes === []) {
-            return [];
+        if (isset($byRoute[SourceRoute::Post->value])) {
+            $count += $this->postRepo->insertMissing($byRoute[SourceRoute::Post->value], $targetLang);
+        }
+        if (isset($byRoute[SourceRoute::Postmeta->value])) {
+            $count += $this->postmetaRepo->insertMissing($byRoute[SourceRoute::Postmeta->value], $targetLang);
+        }
+        if (isset($byRoute[SourceRoute::Terms->value])) {
+            $count += $this->termsRepo->insertMissing($byRoute[SourceRoute::Terms->value], $targetLang);
+        }
+        if (isset($byRoute[SourceRoute::I18n->value])) {
+            $count += $this->i18nRepo->insertMissing($byRoute[SourceRoute::I18n->value], $targetLang);
         }
 
-        global $wpdb;
-        $table  = $this->table();
-        $result = [];
-
-        foreach (array_chunk($hashes, self::CHUNK) as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '%s'));
-
-            $sql = $wpdb->prepare(
-                "SELECT DISTINCT source_id, source_type, context, original_hash
-                 FROM {$table}
-                 WHERE source_lang = %s
-                   AND source_id > 0
-                   AND original_hash IN ({$placeholders})",
-                array_merge([$sourceLang], $chunk)
-            );
-
-            $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
-
-            foreach ($rows as $row) {
-                $result[$row['original_hash']][] = [
-                    'source_id'   => (int) $row['source_id'],
-                    'source_type' => (string) $row['source_type'],
-                    'context'     => (string) $row['context'],
-                ];
-            }
-        }
-
-        return $result;
+        return $count;
     }
 
-    /**
-     * Touch last_seen_at for strings still appearing on pages, so stale ones
-     * can be pruned later. Bulk, best-effort; failures are non-fatal.
-     *
-     * @param string[] $hashes
-     */
-    public function touchLastSeen(
-        array $hashes,
-        string $sourceLang,
-        string $targetLang,
-        int $sourceId,
-        string $sourceType,
-        string $context
-    ): void
+    public function saveTranslation(RowRef $rowRef, string $text, int $status): void
     {
-        $hashes = array_values(array_unique(array_filter($hashes)));
-
-        if ($hashes === []) {
-            return;
-        }
-
-        global $wpdb;
-        $table = $this->table();
-        $now   = current_time('mysql');
-
-        foreach (array_chunk($hashes, self::CHUNK) as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '%s'));
-
-            [$sourceWhere, $sourceParams] = $this->sourceIdentityWhere($sourceId, $sourceType, $context);
-
-            $sql = $wpdb->prepare(
-                "UPDATE {$table} SET last_seen_at = %s
-                 WHERE source_lang = %s AND target_lang = %s
-                 {$sourceWhere}
-                 AND original_hash IN ({$placeholders})",
-                array_merge([$now, $sourceLang, $targetLang], $sourceParams, $chunk)
-            );
-
-            $wpdb->query($sql);
-        }
+        $this->repoFor($rowRef)->save($rowRef->id, $text, $status);
     }
 
-    public function saveTranslation(int $id, string $translatedText, int $status): void
+    public function markDiscovered(RowRef $rowRef): void
     {
-        global $wpdb;
-
-        $wpdb->update(
-            $this->table(),
-            [
-                'translated_text' => $translatedText,
-                'status'          => $status,
-                'updated_at'      => current_time('mysql'),
-            ],
-            ['id' => $id],
-            ['%s', '%d', '%s'],
-            ['%d']
-        );
+        $this->repoFor($rowRef)->updateStatus($rowRef->id, TranslationStatus::DISCOVERED);
     }
 
-    public function markDiscovered(int $id): void
+    public function markReviewed(RowRef $rowRef): void
     {
-        global $wpdb;
-
-        $wpdb->update(
-            $this->table(),
-            ['status' => self::STATUS_DISCOVERED, 'updated_at' => current_time('mysql')],
-            ['id' => $id],
-            ['%d', '%s'],
-            ['%d']
-        );
+        $this->repoFor($rowRef)->updateStatus($rowRef->id, TranslationStatus::REVIEWED);
     }
 
-    public function markReviewed(int $id): void
+    public function markNeedsReview(RowRef $rowRef): void
     {
-        global $wpdb;
-
-        $wpdb->update(
-            $this->table(),
-            ['status' => self::STATUS_REVIEWED, 'updated_at' => current_time('mysql')],
-            ['id' => $id],
-            ['%d', '%s'],
-            ['%d']
-        );
+        $this->repoFor($rowRef)->updateStatus($rowRef->id, TranslationStatus::NEEDS_REVIEW);
     }
 
-    public function markNeedsReview(int $id): void
+    public function ignoreString(RowRef $rowRef): void
     {
-        global $wpdb;
-
-        $wpdb->update(
-            $this->table(),
-            ['status' => self::STATUS_NEEDS_REVIEW, 'updated_at' => current_time('mysql')],
-            ['id' => $id],
-            ['%d', '%s'],
-            ['%d']
-        );
+        $this->repoFor($rowRef)->updateStatus($rowRef->id, TranslationStatus::IGNORED);
     }
 
-    public function ignoreString(int $id): void
+    public function find(RowRef $rowRef): ?array
     {
-        global $wpdb;
-
-        $wpdb->update(
-            $this->table(),
-            ['status' => self::STATUS_IGNORED, 'updated_at' => current_time('mysql')],
-            ['id' => $id],
-            ['%d', '%s'],
-            ['%d']
-        );
+        return $this->repoFor($rowRef)->find($rowRef->id);
     }
 
-    /**
-     * Fetch a single row by id.
-     *
-     * @return array<string, mixed>|null
-     */
-    public function find(int $id): ?array
-    {
-        global $wpdb;
-        $table = $this->table();
-
-        $row = $wpdb->get_row(
-            $wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id),
-            ARRAY_A
-        );
-
-        return $row ?: null;
-    }
-
-    /**
-     * Paginated, filtered listing for the admin table.
-     *
-     * @param array{
-     *   source_lang?: string, target_lang?: string, status?: int|null, statuses?: int[],
-     *   search_original?: string, search_translated?: string, source_id?: int|null,
-     *   source_type?: string|null, context?: string|null
-     * } $filters
-     * @return array{rows: array<int, array<string, mixed>>, total: int}
-     */
     public function query(array $filters, int $page, int $perPage): array
     {
-        global $wpdb;
-        $table = $this->table();
-
-        [$where, $params] = $this->buildWhere($filters);
-
-        $countSql = "SELECT COUNT(*) FROM {$table} {$where}";
-        $total    = (int) $wpdb->get_var(
-            $params ? $wpdb->prepare($countSql, $params) : $countSql
-        );
-
-        $offset   = max(0, ($page - 1) * $perPage);
-        $dataSql  = "SELECT * FROM {$table} {$where} ORDER BY updated_at DESC LIMIT %d OFFSET %d";
-        $dataArgs = array_merge($params, [$perPage, $offset]);
-
-        $rows = $wpdb->get_results($wpdb->prepare($dataSql, $dataArgs), ARRAY_A) ?: [];
-
-        return ['rows' => $rows, 'total' => $total];
+        return $this->adminQuery->query($filters, $page, $perPage);
     }
 
-    /**
-     * Distinct language pairs present in the memory, for the filter dropdown.
-     *
-     * @return array<int, array{source_lang: string, target_lang: string}>
-     */
-    public function languagePairs(): array
+    public function getPostTranslations(string $targetLang, int $postId): array
     {
-        global $wpdb;
-        $table = $this->table();
-
-        $rows = $wpdb->get_results(
-            "SELECT DISTINCT source_lang, target_lang FROM {$table} ORDER BY source_lang, target_lang",
-            ARRAY_A
-        ) ?: [];
-
-        return $rows;
+        return $this->postRepo->getTranslations($targetLang, $postId);
     }
 
-    /**
-     * Build a WHERE clause and its bound parameters from the filter set.
-     *
-     * @param array<string, mixed> $filters
-     * @return array{0: string, 1: array<int, mixed>}
-     */
-    private function buildWhere(array $filters): array
+    public function getPostmetaTranslations(string $targetLang, int $postId): array
     {
-        $clauses = [];
-        $params  = [];
-
-        if (!empty($filters['source_lang'])) {
-            $clauses[] = 'source_lang = %s';
-            $params[]  = $filters['source_lang'];
-        }
-
-        if (!empty($filters['target_lang'])) {
-            $clauses[] = 'target_lang = %s';
-            $params[]  = $filters['target_lang'];
-        }
-
-        if (!empty($filters['statuses']) && is_array($filters['statuses'])) {
-            $statuses = array_values(array_unique(array_map('intval', $filters['statuses'])));
-
-            if ($statuses !== []) {
-                $clauses[] = 'status IN (' . implode(',', array_fill(0, count($statuses), '%d')) . ')';
-                array_push($params, ...$statuses);
-            }
-        } elseif (isset($filters['status']) && $filters['status'] !== null && $filters['status'] !== '') {
-            $clauses[] = 'status = %d';
-            $params[]  = (int) $filters['status'];
-        }
-
-        if (!empty($filters['search_original'])) {
-            $clauses[] = 'original_text LIKE %s';
-            $params[]  = '%' . $this->likeEscape($filters['search_original']) . '%';
-        }
-
-        if (!empty($filters['search_translated'])) {
-            $clauses[] = 'translated_text LIKE %s';
-            $params[]  = '%' . $this->likeEscape($filters['search_translated']) . '%';
-        }
-
-        if (array_key_exists('source_id', $filters) && $filters['source_id'] !== '' && $filters['source_id'] !== null) {
-            $clauses[] = 'source_id = %d';
-            $params[]  = (int) $filters['source_id'];
-        }
-
-        if (array_key_exists('source_type', $filters) && $filters['source_type'] !== '' && $filters['source_type'] !== null) {
-            $clauses[] = 'source_type = %s';
-            $params[]  = (string) $filters['source_type'];
-        }
-
-        if (array_key_exists('context', $filters) && $filters['context'] !== '' && $filters['context'] !== null) {
-            $clauses[] = 'context = %s';
-            $params[]  = (string) $filters['context'];
-        }
-
-        $where = $clauses ? 'WHERE ' . implode(' AND ', $clauses) : '';
-
-        return [$where, $params];
+        return $this->postmetaRepo->getTranslations($targetLang, $postId);
     }
 
-    private function likeEscape(string $text): string
+    public function getTermTranslations(string $targetLang, array $termTaxonomyIds): array
     {
-        global $wpdb;
-
-        return method_exists($wpdb, 'esc_like')
-            ? $wpdb->esc_like($text)
-            : addcslashes($text, '_%\\');
+        return $this->termsRepo->getTranslations($targetLang, $termTaxonomyIds);
     }
 
-    /**
-     * @return array{0: string, 1: array<int, mixed>}
-     */
-    private function sourceIdentityWhere(int $sourceId, string $sourceType, string $context): array
+    public function getI18nTranslations(string $targetLang, string $source): array
     {
-        return [
-            ' AND source_id = %d AND source_type = %s AND context = %s',
-            [$sourceId, $sourceType, $context],
-        ];
+        return $this->i18nRepo->getTranslations($targetLang, $source);
     }
 
-    /**
-     * Resolved, safe table name. TranslationMemorySchema::stringsTable() returns
-     * $wpdb->prefix . 'translangs_strings'; the prefix is controlled by the
-     * site, not user input, so it is safe to interpolate.
-     */
-    private function table(): string
+    private function repoFor(RowRef $rowRef): PostTranslationsRepository|PostmetaTranslationsRepository|TermsTranslationsRepository|I18nTranslationsRepository
     {
-        return TranslationMemorySchema::stringsTable();
+        return match ($rowRef->table) {
+            SourceRoute::Post     => $this->postRepo,
+            SourceRoute::Postmeta => $this->postmetaRepo,
+            SourceRoute::Terms    => $this->termsRepo,
+            SourceRoute::I18n     => $this->i18nRepo,
+        };
     }
 }

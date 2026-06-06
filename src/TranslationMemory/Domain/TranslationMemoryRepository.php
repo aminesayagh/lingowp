@@ -2,78 +2,72 @@
 
 namespace TransLangs\TranslationMemory\Domain;
 
+/**
+ * Contract for the translation persistence layer.
+ *
+ * Covers discovery (INSERT IGNORE), admin mutations (status / text),
+ * admin listing, and the hot-path render preloads.
+ *
+ * source_lang is never stored or passed — it is read from get_locale() at runtime.
+ */
 interface TranslationMemoryRepository
 {
     /**
-     * @param string[] $hashes
-     * @return array<string, array<string, mixed>>
-     */
-    public function findManyByHashes(
-        array $hashes,
-        string $sourceLang,
-        string $targetLang,
-        int $sourceId,
-        string $sourceType,
-        string $context
-    ): array;
-
-    /**
+     * Insert source strings not yet present for $targetLang.
+     * Duplicates (same unique key) are silently skipped via INSERT IGNORE.
+     *
      * @param TranslationSourceIdentity[] $identities
+     * @return int Rows actually inserted.
      */
-    public function insertMissingStrings(array $identities, string $sourceLang, string $targetLang): int;
+    public function insertMissingStrings(array $identities, string $targetLang): int;
+
+    // --- Admin mutations ---
+
+    public function saveTranslation(RowRef $rowRef, string $text, int $status): void;
+
+    public function markDiscovered(RowRef $rowRef): void;
+
+    public function markReviewed(RowRef $rowRef): void;
+
+    public function markNeedsReview(RowRef $rowRef): void;
+
+    public function ignoreString(RowRef $rowRef): void;
+
+    // --- Admin lookup ---
+
+    /** @return array<string, mixed>|null */
+    public function find(RowRef $rowRef): ?array;
 
     /**
-     * Find all known structured source strings for the given hashes.
-     *
-     * Returns distinct (source_id, source_type, context) identity tuples for
-     * every hash in the list. source_id > 0 only — template text (source_id = 0)
-     * is never returned because template strings are discovered by the classifier
-     * itself, not matched from prior structured discovery.
-     *
-     * Used by ClassifyRenderedSegments to assign proper source identities to
-     * rendered HTML segments before discovery/resolve.
-     *
-     * @param  string[] $hashes
-     * @return array<string, list<array{source_id: int, source_type: string, context: string}>>
-     *         Keyed by original_hash; each value is a list of matching identities.
-     */
-    public function findStructuredIdentitiesByHashes(array $hashes, string $sourceLang): array;
-
-    /**
-     * @param string[] $hashes
-     */
-    public function touchLastSeen(
-        array $hashes,
-        string $sourceLang,
-        string $targetLang,
-        int $sourceId,
-        string $sourceType,
-        string $context
-    ): void;
-
-    public function saveTranslation(int $id, string $translatedText, int $status): void;
-
-    public function markDiscovered(int $id): void;
-
-    public function markReviewed(int $id): void;
-
-    public function markNeedsReview(int $id): void;
-
-    public function ignoreString(int $id): void;
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    public function find(int $id): ?array;
-
-    /**
-     * @param array<string, mixed> $filters
+     * @param array{
+     *   target_lang?: string, status?: int|null, statuses?: int[],
+     *   search_original?: string, search_translated?: string,
+     *   route_table?: string
+     * } $filters
      * @return array{rows: array<int, array<string, mixed>>, total: int}
      */
     public function query(array $filters, int $page, int $perPage): array;
 
+    // --- Render preload (hot path — one query per entity, never per string) ---
+
     /**
-     * @return array<int, array{source_lang: string, target_lang: string}>
+     * @return array<string, string> "field:<field>:<hex>" => translated_text
      */
-    public function languagePairs(): array;
+    public function getPostTranslations(string $targetLang, int $postId): array;
+
+    /**
+     * @return array<string, string> "meta:<hex>:<hex>:<hex>" => translated_text
+     */
+    public function getPostmetaTranslations(string $targetLang, int $postId): array;
+
+    /**
+     * @param int[] $termTaxonomyIds
+     * @return array<string, string> "term:<ttId>:<field>:<hex>" => translated_text
+     */
+    public function getTermTranslations(string $targetLang, array $termTaxonomyIds): array;
+
+    /**
+     * @return array<string, string> "i18n:<source>:<hex>:<hex>" => translated_text
+     */
+    public function getI18nTranslations(string $targetLang, string $source): array;
 }

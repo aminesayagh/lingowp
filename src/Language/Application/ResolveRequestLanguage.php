@@ -2,6 +2,8 @@
 
 namespace TransLangs\Language\Application;
 
+use TransLangs\Language\Domain\LanguageRegistry;
+
 /**
  * Decides the active language for the current request.
  *
@@ -10,7 +12,7 @@ namespace TransLangs\Language\Application;
  *   2. Admin/preview query param    ?translangs_preview=fr
  *   3. Cookie preference            preferred_lang=fr   (if enabled in settings)
  *   4. Browser Accept-Language      (only if browser detection enabled)
- *   5. Default site language        from settings
+ *   5. Default site language        from get_locale()
  *
  * Hard rule: the URL always wins. /fr/about renders French even if the
  * cookie says preferred_lang=es. The cookie is only a preference for
@@ -23,6 +25,8 @@ class ResolveRequestLanguage
     public const COOKIE_NAME = 'preferred_lang';
 
     private ?string $resolved = null;
+
+    public function __construct(private LanguageRegistry $registry) {}
 
     /**
      * Resolve and memoize the active language for this request.
@@ -43,29 +47,23 @@ class ResolveRequestLanguage
     }
 
     // ------------------------------------------------------------------
-    // Settings-backed accessors
+    // Language registry accessors
     // ------------------------------------------------------------------
 
     public function getDefaultLanguage(): string
     {
-        $default = (string) get_option('translangs_default_language', 'en');
-
-        return $this->isEnabledLanguage($default) ? $default : 'en';
+        return $this->registry->getDefaultLanguage();
     }
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     public function getEnabledLanguages(): array
     {
-        $enabled = (array) get_option('translangs_enabled_languages', ['en', 'fr']);
-
-        return array_values(array_filter(array_map('strval', $enabled)));
+        return $this->registry->getEnabledLanguages();
     }
 
     public function isEnabledLanguage(string $lang): bool
     {
-        return $lang !== '' && in_array($lang, (array) get_option('translangs_enabled_languages', ['en', 'fr']), true);
+        return $this->registry->isEnabledLanguage($lang);
     }
 
     public function isTranslatedRequest(): bool
@@ -181,7 +179,7 @@ class ResolveRequestLanguage
             }
 
             // Reduce "fr-CA" to "fr".
-            $base = explode('-', $tag)[0];
+            $base     = explode('-', $tag)[0];
             $ranked[] = ['code' => $base, 'q' => $q];
         }
 

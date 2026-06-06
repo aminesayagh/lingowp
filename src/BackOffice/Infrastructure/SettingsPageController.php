@@ -2,30 +2,28 @@
 
 namespace TransLangs\BackOffice\Infrastructure;
 
+use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Infrastructure\SupportedLanguages;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 
 /**
  * The TransLangs settings screen.
  *
- * Registers the top-level admin menu, handles the settings form submission
- * (nonce + capability + sanitization), and renders the view.
+ * Language management writes to/reads from wp_tl_languages via LanguageRegistry.
+ * Behavior toggles (cookie, browser detection, etc.) remain as WP options.
  */
 class SettingsPageController
 {
-    private const CAPABILITY = 'manage_options';
-    private const SLUG       = 'translangs';
+    public const CAPABILITY = 'manage_options';
+    public const SLUG       = 'translangs-settings';
 
-    /**
-     * Tabs shown in the shared navbar. Other screens register their own slugs.
-     *
-     * @return array<string, string>
-     */
-    public static function tabs(): array
+    public function __construct(private LanguageRegistry $registry) {}
+
+    /** @return array<string, string> */
+    private static function tabs(): array
     {
         return [
-            'translangs-translations' => __('Translations', 'translangs'),
-            'translangs'              => __('Settings', 'translangs'),
+            self::SLUG => __('General', 'translangs'),
         ];
     }
 
@@ -36,21 +34,9 @@ class SettingsPageController
 
     public function addMenu(): void
     {
-        add_menu_page(
+        add_options_page(
+            __('TransLangs Settings', 'translangs'),
             __('TransLangs', 'translangs'),
-            __('TransLangs', 'translangs'),
-            self::CAPABILITY,
-            self::SLUG,
-            [$this, 'renderPage'],
-            'dashicons-translation',
-            58
-        );
-
-        // Rename the auto-created first submenu item from "TransLangs" to "Settings".
-        add_submenu_page(
-            self::SLUG,
-            __('Settings', 'translangs'),
-            __('Settings', 'translangs'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
@@ -94,44 +80,49 @@ class SettingsPageController
             return;
         }
 
-        $oldDefault       = (string) get_option('translangs_default_language', 'en');
-        $oldEnabled       = $this->normalizeLanguageList((array) get_option('translangs_enabled_languages', ['en', 'fr']));
-        $oldPrefixDefault = (bool) get_option('translangs_prefix_default_language', false);
+        $source         = $this->registry->getDefaultLanguage();
+        $currentTargets = $this->registry->getTargetLanguages();
+        $oldPrefix      = (bool) get_option('translangs_prefix_default_language', false);
 
-        $default = isset($_POST['default_language'])
-            ? sanitize_key(wp_unslash($_POST['default_language']))
-            : 'en';
-
-        $enabledRaw = isset($_POST['enabled_languages'])
+        // Sanitize and validate posted target languages.
+        // Source language is excluded — it is never stored as a target.
+        $postedRaw = isset($_POST['enabled_languages'])
             ? (array) wp_unslash($_POST['enabled_languages'])
             : [];
 
-        $enabled = array_values(array_filter(
-            array_map('sanitize_key', $enabledRaw),
-            [SupportedLanguages::class, 'exists']
+        $postedTargets = array_values(array_filter(
+            array_map('sanitize_key', $postedRaw),
+            static fn(string $c): bool => $c !== '' && $c !== $source && SupportedLanguages::exists($c)
         ));
 
-        // The default language must always be enabled.
-        if (!in_array($default, $enabled, true) && SupportedLanguages::exists($default)) {
-            $enabled[] = $default;
+        // Diff against current targets and apply changes.
+        $allLangs = SupportedLanguages::all();
+        $toEnable = array_diff($postedTargets, $currentTargets);
+        $toDisable = array_diff($currentTargets, $postedTargets);
+
+        foreach ($toEnable as $code) {
+            if (isset($allLangs[$code])) {
+                $this->registry->enableLanguage(
+                    $code,
+                    $allLangs[$code]['name'],
+                    $allLangs[$code]['native'],
+                    $allLangs[$code]['dir']
+                );
+            }
         }
 
-        $default       = SupportedLanguages::exists($default) ? $default : 'en';
-        $enabled       = $this->normalizeLanguageList($enabled ?: ['en']);
-        $prefixDefault = !empty($_POST['prefix_default_language']);
+        foreach ($toDisable as $code) {
+            $this->registry->disableLanguage($code);
+        }
 
-        update_option('translangs_default_language', $default);
-        update_option('translangs_enabled_languages', $enabled);
+        // Behavior options (not language routing — kept as WP options).
+        $prefixDefault = !empty($_POST['prefix_default_language']);
         update_option('translangs_prefix_default_language', $prefixDefault);
         update_option('translangs_cookie_preference', !empty($_POST['cookie_preference']));
         update_option('translangs_browser_detection', !empty($_POST['browser_detection']));
         update_option('translangs_auto_redirect', !empty($_POST['auto_redirect']));
 
-        if (
-            $oldDefault !== $default
-            || $oldEnabled !== $enabled
-            || $oldPrefixDefault !== $prefixDefault
-        ) {
+        if ($toEnable !== [] || $toDisable !== [] || $oldPrefix !== $prefixDefault) {
             flush_rewrite_rules(false);
         }
 
@@ -144,8 +135,8 @@ class SettingsPageController
     private function currentSettings(): array
     {
         return [
-            'default_language'        => (string) get_option('translangs_default_language', 'en'),
-            'enabled_languages'       => (array) get_option('translangs_enabled_languages', ['en', 'fr']),
+            'default_language'        => $this->registry->getDefaultLanguage(),
+            'enabled_languages'       => $this->registry->getTargetLanguages(),
             'prefix_default_language' => (bool) get_option('translangs_prefix_default_language', false),
             'cookie_preference'       => (bool) get_option('translangs_cookie_preference', true),
             'browser_detection'       => (bool) get_option('translangs_browser_detection', false),
@@ -153,30 +144,14 @@ class SettingsPageController
         ];
     }
 
-    private function notice(string $message, string $type): void
+    private function notice(string $message, string $type = 'success'): void
     {
-        $class = $type === 'error' ? 'notice-error' : 'notice-success';
-
-        printf(
-            '<div class="notice %1$s is-dismissible"><p>%2$s</p></div>',
-            esc_attr($class),
-            esc_html($message)
-        );
-    }
-
-    /**
-     * @param string[] $languages
-     * @return string[]
-     */
-    private function normalizeLanguageList(array $languages): array
-    {
-        $languages = array_values(array_unique(array_filter(
-            array_map('sanitize_key', $languages),
-            [SupportedLanguages::class, 'exists']
-        )));
-
-        sort($languages);
-
-        return $languages;
+        add_action('admin_notices', static function () use ($message, $type): void {
+            printf(
+                '<div class="notice notice-%s is-dismissible"><p>%s</p></div>',
+                esc_attr($type),
+                esc_html($message)
+            );
+        });
     }
 }

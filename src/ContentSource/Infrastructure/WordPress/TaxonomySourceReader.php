@@ -3,21 +3,20 @@
 namespace TransLangs\ContentSource\Infrastructure\WordPress;
 
 use TransLangs\ContentSource\Domain\SourceReader;
+use TransLangs\ContentSource\Domain\SourceRoute;
 use TransLangs\ContentSource\Domain\SourceString;
-use TransLangs\TranslationMemory\Domain\TranslationSourceContext;
-use TransLangs\TranslationMemory\Domain\TranslationSourceType;
 
 /**
- * Reads translatable text from taxonomy terms (categories, tags, product
- * categories, attributes, custom taxonomies).
+ * Reads translatable text from taxonomy terms (categories, tags, and custom
+ * taxonomies).
  *
- * For each term:
- *   - name        → context "{taxonomy}.name"        (e.g. "category.name")
- *   - description → context "{taxonomy}.description"
+ * Routing:
+ *   - name        → terms, field 'name',        parentId = term_taxonomy_id
+ *   - description → terms, field 'description', parentId = term_taxonomy_id
  *
- * The taxonomy is encoded into the context so a product category named "Shoes"
- * and a post tag named "Shoes" stay distinct identities. source_type is the
- * generic "taxonomy"; the specific taxonomy lives in the context.
+ * term_taxonomy_id is used (not term_id) because the FK in
+ * wp_tl_translations_terms references wp_term_taxonomy.term_taxonomy_id.
+ * The field value is plain ('name', 'description') — no taxonomy-prefixed context.
  */
 class TaxonomySourceReader implements SourceReader
 {
@@ -31,12 +30,7 @@ class TaxonomySourceReader implements SourceReader
         return function_exists('get_taxonomies') && function_exists('get_terms');
     }
 
-    /**
-     * Terms are read across all public taxonomies as one flat, paginated list
-     * ordered by term_id, so offset/limit stay stable across the whole set.
-     *
-     * @return SourceString[]
-     */
+    /** @return SourceString[] */
     public function read(int $offset, int $limit): array
     {
         $taxonomies = get_taxonomies(['public' => true], 'names');
@@ -65,24 +59,31 @@ class TaxonomySourceReader implements SourceReader
                 continue;
             }
 
-            $taxonomy = (string) $term->taxonomy;
-            $termId   = (int) $term->term_id;
+            $ttId = (int) $term->term_taxonomy_id;
 
             if ((string) $term->name !== '') {
                 $strings[] = new SourceString(
-                    $termId,
-                    TranslationSourceType::TAXONOMY,
-                    TranslationSourceContext::taxonomyName($taxonomy),
-                    (string) $term->name
+                    routeTable: SourceRoute::Terms,
+                    parentId:   $ttId,
+                    field:      'name',
+                    metaKey:    null,
+                    context:    null,
+                    source:     null,
+                    reference:  null,
+                    text:       (string) $term->name,
                 );
             }
 
             if ((string) $term->description !== '') {
                 $strings[] = new SourceString(
-                    $termId,
-                    TranslationSourceType::TAXONOMY,
-                    TranslationSourceContext::taxonomyDescription($taxonomy),
-                    (string) $term->description
+                    routeTable: SourceRoute::Terms,
+                    parentId:   $ttId,
+                    field:      'description',
+                    metaKey:    null,
+                    context:    null,
+                    source:     null,
+                    reference:  null,
+                    text:       (string) $term->description,
                 );
             }
         }
