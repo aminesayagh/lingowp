@@ -3,7 +3,6 @@
 namespace TransLangs\TranslationMemory\Domain;
 
 use InvalidArgumentException;
-use TransLangs\ContentSource\Domain\SourceRoute;
 
 /**
  * Opaque handle for a single row in a wp_tl_translations_* table.

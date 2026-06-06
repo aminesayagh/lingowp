@@ -1,11 +1,10 @@
 <?php
 
-namespace TransLangs\ContentSource\Domain;
+namespace TransLangs\TranslationMemory\Domain;
 
 /**
- * Which translation table a source string routes to.
+ * Translation table route used by admin row references and repository writes.
  *
- * Used by SourceString (reader output) and RowRef (admin row address).
  * The backing value matches the table name suffix in wp_tl_translations_*.
  */
 enum SourceRoute: string

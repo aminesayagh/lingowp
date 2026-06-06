@@ -100,15 +100,36 @@ runtime, not by scanning PHP files (scanning shows what *exists*, not what's
 ```
 frontend request starts
   → gettext hooks fire many times
-  → collector validates request area (frontend/ajax_frontend/selected rest)
+  → collector validates request area (frontend/ajax_frontend/opt-in rest)
   → normalized strings held IN MEMORY only (de-duped in the request)
   → request finishes
-  → shutdown: enqueue the captured batch
-  → background/cron/admin: bulk-insert into _i18n (source='gettext')
+  → shutdown: push the memory buffer to a transient/cache + enqueue ONE job
+              (NO database INSERTs here — see §C.1)
+  → Action Scheduler worker: bulk INSERT IGNORE into _i18n (source='gettext'),
+                             ownership-validated, off the request
 ```
 
-Capture areas: `frontend`, `ajax_frontend`, selected `rest` (frontend UI).
-Skip: `admin`, `ajax_admin`, `cli`, `cron`, `login`.
+### C.1 Why not write at `shutdown` (critical)
+
+On managed hosts (WP Engine, Kinsta, Pantheon, VIP) `fastcgi_finish_request()`
+fires when the response is flushed, and the PHP worker is often **killed
+immediately after** — any heavy `INSERT` racing in `shutdown` is silently
+truncated → **lost strings**. So `shutdown` does only the cheap part: dump the
+in-memory buffer to a transient and schedule one async job. All DB writes happen
+in a reliable background worker.
+
+**Queue backend: Action Scheduler.** Battle-tested, ships with WooCommerce, and
+designed for exactly this (reliable batched background processing that won't
+time out a page load or get killed). **Bundle it** when WooCommerce is absent
+(it supports bundling with version arbitration). Chosen over WP-Cron because
+WP-Cron is request-triggered and stalls on low-traffic sites — unacceptable when
+the whole point is not losing captured strings.
+
+Capture areas: `frontend`, `ajax_frontend`. REST is **default OFF** (Gutenberg
+and SaaS integrations flood it with backend strings); capture a REST route only
+when the frontend explicitly signals public intent via a custom header
+`X-TransLangs-Context: frontend` on its AJAX/fetch calls.
+Skip: `admin`, `ajax_admin`, `cli`, `cron`, `login`, and all un-flagged REST.
 
 Gettext i18n rows keep a **real** identity: `source='gettext'`,
 `reference`=textdomain/file, eventually `_x()` context. (Full domain/plural
@@ -116,26 +137,57 @@ shape is future work; minimal now.)
 
 ---
 
-## 5. Ownership resolution — the anti-duplication gate
+## 5. Ownership resolution — the anti-duplication gate (two-tier)
 
-The rule that stops HTML parsing from duplicating owned text into `i18n`.
+The rule that stops HTML parsing from duplicating owned text into `i18n`. It runs
+in **two tiers** so the frontend never queries per string.
 
-**Before ANY HTML-parsed string is inserted as i18n:**
+### Tier 1 — fast in-memory check (hot path, zero new queries)
+
+The render path already preloads this page's owned translations into memory maps
+(§7, step 7). Extract every `original_hash` from those maps into one flat set:
+
 ```
-HTML segment
-  → normalize → hash
-  → OwnedStringIndex.existsOwnedHash(hash)   // checks _post, _postmeta, _terms
-  → if owned (ANY status): DO NOT insert i18n        ← the guard
-  → else if a gettext capture matched this request/hash: it's gettext i18n
-  → else: rendered_html fallback i18n (text-only identity, §6)
+$pageOwnedHashes = all original_hash keys from the post/postmeta/term preload maps
 ```
 
-**Ownership includes ALL statuses** — `discovered`, `machine`, `reviewed`,
+When the parser finds a candidate string:
+```
+hash = sha256(normalize(text))
+if isset($pageOwnedHashes[hash])  → owned by THIS page's content → do NOT queue
+else                              → maybe orphan → queue as fallback candidate
+```
+This is an in-memory `isset()` — no DB hit, no matter how many DOM nodes. A page
+with 200 candidates costs 200 array lookups, not 600 queries.
+
+> Tier 1 is a fast **negative filter**: "is this string owned by the current
+> page's own entities?" It catches the common case (chrome text that is really
+> the current post's title, a visible term, etc.). It does NOT claim to know
+> about strings owned by *other* entities — that's Tier 2's job.
+
+### Tier 2 — cross-table check (background worker; keep it simple in v1)
+
+Queued candidates are validated by the background job **before** any i18n insert
+— never on the request. The goal is **"don't duplicate obvious owned text into
+i18n,"** not "prove mathematically perfect site-wide ownership." A
+straightforward cross-table hash check is enough for v1; don't build elaborate
+ownership inference.
+
+```
+for each queued candidate (in the async worker):
+  → OwnedStringIndex.existsOwnedHash(hash)   // simple query across _post,_postmeta,_terms
+  → if owned (ANY status): drop it (it belongs to another entity, not i18n)
+  → else if a gettext capture matched this request/hash: insert as gettext i18n
+  → else: insert as rendered_html fallback i18n (structural-selector identity, §6)
+```
+
+Moving the cross-table query here means table size never affects frontend page
+load. **Ownership includes ALL statuses** — `discovered`, `machine`, `reviewed`,
 `ignored`, `needs_review`. A *discovered-but-untranslated* post title is still
-owned by the post; it must never be duplicated into i18n just because it's not
-yet renderable.
+owned; it must never be duplicated into i18n. Refine the check later only if a
+real duplication problem shows up — not preemptively.
 
-### `OwnedStringIndex` service
+### `OwnedStringIndex` service (Tier 2 only)
 
 ```php
 interface OwnedStringIndex {
@@ -145,12 +197,11 @@ interface OwnedStringIndex {
     ): bool;
 }
 ```
-- Query-based across the three owned tables; **cached per request**.
-- Prefers current-page context when available (cheap: the page's own preload
-  maps already hold most owned hashes).
-- First implementation queries existing tables; add a dedicated source-index
-  table later only if measured too slow.
-- **Not** a parent/join table — ownership is a *read*, not a structural FK.
+- Query-based across the three owned tables; **existing tables only** (no
+  dedicated index table — it would violate single-source-of-truth and create
+  sync burden, and it isn't needed once the check is off the hot path).
+- Runs in the **background worker**, so its query cost never touches render.
+- Per-request cache still useful inside a single worker batch.
 
 ---
 
@@ -244,25 +295,62 @@ CREATE TABLE {$i18n_meta} (
 
 ## 7. Render-time page process (the hot path)
 
+**Cache first — parsing is the exception, not the rule.** Parsing the full HTML
+on every request is real CPU cost even with zero per-string queries. A
+translated-page cache makes the heavy pipeline run only once per
+page-version-per-language; every later visitor gets near-static speed.
+
 ```
 1. Detect request area; bail if not frontend.
-2. Start gettext collection (memory).
-3. Start output buffering.
-4. WordPress renders normally.
-5. Parse final HTML.
-6. Build page context: current post ID (if singular), attached
+2. CACHE LOOKUP: key = (url, target_lang, content_version).
+   → HIT  : return cached translated HTML. DONE. (no parse, no replace, no maps)
+   → MISS : continue to the full pipeline below.
+3. Start gettext collection (memory).
+4. Start output buffering.
+5. WordPress renders normally.
+6. Parse final HTML (fail-open — see §7.1). Full parse on miss is fine; cache
+   means a miss is rare.
+7. Build page context: current post ID (if singular), attached
    term_taxonomy_ids, current URL, request area.
-7. PRELOAD renderable maps (one bulk query each — never per string):
+8. PRELOAD renderable maps (one bulk query each — never per string):
      getPostTranslations(lang, postId)
      getPostmetaTranslations(lang, postId)
      getTermTranslations(lang, termTaxonomyIds)
      getI18nTranslations(lang, activeDomains/sources)
    (only renderable statuses: machine/reviewed/needs_review)
-8. Replace matching segments from the in-memory maps (array lookups).
-9. Collect UNKNOWN visible segments as fallback candidates (memory).
-10. Shutdown: enqueue gettext batch + fallback candidates for background
-    bulk processing (ownership-resolved before any i18n insert, §5).
+9. Replace matching segments from the in-memory maps (array lookups).
+10. STORE the translated HTML in the page cache (key from step 2).
+11. Collect UNKNOWN visible segments as fallback candidates, filtered by the
+    **Tier-1 in-memory ownership check** (§5): drop any candidate whose hash is
+    in `$pageOwnedHashes`; keep only the misses.
+12. Shutdown: push the gettext buffer + surviving candidates to a transient and
+    **enqueue ONE Action Scheduler job** — NO DB writes here. The worker runs
+    Tier-2 ownership validation and bulk-inserts genuine orphans + observation.
 ```
+
+### 7.1 Parser failure = fail open (never break render)
+
+`WP_HTML_Processor` parses a *subset* of HTML5 and aborts on markup it can't
+handle; `MastermindsHtmlParser` is the fallback behind the shared `HtmlParser`
+interface (the factory picks). If **both** fail or abort on a page:
+```
+→ return the ORIGINAL HTML unchanged   (the page must always render)
+→ log a debug event
+→ discover NOTHING from that request    (no candidates, no partial state)
+→ do NOT write a cache entry for a failed parse (so a later fix can retry)
+```
+Parser failure must never break the frontend and must never produce partial or
+corrupt discovery.
+
+### 7.2 Cache invalidation
+
+Invalidate the page's cache entry (and bump `content_version`) when:
+- the post/page/product saves (`save_post`),
+- a translation affecting that page is edited/reviewed/ignored in admin,
+- the enabled-language set changes,
+- the theme changes (template chrome may differ).
+Keep invalidation **targeted** (per page/per language) where possible; fall back
+to a language-wide flush only for global changes (language set, theme).
 
 **Replacement priority** when a segment matches:
 ```
@@ -274,9 +362,11 @@ If the same text exists in multiple owned sources with different translations,
 HTML alone can't prove the owner → prefer current-page context, and do NOT
 create a new fallback i18n row.
 
-**The hot path NEVER:** queries per string, writes to the DB, or inserts i18n
-inline. Discovery/observation writes happen after the response, in the
-background processor.
+**The hot path NEVER:** queries per string (Tier-1 is in-memory), writes to the
+translation tables, or inserts i18n inline. All discovery/observation writes
+happen in the Action Scheduler worker, after the response is sent — safe from
+worker kill. (The only write on the hot path is the page-cache store in step 10,
+which is a cache write, not a translation-memory write.)
 
 ---
 
@@ -292,8 +382,8 @@ the four tables, to centralize dedup.
   per-table identity already keeps apart.
 - It reintroduces the join + two-write cost of the rejected `originals` table.
 
-The unique keys + `OwnedStringIndex` + text-only fallback identity solve the
-duplication problem without it.
+The unique keys + `OwnedStringIndex` (two-tier) + structural-selector fallback
+identity solve the duplication problem without it.
 
 ---
 
@@ -301,20 +391,49 @@ duplication problem without it.
 
 ```
 1. Stop using post_id = 0 for no-owner strings (chrome → i18n, not _post).
-2. OwnedStringIndex (query-based, per-request cache).
-3. Rendered HTML discovery → produces fallback CANDIDATES (not direct inserts).
-4. Ownership resolution gate before any i18n insert.
-5. Frontend gettext collector (memory-only) + request-area guard.
-6. Shutdown queue + background bulk processor.
-7. _i18n_meta table + observation upsert (background).
-8. Lifecycle hooks: terms, posts, postmeta, plugins/themes (+ save_post guard).
+2. Render preload already builds owned-hash maps → expose $pageOwnedHashes (Tier-1).
+3. Parser with fail-open fallback (WP_HTML_Processor → Masterminds → original HTML
+   unchanged); parser failure never breaks render, discovers nothing.
+4. Rendered HTML discovery → produces fallback CANDIDATES (Tier-1 filtered).
+5. Full-page translated cache (lookup first, store on miss, targeted invalidation)
+   — makes parsing the exception, not the rule.
+6. Action Scheduler integration (bundle if WooCommerce absent): shutdown buffers
+   to transient + enqueues one job; worker does all DB writes.
+7. OwnedStringIndex (Tier-2, runs in the worker) → simple cross-table gate.
+8. Frontend gettext collector (memory-only) + request-area guard (REST off by default).
+9. _i18n_meta table + observation upsert (in the worker).
+10. Lifecycle hooks: terms, posts, postmeta, plugins/themes (+ save_post guard);
+    deleted_plugin / switch_theme → enqueue stale-gettext cleanup;
+    save_post / translation-edit / language-change → invalidate page cache.
 ```
 
 ---
 
-## 10. Open questions (carried)
+## 10. Resolved questions (were open)
 
-1. Which postmeta keys are frontend-translatable by default? (allow-list needed)
-2. `OwnedStringIndex`: existing tables only, or dedicated index table if slow?
-3. How to mark stale gettext when a plugin/theme is removed?
-4. REST capture: default on, or only known frontend-UI routes?
+1. **Translatable postmeta keys — strict allow-list + filter.** Default set:
+   `_wp_attachment_image_alt`, named SEO keys (`_yoast_wpseo_title`,
+   `_yoast_wpseo_metadesc`, …), standard WooCommerce meta. Everything else
+   (ACF, Elementor, custom) opts in via
+   `apply_filters('translangs_translatable_meta_keys', [...])`. **Never
+   auto-scan all meta** — serialized blobs/JSON would flood the tables.
+2. **OwnedStringIndex — existing tables only.** With Tier-2 validation in the
+   background worker, cross-table query speed never touches the frontend, so no
+   dedicated index table (which would break single-source-of-truth and add sync
+   burden).
+3. **Stale gettext on removal — hook `deleted_plugin` / `switch_theme`**, enqueue
+   a worker job: `DELETE FROM _i18n WHERE source='gettext' AND reference_hash …`;
+   `_i18n_meta` cleans up via its CASCADE.
+4. **REST capture — default OFF.** Capture a REST route only when the frontend
+   sends `X-TransLangs-Context: frontend`; otherwise Gutenberg/SaaS backend
+   strings would flood i18n.
+
+---
+
+## 11. Dependency: Action Scheduler
+
+Reliable background batches require a real queue, not `shutdown` or WP-Cron.
+**Action Scheduler** is the chosen backend (ships with WooCommerce; **bundle**
+it when WooCommerce is absent, using its version-arbitration loader). All
+DB-writing steps (gettext flush, fallback insert, observation upsert, stale
+cleanup) run as Action Scheduler jobs. `shutdown` only buffers + enqueues.

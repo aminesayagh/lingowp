@@ -2,13 +2,12 @@
 
 namespace TransLangs\TranslationMemory\Domain;
 
-use TransLangs\ContentSource\Domain\SourceRoute;
-
 /**
- * A SourceString after normalization and hashing — ready for DB insertion.
+ * A normalized and hashed source string ready for DB insertion.
  *
- * Built by the discovery service from a SourceString. Holds all fields needed
- * to INSERT into the correct split table (one per active target language).
+ * Holds all fields needed to INSERT into the correct split table for one
+ * active target language. The new pipeline can build these from structured
+ * readers, gettext capture, or ownership-resolved fallback candidates.
  * INSERT IGNORE on the table's unique key makes discovery idempotent.
  *
  * All *Hash fields are raw SHA-256 bytes (binary(32) in the DB).

@@ -10,9 +10,9 @@ use TransLangs\Language\Infrastructure\SupportedLanguages;
  * shortcode.
  *
  * For each enabled language it builds the URL of the CURRENT page in that
- * language, using the same LocalizedUrlBuilder the LinkRewriter uses — so a switcher
- * link and an in-page link to the same page always agree. The active language
- * is marked but still linked (harmless, and useful for screen readers).
+ * language, using the same LocalizedUrlBuilder as the rest of public URL
+ * handling. The active language is marked but still linked (harmless, and
+ * useful for screen readers).
  *
  * Selection behavior: the links point straight at the canonical language URL
  * (e.g. /fr/about), so clicking one navigates there directly — the URL stays

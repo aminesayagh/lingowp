@@ -5,15 +5,15 @@ namespace TransLangs\TranslationMemory\Domain;
 /**
  * Contract for the translation persistence layer.
  *
- * Covers discovery (INSERT IGNORE), admin mutations (status / text),
- * admin listing, and the hot-path render preloads.
+ * Covers row insertion, admin mutations, admin listing, and translation
+ * preloads for the pipeline that will be rebuilt next.
  *
  * source_lang is never stored or passed — it is read from get_locale() at runtime.
  */
 interface TranslationMemoryRepository
 {
     /**
-     * Insert source strings not yet present for $targetLang.
+     * Insert normalized source identities not yet present for $targetLang.
      * Duplicates (same unique key) are silently skipped via INSERT IGNORE.
      *
      * @param TranslationSourceIdentity[] $identities

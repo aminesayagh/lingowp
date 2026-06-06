@@ -2,7 +2,7 @@
 
 namespace TransLangs\TranslationMemory\Infrastructure\Repositories;
 
-use TransLangs\ContentSource\Domain\SourceRoute;
+use TransLangs\TranslationMemory\Domain\SourceRoute;
 use TransLangs\TranslationMemory\Domain\TranslationMapKey;
 use TransLangs\TranslationMemory\Domain\TranslationSourceIdentity;
 

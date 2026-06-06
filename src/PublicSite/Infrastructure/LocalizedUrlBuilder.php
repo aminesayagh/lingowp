@@ -7,10 +7,9 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 /**
  * One place that knows how a language prefix maps onto a URL path.
  *
- * Both the LanguageRouteRegistrar (incoming: strip prefix to resolve the real route) and the
- * LinkRewriter (outgoing: add prefix so links stay in-language) depend on this,
- * so the two can never disagree about whether a language is prefixed or how the
- * prefix is shaped.
+ * LanguageRouteRegistrar uses this for incoming prefixed URLs. Future public
+ * link rewriting should use the same builder so incoming and outgoing URL
+ * rules stay aligned.
  */
 class LocalizedUrlBuilder
 {
