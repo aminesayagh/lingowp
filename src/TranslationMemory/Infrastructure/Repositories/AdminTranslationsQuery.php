@@ -84,7 +84,7 @@ final class AdminTranslationsQuery
     }
 
     /**
-     * Builds a single SELECT sub-query with a consistent 12-column output
+     * Builds a single SELECT sub-query with a consistent 13-column output
      * suitable for UNION ALL composition.
      *
      * @return array{0: string, 1: list<mixed>}
@@ -102,11 +102,9 @@ final class AdminTranslationsQuery
             'i18n'     => 'reference',
             default    => 'NULL',
         };
-        // parent_ref: the entity FK used by the admin "View" link.
-        // post/postmeta → post_id (permalink); terms → term_taxonomy_id; i18n → NULL.
-        $parentRefExpr = match ($routeTable) {
+        // post_id is used by the admin "View" link. Non-post sources have no direct post URL.
+        $postIdExpr = match ($routeTable) {
             'post', 'postmeta' => 'post_id',
-            'terms'            => 'term_taxonomy_id',
             default            => 'NULL',
         };
 
@@ -119,7 +117,7 @@ final class AdminTranslationsQuery
                        original_text, translated_text,
                        status, provider, created_at, updated_at,
                        {$ctx1Expr} AS ctx1, {$ctx2Expr} AS ctx2,
-                       {$parentRefExpr} AS parent_ref
+                       {$postIdExpr} AS post_id
                 FROM {$table}
                 {$where}";
 

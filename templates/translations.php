@@ -53,34 +53,18 @@ $badgeClass = static function (int $status): string {
 };
 
 /**
- * Resolve the front-end "View" URL for a row using route_table + parent_ref.
- *   post / postmeta  → permalink of the parent post (post_id)
- *   terms            → front-end term archive (term_taxonomy_id)
- *   i18n             → no direct URL (returns '')
+ * Resolve the front-end "View" URL only for rows tied to a post.
  */
 $viewUrl = static function (array $row): string {
-    $table     = (string) ($row['route_table'] ?? '');
-    $parentRef = isset($row['parent_ref']) ? (int) $row['parent_ref'] : 0;
+    echo $row['route_table'] ?? '';
+    $postId = isset($row['post_id']) ? (int) $row['post_id'] : 0;
 
-    if ($parentRef <= 0) {
+    if ($postId <= 0) {
         return '';
     }
 
-    if ($table === 'post' || $table === 'postmeta') {
-        $url = get_permalink($parentRef);
-        return is_string($url) ? $url : '';
-    }
-
-    if ($table === 'terms') {
-        $term = get_term_by('term_taxonomy_id', $parentRef);
-        if (!($term instanceof \WP_Term)) {
-            return '';
-        }
-        $url = get_term_link($term);
-        return is_wp_error($url) ? '' : (string) $url;
-    }
-
-    return '';
+    $url = get_permalink($postId);
+    return is_string($url) ? $url : '';
 };
 
 $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStatusColumn = true) use ($badgeClass, &$statuses, $viewUrl, $iconLabel): void {

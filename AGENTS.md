@@ -32,4 +32,10 @@ These instructions extend the base context above and take priority where they co
 ### Implementation discipline
 - I keep final say on implementation approach. Favor the clearest, most maintainable option that fits existing patterns over the cleverest one.
 - No destructive or irreversible actions (deleting files, rewriting git history, sweeping refactors) without explicit confirmation.
+
+### Code organization preference
+- Prefer feature-local, readable flow over indirection. When understanding a feature, it should usually be possible to open one relevant file and follow the business flow, even if that means a longer class or method.
+- Avoid adding generic infrastructure, service containers, registries, factories, or orchestration layers unless they solve a concrete business problem in this plugin. Do not introduce indirection just to satisfy an abstract pattern.
+- Adding explicit fields, dependencies, or straightforward methods to an existing class is acceptable when it keeps the flow easier to read.
+- In plans and explanations, use natural language about the product behavior and implementation intent. Avoid framing proposals around coding-tool jargon or abstractions when a direct explanation is clearer.
 <!-- END project-additions -->
