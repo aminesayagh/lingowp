@@ -43,6 +43,14 @@ class Plugin
     {
         global $wpdb;
 
+        // Disable admin bar during scan/preview to prevent it from polluting translation discovery.
+        add_filter('show_admin_bar', function ($show) {
+            if (!empty($_GET['translangs_scan']) || !empty($_GET['translangs_preview'])) {
+                return false;
+            }
+            return $show;
+        }, 999);
+
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
 

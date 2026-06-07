@@ -30,6 +30,13 @@ final class HtmlTextTools
         'wpadminbar' => true,
     ];
 
+    private const WORDPRESS_ADMIN_UI_CLASSES = [
+        'ab-top-menu'       => true,
+        'ab-sub-wrapper'    => true,
+        'ab-item'           => true,
+        'screen-reader-shortcut' => true,
+    ];
+
     public function normalizedText(string $text): string
     {
         return StringNormalizer::normalize($text);
@@ -63,7 +70,23 @@ final class HtmlTextTools
     {
         $id = strtolower(trim($id));
 
-        return $id !== '' && isset(self::WORDPRESS_ADMIN_UI_IDS[$id]);
+        // Check ID
+        if ($id !== '' && isset(self::WORDPRESS_ADMIN_UI_IDS[$id])) {
+            return true;
+        }
+
+        // Check classes
+        $class = strtolower(trim($class));
+        if ($class !== '') {
+            $classes = preg_split('/\s+/', $class, -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($classes as $cls) {
+                if (isset(self::WORDPRESS_ADMIN_UI_CLASSES[$cls])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public function replacePreservingEdgeWhitespace(string $original, string $translated): string
