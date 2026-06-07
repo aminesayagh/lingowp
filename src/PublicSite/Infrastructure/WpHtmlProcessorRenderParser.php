@@ -35,6 +35,10 @@ final class WpHtmlProcessorRenderParser implements HtmlRenderParser
             return RenderedHtmlResult::failure($html);
         }
 
+        if ($this->textTools->containsWordPressAdminUi($html)) {
+            return RenderedHtmlResult::failure($html);
+        }
+
         try {
             $processor = \WP_HTML_Processor::create_full_parser($html);
             if (!$processor instanceof \WP_HTML_Processor) {

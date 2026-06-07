@@ -7,6 +7,7 @@ use TransLangs\BackOffice\Infrastructure\SettingsPageController;
 use TransLangs\BackOffice\Infrastructure\TranslationMemoryPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
+use TransLangs\PublicSite\Infrastructure\GettextCaptureBuffer;
 use TransLangs\PublicSite\Infrastructure\HreflangPresenter;
 use TransLangs\PublicSite\Infrastructure\HtmlRenderParserFactory;
 use TransLangs\PublicSite\Infrastructure\HtmlTextTools;
@@ -25,6 +26,7 @@ use TransLangs\TranslationMemory\Application\ReviewTranslation;
 use TransLangs\TranslationMemory\Application\SaveTranslation;
 use TransLangs\TranslationMemory\Infrastructure\CaptureBatchQueue;
 use TransLangs\TranslationMemory\Infrastructure\CaptureBatchWorker;
+use TransLangs\TranslationMemory\Infrastructure\OwnedStringIndex;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminTranslationsQuery;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\I18nTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslationsRepository;
@@ -62,7 +64,8 @@ class Plugin
 
         (new CaptureBatchWorker(
             $languageRegistry,
-            $translationMemory
+            $translationMemory,
+            new OwnedStringIndex($wpdb)
         ))->register();
 
         $urlBuilder = new LocalizedUrlBuilder($languageResolver);
@@ -81,6 +84,7 @@ class Plugin
             $translationMemory,
             $pageCache,
             new HtmlRenderParserFactory(new HtmlTextTools()),
+            new GettextCaptureBuffer(),
             new CaptureBatchQueue()
         ))->register();
 

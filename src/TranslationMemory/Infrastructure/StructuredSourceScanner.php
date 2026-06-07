@@ -85,7 +85,6 @@ final class StructuredSourceScanner
                 $termTaxonomyId = (int) $term->term_taxonomy_id;
                 $this->addTermField($termTaxonomyId, 'name', (string) ($term->name ?? ''));
                 $this->addTermField($termTaxonomyId, 'description', (string) ($term->description ?? ''));
-                $this->addTermField($termTaxonomyId, 'slug', (string) ($term->slug ?? ''));
             }
         }
     }
@@ -137,6 +136,10 @@ final class StructuredSourceScanner
         }
 
         foreach (array_values(array_unique($keys)) as $metaKey) {
+            if ($this->isSlugKey($metaKey)) {
+                continue;
+            }
+
             $value = get_post_meta($postId, $metaKey, true);
             if (!is_scalar($value)) {
                 continue;
@@ -148,6 +151,10 @@ final class StructuredSourceScanner
 
     private function addPostField(int $postId, string $field, string $text, bool $mayContainHtml): void
     {
+        if ($this->isSlugKey($field)) {
+            return;
+        }
+
         foreach ($mayContainHtml ? $this->textSegments($text) : [$text] as $segment) {
             $this->addIdentity(SourceRoute::Post, $postId, $field, null, null, null, $segment);
         }
@@ -180,6 +187,10 @@ final class StructuredSourceScanner
 
     private function addTermField(int $termTaxonomyId, string $field, string $text): void
     {
+        if ($this->isSlugKey($field)) {
+            return;
+        }
+
         foreach ($this->textSegments($text) as $segment) {
             $this->addIdentity(SourceRoute::Terms, $termTaxonomyId, $field, null, null, null, $segment);
         }
@@ -381,8 +392,16 @@ final class StructuredSourceScanner
 
         return array_values(array_filter(
             array_map('strval', is_array($keys) ? $keys : $default),
-            static fn(string $key): bool => $key !== ''
+            fn(string $key): bool => $key !== '' && !$this->isSlugKey($key)
         ));
+    }
+
+    private function isSlugKey(string $key): bool
+    {
+        $key = strtolower(trim($key));
+
+        return in_array($key, ['slug', '_slug', 'post_name', '_wp_old_slug'], true)
+            || str_ends_with($key, '_slug');
     }
 
     /**

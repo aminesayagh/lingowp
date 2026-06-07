@@ -32,6 +32,10 @@ final class MastermindsHtml5RenderParser implements HtmlRenderParser
                     continue;
                 }
 
+                if ($this->shouldSkipNode($node)) {
+                    continue;
+                }
+
                 $tags = $this->tagPath($node);
                 if ($this->textTools->shouldSkipPath($tags)) {
                     continue;
@@ -72,6 +76,24 @@ final class MastermindsHtml5RenderParser implements HtmlRenderParser
         } catch (\Throwable) {
             return RenderedHtmlResult::failure($html);
         }
+    }
+
+    private function shouldSkipNode(\DOMText $node): bool
+    {
+        $parent = $node->parentNode;
+
+        while ($parent instanceof \DOMElement) {
+            if ($this->textTools->shouldSkipElementByAttributes(
+                $parent->getAttribute('id'),
+                $parent->getAttribute('class')
+            )) {
+                return true;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return false;
     }
 
     /**

@@ -128,7 +128,7 @@ CREATE TABLE {$terms} (
     id               bigint(20) unsigned NOT NULL AUTO_INCREMENT,
     term_taxonomy_id bigint(20) unsigned NOT NULL,   -- the term-in-its-taxonomy, not the raw term
     target_lang      varchar(10)  NOT NULL,
-    field            varchar(32)  NOT NULL,           -- name / description / slug
+    field            varchar(32)  NOT NULL,           -- name / description
     original_hash    binary(32)   NOT NULL,
     original_text    longtext     NOT NULL,
     translated_text  longtext     NULL,
@@ -154,7 +154,7 @@ CREATE TABLE {$terms} (
 > "News" tag that happen to share a term row. The FK targets
 > `wp_term_taxonomy.term_taxonomy_id` (deleting the taxonomy assignment cascades
 > the translations). Because the taxonomy is already implied by
-> `term_taxonomy_id`, `field` is just `name` / `description` / `slug` — no
+> `term_taxonomy_id`, `field` is just `name` / `description` — no
 > `{taxonomy}.` prefix needed, so `varchar(32)` is comfortable.
 
 ### 3.4 `wp_tl_translations_i18n` — theme/plugin gettext strings
@@ -557,7 +557,7 @@ survives: which were folded in, and which were overstated or wrong.
 - **`term_taxonomy_id` instead of `term_id`** (§3.3) — the meaningful
   multilingual object is the term-in-its-taxonomy; `term_id` can be shared across
   taxonomies. FK now targets `wp_term_taxonomy`. Also simplifies `field` to
-  `name`/`description`/`slug`.
+  `name`/`description`.
 - **`BINARY(32)` instead of `CHAR(64)` for all hashes** — half the index
   footprint, no charset/collation budget concerns.
 - **Preload-to-memory render rule** (§5) — never query-per-string; batch into an

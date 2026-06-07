@@ -26,6 +26,10 @@ final class HtmlTextTools
         'form'    => true,
     ];
 
+    private const WORDPRESS_ADMIN_UI_IDS = [
+        'wpadminbar' => true,
+    ];
+
     public function normalizedText(string $text): string
     {
         return StringNormalizer::normalize($text);
@@ -48,6 +52,18 @@ final class HtmlTextTools
         }
 
         return false;
+    }
+
+    public function containsWordPressAdminUi(string $html): bool
+    {
+        return preg_match('/\\bid\\s*=\\s*([\\\'"])wpadminbar\\1/i', $html) === 1;
+    }
+
+    public function shouldSkipElementByAttributes(string $id, string $class): bool
+    {
+        $id = strtolower(trim($id));
+
+        return $id !== '' && isset(self::WORDPRESS_ADMIN_UI_IDS[$id]);
     }
 
     public function replacePreservingEdgeWhitespace(string $original, string $translated): string

@@ -24,6 +24,10 @@ class RequestContext
             return false;
         }
 
+        if ($this->isAdminPath()) {
+            return false;
+        }
+
         if ($this->isAjax()) {
             return false;
         }
@@ -66,6 +70,11 @@ class RequestContext
     public function isAdmin(): bool
     {
         return function_exists('is_admin') && is_admin();
+    }
+
+    public function isAdminPath(): bool
+    {
+        return $this->pathStartsWith('wp-admin');
     }
 
     public function isAjax(): bool

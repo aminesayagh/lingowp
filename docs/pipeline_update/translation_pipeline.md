@@ -65,11 +65,11 @@ stores it — never by rendering pages.
 
 | Reader | Reads | Routes to | field / key |
 |---|---|---|---|
-| Terms | term name/description/slug | `_terms` | by `term_taxonomy_id` |
-| Posts/Pages/CPT | post_title/content/excerpt | `_post` | field name |
+| Terms | term name/description | `_terms` | by `term_taxonomy_id` |
+| Posts/Pages/CPT | post_title/content/excerpt, never post slug | `_post` | field name |
 | Media (attachment) | title/caption/description | `_post` | field name |
 | Media (attachment) | **alt** (`_wp_attachment_image_alt`) | `_postmeta` | meta_key, empty context |
-| Post meta (named keys) | selected frontend meta | `_postmeta` | meta_key (+ context) |
+| Post meta (named keys) | selected frontend meta, never slug keys | `_postmeta` | meta_key (+ context) |
 
 Build structured discovery under `TransLangs\TranslationMemory`. Each reader
 normalizes and hashes strings into `TranslationSourceIdentity` instances

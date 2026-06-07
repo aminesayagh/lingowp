@@ -18,6 +18,7 @@ final class PublicRenderPipeline
         private TranslationMemoryRepository $translationMemory,
         private TranslatedPageCache $cache,
         private HtmlRenderParserFactory $parserFactory,
+        private GettextCaptureBuffer $gettextCapture,
         private CaptureBatchQueue $captureQueue
     ) {}
 
@@ -43,6 +44,8 @@ final class PublicRenderPipeline
             exit;
         }
 
+        $this->gettextCapture->start();
+
         ob_start(
             [$this, 'finish'],
             0,
@@ -52,6 +55,9 @@ final class PublicRenderPipeline
 
     public function finish(string $html, int $phase = 0): string
     {
+        $requestArea = $this->gettextCapture->capturedRequestArea();
+        $gettextCandidates = $this->gettextCapture->stop();
+
         if (
             ($phase & PHP_OUTPUT_HANDLER_CLEAN) !== 0
             || $this->targetLang === null
@@ -76,11 +82,12 @@ final class PublicRenderPipeline
             $this->cache->set($this->currentUrl, $this->targetLang, $result->html);
         }
 
-        if ($result->fallbackCandidates !== []) {
+        if ($result->fallbackCandidates !== [] || $gettextCandidates !== []) {
             $this->captureQueue->enqueue([
                 'target_lang'         => $this->targetLang,
                 'source_url'          => $this->currentUrl,
-                'request_area'        => 'frontend',
+                'request_area'        => $requestArea,
+                'gettext_candidates'  => $gettextCandidates,
                 'fallback_candidates' => $result->fallbackCandidates,
             ]);
         }

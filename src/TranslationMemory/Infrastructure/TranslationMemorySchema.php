@@ -14,7 +14,7 @@ use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '6';
+    public const DB_VERSION        = '7';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     public static function maybeUpgrade(): void
@@ -86,6 +86,8 @@ class TranslationMemorySchema
             )
         );
 
+        self::ensureOwnedHashIndexes();
+
         // 3. Verify every FK exists in information_schema.
         $missing = (new ConstraintVerifier($wpdb))->findMissing([
             'fk_post_parent'     => self::tlPostTable(),
@@ -112,6 +114,31 @@ class TranslationMemorySchema
 
         // 5. Version is written only after verification passes.
         update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
+    }
+
+    private static function ensureOwnedHashIndexes(): void
+    {
+        self::addIndexIfMissing(self::tlPostTable(), 'idx_original_hash', 'original_hash');
+        self::addIndexIfMissing(self::tlPostmetaTable(), 'idx_original_hash', 'original_hash');
+        self::addIndexIfMissing(self::tlTermsTable(), 'idx_original_hash', 'original_hash');
+    }
+
+    private static function addIndexIfMissing(string $table, string $index, string $column): void
+    {
+        global $wpdb;
+
+        $exists = $wpdb->get_var( // phpcs:ignore WordPress.DB
+            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                "SHOW INDEX FROM {$table} WHERE Key_name = %s",
+                $index
+            )
+        );
+
+        if ($exists !== null) {
+            return;
+        }
+
+        $wpdb->query("ALTER TABLE {$table} ADD KEY {$index} ({$column})"); // phpcs:ignore WordPress.DB
     }
 
     /**

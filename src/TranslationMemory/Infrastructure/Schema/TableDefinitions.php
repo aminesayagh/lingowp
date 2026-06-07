@@ -52,6 +52,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_identity (target_lang, post_id, field, original_hash),
     KEY idx_lang_status (target_lang, status),
     KEY idx_same_original (target_lang, original_hash),
+    KEY idx_original_hash (original_hash),
     CONSTRAINT fk_post_parent
         FOREIGN KEY (post_id) REFERENCES {$postsTable} (ID) ON DELETE CASCADE,
     CONSTRAINT fk_post_lang
@@ -84,6 +85,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_identity (target_lang, post_id, meta_key_hash, context_hash, original_hash),
     KEY idx_lang_status (target_lang, status),
     KEY idx_same_original (target_lang, original_hash),
+    KEY idx_original_hash (original_hash),
     CONSTRAINT fk_postmeta_parent
         FOREIGN KEY (post_id) REFERENCES {$postsTable} (ID) ON DELETE CASCADE,
     CONSTRAINT fk_postmeta_lang
@@ -113,6 +115,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_identity (target_lang, term_taxonomy_id, field, original_hash),
     KEY idx_lang_status (target_lang, status),
     KEY idx_same_original (target_lang, original_hash),
+    KEY idx_original_hash (original_hash),
     CONSTRAINT fk_term_parent
         FOREIGN KEY (term_taxonomy_id) REFERENCES {$termTaxonomyTable} (term_taxonomy_id) ON DELETE CASCADE,
     CONSTRAINT fk_term_lang
