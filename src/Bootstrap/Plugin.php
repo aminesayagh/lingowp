@@ -32,6 +32,7 @@ use TransLangs\TranslationMemory\Infrastructure\Repositories\I18nTranslationsRep
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\TermsTranslationsRepository;
+use TransLangs\TranslationMemory\Infrastructure\SourceLifecycleRefresher;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
 use TransLangs\TranslationMemory\Infrastructure\WpDbTranslationMemoryRepository;
@@ -72,11 +73,13 @@ class Plugin
         $context    = new RequestContext();
         $pageCache  = new TranslatedPageCache();
         $cacheInvalidator = new TranslatedPageCacheInvalidator($pageCache, $languageRegistry, $urlBuilder);
+        $structuredScanner = new StructuredSourceScanner($languageRegistry, $translationMemory);
 
         (new LanguageRouteRegistrar($languageResolver))->register();
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         $cacheInvalidator->register();
+        (new SourceLifecycleRefresher($structuredScanner))->register();
 
         (new PublicRenderPipeline(
             $languageResolver,
@@ -100,10 +103,7 @@ class Plugin
                 new IgnoreTranslation($translationMemory),
                 new ResetIgnoredTranslation($translationMemory),
                 $cacheInvalidator,
-                new StructuredSourceScanner(
-                    $languageRegistry,
-                    $translationMemory
-                )
+                $structuredScanner
             ))->register();
         }
     }

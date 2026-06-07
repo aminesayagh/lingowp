@@ -61,6 +61,38 @@ final class StructuredSourceScanner
         );
     }
 
+    public function refreshPost(int $postId): void
+    {
+        $post = function_exists('get_post') ? get_post($postId) : null;
+        if (!$post instanceof \WP_Post) {
+            return;
+        }
+
+        if (!$this->shouldScanPost($post)) {
+            return;
+        }
+
+        $this->identities = [];
+        $this->skipped    = 0;
+
+        $this->scanPost($post);
+        $this->identities = $this->dedupe($this->identities);
+
+        $targetLanguages = $this->languageRegistry->getTargetLanguages();
+        foreach ($targetLanguages as $targetLang) {
+            $this->translationMemory->insertMissingStrings($this->identities, $targetLang);
+        }
+
+        $this->translationMemory->deleteStalePostStrings(
+            $post->ID,
+            $this->currentHashesFor(SourceRoute::Post)
+        );
+        $this->translationMemory->deleteStalePostmetaStrings(
+            $post->ID,
+            $this->currentHashesFor(SourceRoute::Postmeta)
+        );
+    }
+
     private function scanTerms(): void
     {
         if (!function_exists('get_taxonomies') || !function_exists('get_terms')) {
@@ -114,16 +146,40 @@ final class StructuredSourceScanner
                 continue;
             }
 
-            $this->addPostField($post->ID, 'post_title', (string) $post->post_title, false);
-            $this->addPostField($post->ID, 'post_content', (string) $post->post_content, true);
-            $this->addPostField($post->ID, 'post_excerpt', (string) $post->post_excerpt, true);
-
-            if ($postType === 'attachment') {
-                $this->scanPostMeta($post->ID, ['_wp_attachment_image_alt']);
-            } else {
-                $this->scanPostMeta($post->ID, $this->translatableMetaKeys());
-            }
+            $this->scanPost($post);
         }
+    }
+
+    private function scanPost(\WP_Post $post): void
+    {
+        $this->addPostField($post->ID, 'post_title', (string) $post->post_title, false);
+        $this->addPostField($post->ID, 'post_content', (string) $post->post_content, true);
+        $this->addPostField($post->ID, 'post_excerpt', (string) $post->post_excerpt, true);
+
+        if ($post->post_type === 'attachment') {
+            $this->scanPostMeta($post->ID, ['_wp_attachment_image_alt']);
+            return;
+        }
+
+        $this->scanPostMeta($post->ID, $this->translatableMetaKeys());
+    }
+
+    private function shouldScanPost(\WP_Post $post): bool
+    {
+        if (in_array($post->post_type, [
+            'attachment',
+            'nav_menu_item',
+            'wp_navigation',
+            'wp_block',
+            'wp_template_part',
+            'wp_template',
+            'page',
+            'post',
+        ], true)) {
+            return true;
+        }
+
+        return in_array($post->post_type, $this->publicCustomPostTypes(), true);
     }
 
     /**
@@ -437,5 +493,21 @@ final class StructuredSourceScanner
         }
 
         return $groups;
+    }
+
+    /**
+     * @return string[] Raw SHA-256 bytes.
+     */
+    private function currentHashesFor(SourceRoute $route): array
+    {
+        $hashes = [];
+
+        foreach ($this->identities as $identity) {
+            if ($identity->routeTable === $route) {
+                $hashes[] = $identity->originalHash;
+            }
+        }
+
+        return array_values(array_unique($hashes));
     }
 }

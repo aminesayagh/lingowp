@@ -60,6 +60,25 @@ final class WpDbTranslationMemoryRepository implements TranslationMemoryReposito
         return $count;
     }
 
+    public function recordI18nObservations(
+        array $identities,
+        string $targetLang,
+        string $sourceUrl,
+        string $requestArea
+    ): void {
+        $this->i18nRepo->recordObservations($identities, $targetLang, $sourceUrl, $requestArea);
+    }
+
+    public function deleteStalePostStrings(int $postId, array $currentHashesRaw): void
+    {
+        $this->postRepo->deleteStaleForPost($postId, $currentHashesRaw);
+    }
+
+    public function deleteStalePostmetaStrings(int $postId, array $currentHashesRaw): void
+    {
+        $this->postmetaRepo->deleteStaleForPost($postId, $currentHashesRaw);
+    }
+
     public function saveTranslation(RowRef $rowRef, string $text, int $status): void
     {
         $this->repoFor($rowRef)->save($rowRef->id, $text, $status);

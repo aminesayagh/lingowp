@@ -21,6 +21,26 @@ interface TranslationMemoryRepository
      */
     public function insertMissingStrings(array $identities, string $targetLang): int;
 
+    /**
+     * @param TranslationSourceIdentity[] $identities
+     */
+    public function recordI18nObservations(
+        array $identities,
+        string $targetLang,
+        string $sourceUrl,
+        string $requestArea
+    ): void;
+
+    /**
+     * @param string[] $currentHashesRaw Raw SHA-256 bytes for current post-field strings.
+     */
+    public function deleteStalePostStrings(int $postId, array $currentHashesRaw): void;
+
+    /**
+     * @param string[] $currentHashesRaw Raw SHA-256 bytes for current postmeta strings.
+     */
+    public function deleteStalePostmetaStrings(int $postId, array $currentHashesRaw): void;
+
     // --- Admin mutations ---
 
     public function saveTranslation(RowRef $rowRef, string $text, int $status): void;
