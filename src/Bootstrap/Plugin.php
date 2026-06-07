@@ -7,6 +7,7 @@ use TransLangs\BackOffice\Infrastructure\SettingsPageController;
 use TransLangs\BackOffice\Infrastructure\TranslationMemoryPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
+use TransLangs\PublicSite\Infrastructure\FocusHighlighter;
 use TransLangs\PublicSite\Infrastructure\GettextCaptureBuffer;
 use TransLangs\PublicSite\Infrastructure\HreflangPresenter;
 use TransLangs\PublicSite\Infrastructure\HtmlRenderParserFactory;
@@ -80,6 +81,7 @@ class Plugin
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         $cacheInvalidator->register();
         (new SourceLifecycleRefresher($structuredScanner))->register();
+        (new FocusHighlighter($translationMemory))->register();
 
         (new PublicRenderPipeline(
             $languageResolver,
@@ -103,7 +105,8 @@ class Plugin
                 new IgnoreTranslation($translationMemory),
                 new ResetIgnoredTranslation($translationMemory),
                 $cacheInvalidator,
-                $structuredScanner
+                $structuredScanner,
+                $urlBuilder
             ))->register();
         }
     }

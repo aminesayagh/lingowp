@@ -68,6 +68,23 @@ interface TranslationMemoryRepository
      */
     public function query(array $filters, int $page, int $perPage): array;
 
+    /**
+     * Active (non-ignored) row counts per source-type tab for the given
+     * language/search filters.
+     *
+     * @param array{target_lang?: string, search_original?: string, search_translated?: string} $filters
+     * @return array<string, int> source-type slug => row count
+     */
+    public function sourceTypeCounts(array $filters): array;
+
+    /**
+     * The same source string across every target language (rows sharing the
+     * row's identity but differing by target_lang).
+     *
+     * @return list<array{row_ref: string, target_lang: string, original_text: string, translated_text: string|null, status: int}>
+     */
+    public function languageSiblings(RowRef $rowRef): array;
+
     // --- Render preload (hot path — one query per entity, never per string) ---
 
     /**

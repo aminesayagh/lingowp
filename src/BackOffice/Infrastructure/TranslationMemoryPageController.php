@@ -4,6 +4,7 @@ namespace TransLangs\BackOffice\Infrastructure;
 
 use InvalidArgumentException;
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
 use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
@@ -14,6 +15,7 @@ use TransLangs\TranslationMemory\Application\ResetIgnoredTranslation;
 use TransLangs\TranslationMemory\Application\SaveTranslation;
 use TransLangs\TranslationMemory\Domain\RowRef;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\SourceTypeCatalog;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
 
 /**
@@ -42,7 +44,8 @@ class TranslationMemoryPageController
         private IgnoreTranslation $ignoreTranslation,
         private ResetIgnoredTranslation $resetIgnoredTranslation,
         private TranslatedPageCacheInvalidator $cacheInvalidator,
-        private StructuredSourceScanner $structuredSourceScanner
+        private StructuredSourceScanner $structuredSourceScanner,
+        private LocalizedUrlBuilder $urlBuilder
     ) {}
 
     public function register(): void
@@ -51,6 +54,8 @@ class TranslationMemoryPageController
         add_action('admin_init', [$this, 'handleWrites']);
         add_action('admin_post_translangs_scan_structured_sources', [$this, 'handleStructuredScan']);
         add_action('wp_ajax_translangs_save_translation', [$this, 'handleAjaxSave']);
+        add_action('wp_ajax_translangs_language_siblings', [$this, 'handleAjaxLanguageSiblings']);
+        add_action('wp_ajax_translangs_save_all', [$this, 'handleAjaxSaveAll']);
     }
 
     public function addMenu(): void
@@ -168,6 +173,95 @@ class TranslationMemoryPageController
         ]);
     }
 
+    /**
+     * AJAX: return the same source string across every target language, for the
+     * multi-language drawer.
+     */
+    public function handleAjaxLanguageSiblings(): void
+    {
+        if (!check_ajax_referer('translangs_translation_action', 'translangs_nonce', false)) {
+            wp_send_json_error(['message' => __('Invalid security token.', 'translangs')], 403);
+        }
+
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_send_json_error(['message' => __('Permission denied.', 'translangs')], 403);
+        }
+
+        $rowRef = $this->parseRowRef(sanitize_text_field(wp_unslash($_POST['row_ref'] ?? '')));
+        if ($rowRef === null) {
+            wp_send_json_error(['message' => __('Invalid string reference.', 'translangs')], 400);
+        }
+
+        $details      = $this->filterLanguages();
+        $statusLabels = TranslationStatus::labels();
+        $original     = '';
+        $languages    = [];
+
+        foreach ($this->queryTranslations->languageSiblings($rowRef) as $row) {
+            $original = $row['original_text'];
+            $code     = $row['target_lang'];
+            $meta     = $details[$code] ?? ['name' => $code, 'native' => '', 'dir' => 'ltr'];
+
+            $languages[] = [
+                'row_ref'         => $row['row_ref'],
+                'code'            => $code,
+                'name'            => $meta['name'],
+                'dir'             => $meta['dir'],
+                'translated_text' => $row['translated_text'] ?? '',
+                'status_label'    => $statusLabels[$row['status']] ?? '',
+            ];
+        }
+
+        wp_send_json_success([
+            'original_text' => $original,
+            'languages'     => $languages,
+        ]);
+    }
+
+    /**
+     * AJAX: save translations for several rows at once (the drawer's "Save all").
+     */
+    public function handleAjaxSaveAll(): void
+    {
+        if (!check_ajax_referer('translangs_translation_action', 'translangs_nonce', false)) {
+            wp_send_json_error(['message' => __('Invalid security token.', 'translangs')], 403);
+        }
+
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_send_json_error(['message' => __('Permission denied.', 'translangs')], 403);
+        }
+
+        $items = $_POST['items'] ?? [];
+        if (!is_array($items) || $items === []) {
+            wp_send_json_error(['message' => __('Nothing to save.', 'translangs')], 400);
+        }
+
+        $saved = 0;
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $rowRef = $this->parseRowRef(sanitize_text_field(wp_unslash($item['row_ref'] ?? '')));
+            if ($rowRef === null) {
+                continue;
+            }
+
+            $text = wp_kses_post(wp_unslash($item['translated_text'] ?? ''));
+            $this->saveTranslation->save($rowRef, $text);
+            ++$saved;
+        }
+
+        if ($saved > 0) {
+            $this->cacheInvalidator->invalidateTranslations();
+        }
+
+        wp_send_json_success([
+            'saved'   => $saved,
+            'message' => __('Translations saved.', 'translangs'),
+        ]);
+    }
+
     public function handleStructuredScan(): void
     {
         check_admin_referer('translangs_scan_structured_sources', 'translangs_nonce');
@@ -208,11 +302,22 @@ class TranslationMemoryPageController
 
         $filters = $this->readFilters();
         $view    = $this->viewMode();
-        $page    = $view === 'ignored' ? max(1, (int) ($_GET['paged'] ?? 1)) : 1;
-        $groups  = $view === 'ignored'
-            ? $this->ignoredGroups($filters, $page)
-            : $this->activeGroups($filters);
-        $total   = array_sum(array_map(static fn(array $group): int => (int) $group['total'], $groups));
+
+        if ($view === 'ignored') {
+            $page       = max(1, (int) ($_GET['paged'] ?? 1));
+            $groups     = $this->ignoredGroups($filters, $page);
+            $sourceTabs = [];
+            $activeTab  = '';
+        } else {
+            $page       = 1;
+            $sourceTabs = $this->buildSourceTabs($this->queryTranslations->sourceTypeCounts($filters), $filters);
+            $activeTab  = $this->activeTab($sourceTabs);
+            $groups     = $activeTab === ''
+                ? []
+                : $this->activeGroups(array_merge($filters, ['source_type' => $activeTab]));
+        }
+
+        $total = array_sum(array_map(static fn(array $group): int => (int) $group['total'], $groups));
 
         PhpTemplateRenderer::render('translations.php', [
             'groups'          => $groups,
@@ -229,9 +334,75 @@ class TranslationMemoryPageController
             'current'         => self::SLUG,
             'pageSlug'        => self::SLUG,
             'view'            => $view,
+            'sourceTabs'      => $sourceTabs,
+            'activeTab'       => $activeTab,
+            'multiLanguage'   => count($this->filterLanguages()) > 1,
             'showIgnoredUrl'  => $this->pageUrl($filters, 'ignored'),
             'activeUrl'       => $this->pageUrl($filters, 'active'),
         ]);
+    }
+
+    /**
+     * Build the ordered, non-empty source-type tabs for the current filters.
+     *
+     * @param  array<string, int>   $counts  slug => row count
+     * @param  array<string, mixed> $filters
+     * @return array<string, array{slug: string, label: string, count: int, url: string}>
+     */
+    private function buildSourceTabs(array $counts, array $filters): array
+    {
+        $tabs = [];
+
+        foreach (SourceTypeCatalog::orderedSlugs() as $slug) {
+            $count = (int) ($counts[$slug] ?? 0);
+            if ($count <= 0) {
+                continue;
+            }
+
+            $tabs[$slug] = [
+                'slug'  => $slug,
+                'label' => SourceTypeCatalog::label($slug),
+                'count' => $count,
+                'url'   => $this->tabUrl($filters, $slug),
+            ];
+        }
+
+        return $tabs;
+    }
+
+    /**
+     * Resolve the active tab: the requested one if it has rows, else the first.
+     *
+     * @param array<string, array<string, mixed>> $sourceTabs
+     */
+    private function activeTab(array $sourceTabs): string
+    {
+        if ($sourceTabs === []) {
+            return '';
+        }
+
+        $requested = isset($_GET['translangs_tab']) ? sanitize_key(wp_unslash($_GET['translangs_tab'])) : '';
+        if ($requested !== '' && isset($sourceTabs[$requested])) {
+            return $requested;
+        }
+
+        return (string) array_key_first($sourceTabs);
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     */
+    private function tabUrl(array $filters, string $slug): string
+    {
+        $args = ['page' => self::SLUG, 'translangs_tab' => $slug];
+
+        foreach ($filters as $key => $value) {
+            if ($value !== '' && $value !== null) {
+                $args[$key] = $value;
+            }
+        }
+
+        return add_query_arg($args, admin_url('admin.php'));
     }
 
     /**
@@ -262,7 +433,7 @@ class TranslationMemoryPageController
             'translangs_notice' => $flag,
         ];
 
-        foreach (['target_lang', 'search_original', 'search_translated', 'paged', 'translated_paged', 'discovered_paged', 'needs_review_paged', 'translangs_view'] as $key) {
+        foreach (['target_lang', 'search_original', 'search_translated', 'paged', 'translated_paged', 'discovered_paged', 'needs_review_paged', 'translangs_view', 'translangs_tab'] as $key) {
             if (isset($_GET[$key]) && $_GET[$key] !== '') {
                 $args[$key] = sanitize_text_field(wp_unslash($_GET[$key]));
             }
@@ -389,14 +560,115 @@ class TranslationMemoryPageController
             self::PER_PAGE
         );
 
+        $rows = array_map(function (array $row): array {
+            $row['view_url']      = $this->focusViewUrl($row);
+            $row['context_label'] = $this->contextLabel($row);
+            return $row;
+        }, $result['rows']);
+
         return [
             'title'       => $title,
             'description' => $description,
-            'rows'        => $result['rows'],
+            'rows'        => $rows,
             'total'       => $result['total'],
             'page'        => $page,
             'page_param'  => $pageParam,
         ];
+    }
+
+    /**
+     * Human-readable source label shown under the original string, e.g.
+     * "Page: Home · post_title" or "gettext · WooCommerce". Built from the
+     * row's route table and context columns.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function contextLabel(array $row): string
+    {
+        $route  = (string) ($row['route_table'] ?? '');
+        $ctx1   = trim((string) ($row['ctx1'] ?? ''));
+        $ctx2   = trim((string) ($row['ctx2'] ?? ''));
+        $postId = (int) ($row['post_id'] ?? 0);
+
+        $parts = [];
+
+        switch ($route) {
+            case 'post':
+            case 'postmeta':
+                if ($postId > 0) {
+                    $typeLabel = $this->postTypeLabel($postId);
+                    $title     = (string) get_the_title($postId);
+                    $parts[]   = $typeLabel !== '' ? "{$typeLabel}: {$title}" : $title;
+                }
+                break;
+
+            case 'terms':
+                $parts[] = __('Taxonomy', 'translangs');
+                break;
+
+            case 'i18n':
+                // ctx1 is the source bucket (gettext / rendered_html).
+                break;
+        }
+
+        foreach ([$ctx1, $ctx2] as $context) {
+            if ($context !== '') {
+                $parts[] = $context;
+            }
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    private function postTypeLabel(int $postId): string
+    {
+        $type = get_post_type($postId);
+        if (!is_string($type) || $type === '') {
+            return '';
+        }
+
+        $object = get_post_type_object($type);
+
+        return $object !== null && isset($object->labels->singular_name)
+            ? (string) $object->labels->singular_name
+            : $type;
+    }
+
+    /**
+     * Front-end URL for a row's "View text" action: the localized page for the
+     * row's target language, with a focus marker the highlighter reads.
+     * Empty for rows not tied to a post (terms/i18n have no single page).
+     *
+     * @param array<string, mixed> $row
+     */
+    private function focusViewUrl(array $row): string
+    {
+        $rowRef = (string) ($row['row_ref'] ?? '');
+        if ($rowRef === '') {
+            return '';
+        }
+
+        $postId = (int) ($row['post_id'] ?? 0);
+        if ($postId > 0) {
+            $permalink = get_permalink($postId);
+            if (!is_string($permalink) || $permalink === '') {
+                return '';
+            }
+
+            $targetLang = (string) ($row['target_lang'] ?? '');
+            $path       = (string) (wp_parse_url($permalink, PHP_URL_PATH) ?: '/');
+            $localized  = $targetLang !== '' ? $this->urlBuilder->addPrefix($path, $targetLang) : $path;
+
+            return add_query_arg('translangs_focus', $rowRef, home_url($localized));
+        }
+
+        // i18n rows: the localized page where the string was last captured.
+        $sourceUrl = (string) ($row['source_url'] ?? '');
+        if ($sourceUrl !== '') {
+            return add_query_arg('translangs_focus', $rowRef, $sourceUrl);
+        }
+
+        return '';
     }
 
     private function pageNumber(string $key): int

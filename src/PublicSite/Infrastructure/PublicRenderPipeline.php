@@ -11,6 +11,7 @@ final class PublicRenderPipeline
 {
     private ?string $targetLang = null;
     private ?string $currentUrl = null;
+    private bool $bypassCache = false;
 
     public function __construct(
         private ResolveRequestLanguage $languageResolver,
@@ -36,12 +37,18 @@ final class PublicRenderPipeline
         $this->targetLang = $this->languageResolver->resolve();
         $this->currentUrl = $this->currentUrl();
 
-        $cached = $this->cache->get($this->currentUrl, $this->targetLang);
-        if ($cached !== null) {
-            if ($this->requestMethod() !== 'HEAD') {
-                echo $cached; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // A focus preview carries an admin-only highlight script and a one-off
+        // URL; never read or write the shared cache for it.
+        $this->bypassCache = !empty($_GET['translangs_focus']);
+
+        if (!$this->bypassCache) {
+            $cached = $this->cache->get($this->currentUrl, $this->targetLang);
+            if ($cached !== null) {
+                if ($this->requestMethod() !== 'HEAD') {
+                    echo $cached; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                }
+                exit;
             }
-            exit;
         }
 
         $this->gettextCapture->start();
@@ -78,7 +85,7 @@ final class PublicRenderPipeline
             return $html;
         }
 
-        if ($result->replacementCount > 0) {
+        if (!$this->bypassCache && $result->replacementCount > 0) {
             $this->cache->set($this->currentUrl, $this->targetLang, $result->html);
         }
 

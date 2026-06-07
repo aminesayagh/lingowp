@@ -114,6 +114,16 @@ final class WpDbTranslationMemoryRepository implements TranslationMemoryReposito
         return $this->adminQuery->query($filters, $page, $perPage);
     }
 
+    public function sourceTypeCounts(array $filters): array
+    {
+        return $this->adminQuery->sourceTypeCounts($filters);
+    }
+
+    public function languageSiblings(RowRef $rowRef): array
+    {
+        return $this->adminQuery->languageSiblings($rowRef);
+    }
+
     public function getPostTranslations(string $targetLang, int $postId): array
     {
         return $this->postRepo->getTranslations($targetLang, $postId);

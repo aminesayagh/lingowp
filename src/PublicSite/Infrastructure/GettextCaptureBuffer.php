@@ -137,15 +137,15 @@ final class GettextCaptureBuffer
 
     private function detectRequestArea(): string
     {
-        if (defined('WP_CLI') && WP_CLI) {
+        if (defined('WP_CLI') && constant('WP_CLI')) {
             return 'cli';
         }
 
-        if (defined('DOING_CRON') && DOING_CRON) {
+        if (defined('DOING_CRON') && constant('DOING_CRON')) {
             return 'cron';
         }
 
-        if (defined('REST_REQUEST') && REST_REQUEST) {
+        if (defined('REST_REQUEST') && constant('REST_REQUEST')) {
             return 'rest';
         }
 
