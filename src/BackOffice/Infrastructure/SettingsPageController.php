@@ -23,24 +23,6 @@ class SettingsPageController
         private TranslatedPageCacheInvalidator $cacheInvalidator
     ) {}
 
-    /**
-     * Tab set for TransLangs admin screens.
-     * The Translations tab is omitted when no target languages are configured,
-     * so the admin is nudged to set up languages before accessing translations.
-     *
-     * @return array<string, string>  slug => label
-     */
-    public static function tabs(bool $translationsEnabled = true): array
-    {
-        $tabs = [self::SLUG => __('Settings', 'translangs')];
-
-        if ($translationsEnabled) {
-            $tabs[TranslationMemoryPageController::SLUG] = __('Translations', 'translangs');
-        }
-
-        return $tabs;
-    }
-
     public function register(): void
     {
         add_action('admin_menu', [$this, 'addMenu']);
@@ -78,13 +60,9 @@ class SettingsPageController
 
         $this->maybeHandleSave();
 
-        $hasTargetLanguages = $this->registry->getTargetLanguages() !== [];
-
         PhpTemplateRenderer::render('settings.php', [
             'settings'  => $this->currentSettings(),
             'languages' => SupportedLanguages::all(),
-            'tabs'      => self::tabs($hasTargetLanguages),
-            'current'   => self::SLUG,
         ]);
     }
 

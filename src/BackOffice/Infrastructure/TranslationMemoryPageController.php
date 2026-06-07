@@ -53,11 +53,40 @@ class TranslationMemoryPageController
     public function register(): void
     {
         add_action('admin_menu', [$this, 'addMenu'], 11);
+        add_action('admin_menu', [$this, 'reorderMenu'], 999);
         add_action('admin_init', [$this, 'handleWrites']);
         add_action('admin_post_translangs_scan_structured_sources', [$this, 'handleStructuredScan']);
         add_action('wp_ajax_translangs_save_translation', [$this, 'handleAjaxSave']);
         add_action('wp_ajax_translangs_language_siblings', [$this, 'handleAjaxLanguageSiblings']);
         add_action('wp_ajax_translangs_save_all', [$this, 'handleAjaxSaveAll']);
+    }
+
+    /**
+     * List the Translations submenu above Settings. The parent menu always
+     * mirrors itself (Settings) as the first item, so we move the Translations
+     * entry to the front once both submenus are registered.
+     */
+    public function reorderMenu(): void
+    {
+        global $submenu;
+
+        $parent = SettingsPageController::SLUG;
+        if (empty($submenu[$parent]) || !is_array($submenu[$parent])) {
+            return;
+        }
+
+        $translations = [];
+        $rest         = [];
+
+        foreach ($submenu[$parent] as $item) {
+            if (isset($item[2]) && $item[2] === self::SLUG) {
+                $translations[] = $item;
+            } else {
+                $rest[] = $item;
+            }
+        }
+
+        $submenu[$parent] = array_merge($translations, $rest);
     }
 
     public function addMenu(): void
@@ -341,8 +370,6 @@ class TranslationMemoryPageController
             'defaultLanguage' => $this->defaultLanguage(),
             'notice'          => $notice,
             'scanStats'       => $this->scanStatsFromQuery(),
-            'tabs'            => SettingsPageController::tabs(true),
-            'current'         => self::SLUG,
             'pageSlug'        => self::SLUG,
             'view'            => $view,
             'sourceTabs'      => $sourceTabs,

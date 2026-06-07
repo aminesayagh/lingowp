@@ -8,7 +8,6 @@
  * @package TransLangs
  */
 
-use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\SourceTypeCatalog;
 
@@ -27,7 +26,6 @@ if (!defined('ABSPATH')) {
 /** @var array{0:string,1:string}|null $notice */
 /** @var array<string, int>|null $scanStats */
 /** @var string $pageSlug */
-/** @var string|null $current */
 /** @var string $view */
 /** @var array<string, array{slug: string, label: string, count: int, url: string}> $sourceTabs */
 /** @var string $activeTab */
@@ -35,8 +33,6 @@ if (!defined('ABSPATH')) {
 /** @var string $showIgnoredUrl */
 /** @var string $activeUrl */
 
-$tabs    = $tabs    ?? [];
-$current = $current ?? '';
 $scanStats = $scanStats ?? null;
 $sourceTabs = $sourceTabs ?? [];
 $activeTab  = $activeTab ?? '';
@@ -59,6 +55,39 @@ $badgeClass = static function (int $status): string {
         TranslationStatus::IGNORED      => 'translangs-badge--ignored',
         TranslationStatus::NEEDS_REVIEW => 'translangs-badge--review',
     ][$status] ?? 'translangs-badge--discovered';
+};
+
+/**
+ * Windowed page list: first and last page, a small window around the current
+ * page, and 'gap' markers where pages are skipped. Keeps the control compact
+ * even with thousands of pages.
+ *
+ * @return array<int, int|string>
+ */
+$paginationPages = static function (int $current, int $total): array {
+    $window = 2;
+    $wanted = [1 => true, $total => true];
+
+    for ($i = $current - $window; $i <= $current + $window; $i++) {
+        if ($i >= 1 && $i <= $total) {
+            $wanted[$i] = true;
+        }
+    }
+
+    $numbers = array_keys($wanted);
+    sort($numbers);
+
+    $result = [];
+    $previous = 0;
+    foreach ($numbers as $number) {
+        if ($previous !== 0 && $number - $previous > 1) {
+            $result[] = 'gap';
+        }
+        $result[] = $number;
+        $previous = $number;
+    }
+
+    return $result;
 };
 
 $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStatusColumn = true, bool $showImageColumn = false) use ($badgeClass, &$statuses, $iconLabel, $multiLanguage): void {
@@ -212,7 +241,7 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
                                         <input type="hidden" name="translangs_screen" value="translangs-translations">
                                         <input type="hidden" name="row_ref" value="<?php echo esc_attr($rowRef); ?>">
                                         <input type="hidden" name="translangs_action" value="put_for_review">
-                                        <button type="submit" class="button button-small translangs-icon-button translangs-put-review-button" aria-label="<?php esc_attr_e('Put for review', 'translangs'); ?>" title="<?php esc_attr_e('Put for review', 'translangs'); ?>" disabled><?php echo $iconLabel(__('Put for review', 'translangs'), 'edit'); ?></button>
+                                        <button type="submit" class="button button-small translangs-put-review-button" title="<?php esc_attr_e('Put for review', 'translangs'); ?>" disabled><?php esc_html_e('Put for review', 'translangs'); ?></button>
                                     </form>
                                 <?php endif; ?>
                                 <?php if ($status === TranslationStatus::DISCOVERED) : ?>
@@ -240,8 +269,6 @@ $baseUrl = admin_url('admin.php?page=' . $pageSlug);
     <h1 class="translangs-page__title">
         <?php echo $isIgnoredView ? esc_html__('Ignored translations', 'translangs') : esc_html__('Translations', 'translangs'); ?>
     </h1>
-
-    <?php PhpTemplateRenderer::render('admin-navbar.php', ['tabs' => $tabs, 'current' => $current]); ?>
 
     <?php if ($notice !== null) : ?>
         <div class="notice notice-<?php echo $notice[1] === 'error' ? 'error' : 'success'; ?> is-dismissible">
@@ -335,17 +362,6 @@ $baseUrl = admin_url('admin.php?page=' . $pageSlug);
                     </a>
                 <?php endforeach; ?>
             </nav>
-
-            <?php if ($groups !== []) : ?>
-                <div class="translangs-summary">
-                    <?php foreach ($groups as $summaryGroup) : ?>
-                        <span class="translangs-summary__item">
-                            <span class="translangs-summary__label"><?php echo esc_html((string) $summaryGroup['title']); ?></span>
-                            <span class="translangs-summary__value"><?php echo (int) $summaryGroup['total']; ?></span>
-                        </span>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
         <?php endif; ?>
     <?php endif; ?>
 
@@ -378,17 +394,30 @@ $baseUrl = admin_url('admin.php?page=' . $pageSlug);
             $groupTotalPages = max(1, (int) ceil((int) $group['total'] / $perPage));
             ?>
 
-            <?php if ($groupTotalPages > 1) : ?>
+            <?php if ($groupTotalPages > 1) :
+                $query = $_GET;
+                $pageLink = static function (int $number) use ($query, $groupPageParam): string {
+                    $query[$groupPageParam] = $number;
+                    return add_query_arg($query, admin_url('admin.php'));
+                };
+                ?>
                 <div class="translangs-pagination">
-                    <?php
-                    $query = $_GET;
-                    for ($i = 1; $i <= $groupTotalPages; $i++) :
-                        $query[$groupPageParam] = $i;
-                        $url = add_query_arg($query, admin_url('admin.php'));
-                        ?>
-                        <a class="button button-small <?php echo $i === $groupPage ? 'button-primary' : ''; ?>"
-                           href="<?php echo esc_url($url); ?>"><?php echo (int) $i; ?></a>
-                    <?php endfor; ?>
+                    <?php if ($groupPage > 1) : ?>
+                        <a class="button button-small" href="<?php echo esc_url($pageLink($groupPage - 1)); ?>" aria-label="<?php esc_attr_e('Previous page', 'translangs'); ?>">&lsaquo;</a>
+                    <?php endif; ?>
+
+                    <?php foreach ($paginationPages($groupPage, $groupTotalPages) as $token) : ?>
+                        <?php if ($token === 'gap') : ?>
+                            <span class="translangs-pagination__gap">&hellip;</span>
+                        <?php else : ?>
+                            <a class="button button-small <?php echo (int) $token === $groupPage ? 'button-primary' : ''; ?>"
+                               href="<?php echo esc_url($pageLink((int) $token)); ?>"><?php echo (int) $token; ?></a>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+
+                    <?php if ($groupPage < $groupTotalPages) : ?>
+                        <a class="button button-small" href="<?php echo esc_url($pageLink($groupPage + 1)); ?>" aria-label="<?php esc_attr_e('Next page', 'translangs'); ?>">&rsaquo;</a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>

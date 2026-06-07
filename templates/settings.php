@@ -5,8 +5,6 @@
  * Expects:
  *   $settings  array  current option values
  *   $languages array  full language catalog (code => meta)
- *   $tabs      array  navbar tabs
- *   $current   string active tab slug
  *
  * @package TransLangs
  */
@@ -20,12 +18,6 @@ if (!defined('ABSPATH')) {
 ?>
 <div class="wrap translangs-page">
     <h1 class="translangs-page__title"><?php esc_html_e('TransLangs Settings', 'translangs'); ?></h1>
-
-    <?php
-    $tabs = $tabs ?? [];
-    $current = $current ?? '';
-    \TransLangs\Shared\Infrastructure\PhpTemplateRenderer::render('admin-navbar.php', ['tabs' => $tabs, 'current' => $current]);
-    ?>
 
     <form method="post" action="">
         <?php wp_nonce_field('translangs_save_settings', 'translangs_nonce'); ?>
