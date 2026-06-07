@@ -5,7 +5,6 @@ namespace TransLangs\Bootstrap;
 use TransLangs\BackOffice\Infrastructure\AdminAssets;
 use TransLangs\BackOffice\Infrastructure\SettingsPageController;
 use TransLangs\BackOffice\Infrastructure\TranslationMemoryPageController;
-use TransLangs\Cli\CleanupCommand;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\GettextCaptureBuffer;
@@ -114,12 +113,6 @@ class Plugin
                 $cacheInvalidator,
                 $structuredScanner
             ))->register();
-        }
-
-        // Register WP-CLI commands if available.
-        if (defined('WP_CLI') && WP_CLI) {
-            $cleanupCommand = new CleanupCommand($translationMemory);
-            \WP_CLI::add_command('translangs cleanup admin-bar', [$cleanupCommand, 'adminBar']);
         }
     }
 }
