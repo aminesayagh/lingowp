@@ -163,6 +163,27 @@ final class I18nTranslationsRepository
         );
     }
 
+    /**
+     * Delete i18n strings by original text pattern.
+     * Useful for cleaning up admin bar strings or other unwanted captures.
+     *
+     * @param string[] $originalTexts
+     * @return int Number of rows deleted.
+     */
+    public function deleteByOriginalTexts(array $originalTexts): int
+    {
+        if ($originalTexts === []) {
+            return 0;
+        }
+
+        $placeholders = array_fill(0, count($originalTexts), '%s');
+        $sql = 'DELETE FROM ' . $this->table() . ' WHERE original_text IN (' . implode(',', $placeholders) . ')';
+
+        return (int) $this->wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            $this->wpdb->prepare($sql, ...$originalTexts) // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        );
+    }
+
     /** @return array<string, mixed>|null */
     public function find(int $id): ?array
     {

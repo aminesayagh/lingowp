@@ -134,6 +134,18 @@ final class WpDbTranslationMemoryRepository implements TranslationMemoryReposito
         return $this->i18nRepo->getTranslations($targetLang, $source);
     }
 
+    /**
+     * Delete i18n strings by original text.
+     * Used for cleanup of unwanted captured content (e.g., admin bar strings).
+     *
+     * @param string[] $originalTexts
+     * @return int Number of rows deleted.
+     */
+    public function deleteI18nByOriginalTexts(array $originalTexts): int
+    {
+        return $this->i18nRepo->deleteByOriginalTexts($originalTexts);
+    }
+
     private function repoFor(RowRef $rowRef): PostTranslationsRepository|PostmetaTranslationsRepository|TermsTranslationsRepository|I18nTranslationsRepository
     {
         return match ($rowRef->table) {
