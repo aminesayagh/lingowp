@@ -19,6 +19,7 @@ final class PublicRenderPipeline
         private TranslationMemoryRepository $translationMemory,
         private TranslatedPageCache $cache,
         private HtmlRenderParserFactory $parserFactory,
+        private PublicLinkRewriter $linkRewriter,
         private GettextCaptureBuffer $gettextCapture,
         private CaptureBatchQueue $captureQueue
     ) {}
@@ -44,8 +45,13 @@ final class PublicRenderPipeline
         if (!$this->bypassCache) {
             $cached = $this->cache->get($this->currentUrl, $this->targetLang);
             if ($cached !== null) {
+                $rewritten = $this->linkRewriter->rewrite($cached, $this->targetLang);
+                if ($rewritten !== $cached) {
+                    $this->cache->set($this->currentUrl, $this->targetLang, $rewritten);
+                }
+
                 if ($this->requestMethod() !== 'HEAD') {
-                    echo $cached; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    echo $rewritten; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 }
                 exit;
             }
@@ -82,11 +88,14 @@ final class PublicRenderPipeline
         );
 
         if (!$result->success) {
-            return $html;
+            return $this->linkRewriter->rewrite($html, $this->targetLang);
         }
 
-        if (!$this->bypassCache && $result->replacementCount > 0) {
-            $this->cache->set($this->currentUrl, $this->targetLang, $result->html);
+        $finalHtml = $this->linkRewriter->rewrite($result->html, $this->targetLang);
+        $changed   = $result->replacementCount > 0 || $finalHtml !== $result->html;
+
+        if (!$this->bypassCache && $changed) {
+            $this->cache->set($this->currentUrl, $this->targetLang, $finalHtml);
         }
 
         if ($result->fallbackCandidates !== [] || $gettextCandidates !== []) {
@@ -99,7 +108,7 @@ final class PublicRenderPipeline
             ]);
         }
 
-        return $result->html;
+        return $finalHtml;
     }
 
     /**

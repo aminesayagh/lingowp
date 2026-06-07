@@ -15,6 +15,7 @@ use TransLangs\PublicSite\Infrastructure\HtmlTextTools;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\PublicSite\Infrastructure\LanguageSwitcherShortcode;
 use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
+use TransLangs\PublicSite\Infrastructure\PublicLinkRewriter;
 use TransLangs\PublicSite\Infrastructure\PublicRenderPipeline;
 use TransLangs\PublicSite\Infrastructure\RequestContext;
 use TransLangs\PublicSite\Infrastructure\TranslatedPageCache;
@@ -90,6 +91,7 @@ class Plugin
             $translationMemory,
             $pageCache,
             new HtmlRenderParserFactory(new HtmlTextTools()),
+            new PublicLinkRewriter($urlBuilder),
             new GettextCaptureBuffer(),
             new CaptureBatchQueue()
         ))->register();
