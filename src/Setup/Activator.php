@@ -3,7 +3,6 @@
 namespace TransLangs\Setup;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
@@ -22,16 +21,16 @@ class Activator
     {
         TranslationMemorySchema::install();
         TranslationMemorySchema::setDefaultOptions();
-        
+
         // Register our rewrite rules now, then flush so they take effect
         // immediately. The init hook hasn't run during activation, so we
         // register them directly here before flushing.
         global $wpdb;
         $resolver = new ResolveRequestLanguage(
-            new WpDbLanguageRegistry($wpdb, new LocaleNormalizer())
+            new WpDbLanguageRegistry($wpdb)
         );
         (new LanguageRouteRegistrar($resolver))->addRewriteRules();
- 
+
         // Flushing is expensive, so it happens only on activation, never per request.
         flush_rewrite_rules();
     }

@@ -6,7 +6,6 @@ use TransLangs\BackOffice\Infrastructure\AdminAssets;
 use TransLangs\BackOffice\Infrastructure\SettingsPageController;
 use TransLangs\BackOffice\Infrastructure\TranslationMemoryPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\HreflangPresenter;
 use TransLangs\PublicSite\Infrastructure\HtmlRenderParserFactory;
@@ -24,8 +23,6 @@ use TransLangs\TranslationMemory\Application\QueryTranslations;
 use TransLangs\TranslationMemory\Application\ResetIgnoredTranslation;
 use TransLangs\TranslationMemory\Application\ReviewTranslation;
 use TransLangs\TranslationMemory\Application\SaveTranslation;
-use TransLangs\TranslationMemory\Domain\StringHashGenerator;
-use TransLangs\TranslationMemory\Domain\StringNormalizer;
 use TransLangs\TranslationMemory\Infrastructure\CaptureBatchQueue;
 use TransLangs\TranslationMemory\Infrastructure\CaptureBatchWorker;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminTranslationsQuery;
@@ -46,7 +43,7 @@ class Plugin
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
 
-        $languageRegistry = new WpDbLanguageRegistry($wpdb, new LocaleNormalizer());
+        $languageRegistry = new WpDbLanguageRegistry($wpdb);
         $languageResolver = new ResolveRequestLanguage($languageRegistry);
 
         $postRepo     = new PostTranslationsRepository($wpdb);
@@ -63,12 +60,9 @@ class Plugin
             $adminQuery,
         );
 
-        // Register the queue callback now; Action Scheduler runs it later with a batch ID.
         (new CaptureBatchWorker(
             $languageRegistry,
-            $translationMemory,
-            new StringNormalizer(),
-            new StringHashGenerator()
+            $translationMemory
         ))->register();
 
         $urlBuilder = new LocalizedUrlBuilder($languageResolver);
@@ -76,25 +70,17 @@ class Plugin
         $pageCache  = new TranslatedPageCache();
         $cacheInvalidator = new TranslatedPageCacheInvalidator($pageCache, $languageRegistry, $urlBuilder);
 
-        // Register the language route handler
         (new LanguageRouteRegistrar($languageResolver))->register();
-
-        // Register the shortcode for the language switcher UI
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
-
-        // Register the hreflang presenter, which emits SEO tags and filters canonicals on the front end.
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
-
-        // Register the page cache invalidator, which listens for translation changes and purges affected pages.
         $cacheInvalidator->register();
 
-        // Register the main front-end render pipeline
         (new PublicRenderPipeline(
             $languageResolver,
             $context,
             $translationMemory,
             $pageCache,
-            new HtmlRenderParserFactory(new HtmlTextTools(new StringNormalizer(), new StringHashGenerator())),
+            new HtmlRenderParserFactory(new HtmlTextTools()),
             new CaptureBatchQueue()
         ))->register();
 
@@ -112,9 +98,7 @@ class Plugin
                 $cacheInvalidator,
                 new StructuredSourceScanner(
                     $languageRegistry,
-                    $translationMemory,
-                    new StringNormalizer(),
-                    new StringHashGenerator()
+                    $translationMemory
                 )
             ))->register();
         }

@@ -26,19 +26,14 @@ final class HtmlTextTools
         'form'    => true,
     ];
 
-    public function __construct(
-        private StringNormalizer $normalizer,
-        private StringHashGenerator $hashGenerator
-    ) {}
-
     public function normalizedText(string $text): string
     {
-        return $this->normalizer->normalize($text);
+        return StringNormalizer::normalize($text);
     }
 
     public function originalHashHex(string $normalizedText): string
     {
-        return bin2hex($this->hashGenerator->hashNormalized($normalizedText));
+        return bin2hex(StringHashGenerator::hashNormalized($normalizedText));
     }
 
     /**

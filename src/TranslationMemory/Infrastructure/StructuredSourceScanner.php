@@ -19,9 +19,7 @@ final class StructuredSourceScanner
 
     public function __construct(
         private LanguageRegistry $languageRegistry,
-        private TranslationMemoryRepository $translationMemory,
-        private StringNormalizer $normalizer,
-        private StringHashGenerator $hashGenerator
+        private TranslationMemoryRepository $translationMemory
     ) {}
 
     public function scan(): StructuredSourceScanResult
@@ -157,7 +155,7 @@ final class StructuredSourceScanner
 
     private function addPostmetaField(int $postId, string $metaKey, string $text): void
     {
-        $normalized = $this->normalizer->normalize($text);
+        $normalized = StringNormalizer::normalize($text);
         if ($normalized === '') {
             ++$this->skipped;
             return;
@@ -168,15 +166,15 @@ final class StructuredSourceScanner
             $postId,
             null,
             $metaKey,
-            $this->hashGenerator->hashMetaKey($metaKey),
+            StringHashGenerator::hashMetaKey($metaKey),
             null,
-            $this->hashGenerator->hashContext(null),
+            StringHashGenerator::hashContext(null),
             null,
             null,
             null,
             $text,
             $normalized,
-            $this->hashGenerator->hashNormalized($normalized)
+            StringHashGenerator::hashNormalized($normalized)
         );
     }
 
@@ -196,7 +194,7 @@ final class StructuredSourceScanner
         ?string $referenceHash,
         string $text
     ): void {
-        $normalized = $this->normalizer->normalize($text);
+        $normalized = StringNormalizer::normalize($text);
         if ($normalized === '') {
             ++$this->skipped;
             return;
@@ -215,7 +213,7 @@ final class StructuredSourceScanner
             $referenceHash,
             $text,
             $normalized,
-            $this->hashGenerator->hashNormalized($normalized)
+            StringHashGenerator::hashNormalized($normalized)
         );
     }
 

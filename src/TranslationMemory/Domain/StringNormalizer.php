@@ -14,9 +14,11 @@ namespace TransLangs\TranslationMemory\Domain;
  *   3. trim leading/trailing whitespace
  *   4. collapse internal whitespace runs to a single space
  */
-class StringNormalizer
+final class StringNormalizer
 {
-    public function normalize(string $text): string
+    private function __construct() {}
+
+    public static function normalize(string $text): string
     {
         $text = str_replace("\r", '', $text);
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');

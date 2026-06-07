@@ -13,9 +13,7 @@ final class CaptureBatchWorker
 {
     public function __construct(
         private LanguageRegistry $languageRegistry,
-        private TranslationMemoryRepository $translationMemory,
-        private StringNormalizer $normalizer,
-        private StringHashGenerator $hashGenerator
+        private TranslationMemoryRepository $translationMemory
     ) {}
 
     public function register(): void
@@ -111,7 +109,7 @@ final class CaptureBatchWorker
         }
 
         $originalText = (string) $candidate['original_text'];
-        $normalized   = $this->normalizer->normalize($originalText);
+        $normalized   = StringNormalizer::normalize($originalText);
         if ($normalized === '') {
             return null;
         }
@@ -130,10 +128,10 @@ final class CaptureBatchWorker
             null,
             'rendered_html',
             $selector,
-            $this->hashGenerator->hashReference($selector),
+            StringHashGenerator::hashReference($selector),
             $originalText,
             $normalized,
-            $this->hashGenerator->hashNormalized($normalized)
+            StringHashGenerator::hashNormalized($normalized)
         );
     }
 

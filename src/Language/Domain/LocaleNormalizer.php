@@ -9,14 +9,18 @@ namespace TransLangs\Language\Domain;
  */
 final class LocaleNormalizer
 {
-    public function normalize(string $locale): string
+    private function __construct()
+    {
+    }
+
+    public static function normalize(string $locale): string
     {
         $pos = strpos($locale, '_');
         return $pos !== false ? substr($locale, 0, $pos) : $locale;
     }
 
-    public function current(): string
+    public static function current(): string
     {
-        return $this->normalize((string) get_locale());
+        return self::normalize((string) get_locale());
     }
 }

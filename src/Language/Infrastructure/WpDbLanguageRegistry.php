@@ -11,13 +11,12 @@ final class WpDbLanguageRegistry implements LanguageRegistry
     private ?array $cachedTargetDetails = null;
 
     public function __construct(
-        private \wpdb             $wpdb,
-        private LocaleNormalizer  $normalizer,
+        private \wpdb $wpdb,
     ) {}
 
     public function getDefaultLanguage(): string
     {
-        return $this->normalizer->current();
+        return LocaleNormalizer::current();
     }
 
     /** @return string[] */
