@@ -12,8 +12,7 @@ use TransLangs\TranslationMemory\Domain\TranslationMemoryRepository;
  * When a capable user opens a page with ?translangs_focus=<row_ref>, this looks
  * up the row's text and injects a small script that finds the matching element,
  * scrolls to it, and highlights it. Visible only to users who can edit content;
- * the page cache is bypassed for focus requests (see PublicRenderPipeline) so
- * the script is never served to anonymous visitors.
+ * anonymous visitors never receive the script.
  */
 final class FocusHighlighter
 {

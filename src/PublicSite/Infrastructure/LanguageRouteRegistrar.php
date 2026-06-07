@@ -5,20 +5,25 @@ namespace TransLangs\PublicSite\Infrastructure;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 
 /**
- * Registers rewrite rules that map language-prefixed URLs onto the original
- * WordPress routes, and exposes the active language as the query var
- * "translangs_lang" (read by the ResolveRequestLanguage).
+ * Adds language-prefixed copies of WordPress's compiled rewrite rules and
+ * exposes the active language as the query var "translangs_lang".
  *
  * Examples (enabled = en, fr, es; default = en, no default prefix):
  *   /fr            -> front page, lang=fr
- *   /fr/about      -> /about,      lang=fr
- *   /fr/blog/post  -> /blog/post,  lang=fr
+ *   /fr/about      -> same native rule as /about, lang=fr
+ *   /fr/my-account/orders -> same native endpoint rule as /my-account/orders
  *
- * The rule only matches enabled, non-default language codes, so ordinary URLs
- * like /about or /blog are never hijacked.
+ * The language prefix is literal, not a regex capture, so native $matches[n]
+ * references keep the same indexes after prefixing.
  */
 class LanguageRouteRegistrar
 {
+    public const REWRITE_RULES_VERSION = '3';
+
+    private const REWRITE_RULES_FILTER_PRIORITY = 9999;
+
+    private static bool $rewriteRulesFilterRegistered = false;
+
     public function __construct(private ResolveRequestLanguage $resolver)
     {
     }
@@ -26,18 +31,37 @@ class LanguageRouteRegistrar
     public function register(): void
     {
         add_filter('query_vars', [$this, 'addQueryVar']);
-        add_action('init', [$this, 'addRewriteRules']);
+        $this->registerRewriteRulesFilter();
+        add_action('init', [$this, 'maybeRefreshRewriteRules'], self::REWRITE_RULES_FILTER_PRIORITY);
         add_filter('request', [$this, 'filterRequest']);
+        add_action('wp', [$this, 'debugPostQuery'], 99);
+    }
+
+    public function registerRewriteRulesFilter(): void
+    {
+        if (self::$rewriteRulesFilterRegistered) {
+            return;
+        }
+
+        add_filter('rewrite_rules_array', [$this, 'addLanguageRules'], self::REWRITE_RULES_FILTER_PRIORITY);
+        self::$rewriteRulesFilterRegistered = true;
+    }
+
+    public function maybeRefreshRewriteRules(): void
+    {
+        $currentVersion = (string) get_option('translangs_rewrite_rules_version', '');
+        if ($currentVersion === self::REWRITE_RULES_VERSION) {
+            return;
+        }
+
+        update_option('rewrite_rules', '');
+        update_option('translangs_rewrite_rules_version', self::REWRITE_RULES_VERSION, false);
+
     }
 
     /**
-     * Safety net that runs for every request after WordPress parses it.
-     *
-     * The rewrite rules capture the language for clean permalinks, but they
-     * lean on "pagename", which only resolves pages. Here we instead detect a
-     * leading language segment in the raw request path, set the language, and
-     * rewrite the internal path so WordPress resolves it normally — whether it
-     * is a page, post, category, archive, or custom post type.
+     * Keep translated front-page URLs aligned with the site's front-page mode.
+     * All non-front paths are resolved by the compiled rewrite rules.
      *
      * @param array<string, mixed> $vars Parsed query vars.
      * @return array<string, mixed>
@@ -48,71 +72,48 @@ class LanguageRouteRegistrar
             return $vars;
         }
 
-        $segment = $this->firstPathTranslatableSegment();
+        $vars = $this->normalizeWooCommerceEndpointVars($vars);
 
-        if ($segment === null || !in_array($segment, $this->prefixedLanguages(), true)) {
+        if (($vars['translangs_is_front'] ?? '') !== '1') {
             return $vars;
         }
 
-        // Record the active language.
-        $vars['translangs_lang'] = $segment;
-
-        // Drop the misleading pagename hint from the rewrite rule; let WordPress
-        // re-resolve the remaining path itself.
-        unset($vars['pagename']);
-
-        $rest = $this->pathAfterPrefix($segment);
-
-        if ($rest === '') {
-            // Language home page — serve whatever WordPress serves at /.
-            $vars['translangs_is_front'] = '1';
-
-            // For a static front page WordPress normally routes via page_id.
-            // Without it, WP_Query sees no routing vars, defaults to is_home,
-            // and may return an empty result (→ 404) when show_on_front=page.
-            if ('page' === get_option('show_on_front')) {
-                $frontPageId = (int) get_option('page_on_front');
-                if ($frontPageId > 0) {
-                    $vars['page_id'] = $frontPageId;
-                }
+        if ('page' === get_option('show_on_front')) {
+            $frontPageId = (int) get_option('page_on_front');
+            if ($frontPageId > 0) {
+                unset($vars['pagename'], $vars['name']);
+                $vars['page_id'] = $frontPageId;
             }
-        } else {
-            // Re-feed the remaining path through WordPress's own parser.
-            $vars['pagename'] = $rest;
         }
 
         return $vars;
     }
 
     /**
-     * The first path segment of the current request, lowercased, or null.
+     * WooCommerce account endpoints like /orders/ and /downloads/ can be parsed
+     * as empty strings on prefixed routes. Keep only those base endpoints truthy
+     * so WooCommerce treats them as the endpoint landing view.
+     *
+     * @param array<string, mixed> $vars
+     * @return array<string, mixed>
      */
-    private function firstPathTranslatableSegment(): ?string
+    private function normalizeWooCommerceEndpointVars(array $vars): array
     {
-        $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
-
-        if ($path === '') {
-            return null;
+        if (empty($vars['translangs_lang'])) {
+            return $vars;
         }
 
-        return strtolower(explode('/', $path)[0]);
+        foreach (['orders', 'downloads'] as $endpoint) {
+            if (isset($vars[$endpoint]) && $vars[$endpoint] === '') {
+                $vars[$endpoint] = '1';
+            }
+        }
+
+        return $vars;
     }
 
     /**
-     * The request path with the language prefix removed.
-     */
-    private function pathAfterPrefix(string $lang): string
-    {
-        $path  = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
-        $parts = explode('/', $path);
-
-        array_shift($parts); // remove the language segment
-
-        return implode('/', $parts);
-    }
-
-    /**
-     * Make WordPress recognize our custom query var.
+     * Make WordPress recognize our custom query vars.
      *
      * @param string[] $vars
      * @return string[]
@@ -126,30 +127,78 @@ class LanguageRouteRegistrar
     }
 
     /**
-     * Register one pair of rules per prefixed language.
-     *
-     * We add specific rules per language instead of a generic ^([a-z]{2})/
-     * catch-all, so non-language paths (e.g. /id/something) are never captured.
+     * @param array<string, string> $rules
+     * @return array<string, string>
      */
-    public function addRewriteRules(): void
+    public function addLanguageRules(array $rules): array
     {
-        foreach ($this->prefixedLanguages() as $lang) {
-            // Language home page: /fr  or  /fr/
-            add_rewrite_rule(
-                '^' . $lang . '/?$',
-                'index.php?translangs_lang=' . $lang,
-                'top'
-            );
-
-            // Everything under the prefix: /fr/anything/here
-            // pagename is set as a best-effort hint; the real route is resolved
-            // by WordPress from the captured path on the rewritten request.
-            add_rewrite_rule(
-                '^' . $lang . '/(.+?)/?$',
-                'index.php?translangs_lang=' . $lang . '&pagename=$matches[1]',
-                'top'
-            );
+        $languages = $this->prefixedLanguages();
+        if ($languages === [] || $rules === []) {
+            return $rules;
         }
+
+        $languageRules = [];
+
+        foreach ($languages as $lang) {
+            $languageRules[$this->languageHomeRegex($lang)] = $this->languageHomeQuery($lang);
+
+            foreach ($rules as $regex => $query) {
+                if (!is_string($regex) || !is_string($query) || !$this->isIndexQuery($query)) {
+                    continue;
+                }
+
+                $prefixedRegex = $this->prefixRegex($regex, $lang);
+                if ($prefixedRegex === null || isset($languageRules[$prefixedRegex])) {
+                    continue;
+                }
+
+                $languageRules[$prefixedRegex] = $this->injectLanguageQueryVar($query, $lang);
+            }
+        }
+
+        return $languageRules + $rules;
+    }
+
+    private function languageHomeRegex(string $lang): string
+    {
+        return '^' . preg_quote($lang, '#') . '/?$';
+    }
+
+    private function languageHomeQuery(string $lang): string
+    {
+        return 'index.php?translangs_lang=' . rawurlencode($lang) . '&translangs_is_front=1';
+    }
+
+    private function isIndexQuery(string $query): bool
+    {
+        return $query === 'index.php' || str_starts_with($query, 'index.php?');
+    }
+
+    private function prefixRegex(string $regex, string $lang): ?string
+    {
+        $regex = trim($regex);
+        if ($regex === '') {
+            return null;
+        }
+
+        $body = ltrim($regex, '^/');
+
+        if ($body === '' || $body === '$' || $body === '?$') {
+            return null;
+        }
+
+        return '^' . preg_quote($lang, '#') . '/' . $body;
+    }
+
+    private function injectLanguageQueryVar(string $query, string $lang): string
+    {
+        $languageQuery = 'translangs_lang=' . rawurlencode($lang);
+
+        if ($query === 'index.php') {
+            return 'index.php?' . $languageQuery;
+        }
+
+        return 'index.php?' . $languageQuery . '&' . substr($query, strlen('index.php?'));
     }
 
     /**

@@ -11,13 +11,11 @@ final class PublicRenderPipeline
 {
     private ?string $targetLang = null;
     private ?string $currentUrl = null;
-    private bool $bypassCache = false;
 
     public function __construct(
         private ResolveRequestLanguage $languageResolver,
         private RequestContext $requestContext,
         private TranslationMemoryRepository $translationMemory,
-        private TranslatedPageCache $cache,
         private HtmlRenderParserFactory $parserFactory,
         private PublicLinkRewriter $linkRewriter,
         private GettextCaptureBuffer $gettextCapture,
@@ -37,25 +35,6 @@ final class PublicRenderPipeline
 
         $this->targetLang = $this->languageResolver->resolve();
         $this->currentUrl = $this->currentUrl();
-
-        // A focus preview carries an admin-only highlight script and a one-off
-        // URL; never read or write the shared cache for it.
-        $this->bypassCache = !empty($_GET['translangs_focus']);
-
-        if (!$this->bypassCache) {
-            $cached = $this->cache->get($this->currentUrl, $this->targetLang);
-            if ($cached !== null) {
-                $rewritten = $this->linkRewriter->rewrite($cached, $this->targetLang);
-                if ($rewritten !== $cached) {
-                    $this->cache->set($this->currentUrl, $this->targetLang, $rewritten);
-                }
-
-                if ($this->requestMethod() !== 'HEAD') {
-                    echo $rewritten; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                }
-                exit;
-            }
-        }
 
         $this->gettextCapture->start();
 
@@ -92,11 +71,6 @@ final class PublicRenderPipeline
         }
 
         $finalHtml = $this->linkRewriter->rewrite($result->html, $this->targetLang);
-        $changed   = $result->replacementCount > 0 || $finalHtml !== $result->html;
-
-        if (!$this->bypassCache && $changed) {
-            $this->cache->set($this->currentUrl, $this->targetLang, $finalHtml);
-        }
 
         if ($result->fallbackCandidates !== [] || $gettextCandidates !== []) {
             $this->captureQueue->enqueue([
@@ -220,11 +194,6 @@ final class PublicRenderPipeline
         $uri = '/' . ltrim($uri, '/');
 
         return function_exists('home_url') ? (string) home_url($uri) : $uri;
-    }
-
-    private function requestMethod(): string
-    {
-        return strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     }
 
     private function isHtmlResponse(): bool

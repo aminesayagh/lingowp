@@ -18,8 +18,6 @@ use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
 use TransLangs\PublicSite\Infrastructure\PublicLinkRewriter;
 use TransLangs\PublicSite\Infrastructure\PublicRenderPipeline;
 use TransLangs\PublicSite\Infrastructure\RequestContext;
-use TransLangs\PublicSite\Infrastructure\TranslatedPageCache;
-use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
 use TransLangs\TranslationMemory\Application\ApplyTranslationToSameText;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
 use TransLangs\TranslationMemory\Application\PutTranslationForReview;
@@ -74,14 +72,11 @@ class Plugin
 
         $urlBuilder = new LocalizedUrlBuilder($languageResolver);
         $context    = new RequestContext();
-        $pageCache  = new TranslatedPageCache();
-        $cacheInvalidator = new TranslatedPageCacheInvalidator($pageCache, $languageRegistry, $urlBuilder);
         $structuredScanner = new StructuredSourceScanner($languageRegistry, $translationMemory);
 
         (new LanguageRouteRegistrar($languageResolver))->register();
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
-        $cacheInvalidator->register();
         (new SourceLifecycleRefresher($structuredScanner))->register();
         (new FocusHighlighter($translationMemory))->register();
 
@@ -89,7 +84,6 @@ class Plugin
             $languageResolver,
             $context,
             $translationMemory,
-            $pageCache,
             new HtmlRenderParserFactory(new HtmlTextTools()),
             new PublicLinkRewriter($urlBuilder),
             new GettextCaptureBuffer(),
@@ -98,7 +92,7 @@ class Plugin
 
         if (is_admin()) {
             (new AdminAssets())->register();
-            (new SettingsPageController($languageRegistry, $cacheInvalidator))->register();
+            (new SettingsPageController($languageRegistry))->register();
             (new TranslationMemoryPageController(
                 $languageRegistry,
                 new QueryTranslations($translationMemory),
@@ -107,7 +101,6 @@ class Plugin
                 new ReviewTranslation($translationMemory),
                 new IgnoreTranslation($translationMemory),
                 new ResetIgnoredTranslation($translationMemory),
-                $cacheInvalidator,
                 $structuredScanner,
                 $urlBuilder,
                 new ApplyTranslationToSameText($translationMemory)

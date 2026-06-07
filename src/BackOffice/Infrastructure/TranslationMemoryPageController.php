@@ -5,7 +5,6 @@ namespace TransLangs\BackOffice\Infrastructure;
 use InvalidArgumentException;
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
-use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 use TransLangs\TranslationMemory\Application\ApplyTranslationToSameText;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
@@ -44,7 +43,6 @@ class TranslationMemoryPageController
         private ReviewTranslation $reviewTranslation,
         private IgnoreTranslation $ignoreTranslation,
         private ResetIgnoredTranslation $resetIgnoredTranslation,
-        private TranslatedPageCacheInvalidator $cacheInvalidator,
         private StructuredSourceScanner $structuredSourceScanner,
         private LocalizedUrlBuilder $urlBuilder,
         private ApplyTranslationToSameText $applyToSameText
@@ -137,7 +135,6 @@ class TranslationMemoryPageController
             case 'save':
                 $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
                 $this->saveTranslation->save($rowRef, $text);
-                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('saved');
                 break;
 
@@ -145,7 +142,6 @@ class TranslationMemoryPageController
                 if (!$this->putTranslationForReview->putForReview($rowRef)) {
                     $this->redirectWithNotice('already_needs_review');
                 }
-                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('put_for_review');
                 break;
 
@@ -153,13 +149,11 @@ class TranslationMemoryPageController
                 if (!$this->reviewTranslation->review($rowRef)) {
                     $this->redirectWithNotice('not_reviewable');
                 }
-                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('reviewed');
                 break;
 
             case 'ignore':
                 $this->ignoreTranslation->ignore($rowRef);
-                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('ignored');
                 break;
 
@@ -167,7 +161,6 @@ class TranslationMemoryPageController
                 if (!$this->resetIgnoredTranslation->reset($rowRef)) {
                     $this->redirectWithNotice('not_ignored');
                 }
-                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('reset_ignored');
                 break;
 
@@ -176,7 +169,6 @@ class TranslationMemoryPageController
                 if ($applied === 0) {
                     $this->redirectWithNotice('applied_none');
                 }
-                $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('applied_elsewhere');
                 break;
         }
@@ -204,7 +196,6 @@ class TranslationMemoryPageController
 
         $text = wp_kses_post(wp_unslash($_POST['translated_text'] ?? ''));
         $this->saveTranslation->save($rowRef, $text);
-        $this->cacheInvalidator->invalidateTranslations();
 
         wp_send_json_success([
             'message'          => __('Translation saved.', 'translangs'),
@@ -290,10 +281,6 @@ class TranslationMemoryPageController
             $text = wp_kses_post(wp_unslash($item['translated_text'] ?? ''));
             $this->saveTranslation->save($rowRef, $text);
             ++$saved;
-        }
-
-        if ($saved > 0) {
-            $this->cacheInvalidator->invalidateTranslations();
         }
 
         wp_send_json_success([

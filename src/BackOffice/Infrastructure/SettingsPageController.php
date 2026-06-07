@@ -4,7 +4,6 @@ namespace TransLangs\BackOffice\Infrastructure;
 
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Infrastructure\SupportedLanguages;
-use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 
 /**
@@ -19,8 +18,7 @@ class SettingsPageController
     public const SLUG       = 'translangs';
 
     public function __construct(
-        private LanguageRegistry $registry,
-        private TranslatedPageCacheInvalidator $cacheInvalidator
+        private LanguageRegistry $registry
     ) {}
 
     public function register(): void
@@ -130,14 +128,10 @@ class SettingsPageController
         update_option('translangs_auto_redirect', !empty($_POST['auto_redirect']));
 
         if ($toEnable !== [] || $toDisable !== [] || $oldPrefix !== $prefixDefault) {
-            // Do NOT call flush_rewrite_rules() here. At this point in the
-            // request, init has already fired and addRewriteRules() ran before
-            // these languages were saved — so a flush now would regenerate
-            // rules without the new prefixes and cache them in the option.
-            // Emptying the option forces WordPress to regenerate on the NEXT
-            // request, after init has added the updated language routes.
+            // Do NOT flush per request. Emptying the option forces WordPress to
+            // regenerate the compiled rewrite rules on the next request, after
+            // rewrite_rules_array can add the updated language-prefixed copies.
             update_option('rewrite_rules', '');
-            $this->cacheInvalidator->invalidateLanguageSet();
         }
 
         $this->notice(__('Settings saved.', 'translangs'), 'success');

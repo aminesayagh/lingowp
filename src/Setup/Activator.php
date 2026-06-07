@@ -22,16 +22,17 @@ class Activator
         TranslationMemorySchema::install();
         TranslationMemorySchema::setDefaultOptions();
 
-        // Register our rewrite rules now, then flush so they take effect
-        // immediately. The init hook hasn't run during activation, so we
-        // register them directly here before flushing.
+        // Register the rewrite compilation filter now, then flush so language
+        // rule copies are included immediately. The normal plugin boot may not
+        // have run during activation.
         global $wpdb;
         $resolver = new ResolveRequestLanguage(
             new WpDbLanguageRegistry($wpdb)
         );
-        (new LanguageRouteRegistrar($resolver))->addRewriteRules();
+        (new LanguageRouteRegistrar($resolver))->registerRewriteRulesFilter();
 
         // Flushing is expensive, so it happens only on activation, never per request.
         flush_rewrite_rules();
+        update_option('translangs_rewrite_rules_version', LanguageRouteRegistrar::REWRITE_RULES_VERSION, false);
     }
 }

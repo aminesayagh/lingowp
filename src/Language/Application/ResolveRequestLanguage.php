@@ -10,13 +10,15 @@ use TransLangs\Language\Domain\LanguageRegistry;
  * Priority chain (highest wins):
  *   1. URL language prefix          /fr/about
  *   2. Admin/preview query param    ?translangs_preview=fr
- *   3. Cookie preference            preferred_lang=fr   (if enabled in settings)
- *   4. Browser Accept-Language      (only if browser detection enabled)
- *   5. Default site language        from get_locale()
+ *   3. Unprefixed default URL       /about, when default language is unprefixed
+ *   4. Cookie preference            preferred_lang=fr   (if enabled in settings)
+ *   5. Browser Accept-Language      (only if browser detection enabled)
+ *   6. Default site language        from get_locale()
  *
  * Hard rule: the URL always wins. /fr/about renders French even if the
- * cookie says preferred_lang=es. The cookie is only a preference for
- * unprefixed URLs, and only when the admin has enabled it.
+ * cookie says preferred_lang=es. When the default language is not prefixed,
+ * /about is also an explicit URL decision: it renders the default language.
+ * The cookie is only a fallback preference, and only when the admin enabled it.
  *
  * The result is cached per request so repeated calls do not re-run the chain.
  */
@@ -39,11 +41,15 @@ class ResolveRequestLanguage
 
         $lang = $this->resolveFromUrl()
             ?? $this->resolveFromPreview()
+            ?? $this->resolveFromUnprefixedDefaultUrl()
             ?? $this->resolveFromCookie()
             ?? $this->resolveFromBrowser()
             ?? $this->getDefaultLanguage();
 
-        return $this->resolved = $lang;
+        $this->resolved = $lang;
+        $this->syncPreferenceCookie($lang);
+
+        return $lang;
     }
 
     // ------------------------------------------------------------------
@@ -113,8 +119,36 @@ class ResolveRequestLanguage
     }
 
     /**
-     * 3. Cookie preference. Only consulted for unprefixed URLs and only when
-     *    the admin enabled it. Never overrides a URL prefix.
+     * 3. When the default language has no URL prefix, an unprefixed public URL
+     *    is the canonical default-language URL and must beat the preference
+     *    cookie.
+     */
+    private function resolveFromUnprefixedDefaultUrl(): ?string
+    {
+        if ((bool) get_option('translangs_prefix_default_language', false)) {
+            return null;
+        }
+
+        if ($this->isNonPublicRequest()) {
+            return null;
+        }
+
+        $path = trim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH), '/');
+        if ($path === '') {
+            return $this->getDefaultLanguage();
+        }
+
+        $first = strtolower(explode('/', $path)[0]);
+        if ($this->isEnabledLanguage($first)) {
+            return null;
+        }
+
+        return $this->getDefaultLanguage();
+    }
+
+    /**
+     * 4. Cookie preference. Only used as a fallback when the URL did not
+     *    already identify a language.
      */
     private function resolveFromCookie(): ?string
     {
@@ -126,7 +160,7 @@ class ResolveRequestLanguage
     }
 
     /**
-     * 4. Browser Accept-Language. Optional and off by default. Picks the first
+     * 5. Browser Accept-Language. Optional and off by default. Picks the first
      *    enabled language the browser asks for, by quality order.
      */
     private function resolveFromBrowser(): ?string
@@ -157,6 +191,58 @@ class ResolveRequestLanguage
         $lang = sanitize_key($lang);
 
         return ($lang !== '' && $this->isEnabledLanguage($lang)) ? $lang : null;
+    }
+
+    private function isNonPublicRequest(): bool
+    {
+        if (function_exists('is_admin') && is_admin()) {
+            return true;
+        }
+
+        if (defined('REST_REQUEST') && REST_REQUEST) {
+            return true;
+        }
+
+        if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+            return true;
+        }
+
+        if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+            return true;
+        }
+
+        if (defined('DOING_CRON') && DOING_CRON) {
+            return true;
+        }
+
+        $path = trim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH), '/');
+
+        return $path === 'wp-login.php';
+    }
+
+    private function syncPreferenceCookie(string $lang): void
+    {
+        if (!$this->cookieEnabled() || headers_sent()) {
+            return;
+        }
+
+        $current = isset($_COOKIE[self::COOKIE_NAME])
+            ? sanitize_key(wp_unslash($_COOKIE[self::COOKIE_NAME]))
+            : '';
+
+        if ($current === $lang) {
+            return;
+        }
+
+        setcookie(self::COOKIE_NAME, $lang, [
+            'expires'  => time() + 31536000,
+            'path'     => '/',
+            'secure'   => function_exists('is_ssl') && is_ssl(),
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
+
+        $_COOKIE[self::COOKIE_NAME] = $lang;
     }
 
     /**
