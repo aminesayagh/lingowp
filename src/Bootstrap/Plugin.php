@@ -46,9 +46,6 @@ class Plugin
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
 
-        // Register the queue callback now; Action Scheduler runs it later with a batch ID.
-        (new CaptureBatchWorker())->register();
-
         $languageRegistry = new WpDbLanguageRegistry($wpdb, new LocaleNormalizer());
         $languageResolver = new ResolveRequestLanguage($languageRegistry);
 
@@ -66,15 +63,32 @@ class Plugin
             $adminQuery,
         );
 
+        // Register the queue callback now; Action Scheduler runs it later with a batch ID.
+        (new CaptureBatchWorker(
+            $languageRegistry,
+            $translationMemory,
+            new StringNormalizer(),
+            new StringHashGenerator()
+        ))->register();
+
         $urlBuilder = new LocalizedUrlBuilder($languageResolver);
         $context    = new RequestContext();
         $pageCache  = new TranslatedPageCache();
         $cacheInvalidator = new TranslatedPageCacheInvalidator($pageCache, $languageRegistry, $urlBuilder);
 
+        // Register the language route handler
         (new LanguageRouteRegistrar($languageResolver))->register();
+
+        // Register the shortcode for the language switcher UI
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
+
+        // Register the hreflang presenter, which emits SEO tags and filters canonicals on the front end.
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
+
+        // Register the page cache invalidator, which listens for translation changes and purges affected pages.
         $cacheInvalidator->register();
+
+        // Register the main front-end render pipeline
         (new PublicRenderPipeline(
             $languageResolver,
             $context,
