@@ -8,6 +8,7 @@ use TransLangs\TranslationMemory\Domain\StringNormalizer;
 final class GettextCaptureBuffer
 {
     private bool $active = false;
+    private bool $paused = false;
     private string $requestArea = 'frontend';
 
     /** @var array<string, array{original_text: string, normalized_text: string, original_hash_hex: string, domain: string, hook: string}> */
@@ -32,6 +33,23 @@ final class GettextCaptureBuffer
         add_filter('gettext', [$this, 'captureGettext'], 10, 3);
         add_filter('gettext_with_context', [$this, 'captureGettextWithContext'], 10, 4);
         add_filter('ngettext', [$this, 'captureNgettext'], 10, 5);
+
+        // The logged-in admin bar renders at wp_footer (priority 1000) and calls
+        // __('Howdy'), __('Edit'), etc. Those are WordPress chrome, not site
+        // content, so we pause capture around its render window while still
+        // letting the bar display for the logged-in user.
+        add_action('wp_footer', [$this, 'pause'], 999);
+        add_action('wp_footer', [$this, 'resume'], 1001);
+    }
+
+    public function pause(): void
+    {
+        $this->paused = true;
+    }
+
+    public function resume(): void
+    {
+        $this->paused = false;
     }
 
     public function capturedRequestArea(): string
@@ -91,7 +109,7 @@ final class GettextCaptureBuffer
 
     private function capture(string $text, string $domain, string $hook): void
     {
-        if (!$this->active) {
+        if (!$this->active || $this->paused) {
             return;
         }
 
