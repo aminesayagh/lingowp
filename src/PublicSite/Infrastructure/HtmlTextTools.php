@@ -27,24 +27,14 @@ final class HtmlTextTools
     ];
 
     private const WORDPRESS_ADMIN_UI_IDS = [
-        'wpadminbar'                    => true,
-        'wp-admin-bar-root-default'     => true,
-        'wp-admin-bar-top-secondary'    => true,
+        'wpadminbar' => true,
     ];
 
     private const WORDPRESS_ADMIN_UI_CLASSES = [
         'ab-top-menu'       => true,
         'ab-sub-wrapper'    => true,
         'ab-item'           => true,
-        'ab-root'           => true,
-        'ab-menu-item'      => true,
-        'ab-label'          => true,
-        'ab-icon'           => true,
-        'ab-separator'      => true,
-        'ab-primary'        => true,
-        'ab-secondary'      => true,
         'screen-reader-shortcut' => true,
-        'ab-submenu'        => true,
     ];
 
     public function normalizedText(string $text): string
@@ -88,15 +78,9 @@ final class HtmlTextTools
         // Check classes
         $class = strtolower(trim($class));
         if ($class !== '') {
-            // Split on whitespace to get individual classes
             $classes = preg_split('/\s+/', $class, -1, PREG_SPLIT_NO_EMPTY);
             foreach ($classes as $cls) {
-                // Check exact match
                 if (isset(self::WORDPRESS_ADMIN_UI_CLASSES[$cls])) {
-                    return true;
-                }
-                // Also check if class starts with 'ab-' (admin bar prefix)
-                if (str_starts_with($cls, 'ab-')) {
                     return true;
                 }
             }
