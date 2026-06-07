@@ -110,6 +110,42 @@ final class AdminTranslationsQuery
     }
 
     /**
+     * Row refs of still-untranslated rows that share an original string in the
+     * given target language, across every table. Used to propagate one
+     * translation to the same text elsewhere.
+     *
+     * @return list<string>
+     */
+    public function sameOriginalUntranslated(string $originalHashHex, string $targetLang): array
+    {
+        if ($originalHashHex === '' || $targetLang === '') {
+            return [];
+        }
+
+        $subQueries = [];
+        $params     = [];
+
+        foreach ($this->activeTables([]) as [$routeTable, $table]) {
+            $subQueries[] = "SELECT CONCAT('{$routeTable}:', id) AS row_ref
+                             FROM {$table}
+                             WHERE original_hash = UNHEX(%s)
+                               AND target_lang = %s
+                               AND (translated_text IS NULL OR translated_text = '')";
+            $params[] = $originalHashHex;
+            $params[] = $targetLang;
+        }
+
+        $sql = implode(' UNION ALL ', $subQueries);
+
+        $rows = (array) $this->wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            $this->wpdb->prepare($sql, ...$params), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            ARRAY_A
+        );
+
+        return array_map(static fn(array $row): string => (string) $row['row_ref'], $rows);
+    }
+
+    /**
      * @param array{
      *   target_lang?: string, status?: int|null, statuses?: int[],
      *   search_original?: string, search_translated?: string,

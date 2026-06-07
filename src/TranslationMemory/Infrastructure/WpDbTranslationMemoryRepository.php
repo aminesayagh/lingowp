@@ -124,6 +124,11 @@ final class WpDbTranslationMemoryRepository implements TranslationMemoryReposito
         return $this->adminQuery->languageSiblings($rowRef);
     }
 
+    public function sameOriginalUntranslated(string $originalHashHex, string $targetLang): array
+    {
+        return $this->adminQuery->sameOriginalUntranslated($originalHashHex, $targetLang);
+    }
+
     public function getPostTranslations(string $targetLang, int $postId): array
     {
         return $this->postRepo->getTranslations($targetLang, $postId);

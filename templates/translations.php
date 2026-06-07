@@ -178,6 +178,16 @@ $renderTable = static function (array $rows, bool $isIgnoredView, bool $showStat
                             <button type="button" class="button button-small translangs-icon-button translangs-all-langs" data-row-ref="<?php echo esc_attr($rowRef); ?>" aria-label="<?php esc_attr_e('All languages', 'translangs'); ?>" title="<?php esc_attr_e('All languages', 'translangs'); ?>"><?php echo $iconLabel(__('All languages', 'translangs'), 'translation'); ?></button>
                         <?php endif; ?>
 
+                        <?php if (!$isIgnoredView && trim((string) ($row['translated_text'] ?? '')) !== '') : ?>
+                            <form method="post" action="" style="display:inline;">
+                                <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>
+                                <input type="hidden" name="translangs_screen" value="translangs-translations">
+                                <input type="hidden" name="row_ref" value="<?php echo esc_attr($rowRef); ?>">
+                                <input type="hidden" name="translangs_action" value="apply_elsewhere">
+                                <button type="submit" class="button button-small translangs-icon-button" aria-label="<?php esc_attr_e('Apply to same text elsewhere', 'translangs'); ?>" title="<?php esc_attr_e('Apply to same text elsewhere', 'translangs'); ?>"><?php echo $iconLabel(__('Apply elsewhere', 'translangs'), 'controls-repeat'); ?></button>
+                            </form>
+                        <?php endif; ?>
+
                         <?php if ($isIgnoredView) : ?>
                             <form method="post" action="" style="display:inline;">
                                 <?php wp_nonce_field('translangs_translation_action', 'translangs_nonce'); ?>

@@ -7,6 +7,7 @@ use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
 use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
 use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
+use TransLangs\TranslationMemory\Application\ApplyTranslationToSameText;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
 use TransLangs\TranslationMemory\Application\PutTranslationForReview;
 use TransLangs\TranslationMemory\Application\QueryTranslations;
@@ -45,7 +46,8 @@ class TranslationMemoryPageController
         private ResetIgnoredTranslation $resetIgnoredTranslation,
         private TranslatedPageCacheInvalidator $cacheInvalidator,
         private StructuredSourceScanner $structuredSourceScanner,
-        private LocalizedUrlBuilder $urlBuilder
+        private LocalizedUrlBuilder $urlBuilder,
+        private ApplyTranslationToSameText $applyToSameText
     ) {}
 
     public function register(): void
@@ -138,6 +140,15 @@ class TranslationMemoryPageController
                 }
                 $this->cacheInvalidator->invalidateTranslations();
                 $this->redirectWithNotice('reset_ignored');
+                break;
+
+            case 'apply_elsewhere':
+                $applied = $this->applyToSameText->apply($rowRef);
+                if ($applied === 0) {
+                    $this->redirectWithNotice('applied_none');
+                }
+                $this->cacheInvalidator->invalidateTranslations();
+                $this->redirectWithNotice('applied_elsewhere');
                 break;
         }
     }
@@ -454,6 +465,8 @@ class TranslationMemoryPageController
             'reviewed'            => [__('Marked as reviewed.', 'translangs'), 'success'],
             'ignored'             => [__('String ignored.', 'translangs'), 'success'],
             'reset_ignored'       => [__('String reset to discovered.', 'translangs'), 'success'],
+            'applied_elsewhere'   => [__('Translation applied to other untranslated occurrences.', 'translangs'), 'success'],
+            'applied_none'        => [__('No other untranslated occurrences of this text were found.', 'translangs'), 'success'],
             'scan_complete'       => [__('Structured scan completed.', 'translangs'), 'success'],
             'invalid'             => [__('Invalid string reference.', 'translangs'), 'error'],
             'already_needs_review' => [__('This string is already marked as needs review.', 'translangs'), 'error'],

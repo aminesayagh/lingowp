@@ -19,6 +19,7 @@ use TransLangs\PublicSite\Infrastructure\PublicRenderPipeline;
 use TransLangs\PublicSite\Infrastructure\RequestContext;
 use TransLangs\PublicSite\Infrastructure\TranslatedPageCache;
 use TransLangs\PublicSite\Infrastructure\TranslatedPageCacheInvalidator;
+use TransLangs\TranslationMemory\Application\ApplyTranslationToSameText;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
 use TransLangs\TranslationMemory\Application\PutTranslationForReview;
 use TransLangs\TranslationMemory\Application\QueryTranslations;
@@ -106,7 +107,8 @@ class Plugin
                 new ResetIgnoredTranslation($translationMemory),
                 $cacheInvalidator,
                 $structuredScanner,
-                $urlBuilder
+                $urlBuilder,
+                new ApplyTranslationToSameText($translationMemory)
             ))->register();
         }
     }

@@ -85,6 +85,14 @@ interface TranslationMemoryRepository
      */
     public function languageSiblings(RowRef $rowRef): array;
 
+    /**
+     * Row refs of still-untranslated rows sharing an original string in the
+     * given target language, across every table.
+     *
+     * @return list<string>
+     */
+    public function sameOriginalUntranslated(string $originalHashHex, string $targetLang): array;
+
     // --- Render preload (hot path — one query per entity, never per string) ---
 
     /**
