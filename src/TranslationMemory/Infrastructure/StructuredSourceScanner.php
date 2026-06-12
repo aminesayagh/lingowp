@@ -2,132 +2,221 @@
 
 namespace TransLangs\TranslationMemory\Infrastructure;
 
-use Masterminds\HTML5;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\TranslationMemory\Domain\SourceRoute;
-use TransLangs\TranslationMemory\Domain\StringHashGenerator;
-use TransLangs\TranslationMemory\Domain\StringNormalizer;
-use TransLangs\TranslationMemory\Domain\TranslationMemoryRepository;
-use TransLangs\TranslationMemory\Domain\TranslationSourceIdentity;
+use TransLangs\TranslationMemory\Domain\SourceCandidate;
+use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
+use TransLangs\TranslationMemory\Domain\TL_Key;
 
+/**
+ * Save-time structured discovery for owned WordPress content (architecture §5.5).
+ *
+ * Discovery is language-independent: each translatable string becomes exactly
+ * one wp_tl_source row, regardless of how many target languages exist. Type-1
+ * post fields are keyed by their WHOLE value (post_title / post_content /
+ * post_excerpt), matching the render hooks that resolve them — no segmentation.
+ *
+ * On save, the object's current source set is upserted and any of its rows whose
+ * key no longer exists are deleted (the FK cascade clears their translations,
+ * UC-I2).
+ */
 final class StructuredSourceScanner
 {
-    /** @var TranslationSourceIdentity[] */
-    private array $identities = [];
+    /** Type-1 post fields, each keyed by its whole value (matches the render hooks). */
+    private const POST_FIELDS = ['post_title', 'post_content', 'post_excerpt'];
 
     private int $skipped = 0;
 
     public function __construct(
         private LanguageRegistry $languageRegistry,
-        private TranslationMemoryRepository $translationMemory
+        private SourceTranslationRepository $repository
     ) {}
 
+    /**
+     * Bulk (re)discovery, triggered from the admin. Upserts every structured
+     * source string across posts and terms. Language-independent: no inserts are
+     * multiplied by language count.
+     */
     public function scan(): StructuredSourceScanResult
     {
-        $this->identities = [];
-        $this->skipped    = 0;
+        $this->skipped = 0;
 
-        $this->scanPostsOfType('attachment', ['inherit', 'publish']);
-        $this->scanPostsOfType('nav_menu_item', ['publish']);
-        $this->scanPostsOfType('wp_navigation', ['publish']);
-        $this->scanPostsOfType('wp_block', ['publish']);
-        $this->scanPostsOfType('wp_template_part', ['publish']);
-        $this->scanPostsOfType('wp_template', ['publish']);
-        $this->scanPostsOfType('page', ['publish']);
-        $this->scanPostsOfType('post', ['publish']);
+        $candidates = [];
 
-        foreach ($this->publicCustomPostTypes() as $postType) {
-            $this->scanPostsOfType($postType, ['publish']);
-        }
-        $this->scanTerms();
-
-        $this->identities = $this->dedupe($this->identities);
-        $sourceByRoute   = $this->countByRoute($this->identities);
-        $insertedByRoute = array_fill_keys(array_keys($sourceByRoute), 0);
-        $targetLanguages = $this->languageRegistry->getTargetLanguages();
-
-        foreach ($targetLanguages as $targetLang) {
-            foreach ($this->groupByRoute($this->identities) as $route => $identities) {
-                $insertedByRoute[$route] = ($insertedByRoute[$route] ?? 0)
-                    + $this->translationMemory->insertMissingStrings($identities, $targetLang);
+        foreach ($this->scannablePostTypes() as $postType => $statuses) {
+            foreach ($this->postsOfType($postType, $statuses) as $post) {
+                array_push($candidates, ...$this->candidatesForPost($post));
             }
+        }
+
+        foreach ($this->allTerms() as [$termTaxonomyId, $name, $description]) {
+            array_push($candidates, ...$this->candidatesForTerm($termTaxonomyId, $name, $description));
+        }
+
+        $candidates = $this->dedupeByKey($candidates);
+
+        $sourceByRoute   = [
+            'post'     => 0,
+            'postmeta' => 0,
+            'terms'    => 0,
+            'i18n'     => 0,
+        ];
+        $insertedByRoute = $sourceByRoute;
+
+        foreach ($this->groupByRoute($candidates) as $route => $group) {
+            $sourceByRoute[$route]   = count($group);
+            $insertedByRoute[$route] = $this->repository->upsertSources($group);
         }
 
         return new StructuredSourceScanResult(
             $sourceByRoute,
             $insertedByRoute,
-            count($targetLanguages),
+            count($this->languageRegistry->getTargetLanguages()),
             $this->skipped
         );
     }
 
+    /**
+     * Save-time discovery for one post (types 1 + 2). Upserts current strings
+     * and deletes the post's stale source rows.
+     */
     public function refreshPost(int $postId): void
     {
         $post = function_exists('get_post') ? get_post($postId) : null;
-        if (!$post instanceof \WP_Post) {
+        if (!$post instanceof \WP_Post || !$this->shouldScanPost($post)) {
             return;
         }
 
-        if (!$this->shouldScanPost($post)) {
-            return;
-        }
+        $candidates = $this->dedupeByKey($this->candidatesForPost($post));
 
-        $this->identities = [];
-        $this->skipped    = 0;
-
-        $this->scanPost($post);
-        $this->identities = $this->dedupe($this->identities);
-
-        $targetLanguages = $this->languageRegistry->getTargetLanguages();
-        foreach ($targetLanguages as $targetLang) {
-            $this->translationMemory->insertMissingStrings($this->identities, $targetLang);
-        }
-
-        $this->translationMemory->deleteStalePostStrings(
-            $post->ID,
-            $this->currentHashesFor(SourceRoute::Post)
-        );
-        $this->translationMemory->deleteStalePostmetaStrings(
-            $post->ID,
-            $this->currentHashesFor(SourceRoute::Postmeta)
-        );
+        $this->repository->upsertSources($candidates);
+        $this->repository->deleteStaleSourcesForPost($post->ID, $this->keysOf($candidates));
     }
 
-    private function scanTerms(): void
+    /**
+     * Save-time discovery for one taxonomy term (type 3). Upserts name and
+     * description and deletes the term's stale source rows.
+     */
+    public function refreshTerm(int $termTaxonomyId, string $name, string $description): void
     {
-        if (!function_exists('get_taxonomies') || !function_exists('get_terms')) {
+        if ($termTaxonomyId <= 0) {
             return;
         }
 
-        foreach (get_taxonomies(['public' => true], 'names') as $taxonomy) {
-            $terms = get_terms([
-                'taxonomy'   => $taxonomy,
-                'hide_empty' => false,
-            ]);
+        $candidates = $this->dedupeByKey($this->candidatesForTerm($termTaxonomyId, $name, $description));
 
-            if (!is_array($terms)) {
+        $this->repository->upsertSources($candidates);
+        $this->repository->deleteStaleSourcesForTerm($termTaxonomyId, $this->keysOf($candidates));
+    }
+
+    /**
+     * @return SourceCandidate[]
+     */
+    private function candidatesForPost(\WP_Post $post): array
+    {
+        $candidates = [];
+
+        foreach (self::POST_FIELDS as $field) {
+            $this->addCandidate($candidates, TL_Key::TYPE_POST, $post->ID, $field, null, (string) $post->{$field});
+        }
+
+        $metaKeys = $post->post_type === 'attachment'
+            ? ['_wp_attachment_image_alt']
+            : $this->translatableMetaKeys();
+
+        foreach (array_unique($metaKeys) as $metaKey) {
+            if ($this->isSlugKey($metaKey) || !function_exists('get_post_meta')) {
                 continue;
             }
 
-            foreach ($terms as $term) {
-                if (!isset($term->term_taxonomy_id)) {
-                    continue;
-                }
-
-                $termTaxonomyId = (int) $term->term_taxonomy_id;
-                $this->addTermField($termTaxonomyId, 'name', (string) ($term->name ?? ''));
-                $this->addTermField($termTaxonomyId, 'description', (string) ($term->description ?? ''));
+            $value = get_post_meta($post->ID, $metaKey, true);
+            if (!is_scalar($value)) {
+                continue;
             }
+
+            // Scalar postmeta only in v1; ref2 (serialized/repeater context) is deferred.
+            $this->addCandidate($candidates, TL_Key::TYPE_POSTMETA, $post->ID, $metaKey, null, (string) $value);
         }
+
+        return $candidates;
+    }
+
+    /**
+     * @return SourceCandidate[]
+     */
+    private function candidatesForTerm(int $termTaxonomyId, string $name, string $description): array
+    {
+        $candidates = [];
+
+        $this->addCandidate($candidates, TL_Key::TYPE_TERMS, $termTaxonomyId, 'name', null, $name);
+        $this->addCandidate($candidates, TL_Key::TYPE_TERMS, $termTaxonomyId, 'description', null, $description);
+
+        return $candidates;
+    }
+
+    /**
+     * Push a candidate unless its normalized text is empty or the ref is slug-like.
+     *
+     * @param SourceCandidate[] $candidates
+     */
+    private function addCandidate(
+        array &$candidates,
+        int $type,
+        int $ownerId,
+        string $ref1,
+        ?string $ref2,
+        string $text
+    ): void {
+        if ($this->isSlugKey($ref1)) {
+            return;
+        }
+
+        if (TL_Key::normalize($text) === '') {
+            ++$this->skipped;
+            return;
+        }
+
+        $candidates[] = new SourceCandidate($type, $ownerId, $ref1, $ref2, $text);
+    }
+
+    private function shouldScanPost(\WP_Post $post): bool
+    {
+        return array_key_exists($post->post_type, $this->scannablePostTypes())
+            || in_array($post->post_type, $this->publicCustomPostTypes(), true);
+    }
+
+    /**
+     * Post types scanned in bulk, with the statuses to include.
+     *
+     * @return array<string, string[]>
+     */
+    private function scannablePostTypes(): array
+    {
+        $types = [
+            'attachment'       => ['inherit', 'publish'],
+            'nav_menu_item'    => ['publish'],
+            'wp_navigation'    => ['publish'],
+            'wp_block'         => ['publish'],
+            'wp_template_part' => ['publish'],
+            'wp_template'      => ['publish'],
+            'page'             => ['publish'],
+            'post'             => ['publish'],
+        ];
+
+        foreach ($this->publicCustomPostTypes() as $postType) {
+            $types[$postType] = ['publish'];
+        }
+
+        return $types;
     }
 
     /**
      * @param string[] $statuses
+     * @return \WP_Post[]
      */
-    private function scanPostsOfType(string $postType, array $statuses): void
+    private function postsOfType(string $postType, array $statuses): array
     {
         if (!function_exists('post_type_exists') || !post_type_exists($postType) || !function_exists('get_posts')) {
-            return;
+            return [];
         }
 
         $posts = get_posts([
@@ -141,267 +230,42 @@ final class StructuredSourceScanner
             'update_post_term_cache' => false,
         ]);
 
-        foreach ($posts as $post) {
-            if (!$post instanceof \WP_Post) {
-                continue;
-            }
-
-            $this->scanPost($post);
-        }
-    }
-
-    private function scanPost(\WP_Post $post): void
-    {
-        $this->addPostField($post->ID, 'post_title', (string) $post->post_title, false);
-        $this->addPostField($post->ID, 'post_content', (string) $post->post_content, true);
-        $this->addPostField($post->ID, 'post_excerpt', (string) $post->post_excerpt, true);
-
-        if ($post->post_type === 'attachment') {
-            $this->scanPostMeta($post->ID, ['_wp_attachment_image_alt']);
-            return;
-        }
-
-        $this->scanPostMeta($post->ID, $this->translatableMetaKeys());
-    }
-
-    private function shouldScanPost(\WP_Post $post): bool
-    {
-        if (in_array($post->post_type, [
-            'attachment',
-            'nav_menu_item',
-            'wp_navigation',
-            'wp_block',
-            'wp_template_part',
-            'wp_template',
-            'page',
-            'post',
-        ], true)) {
-            return true;
-        }
-
-        return in_array($post->post_type, $this->publicCustomPostTypes(), true);
+        return array_values(array_filter(
+            $posts,
+            static fn($post): bool => $post instanceof \WP_Post
+        ));
     }
 
     /**
-     * @param string[] $keys
+     * @return list<array{0:int,1:string,2:string}> [term_taxonomy_id, name, description]
      */
-    private function scanPostMeta(int $postId, array $keys): void
+    private function allTerms(): array
     {
-        if (!function_exists('get_post_meta')) {
-            return;
-        }
-
-        foreach (array_values(array_unique($keys)) as $metaKey) {
-            if ($this->isSlugKey($metaKey)) {
-                continue;
-            }
-
-            $value = get_post_meta($postId, $metaKey, true);
-            if (!is_scalar($value)) {
-                continue;
-            }
-
-            $this->addPostmetaField($postId, $metaKey, (string) $value);
-        }
-    }
-
-    private function addPostField(int $postId, string $field, string $text, bool $mayContainHtml): void
-    {
-        if ($this->isSlugKey($field)) {
-            return;
-        }
-
-        foreach ($mayContainHtml ? $this->textSegments($text) : [$text] as $segment) {
-            $this->addIdentity(SourceRoute::Post, $postId, $field, null, null, null, $segment);
-        }
-    }
-
-    private function addPostmetaField(int $postId, string $metaKey, string $text): void
-    {
-        $normalized = StringNormalizer::normalize($text);
-        if ($normalized === '') {
-            ++$this->skipped;
-            return;
-        }
-
-        $this->identities[] = new TranslationSourceIdentity(
-            SourceRoute::Postmeta,
-            $postId,
-            null,
-            $metaKey,
-            StringHashGenerator::hashMetaKey($metaKey),
-            null,
-            StringHashGenerator::hashContext(null),
-            null,
-            null,
-            null,
-            $text,
-            $normalized,
-            StringHashGenerator::hashNormalized($normalized)
-        );
-    }
-
-    private function addTermField(int $termTaxonomyId, string $field, string $text): void
-    {
-        if ($this->isSlugKey($field)) {
-            return;
-        }
-
-        foreach ($this->textSegments($text) as $segment) {
-            $this->addIdentity(SourceRoute::Terms, $termTaxonomyId, $field, null, null, null, $segment);
-        }
-    }
-
-    private function addIdentity(
-        SourceRoute $route,
-        int $parentId,
-        ?string $field,
-        ?string $source,
-        ?string $reference,
-        ?string $referenceHash,
-        string $text
-    ): void {
-        $normalized = StringNormalizer::normalize($text);
-        if ($normalized === '') {
-            ++$this->skipped;
-            return;
-        }
-
-        $this->identities[] = new TranslationSourceIdentity(
-            $route,
-            $parentId,
-            $field,
-            null,
-            null,
-            null,
-            null,
-            $source,
-            $reference,
-            $referenceHash,
-            $text,
-            $normalized,
-            StringHashGenerator::hashNormalized($normalized)
-        );
-    }
-
-    /**
-     * @return string[]
-     */
-    private function textSegments(string $text): array
-    {
-        if (trim($text) === '') {
-            ++$this->skipped;
+        if (!function_exists('get_taxonomies') || !function_exists('get_terms')) {
             return [];
         }
 
-        if (!str_contains($text, '<')) {
-            return $this->plainTextSegments($text);
-        }
+        $rows = [];
 
-        if (!class_exists(HTML5::class)) {
-            $plain = function_exists('wp_strip_all_tags') ? wp_strip_all_tags($text) : strip_tags($text);
-            if (trim($plain) === '') {
-                ++$this->skipped;
-                return [];
-            }
-
-            return [$plain];
-        }
-
-        try {
-            $html5 = new HTML5();
-            $doc   = $html5->loadHTML('<!DOCTYPE html><html><body>' . $text . '</body></html>');
-            $xpath = new \DOMXPath($doc);
-            $nodes = $xpath->query('//body//text()[normalize-space(.) != ""]');
-
-            if (!$nodes instanceof \DOMNodeList) {
-                ++$this->skipped;
-                return [];
-            }
-
-            $segments = [];
-            foreach ($nodes as $node) {
-                if (!$node instanceof \DOMText || $this->hasSkippedAncestor($node)) {
-                    continue;
-                }
-
-                $segments[] = (string) $node->nodeValue;
-            }
-
-            if ($segments === []) {
-                ++$this->skipped;
-            }
-
-            return $segments;
-        } catch (\Throwable) {
-            $plain = function_exists('wp_strip_all_tags') ? wp_strip_all_tags($text) : strip_tags($text);
-            if (trim($plain) === '') {
-                ++$this->skipped;
-                return [];
-            }
-
-            return [$plain];
-        }
-    }
-
-    /**
-     * @return string[]
-     */
-    private function plainTextSegments(string $text): array
-    {
-        $segments = preg_split('/(?:\R\s*){2,}/u', trim($text)) ?: [];
-        $segments = array_values(array_filter(
-            array_map('trim', $segments),
-            static fn(string $segment): bool => $segment !== ''
-        ));
-
-        return $segments === [] ? [$text] : $segments;
-    }
-
-    /**
-     * @param TranslationSourceIdentity[] $identities
-     * @return TranslationSourceIdentity[]
-     */
-    private function dedupe(array $identities): array
-    {
-        $seen   = [];
-        $unique = [];
-
-        foreach ($identities as $identity) {
-            $key = implode('|', [
-                $identity->routeTable->value,
-                (string) $identity->parentId,
-                (string) $identity->field,
-                (string) $identity->metaKey,
-                bin2hex((string) $identity->metaKeyHash),
-                bin2hex((string) $identity->contextHash),
-                (string) $identity->source,
-                bin2hex((string) $identity->referenceHash),
-                bin2hex($identity->originalHash),
-            ]);
-
-            if (isset($seen[$key])) {
+        foreach (get_taxonomies(['public' => true], 'names') as $taxonomy) {
+            $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => false]);
+            if (!is_array($terms)) {
                 continue;
             }
 
-            $seen[$key] = true;
-            $unique[]   = $identity;
-        }
-
-        return $unique;
-    }
-
-    private function hasSkippedAncestor(\DOMText $node): bool
-    {
-        $parent = $node->parentNode;
-        while ($parent instanceof \DOMElement) {
-            if (in_array(strtolower($parent->tagName), ['script', 'style', 'noscript', 'svg', 'math'], true)) {
-                return true;
+            foreach ($terms as $term) {
+                if (!isset($term->term_taxonomy_id)) {
+                    continue;
+                }
+                $rows[] = [
+                    (int) $term->term_taxonomy_id,
+                    (string) ($term->name ?? ''),
+                    (string) ($term->description ?? ''),
+                ];
             }
-            $parent = $parent->parentNode;
         }
 
-        return false;
+        return $rows;
     }
 
     /**
@@ -413,8 +277,7 @@ final class StructuredSourceScanner
             return [];
         }
 
-        $postTypes = get_post_types(['public' => true], 'names');
-        $excluded  = [
+        $excluded = [
             'attachment'       => true,
             'nav_menu_item'    => true,
             'wp_navigation'    => true,
@@ -426,7 +289,7 @@ final class StructuredSourceScanner
         ];
 
         return array_values(array_filter(
-            $postTypes,
+            get_post_types(['public' => true], 'names'),
             static fn(string $postType): bool => !isset($excluded[$postType])
         ));
     }
@@ -461,53 +324,53 @@ final class StructuredSourceScanner
     }
 
     /**
-     * @param TranslationSourceIdentity[] $identities
-     * @return array<string, int>
+     * @param SourceCandidate[] $candidates
+     * @return SourceCandidate[]
      */
-    private function countByRoute(array $identities): array
+    private function dedupeByKey(array $candidates): array
     {
-        $counts = [
-            SourceRoute::Post->value     => 0,
-            SourceRoute::Postmeta->value => 0,
-            SourceRoute::Terms->value    => 0,
-            SourceRoute::I18n->value     => 0,
-        ];
+        $seen   = [];
+        $unique = [];
 
-        foreach ($identities as $identity) {
-            ++$counts[$identity->routeTable->value];
+        foreach ($candidates as $candidate) {
+            $hex = bin2hex($candidate->key());
+            if (isset($seen[$hex])) {
+                continue;
+            }
+            $seen[$hex] = true;
+            $unique[]   = $candidate;
         }
 
-        return $counts;
+        return $unique;
     }
 
     /**
-     * @param TranslationSourceIdentity[] $identities
-     * @return array<string, TranslationSourceIdentity[]>
+     * @param SourceCandidate[] $candidates
+     * @return array<string, SourceCandidate[]> route slug => candidates
      */
-    private function groupByRoute(array $identities): array
+    private function groupByRoute(array $candidates): array
     {
+        $route  = [
+            TL_Key::TYPE_POST     => 'post',
+            TL_Key::TYPE_POSTMETA => 'postmeta',
+            TL_Key::TYPE_TERMS    => 'terms',
+        ];
         $groups = [];
 
-        foreach ($identities as $identity) {
-            $groups[$identity->routeTable->value][] = $identity;
+        foreach ($candidates as $candidate) {
+            $slug              = $route[$candidate->type] ?? 'post';
+            $groups[$slug][]   = $candidate;
         }
 
         return $groups;
     }
 
     /**
-     * @return string[] Raw SHA-256 bytes.
+     * @param SourceCandidate[] $candidates
+     * @return string[] Raw 32-byte keys.
      */
-    private function currentHashesFor(SourceRoute $route): array
+    private function keysOf(array $candidates): array
     {
-        $hashes = [];
-
-        foreach ($this->identities as $identity) {
-            if ($identity->routeTable === $route) {
-                $hashes[] = $identity->originalHash;
-            }
-        }
-
-        return array_values(array_unique($hashes));
+        return array_map(static fn(SourceCandidate $c): string => $c->key(), $candidates);
     }
 }

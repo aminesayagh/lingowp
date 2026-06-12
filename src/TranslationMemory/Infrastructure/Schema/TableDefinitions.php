@@ -7,7 +7,7 @@ namespace TransLangs\TranslationMemory\Infrastructure\Schema;
  *
  * Two tables only:
  *   - wp_tl_source       one row per translatable source string of every type
- *   - wp_tl_translation  one row per (source_key, lang_id); absence = untranslated
+ *   - wp_tl_translation  one row per (source_key, lang_code); absence = untranslated
  *
  * Methods return CREATE TABLE SQL with every FK clause inlined. No execution
  * logic here — the orchestrator calls $wpdb->query() with raw DDL (never
@@ -43,12 +43,11 @@ final class TableDefinitions
     status           tinyint unsigned    NOT NULL DEFAULT 0,
     source_url       text                NULL,
     created_at       datetime            NOT NULL,
-    updated_at       datetime            NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uniq_key (source_key),
     KEY idx_post (post_id),
     KEY idx_tt (term_taxonomy_id),
-    KEY idx_admin_queue (status, updated_at),
+    KEY idx_admin_queue (status),
     CONSTRAINT fk_src_post FOREIGN KEY (post_id)
         REFERENCES {$postsTable} (ID) ON DELETE CASCADE,
     CONSTRAINT fk_src_tt FOREIGN KEY (term_taxonomy_id)
@@ -58,8 +57,10 @@ final class TableDefinitions
 
     /**
      * wp_tl_translation — one row per produced (source, language) pair.
-     * The clustered PK (source_key, lang_id) is the only index: it serves
-     * render dives, FK satisfaction, cascade ranges, and prefix scans (§2).
+     * Languages are identified by their short code (no numeric dictionary), and
+     * the provider name is stored directly. The clustered PK
+     * (source_key, lang_code) is the only index: it serves render dives, FK
+     * satisfaction, cascade ranges, and prefix scans (§2).
      */
     public static function translation(
         string $table,
@@ -68,13 +69,13 @@ final class TableDefinitions
     ): string {
         return "CREATE TABLE IF NOT EXISTS {$table} (
     source_key      binary(32)       NOT NULL,
-    lang_id         tinyint unsigned NOT NULL,
+    lang_code       varchar(10)      NOT NULL,
     translated_text longtext         NOT NULL,
     status          tinyint unsigned NOT NULL DEFAULT 1,
-    provider_id     tinyint unsigned NULL,
+    provider        varchar(50)      NULL,
     created_at      datetime         NOT NULL,
     updated_at      datetime         NOT NULL,
-    PRIMARY KEY (source_key, lang_id),
+    PRIMARY KEY (source_key, lang_code),
     CONSTRAINT fk_tr_source FOREIGN KEY (source_key)
         REFERENCES {$sourceTable} (source_key) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";

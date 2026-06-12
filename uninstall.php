@@ -38,8 +38,8 @@ foreach ($tables as $table) {
 // Delete all plugin options.
 $options = [
     'translangs_db_version',
-    'translangs_languages',
-    'translangs_providers',
+    'translangs_active_lang',
+    'translangs_existing_lang',
     'translangs_default_language',
     'translangs_enabled_languages',
     'translangs_prefix_default_language',

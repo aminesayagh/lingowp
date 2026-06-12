@@ -17,7 +17,7 @@ use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '10';
+    public const DB_VERSION        = '11';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     /** Legacy v3 split tables, dropped during the v4 clean reset (FK-safe order: children first). */

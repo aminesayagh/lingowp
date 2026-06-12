@@ -6,7 +6,7 @@ use TransLangs\BackOffice\Infrastructure\AdminAssets;
 use TransLangs\BackOffice\Infrastructure\SettingsPageController;
 use TransLangs\BackOffice\Infrastructure\TranslationMemoryPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
+use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\FocusHighlighter;
 use TransLangs\PublicSite\Infrastructure\GettextCaptureBuffer;
 use TransLangs\PublicSite\Infrastructure\HreflangPresenter;
@@ -34,6 +34,7 @@ use TransLangs\TranslationMemory\Infrastructure\Repositories\I18nTranslationsRep
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\TermsTranslationsRepository;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\WpDbSourceTranslationRepository;
 use TransLangs\TranslationMemory\Infrastructure\Schema\DatabaseHealthReport;
 use TransLangs\TranslationMemory\Infrastructure\SourceLifecycleRefresher;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
@@ -49,7 +50,7 @@ class Plugin
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
 
-        $languageRegistry = new WpDbLanguageRegistry($wpdb);
+        $languageRegistry = new OptionLanguageRegistry();
         $languageResolver = new ResolveRequestLanguage($languageRegistry);
 
         $postRepo     = new PostTranslationsRepository($wpdb);
@@ -76,7 +77,11 @@ class Plugin
 
         $urlBuilder = new LocalizedUrlBuilder($languageResolver);
         $context    = new RequestContext();
-        $structuredScanner = new StructuredSourceScanner($languageRegistry, $translationMemory);
+
+        // v4 source discovery writes to tl_source via the source-key repository.
+        // Render and admin still run on the legacy repo above until their sub-batches.
+        $sourceRepository  = new WpDbSourceTranslationRepository($wpdb);
+        $structuredScanner = new StructuredSourceScanner($languageRegistry, $sourceRepository);
 
         (new LanguageRouteRegistrar($languageResolver))->register();
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();

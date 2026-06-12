@@ -9,7 +9,8 @@ use TransLangs\Shared\Infrastructure\PhpTemplateRenderer;
 /**
  * The TransLangs settings screen.
  *
- * Language management writes to/reads from wp_tl_languages via LanguageRegistry.
+ * Language management writes to/reads from the translangs_active_lang /
+ * translangs_existing_lang code lists via LanguageRegistry.
  * Behavior toggles (cookie, browser detection, etc.) remain as WP options.
  */
 class SettingsPageController
@@ -101,19 +102,11 @@ class SettingsPageController
         ));
 
         // Diff against current targets and apply changes.
-        $allLangs = SupportedLanguages::all();
-        $toEnable = array_diff($postedTargets, $currentTargets);
+        $toEnable  = array_diff($postedTargets, $currentTargets);
         $toDisable = array_diff($currentTargets, $postedTargets);
 
         foreach ($toEnable as $code) {
-            if (isset($allLangs[$code])) {
-                $this->registry->enableLanguage(
-                    $code,
-                    $allLangs[$code]['name'],
-                    $allLangs[$code]['native'],
-                    $allLangs[$code]['dir']
-                );
-            }
+            $this->registry->enableLanguage($code);
         }
 
         foreach ($toDisable as $code) {

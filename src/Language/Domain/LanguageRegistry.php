@@ -5,8 +5,16 @@ namespace TransLangs\Language\Domain;
 /**
  * Authoritative source for which languages are active in this installation.
  *
+ * Languages are identified by their short code everywhere (no numeric id).
+ * Config is two pipe-delimited code lists stored as options:
+ *   - active   languages currently enabled as translation targets
+ *   - existing every target ever added (append-only roster; active ⊆ existing)
+ *
+ * Per-language display metadata (name, native name, direction) is NOT stored —
+ * it is read from the SupportedLanguages catalog by code.
+ *
  * Source language is never stored — it is always read from get_locale().
- * Only TARGET languages live in the persistence layer.
+ * Only TARGET languages live in config.
  */
 interface LanguageRegistry
 {
@@ -14,14 +22,15 @@ interface LanguageRegistry
     public function getDefaultLanguage(): string;
 
     /**
-     * Active target languages from storage, ordered by sort_order then code.
+     * Active target language codes, in stored order.
      *
      * @return string[]
      */
     public function getTargetLanguages(): array;
 
     /**
-     * Active target language metadata from storage, keyed by language code.
+     * Active target language metadata (from the SupportedLanguages catalog),
+     * keyed by language code, in stored order.
      *
      * @return array<string, array{name: string, native: string, dir: string}>
      */
@@ -39,20 +48,24 @@ interface LanguageRegistry
     public function isEnabledLanguage(string $code): bool;
 
     /**
-     * Add or re-enable a target language.
-     * Idempotent: calling for an already-active language only refreshes metadata.
+     * Every target language ever added, active or soft-deleted (the permanent
+     * roster). Used by the settings screen and by hard-delete cleanup.
+     *
+     * @return string[]
      */
-    public function enableLanguage(
-        string $code,
-        string $name,
-        string $nativeName,
-        string $direction,
-        int    $sortOrder = 0
-    ): void;
+    public function existingLanguages(): array;
 
     /**
-     * Remove a target language and cascade-delete all its translations.
-     * No-op if the language is not present.
+     * Add or re-enable a target language by code.
+     * Idempotent: adds the code to the active set and to the existing roster.
+     * No-op for the source language or an unknown code.
+     */
+    public function enableLanguage(string $code): void;
+
+    /**
+     * Soft-delete a target language: remove it from the active set but keep it
+     * in the existing roster (so re-enabling is instant and its translations,
+     * keyed by code, are untouched). No-op if the code is not active.
      */
     public function disableLanguage(string $code): void;
 }
