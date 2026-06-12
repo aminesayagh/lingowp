@@ -14,7 +14,7 @@ use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '7';
+    public const DB_VERSION        = '9';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     public static function maybeUpgrade(): void
@@ -40,6 +40,12 @@ class TranslationMemorySchema
         global $wpdb;
 
         $charsetCollate = $wpdb->get_charset_collate();
+
+        // 0. Drop the legacy i18n observation table (removed in DB v9). Its
+        //    last-seen URL / seen-count tracking is no longer used; rendered-HTML
+        //    rows now carry their own source_url column. Safe to drop on every
+        //    run — it is a leaf table (FK child of _i18n).
+        $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_translations_i18n_meta'); // phpcs:ignore WordPress.DB
 
         // 1. Create language registry first — it is the FK target for all translation tables.
         $wpdb->query( // phpcs:ignore WordPress.DB
@@ -79,9 +85,9 @@ class TranslationMemorySchema
             )
         );
         $wpdb->query( // phpcs:ignore WordPress.DB
-            TableDefinitions::i18nMeta(
-                self::tlI18nMetaTable(),
-                self::tlI18nTable(),
+            TableDefinitions::html(
+                self::tlHtmlTable(),
+                self::tlLanguagesTable(),
                 $charsetCollate
             )
         );
@@ -97,12 +103,12 @@ class TranslationMemorySchema
             'fk_term_parent'     => self::tlTermsTable(),
             'fk_term_lang'       => self::tlTermsTable(),
             'fk_i18n_lang'       => self::tlI18nTable(),
-            'fk_i18n_meta'       => self::tlI18nMetaTable(),
+            'fk_html_lang'       => self::tlHtmlTable(),
         ]);
 
         // 4. On any missing FK: drop translation tables in reverse dependency order, then fail.
         if ($missing !== []) {
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nMetaTable()); // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlHtmlTable());     // phpcs:ignore WordPress.DB
             $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nTable());     // phpcs:ignore WordPress.DB
             $wpdb->query('DROP TABLE IF EXISTS ' . self::tlTermsTable());    // phpcs:ignore WordPress.DB
             $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostmetaTable()); // phpcs:ignore WordPress.DB
@@ -187,9 +193,9 @@ class TranslationMemorySchema
         return $wpdb->prefix . 'tl_translations_i18n';
     }
 
-    public static function tlI18nMetaTable(): string
+    public static function tlHtmlTable(): string
     {
         global $wpdb;
-        return $wpdb->prefix . 'tl_translations_i18n_meta';
+        return $wpdb->prefix . 'tl_translations_html';
     }
 }

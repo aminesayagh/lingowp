@@ -13,9 +13,10 @@ use TransLangs\TranslationMemory\Domain\TranslationStatus;
  * `route_table` for client-side filtering, and two table-specific context
  * columns (ctx1, ctx2) whose meaning varies by table:
  *
- *   post/terms  — ctx1 = field,    ctx2 = NULL
- *   postmeta    — ctx1 = meta_key, ctx2 = context
- *   i18n        — ctx1 = source,   ctx2 = reference
+ *   post/terms  — ctx1 = field,         ctx2 = NULL
+ *   postmeta    — ctx1 = meta_key,      ctx2 = context
+ *   i18n        — ctx1 = source,        ctx2 = reference
+ *   html        — ctx1 = 'rendered_html', ctx2 = selector
  *
  * post/postmeta sub-queries join wp_posts to expose `post_type`, which the
  * source-type tabs (see SourceTypeCatalog) use to bucket rows.
@@ -80,6 +81,7 @@ final class AdminTranslationsQuery
             SourceRoute::Postmeta => ['post_id', 'meta_key_hash', 'context_hash', 'original_hash'],
             SourceRoute::Terms    => ['term_taxonomy_id', 'field', 'original_hash'],
             SourceRoute::I18n     => ['source', 'reference_hash', 'original_hash'],
+            SourceRoute::Html     => ['selector', 'original_hash'],
         };
 
         $match = implode(
@@ -201,6 +203,7 @@ final class AdminTranslationsQuery
             ['postmeta', $this->wpdb->prefix . 'tl_translations_postmeta'],
             ['terms',    $this->wpdb->prefix . 'tl_translations_terms'],
             ['i18n',     $this->wpdb->prefix . 'tl_translations_i18n'],
+            ['html',     $this->wpdb->prefix . 'tl_translations_html'],
         ];
 
         if (!empty($filters['source_type'])) {
@@ -228,11 +231,13 @@ final class AdminTranslationsQuery
             'post', 'terms' => 't.field',
             'postmeta'      => 't.meta_key',
             'i18n'          => 't.source',
+            'html'          => "'rendered_html'",
             default         => 'NULL',
         };
         $ctx2Expr = match ($routeTable) {
             'postmeta' => 't.context',
             'i18n'     => 't.reference',
+            'html'     => 't.selector',
             default    => 'NULL',
         };
         // post_id is used by the admin "View" link. Non-post sources have no direct post URL.
@@ -245,11 +250,9 @@ final class AdminTranslationsQuery
         $join         = $joinsPosts ? " LEFT JOIN {$this->wpdb->posts} p ON p.ID = t.post_id" : '';
         $postTypeExpr = $joinsPosts ? 'p.post_type' : 'NULL';
 
-        // i18n rows have no post; their "View text" page is the URL where the
-        // string was last seen, stored 1:1 in the i18n meta table.
-        $joinsMeta     = $routeTable === 'i18n';
-        $metaJoin      = $joinsMeta ? " LEFT JOIN {$this->wpdb->prefix}tl_translations_i18n_meta m ON m.i18n_id = t.id" : '';
-        $sourceUrlExpr = $joinsMeta ? 'm.source_url' : 'NULL';
+        // html rows keep their last-seen URL on the row itself (source_url
+        // column); other tables have no associated capture URL.
+        $sourceUrlExpr = $routeTable === 'html' ? 't.source_url' : 'NULL';
 
         [$where, $whereParams] = $this->buildWhere($filters);
         [$where, $whereParams] = $this->applyPostTypeConstraint($where, $whereParams, $routeTable, $filters);
@@ -264,7 +267,7 @@ final class AdminTranslationsQuery
                        {$postIdExpr} AS post_id,
                        {$postTypeExpr} AS post_type,
                        {$sourceUrlExpr} AS source_url
-                FROM {$table} t{$join}{$metaJoin}
+                FROM {$table} t{$join}
                 {$where}";
 
         return [$sql, $whereParams];
@@ -282,6 +285,7 @@ final class AdminTranslationsQuery
 
         $sourceTypeExpr = match ($routeTable) {
             'i18n'  => "'" . SourceTypeCatalog::THEME_PLUGIN . "'",
+            'html'  => "'" . SourceTypeCatalog::RENDERED_HTML . "'",
             'terms' => "'" . SourceTypeCatalog::TAXONOMIES . "'",
             default => SourceTypeCatalog::postTypeCaseExpression('p.post_type'),
         };

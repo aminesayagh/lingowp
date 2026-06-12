@@ -34,7 +34,6 @@ class LanguageRouteRegistrar
         $this->registerRewriteRulesFilter();
         add_action('init', [$this, 'maybeRefreshRewriteRules'], self::REWRITE_RULES_FILTER_PRIORITY);
         add_filter('request', [$this, 'filterRequest']);
-        add_action('wp', [$this, 'debugPostQuery'], 99);
     }
 
     public function registerRewriteRulesFilter(): void

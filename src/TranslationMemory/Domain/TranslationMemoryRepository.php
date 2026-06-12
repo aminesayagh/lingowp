@@ -22,13 +22,14 @@ interface TranslationMemoryRepository
     public function insertMissingStrings(array $identities, string $targetLang): int;
 
     /**
+     * Upsert the last-seen URL on rendered-HTML rows for $targetLang.
+     *
      * @param TranslationSourceIdentity[] $identities
      */
-    public function recordI18nObservations(
+    public function recordHtmlObservations(
         array $identities,
         string $targetLang,
-        string $sourceUrl,
-        string $requestArea
+        string $sourceUrl
     ): void;
 
     /**
@@ -115,4 +116,9 @@ interface TranslationMemoryRepository
      * @return array<string, string> "i18n:<source>:<hex>:<hex>" => translated_text
      */
     public function getI18nTranslations(string $targetLang, string $source): array;
+
+    /**
+     * @return array<string, string> "html:<selector>:<hex>" => translated_text
+     */
+    public function getHtmlTranslations(string $targetLang): array;
 }

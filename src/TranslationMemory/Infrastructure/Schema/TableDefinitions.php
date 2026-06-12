@@ -150,22 +150,29 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    public static function i18nMeta(
+    public static function html(
         string $table,
-        string $i18nTable,
+        string $languagesTable,
         string $charsetCollate
     ): string {
         return "CREATE TABLE IF NOT EXISTS {$table} (
-    i18n_id       bigint(20) unsigned NOT NULL,
-    source_url    text                NULL,
-    selector      text                NULL,
-    request_area  varchar(20)         NULL,
-    seen_count    bigint(20) unsigned NOT NULL DEFAULT 0,
-    first_seen_at datetime            NOT NULL,
-    last_seen_at  datetime            NOT NULL,
-    PRIMARY KEY (i18n_id),
-    CONSTRAINT fk_i18n_meta
-        FOREIGN KEY (i18n_id) REFERENCES {$i18nTable} (id) ON DELETE CASCADE
+    id              bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+    target_lang     varchar(10)         NOT NULL,
+    selector        varchar(255)        NOT NULL,
+    original_hash   binary(32)          NOT NULL,
+    original_text   longtext            NOT NULL,
+    translated_text longtext            NULL,
+    status          tinyint(3) unsigned NOT NULL DEFAULT 0,
+    provider        varchar(50)         NULL,
+    source_url      text                NULL,
+    created_at      datetime            NOT NULL,
+    updated_at      datetime            NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_identity (target_lang, selector(100), original_hash),
+    KEY idx_lang_status (target_lang, status),
+    KEY idx_same_original (target_lang, original_hash),
+    CONSTRAINT fk_html_lang
+        FOREIGN KEY (target_lang) REFERENCES {$languagesTable} (code) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 }

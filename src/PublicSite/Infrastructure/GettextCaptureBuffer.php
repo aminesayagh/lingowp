@@ -9,7 +9,6 @@ final class GettextCaptureBuffer
 {
     private bool $active = false;
     private bool $paused = false;
-    private string $requestArea = 'frontend';
 
     /** @var array<string, array{original_text: string, normalized_text: string, original_hash_hex: string, domain: string, hook: string}> */
     private array $candidates = [];
@@ -20,10 +19,7 @@ final class GettextCaptureBuffer
             return;
         }
 
-        $requestArea = $this->detectRequestArea();
-        $this->requestArea = $requestArea;
-
-        if (!$this->shouldCaptureRequest($requestArea)) {
+        if (!$this->shouldCaptureRequest($this->detectRequestArea())) {
             return;
         }
 
@@ -50,11 +46,6 @@ final class GettextCaptureBuffer
     public function resume(): void
     {
         $this->paused = false;
-    }
-
-    public function capturedRequestArea(): string
-    {
-        return $this->requestArea;
     }
 
     /**

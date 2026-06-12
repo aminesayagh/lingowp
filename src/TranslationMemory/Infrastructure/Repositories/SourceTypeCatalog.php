@@ -22,8 +22,9 @@ final class SourceTypeCatalog
     public const BLOCKS       = 'blocks';
     public const TEMPLATES    = 'templates';
     public const CPT          = 'cpt';
-    public const TAXONOMIES   = 'taxonomies';
-    public const THEME_PLUGIN = 'theme_plugin';
+    public const TAXONOMIES    = 'taxonomies';
+    public const THEME_PLUGIN  = 'theme_plugin';
+    public const RENDERED_HTML = 'rendered_html';
 
     /**
      * WordPress post_type => tab slug. Several types may map to one tab
@@ -59,6 +60,7 @@ final class SourceTypeCatalog
             self::CPT,
             self::TAXONOMIES,
             self::THEME_PLUGIN,
+            self::RENDERED_HTML,
         ];
     }
 
@@ -73,8 +75,9 @@ final class SourceTypeCatalog
             self::BLOCKS       => __('Blocks', 'translangs'),
             self::TEMPLATES    => __('Templates', 'translangs'),
             self::CPT          => __('Custom Post Types', 'translangs'),
-            self::TAXONOMIES   => __('Taxonomies', 'translangs'),
-            self::THEME_PLUGIN => __('Theme / Plugin strings', 'translangs'),
+            self::TAXONOMIES    => __('Taxonomies', 'translangs'),
+            self::THEME_PLUGIN  => __('Theme / Plugin strings', 'translangs'),
+            self::RENDERED_HTML => __('Rendered HTML', 'translangs'),
         ];
 
         return $labels[$slug] ?? $slug;
@@ -88,9 +91,10 @@ final class SourceTypeCatalog
     public static function routeTablesFor(string $slug): array
     {
         return match ($slug) {
-            self::THEME_PLUGIN => ['i18n'],
-            self::TAXONOMIES   => ['terms'],
-            default            => ['post', 'postmeta'],
+            self::THEME_PLUGIN  => ['i18n'],
+            self::RENDERED_HTML => ['html'],
+            self::TAXONOMIES    => ['terms'],
+            default             => ['post', 'postmeta'],
         };
     }
 

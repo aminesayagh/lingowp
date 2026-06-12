@@ -8,6 +8,7 @@ use TransLangs\TranslationMemory\Domain\TranslationMemoryRepository;
 use TransLangs\TranslationMemory\Domain\TranslationSourceIdentity;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminTranslationsQuery;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\HtmlTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\I18nTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostTranslationsRepository;
@@ -27,6 +28,7 @@ final class WpDbTranslationMemoryRepository implements TranslationMemoryReposito
         private PostmetaTranslationsRepository $postmetaRepo,
         private TermsTranslationsRepository    $termsRepo,
         private I18nTranslationsRepository     $i18nRepo,
+        private HtmlTranslationsRepository     $htmlRepo,
         private AdminTranslationsQuery         $adminQuery,
     ) {}
 
@@ -56,17 +58,19 @@ final class WpDbTranslationMemoryRepository implements TranslationMemoryReposito
         if (isset($byRoute[SourceRoute::I18n->value])) {
             $count += $this->i18nRepo->insertMissing($byRoute[SourceRoute::I18n->value], $targetLang);
         }
+        if (isset($byRoute[SourceRoute::Html->value])) {
+            $count += $this->htmlRepo->insertMissing($byRoute[SourceRoute::Html->value], $targetLang);
+        }
 
         return $count;
     }
 
-    public function recordI18nObservations(
+    public function recordHtmlObservations(
         array $identities,
         string $targetLang,
-        string $sourceUrl,
-        string $requestArea
+        string $sourceUrl
     ): void {
-        $this->i18nRepo->recordObservations($identities, $targetLang, $sourceUrl, $requestArea);
+        $this->htmlRepo->recordObservations($identities, $targetLang, $sourceUrl);
     }
 
     public function deleteStalePostStrings(int $postId, array $currentHashesRaw): void
@@ -149,13 +153,19 @@ final class WpDbTranslationMemoryRepository implements TranslationMemoryReposito
         return $this->i18nRepo->getTranslations($targetLang, $source);
     }
 
-    private function repoFor(RowRef $rowRef): PostTranslationsRepository|PostmetaTranslationsRepository|TermsTranslationsRepository|I18nTranslationsRepository
+    public function getHtmlTranslations(string $targetLang): array
+    {
+        return $this->htmlRepo->getTranslations($targetLang);
+    }
+
+    private function repoFor(RowRef $rowRef): PostTranslationsRepository|PostmetaTranslationsRepository|TermsTranslationsRepository|I18nTranslationsRepository|HtmlTranslationsRepository
     {
         return match ($rowRef->table) {
             SourceRoute::Post     => $this->postRepo,
             SourceRoute::Postmeta => $this->postmetaRepo,
             SourceRoute::Terms    => $this->termsRepo,
             SourceRoute::I18n     => $this->i18nRepo,
+            SourceRoute::Html     => $this->htmlRepo,
         };
     }
 }

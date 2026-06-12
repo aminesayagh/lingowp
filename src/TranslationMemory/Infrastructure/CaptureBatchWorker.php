@@ -69,12 +69,13 @@ final class CaptureBatchWorker
         }
 
         $identities = array_merge($gettextIdentities, $fallbackIdentities);
-        $sourceUrl   = $this->payloadString($payload, 'source_url');
-        $requestArea = $this->payloadString($payload, 'request_area');
+        $sourceUrl  = $this->payloadString($payload, 'source_url');
 
         foreach ($this->languageRegistry->getTargetLanguages() as $targetLang) {
             $this->translationMemory->insertMissingStrings($identities, $targetLang);
-            $this->translationMemory->recordI18nObservations($identities, $targetLang, $sourceUrl, $requestArea);
+            // recordHtmlObservations filters to Html-routed identities and stamps
+            // the last-seen URL on each _html row's source_url column.
+            $this->translationMemory->recordHtmlObservations($identities, $targetLang, $sourceUrl);
         }
     }
 
@@ -92,15 +93,9 @@ final class CaptureBatchWorker
      */
     private function payloadString(array $payload, string $key): string
     {
-        $value = isset($payload[$key]) && is_scalar($payload[$key])
+        return isset($payload[$key]) && is_scalar($payload[$key])
             ? trim((string) $payload[$key])
             : '';
-
-        if ($key === 'request_area') {
-            return substr($value !== '' ? $value : 'frontend', 0, 20);
-        }
-
-        return $value;
     }
 
     /**
@@ -248,7 +243,7 @@ final class CaptureBatchWorker
             : '';
 
         return new TranslationSourceIdentity(
-            SourceRoute::I18n,
+            SourceRoute::Html,
             0,
             null,
             null,

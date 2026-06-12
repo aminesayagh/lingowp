@@ -634,7 +634,12 @@ class TranslationMemoryPageController
                 break;
 
             case 'i18n':
-                // ctx1 is the source bucket (gettext / rendered_html).
+                // ctx1 is the source bucket (gettext).
+                break;
+
+            case 'html':
+                // ctx1 is the 'rendered_html' label, ctx2 the structural
+                // selector — both appended below as "rendered_html · selector".
                 break;
         }
 

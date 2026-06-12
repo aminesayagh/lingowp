@@ -29,6 +29,7 @@ use TransLangs\TranslationMemory\Infrastructure\CaptureBatchQueue;
 use TransLangs\TranslationMemory\Infrastructure\CaptureBatchWorker;
 use TransLangs\TranslationMemory\Infrastructure\OwnedStringIndex;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminTranslationsQuery;
+use TransLangs\TranslationMemory\Infrastructure\Repositories\HtmlTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\I18nTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostTranslationsRepository;
@@ -54,6 +55,7 @@ class Plugin
         $postmetaRepo = new PostmetaTranslationsRepository($wpdb);
         $termsRepo    = new TermsTranslationsRepository($wpdb);
         $i18nRepo     = new I18nTranslationsRepository($wpdb);
+        $htmlRepo     = new HtmlTranslationsRepository($wpdb);
         $adminQuery   = new AdminTranslationsQuery($wpdb);
 
         $translationMemory = new WpDbTranslationMemoryRepository(
@@ -61,6 +63,7 @@ class Plugin
             $postmetaRepo,
             $termsRepo,
             $i18nRepo,
+            $htmlRepo,
             $adminQuery,
         );
 

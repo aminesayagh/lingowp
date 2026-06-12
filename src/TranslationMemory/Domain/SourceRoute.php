@@ -13,6 +13,7 @@ enum SourceRoute: string
     case Postmeta = 'postmeta';
     case Terms    = 'terms';
     case I18n     = 'i18n';
+    case Html     = 'html';
 
     public function tableName(): string
     {

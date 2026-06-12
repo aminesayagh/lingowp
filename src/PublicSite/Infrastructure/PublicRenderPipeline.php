@@ -47,7 +47,6 @@ final class PublicRenderPipeline
 
     public function finish(string $html, int $phase = 0): string
     {
-        $requestArea = $this->gettextCapture->capturedRequestArea();
         $gettextCandidates = $this->gettextCapture->stop();
 
         if (
@@ -76,7 +75,6 @@ final class PublicRenderPipeline
             $this->captureQueue->enqueue([
                 'target_lang'         => $this->targetLang,
                 'source_url'          => $this->currentUrl,
-                'request_area'        => $requestArea,
                 'gettext_candidates'  => $gettextCandidates,
                 'fallback_candidates' => $result->fallbackCandidates,
             ]);
@@ -86,7 +84,7 @@ final class PublicRenderPipeline
     }
 
     /**
-     * @return array{post: array<string, string>, postmeta: array<string, string>, terms: array<string, string>, gettext: array<string, string>, rendered_html: array<string, string>}
+     * @return array{post: array<string, string>, postmeta: array<string, string>, terms: array<string, string>, gettext: array<string, string>, html: array<string, string>}
      */
     private function preloadMaps(string $targetLang): array
     {
@@ -94,11 +92,11 @@ final class PublicRenderPipeline
         $termTaxonomyIds = $this->currentTermTaxonomyIds($postId);
 
         return [
-            'post'          => $postId > 0 ? $this->translationMemory->getPostTranslations($targetLang, $postId) : [],
-            'postmeta'      => $postId > 0 ? $this->translationMemory->getPostmetaTranslations($targetLang, $postId) : [],
-            'terms'         => $this->translationMemory->getTermTranslations($targetLang, $termTaxonomyIds),
-            'gettext'       => $this->translationMemory->getI18nTranslations($targetLang, 'gettext'),
-            'rendered_html' => $this->translationMemory->getI18nTranslations($targetLang, 'rendered_html'),
+            'post'     => $postId > 0 ? $this->translationMemory->getPostTranslations($targetLang, $postId) : [],
+            'postmeta' => $postId > 0 ? $this->translationMemory->getPostmetaTranslations($targetLang, $postId) : [],
+            'terms'    => $this->translationMemory->getTermTranslations($targetLang, $termTaxonomyIds),
+            'gettext'  => $this->translationMemory->getI18nTranslations($targetLang, 'gettext'),
+            'html'     => $this->translationMemory->getHtmlTranslations($targetLang),
         ];
     }
 
@@ -110,7 +108,7 @@ final class PublicRenderPipeline
     {
         $replacements = [];
 
-        foreach (['post', 'postmeta', 'terms', 'gettext', 'rendered_html'] as $route) {
+        foreach (['post', 'postmeta', 'terms', 'gettext', 'html'] as $route) {
             foreach ($maps[$route] ?? [] as $mapKey => $translatedText) {
                 $hashHex = TranslationMapKey::originalHashHexFromMapKey($mapKey);
                 if ($hashHex === null || $translatedText === '') {

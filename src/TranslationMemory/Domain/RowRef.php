@@ -7,7 +7,7 @@ use InvalidArgumentException;
 /**
  * Opaque handle for a single row in a wp_tl_translations_* table.
  *
- * Format: "<table>:<id>"  e.g. "post:123", "postmeta:88", "terms:14", "i18n:902".
+ * Format: "<table>:<id>"  e.g. "post:123", "postmeta:88", "terms:14", "i18n:902", "html:55".
  * No controller or service should parse the string manually — use parse() once,
  * then pass the RowRef object.
  */

@@ -13,6 +13,7 @@ namespace TransLangs\TranslationMemory\Domain;
  *   postmeta -> "meta:<meta_key_hash_hex>:<context_hash_hex>:<original_hash_hex>"
  *   terms    -> "term:<term_taxonomy_id>:<field>:<original_hash_hex>"
  *   i18n     -> "i18n:<source>:<reference_hash_hex>:<original_hash_hex>"
+ *   html     -> "html:<selector>:<original_hash_hex>"
  */
 final class TranslationMapKey
 {
@@ -45,6 +46,15 @@ final class TranslationMapKey
     public static function forI18n(string $source, string $referenceHashRaw, string $originalHashRaw): string
     {
         return 'i18n:' . $source . ':' . bin2hex($referenceHashRaw) . ':' . bin2hex($originalHashRaw);
+    }
+
+    /**
+     * Rendered-HTML fallback rows key on the structural selector directly
+     * (no hash); the selector is sanitized to [a-z0-9>_-] so it carries no ':'.
+     */
+    public static function forHtml(string $selector, string $originalHashRaw): string
+    {
+        return 'html:' . $selector . ':' . bin2hex($originalHashRaw);
     }
 
     public static function originalHashHexFromMapKey(string $key): ?string
@@ -83,6 +93,9 @@ final class TranslationMapKey
                 && $parts[1] !== ''
                 && self::isSha256Hex($parts[2])
                 && self::isSha256Hex($parts[3]),
+            'html' => count($parts) === 3
+                && $parts[1] !== ''
+                && self::isSha256Hex($parts[2]),
             default => false,
         };
     }

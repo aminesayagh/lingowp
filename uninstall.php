@@ -17,6 +17,10 @@ global $wpdb;
 // Drop translation tables in FK-safe order (child tables before the
 // languages table they reference, and before the WP tables they reference).
 $tables = [
+    $wpdb->prefix . 'tl_translations_html',
+    // Legacy table removed in DB v9; dropped here too so deleting the plugin
+    // from an un-upgraded install still cleans it up.
+    $wpdb->prefix . 'tl_translations_i18n_meta',
     $wpdb->prefix . 'tl_translations_i18n',
     $wpdb->prefix . 'tl_translations_terms',
     $wpdb->prefix . 'tl_translations_postmeta',
