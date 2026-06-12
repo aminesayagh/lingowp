@@ -34,6 +34,7 @@ use TransLangs\TranslationMemory\Infrastructure\Repositories\I18nTranslationsRep
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\TermsTranslationsRepository;
+use TransLangs\TranslationMemory\Infrastructure\Schema\DatabaseHealthReport;
 use TransLangs\TranslationMemory\Infrastructure\SourceLifecycleRefresher;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
@@ -94,6 +95,7 @@ class Plugin
         ))->register();
 
         if (is_admin()) {
+            (new DatabaseHealthReport($wpdb))->register();
             (new AdminAssets())->register();
             (new SettingsPageController($languageRegistry))->register();
             (new TranslationMemoryPageController(

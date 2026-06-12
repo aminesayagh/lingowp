@@ -7,15 +7,29 @@ use TransLangs\TranslationMemory\Infrastructure\Schema\SchemaFailure;
 use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
 
 /**
- * Schema orchestrator — install, verify, and version-gate the TransLangs tables.
+ * Schema orchestrator — install, verify, and version-gate the v4 TransLangs tables.
  *
- * Delegates SQL to TableDefinitions; delegates FK verification to ConstraintVerifier.
- * Never uses dbDelta. Version is bumped only after FK verification passes.
+ * v4 is a clean reset (no migration of old translation-memory data): legacy
+ * split tables are dropped, then the two v4 tables (wp_tl_source,
+ * wp_tl_translation) are created with raw DDL — never dbDelta() (D13). Parent
+ * engines are checked first (§10) and every FK is verified after creation;
+ * version is bumped only once verification passes.
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '9';
+    public const DB_VERSION        = '10';
     public const OPTION_DB_VERSION = 'translangs_db_version';
+
+    /** Legacy v3 split tables, dropped during the v4 clean reset (FK-safe order: children first). */
+    private const LEGACY_TABLES = [
+        'tl_translations_html',
+        'tl_translations_i18n_meta',
+        'tl_translations_i18n',
+        'tl_translations_terms',
+        'tl_translations_postmeta',
+        'tl_translations_post',
+        'tl_languages',
+    ];
 
     public static function maybeUpgrade(): void
     {
@@ -30,127 +44,101 @@ class TranslationMemorySchema
     }
 
     /**
-     * Full install: create registry + translation tables → verify FKs → bump version.
+     * Full install: verify parent engines → drop legacy tables → create v4
+     * tables → verify the three FKs → bump version.
      *
-     * @throws SchemaFailure if any FK constraint is absent after creation.
-     *                       All created tables are dropped before throwing.
+     * @throws SchemaFailure if a parent table is not InnoDB, or if any FK
+     *                       constraint is absent after creation. Created v4
+     *                       tables are dropped before throwing on FK failure.
      */
     public static function install(): void
     {
         global $wpdb;
 
+        self::assertParentTablesAreInnoDB();
+
         $charsetCollate = $wpdb->get_charset_collate();
 
-        // 0. Drop the legacy i18n observation table (removed in DB v9). Its
-        //    last-seen URL / seen-count tracking is no longer used; rendered-HTML
-        //    rows now carry their own source_url column. Safe to drop on every
-        //    run — it is a leaf table (FK child of _i18n).
-        $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_translations_i18n_meta'); // phpcs:ignore WordPress.DB
+        // 1. Clean reset: drop every legacy split table (children before parents).
+        foreach (self::LEGACY_TABLES as $suffix) {
+            $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . $suffix); // phpcs:ignore WordPress.DB
+        }
 
-        // 1. Create language registry first — it is the FK target for all translation tables.
+        // 2. Create wp_tl_source first — it is the FK target for translations.
         $wpdb->query( // phpcs:ignore WordPress.DB
-            TableDefinitions::languages(self::tlLanguagesTable(), $charsetCollate)
-        );
-
-        // 2. Create the four translation tables with inline FK clauses.
-        $wpdb->query( // phpcs:ignore WordPress.DB
-            TableDefinitions::post(
-                self::tlPostTable(),
-                self::tlLanguagesTable(),
+            TableDefinitions::source(
+                self::tlSourceTable(),
                 $wpdb->posts,
-                $charsetCollate
-            )
-        );
-        $wpdb->query( // phpcs:ignore WordPress.DB
-            TableDefinitions::postmeta(
-                self::tlPostmetaTable(),
-                self::tlLanguagesTable(),
-                $wpdb->posts,
-                $charsetCollate
-            )
-        );
-        $wpdb->query( // phpcs:ignore WordPress.DB
-            TableDefinitions::terms(
-                self::tlTermsTable(),
-                self::tlLanguagesTable(),
                 $wpdb->term_taxonomy,
                 $charsetCollate
             )
         );
+
+        // 3. Create wp_tl_translation, which FKs back to source_key.
         $wpdb->query( // phpcs:ignore WordPress.DB
-            TableDefinitions::i18n(
-                self::tlI18nTable(),
-                self::tlLanguagesTable(),
-                $charsetCollate
-            )
-        );
-        $wpdb->query( // phpcs:ignore WordPress.DB
-            TableDefinitions::html(
-                self::tlHtmlTable(),
-                self::tlLanguagesTable(),
+            TableDefinitions::translation(
+                self::tlTranslationTable(),
+                self::tlSourceTable(),
                 $charsetCollate
             )
         );
 
-        self::ensureOwnedHashIndexes();
-
-        // 3. Verify every FK exists in information_schema.
+        // 4. Verify every v4 FK exists in information_schema.
         $missing = (new ConstraintVerifier($wpdb))->findMissing([
-            'fk_post_parent'     => self::tlPostTable(),
-            'fk_post_lang'       => self::tlPostTable(),
-            'fk_postmeta_parent' => self::tlPostmetaTable(),
-            'fk_postmeta_lang'   => self::tlPostmetaTable(),
-            'fk_term_parent'     => self::tlTermsTable(),
-            'fk_term_lang'       => self::tlTermsTable(),
-            'fk_i18n_lang'       => self::tlI18nTable(),
-            'fk_html_lang'       => self::tlHtmlTable(),
+            'fk_src_post'  => self::tlSourceTable(),
+            'fk_src_tt'    => self::tlSourceTable(),
+            'fk_tr_source' => self::tlTranslationTable(),
         ]);
 
-        // 4. On any missing FK: drop translation tables in reverse dependency order, then fail.
+        // 5. On any missing FK: drop v4 tables in reverse dependency order, then fail.
         if ($missing !== []) {
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlHtmlTable());     // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlI18nTable());     // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlTermsTable());    // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostmetaTable()); // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlPostTable());     // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlLanguagesTable()); // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlTranslationTable()); // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::tlSourceTable());      // phpcs:ignore WordPress.DB
 
             throw SchemaFailure::missingForeignKeys($missing);
         }
 
-        // 5. Version is written only after verification passes.
+        // 6. Version is written only after verification passes.
         update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
     }
 
-    private static function ensureOwnedHashIndexes(): void
-    {
-        self::addIndexIfMissing(self::tlPostTable(), 'idx_original_hash', 'original_hash');
-        self::addIndexIfMissing(self::tlPostmetaTable(), 'idx_original_hash', 'original_hash');
-        self::addIndexIfMissing(self::tlTermsTable(), 'idx_original_hash', 'original_hash');
-    }
-
-    private static function addIndexIfMissing(string $table, string $index, string $column): void
+    /**
+     * Abort before creating tables if wp_posts or wp_term_taxonomy is not
+     * InnoDB — the FK chain that makes translation orphans impossible cannot be
+     * built otherwise (§10). Throws a specific, human-readable SchemaFailure.
+     */
+    private static function assertParentTablesAreInnoDB(): void
     {
         global $wpdb;
 
-        $exists = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                "SHOW INDEX FROM {$table} WHERE Key_name = %s",
-                $index
+        foreach ([$wpdb->posts, $wpdb->term_taxonomy] as $table) {
+            $engine = self::engineOf($table);
+
+            if ($engine !== null && strtoupper($engine) !== 'INNODB') {
+                throw SchemaFailure::parentNotInnoDB($table, $engine);
+            }
+        }
+    }
+
+    /** Storage engine of one table per information_schema, or null if unknown. */
+    private static function engineOf(string $table): ?string
+    {
+        global $wpdb;
+
+        $engine = $wpdb->get_var( // phpcs:ignore WordPress.DB
+            $wpdb->prepare(
+                "SELECT ENGINE FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                $table
             )
         );
 
-        if ($exists !== null) {
-            return;
-        }
-
-        $wpdb->query("ALTER TABLE {$table} ADD KEY {$index} ({$column})"); // phpcs:ignore WordPress.DB
+        return is_string($engine) ? $engine : null;
     }
 
     /**
      * Set behavior options on first activation only (add_option is a no-op if they exist).
      * Source language is NOT stored — it comes from get_locale().
-     * translangs_enabled_languages is kept for backward-compat seeding only.
      */
     public static function setDefaultOptions(): void
     {
@@ -163,39 +151,15 @@ class TranslationMemorySchema
 
     // ── Table name helpers ────────────────────────────────────────────────────
 
-    public static function tlLanguagesTable(): string
+    public static function tlSourceTable(): string
     {
         global $wpdb;
-        return $wpdb->prefix . 'tl_languages';
+        return $wpdb->prefix . 'tl_source';
     }
 
-    public static function tlPostTable(): string
+    public static function tlTranslationTable(): string
     {
         global $wpdb;
-        return $wpdb->prefix . 'tl_translations_post';
-    }
-
-    public static function tlPostmetaTable(): string
-    {
-        global $wpdb;
-        return $wpdb->prefix . 'tl_translations_postmeta';
-    }
-
-    public static function tlTermsTable(): string
-    {
-        global $wpdb;
-        return $wpdb->prefix . 'tl_translations_terms';
-    }
-
-    public static function tlI18nTable(): string
-    {
-        global $wpdb;
-        return $wpdb->prefix . 'tl_translations_i18n';
-    }
-
-    public static function tlHtmlTable(): string
-    {
-        global $wpdb;
-        return $wpdb->prefix . 'tl_translations_html';
+        return $wpdb->prefix . 'tl_translation';
     }
 }

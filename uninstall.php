@@ -14,12 +14,15 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 
 global $wpdb;
 
-// Drop translation tables in FK-safe order (child tables before the
-// languages table they reference, and before the WP tables they reference).
+// Drop tables in FK-safe order: children before the parents they reference.
+// The v4 tables come first; the legacy v3 split tables are dropped too so
+// deleting the plugin from a pre-v4 install still cleans up completely.
 $tables = [
+    // v4
+    $wpdb->prefix . 'tl_translation',
+    $wpdb->prefix . 'tl_source',
+    // legacy v3 (clean reset)
     $wpdb->prefix . 'tl_translations_html',
-    // Legacy table removed in DB v9; dropped here too so deleting the plugin
-    // from an un-upgraded install still cleans it up.
     $wpdb->prefix . 'tl_translations_i18n_meta',
     $wpdb->prefix . 'tl_translations_i18n',
     $wpdb->prefix . 'tl_translations_terms',
@@ -35,12 +38,16 @@ foreach ($tables as $table) {
 // Delete all plugin options.
 $options = [
     'translangs_db_version',
+    'translangs_languages',
+    'translangs_providers',
     'translangs_default_language',
     'translangs_enabled_languages',
     'translangs_prefix_default_language',
     'translangs_cookie_preference',
     'translangs_browser_detection',
     'translangs_auto_redirect',
+    'translangs_rewrite_rules_version',
+    'translangs_age_out_last_run',
 ];
 
 foreach ($options as $option) {

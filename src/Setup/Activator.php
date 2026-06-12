@@ -5,6 +5,7 @@ namespace TransLangs\Setup;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\WpDbLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
+use TransLangs\TranslationMemory\Infrastructure\Schema\SchemaFailure;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
 
 /**
@@ -19,7 +20,19 @@ class Activator
 {
     public static function run(): void
     {
-        TranslationMemorySchema::install();
+        // Abort activation with a specific, human-readable message rather than a
+        // white screen or raw SQL error when the DB prerequisites are not met
+        // (non-InnoDB parent tables, or FKs that could not be created — §10).
+        try {
+            TranslationMemorySchema::install();
+        } catch (SchemaFailure $failure) {
+            wp_die(
+                esc_html($failure->getMessage()),
+                esc_html__('TransLangs activation failed', 'translangs'),
+                ['back_link' => true]
+            );
+        }
+
         TranslationMemorySchema::setDefaultOptions();
 
         // Register the rewrite compilation filter now, then flush so language

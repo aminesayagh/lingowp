@@ -20,4 +20,17 @@ final class SchemaFailure extends RuntimeException
             "All TransLangs tables have been dropped. Ensure InnoDB is available and try activating again."
         );
     }
+
+    /**
+     * Thrown before any table is created when a required parent table is not
+     * InnoDB. MyISAM core tables still exist in the wild; the FK chain that
+     * makes translation orphans impossible cannot be built against them (§10).
+     */
+    public static function parentNotInnoDB(string $table, string $engine): self
+    {
+        return new self(
+            "Your {$table} table uses {$engine}; convert it to InnoDB to use this plugin. " .
+            "TransLangs relies on InnoDB foreign keys to keep translations consistent with your content."
+        );
+    }
 }
