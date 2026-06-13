@@ -8,16 +8,15 @@ use TransLangs\BackOffice\Infrastructure\TranslationMemoryPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\FocusHighlighter;
-use TransLangs\PublicSite\Infrastructure\GettextCaptureBuffer;
+use TransLangs\PublicSite\Infrastructure\GettextResolver;
 use TransLangs\PublicSite\Infrastructure\HreflangPresenter;
-use TransLangs\PublicSite\Infrastructure\HtmlRenderParserFactory;
-use TransLangs\PublicSite\Infrastructure\HtmlTextTools;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\PublicSite\Infrastructure\LanguageSwitcherShortcode;
 use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
 use TransLangs\PublicSite\Infrastructure\PublicLinkRewriter;
 use TransLangs\PublicSite\Infrastructure\PublicRenderPipeline;
 use TransLangs\PublicSite\Infrastructure\RequestContext;
+use TransLangs\PublicSite\Infrastructure\StructuredRenderResolver;
 use TransLangs\TranslationMemory\Application\ApplyTranslationToSameText;
 use TransLangs\TranslationMemory\Application\IgnoreTranslation;
 use TransLangs\TranslationMemory\Application\PutTranslationForReview;
@@ -25,7 +24,6 @@ use TransLangs\TranslationMemory\Application\QueryTranslations;
 use TransLangs\TranslationMemory\Application\ResetIgnoredTranslation;
 use TransLangs\TranslationMemory\Application\ReviewTranslation;
 use TransLangs\TranslationMemory\Application\SaveTranslation;
-use TransLangs\TranslationMemory\Infrastructure\CaptureBatchQueue;
 use TransLangs\TranslationMemory\Infrastructure\CaptureBatchWorker;
 use TransLangs\TranslationMemory\Infrastructure\OwnedStringIndex;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminTranslationsQuery;
@@ -35,6 +33,7 @@ use TransLangs\TranslationMemory\Infrastructure\Repositories\PostmetaTranslation
 use TransLangs\TranslationMemory\Infrastructure\Repositories\PostTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\TermsTranslationsRepository;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\WpDbSourceTranslationRepository;
+use TransLangs\TranslationMemory\Infrastructure\InitialDiscoveryScan;
 use TransLangs\TranslationMemory\Infrastructure\Schema\DatabaseHealthReport;
 use TransLangs\TranslationMemory\Infrastructure\SourceLifecycleRefresher;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
@@ -87,16 +86,21 @@ class Plugin
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         (new SourceLifecycleRefresher($structuredScanner))->register();
+        (new InitialDiscoveryScan($wpdb, $structuredScanner))->register();
         (new FocusHighlighter($translationMemory))->register();
 
+        // v4 structured render: resolve types 1-3 by location via identity hooks.
+        (new StructuredRenderResolver($languageResolver, $context, $sourceRepository))->register();
+
+        // v4 gettext (type 4): resolve + render-time discovery on the gettext filters.
+        (new GettextResolver($languageResolver, $context, $sourceRepository))->register();
+
+        // The output buffer now only rewrites links; structured text is handled
+        // by the resolver above. The type-5 HTML fallback + gettext rebuild here later.
         (new PublicRenderPipeline(
             $languageResolver,
             $context,
-            $translationMemory,
-            new HtmlRenderParserFactory(new HtmlTextTools()),
-            new PublicLinkRewriter($urlBuilder),
-            new GettextCaptureBuffer(),
-            new CaptureBatchQueue()
+            new PublicLinkRewriter($urlBuilder)
         ))->register();
 
         if (is_admin()) {

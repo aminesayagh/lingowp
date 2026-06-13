@@ -48,6 +48,7 @@ $options = [
     'translangs_auto_redirect',
     'translangs_rewrite_rules_version',
     'translangs_age_out_last_run',
+    'translangs_needs_initial_scan',
 ];
 
 foreach ($options as $option) {

@@ -38,16 +38,17 @@ final class TableDefinitions
     term_taxonomy_id bigint(20) unsigned NULL,
     ref1             varchar(191)        NOT NULL,
     ref2             text                NULL,
-    original_hash    binary(32)          NOT NULL,
+    current_hash     binary(32)          NOT NULL,             -- SHA-256 of current normalized text; MUTABLE; staleness detection, NOT identity (D26/D27)
     original_text    longtext            NOT NULL,
     status           tinyint unsigned    NOT NULL DEFAULT 0,
     source_url       text                NULL,
     created_at       datetime            NOT NULL,
+    updated_at       datetime            NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uniq_key (source_key),
     KEY idx_post (post_id),
     KEY idx_tt (term_taxonomy_id),
-    KEY idx_admin_queue (status),
+    KEY idx_admin_queue (status, updated_at),
     CONSTRAINT fk_src_post FOREIGN KEY (post_id)
         REFERENCES {$postsTable} (ID) ON DELETE CASCADE,
     CONSTRAINT fk_src_tt FOREIGN KEY (term_taxonomy_id)
@@ -71,6 +72,7 @@ final class TableDefinitions
     source_key      binary(32)       NOT NULL,
     lang_code       varchar(10)      NOT NULL,
     translated_text longtext         NOT NULL,
+    translated_against_hash binary(32) NOT NULL,              -- source current_hash AT translation time; frozen; compared to source.current_hash at render to detect staleness (D27)
     status          tinyint unsigned NOT NULL DEFAULT 1,
     provider        varchar(50)      NULL,
     created_at      datetime         NOT NULL,

@@ -3,19 +3,29 @@
 namespace TransLangs\TranslationMemory\Infrastructure;
 
 /**
- * Wires save-time structured discovery to WordPress lifecycle hooks (§5.5, D24).
+ * Wires save-time structured discovery to WordPress lifecycle hooks (data
+ * pipeline §2, Path A).
  *
- * Posts (types 1-2) refresh on wp_after_insert_post — it fires once after the
- * post, its meta AND its terms are persisted. Terms (type 3) refresh on
- * created_term / edited_term, which both hand us the term_taxonomy_id directly.
+ * - Posts (types 1-2): wp_after_insert_post (fires once after post, meta AND
+ *   terms are persisted; covers attachments).
+ * - Meta written outside a post save (importers, frontend forms, cron):
+ *   added_post_meta / updated_post_meta, single-key re-scan.
+ * - Terms (type 3): created_term / edited_term (both pass term_taxonomy_id).
+ *
+ * A re-entrancy guard ensures a discovery write can never trigger discovery
+ * again within the same request.
  */
 final class SourceLifecycleRefresher
 {
+    private static bool $discovering = false;
+
     public function __construct(private StructuredSourceScanner $scanner) {}
 
     public function register(): void
     {
         add_action('wp_after_insert_post', [$this, 'refreshPost'], 10, 4);
+        add_action('added_post_meta', [$this, 'refreshMeta'], 10, 4);
+        add_action('updated_post_meta', [$this, 'refreshMeta'], 10, 4);
         add_action('created_term', [$this, 'refreshTerm'], 10, 3);
         add_action('edited_term', [$this, 'refreshTerm'], 10, 3);
     }
@@ -37,18 +47,31 @@ final class SourceLifecycleRefresher
             $postId = $revisionParent;
         }
 
-        $this->scanner->refreshPost($postId);
+        $this->guard(fn() => $this->scanner->refreshPost($postId));
     }
 
     /**
-     * created_term / edited_term both pass ($term_id, $tt_id, $taxonomy). We key
-     * type-3 sources by term_taxonomy_id, so $tt_id is used directly; name and
-     * description are read from the freshly saved term.
+     * added_post_meta / updated_post_meta pass ($meta_id, $object_id, $meta_key,
+     * $meta_value). The scanner decides whether the key is discoverable.
+     */
+    public function refreshMeta(int $metaId, int $objectId, string $metaKey, mixed $metaValue): void
+    {
+        unset($metaId, $metaValue);
+
+        if ($objectId <= 0 || $metaKey === '') {
+            return;
+        }
+
+        $this->guard(fn() => $this->scanner->refreshPostMetaKey($objectId, $metaKey));
+    }
+
+    /**
+     * created_term / edited_term pass ($term_id, $tt_id, $taxonomy). We key
+     * type-3 sources by term_taxonomy_id; name/description are read from the
+     * freshly saved term.
      */
     public function refreshTerm(int $termId, int $termTaxonomyId, string $taxonomy = ''): void
     {
-        unset($taxonomy);
-
         if ($termTaxonomyId <= 0 || !function_exists('get_term')) {
             return;
         }
@@ -58,10 +81,26 @@ final class SourceLifecycleRefresher
             return;
         }
 
-        $this->scanner->refreshTerm(
+        $this->guard(fn() => $this->scanner->refreshTerm(
             $termTaxonomyId,
+            $taxonomy !== '' ? $taxonomy : (string) $term->taxonomy,
             (string) $term->name,
             (string) $term->description
-        );
+        ));
+    }
+
+    /** Run discovery work once, never re-entering it within the same request. */
+    private function guard(callable $work): void
+    {
+        if (self::$discovering) {
+            return;
+        }
+
+        self::$discovering = true;
+        try {
+            $work();
+        } finally {
+            self::$discovering = false;
+        }
     }
 }

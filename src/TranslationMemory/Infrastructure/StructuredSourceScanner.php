@@ -3,26 +3,35 @@
 namespace TransLangs\TranslationMemory\Infrastructure;
 
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\TranslationMemory\Domain\SourceCandidate;
+use TransLangs\TranslationMemory\Domain\PostMetaSource;
+use TransLangs\TranslationMemory\Domain\PostMetaValuePaths;
+use TransLangs\TranslationMemory\Domain\PostSource;
+use TransLangs\TranslationMemory\Domain\SourceRecord;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
+use TransLangs\TranslationMemory\Domain\TermSource;
 use TransLangs\TranslationMemory\Domain\TL_Key;
+use TransLangs\TranslationMemory\Domain\TranslatableMetaKeys;
 
 /**
- * Save-time structured discovery for owned WordPress content (architecture §5.5).
+ * Save-time structured discovery for owned WordPress content (data pipeline §1-2,
+ * Path A). Builds typed source records (PostSource / PostMetaSource / TermSource)
+ * and hands them to the single repository writer.
  *
  * Discovery is language-independent: each translatable string becomes exactly
- * one wp_tl_source row, regardless of how many target languages exist. Type-1
- * post fields are keyed by their WHOLE value (post_title / post_content /
- * post_excerpt), matching the render hooks that resolve them — no segmentation.
- *
- * On save, the object's current source set is upserted and any of its rows whose
- * key no longer exists are deleted (the FK cascade clears their translations,
- * UC-I2).
+ * one wp_tl_source row, keyed by LOCATION (D26). Type-1 post fields are keyed by
+ * their WHOLE value, matching the render hooks. On save, the entity's current
+ * strings are upserted — an edit updates original_text + current_hash in place
+ * (same key, translations preserved, D27) — and only rows whose LOCATION no
+ * longer exists (field/meta key removed, repeater item deleted) are pruned
+ * (FK cascade clears their translations). Entity deletion is handled by the FKs.
  */
 final class StructuredSourceScanner
 {
     /** Type-1 post fields, each keyed by its whole value (matches the render hooks). */
     private const POST_FIELDS = ['post_title', 'post_content', 'post_excerpt'];
+
+    /** Post statuses eligible for discovery (publish, plus inherit for attachments). */
+    private const SCANNABLE_STATUSES = ['publish', 'inherit'];
 
     private int $skipped = 0;
 
@@ -33,36 +42,30 @@ final class StructuredSourceScanner
 
     /**
      * Bulk (re)discovery, triggered from the admin. Upserts every structured
-     * source string across posts and terms. Language-independent: no inserts are
-     * multiplied by language count.
+     * source string across posts and terms. Language-independent.
      */
     public function scan(): StructuredSourceScanResult
     {
         $this->skipped = 0;
 
-        $candidates = [];
+        $records = [];
 
         foreach ($this->scannablePostTypes() as $postType => $statuses) {
             foreach ($this->postsOfType($postType, $statuses) as $post) {
-                array_push($candidates, ...$this->candidatesForPost($post));
+                array_push($records, ...$this->candidatesForPost($post));
             }
         }
 
         foreach ($this->allTerms() as [$termTaxonomyId, $name, $description]) {
-            array_push($candidates, ...$this->candidatesForTerm($termTaxonomyId, $name, $description));
+            array_push($records, ...$this->candidatesForTerm($termTaxonomyId, $name, $description));
         }
 
-        $candidates = $this->dedupeByKey($candidates);
+        $records = $this->dedupeByKey($records);
 
-        $sourceByRoute   = [
-            'post'     => 0,
-            'postmeta' => 0,
-            'terms'    => 0,
-            'i18n'     => 0,
-        ];
+        $sourceByRoute   = ['post' => 0, 'postmeta' => 0, 'terms' => 0, 'i18n' => 0];
         $insertedByRoute = $sourceByRoute;
 
-        foreach ($this->groupByRoute($candidates) as $route => $group) {
+        foreach ($this->groupByRoute($records) as $route => $group) {
             $sourceByRoute[$route]   = count($group);
             $insertedByRoute[$route] = $this->repository->upsertSources($group);
         }
@@ -77,111 +80,159 @@ final class StructuredSourceScanner
 
     /**
      * Save-time discovery for one post (types 1 + 2). Upserts current strings
-     * and deletes the post's stale source rows.
+     * (edits update in place) and prunes locations that no longer exist.
      */
     public function refreshPost(int $postId): void
     {
         $post = function_exists('get_post') ? get_post($postId) : null;
-        if (!$post instanceof \WP_Post || !$this->shouldScanPost($post)) {
+        if (!$post instanceof \WP_Post || !$this->shouldScanPost($post) || !$this->isScannableStatus($post)) {
             return;
         }
 
-        $candidates = $this->dedupeByKey($this->candidatesForPost($post));
+        $records = $this->dedupeByKey($this->candidatesForPost($post));
 
-        $this->repository->upsertSources($candidates);
-        $this->repository->deleteStaleSourcesForPost($post->ID, $this->keysOf($candidates));
+        $this->repository->upsertSources($records);
+        $this->repository->deleteStaleSourcesForPost($post->ID, $this->keysOf($records));
     }
 
     /**
-     * Save-time discovery for one taxonomy term (type 3). Upserts name and
-     * description and deletes the term's stale source rows.
+     * Single-key discovery for meta written outside a post save (importers,
+     * frontend forms, cron). Upserts this meta key's current paths and prunes
+     * paths that disappeared.
      */
-    public function refreshTerm(int $termTaxonomyId, string $name, string $description): void
+    public function refreshPostMetaKey(int $postId, string $metaKey): void
     {
-        if ($termTaxonomyId <= 0) {
+        $post = function_exists('get_post') ? get_post($postId) : null;
+        if (!$post instanceof \WP_Post || !$this->shouldScanPost($post) || !$this->isScannableStatus($post)) {
+            return;
+        }
+        if (!$this->isDiscoverableMetaKey($post, $metaKey) || !function_exists('get_post_meta')) {
             return;
         }
 
-        $candidates = $this->dedupeByKey($this->candidatesForTerm($termTaxonomyId, $name, $description));
+        $value   = get_post_meta($postId, $metaKey, true);
+        $records = $this->dedupeByKey($this->metaCandidates($postId, $metaKey, $value));
 
-        $this->repository->upsertSources($candidates);
-        $this->repository->deleteStaleSourcesForTerm($termTaxonomyId, $this->keysOf($candidates));
+        $this->repository->upsertSources($records);
+        $this->repository->deleteStaleSourcesForPostMetaKey($postId, $metaKey, $this->keysOf($records));
     }
 
     /**
-     * @return SourceCandidate[]
+     * Save-time discovery for one taxonomy term (type 3). Skips non-translatable
+     * taxonomies.
+     */
+    public function refreshTerm(int $termTaxonomyId, string $taxonomy, string $name, string $description): void
+    {
+        if ($termTaxonomyId <= 0 || !$this->isTranslatableTaxonomy($taxonomy)) {
+            return;
+        }
+
+        $records = $this->dedupeByKey($this->candidatesForTerm($termTaxonomyId, $name, $description));
+
+        $this->repository->upsertSources($records);
+        $this->repository->deleteStaleSourcesForTerm($termTaxonomyId, $this->keysOf($records));
+    }
+
+    /**
+     * @return SourceRecord[]
      */
     private function candidatesForPost(\WP_Post $post): array
     {
-        $candidates = [];
+        $records = [];
 
         foreach (self::POST_FIELDS as $field) {
-            $this->addCandidate($candidates, TL_Key::TYPE_POST, $post->ID, $field, null, (string) $post->{$field});
-        }
-
-        $metaKeys = $post->post_type === 'attachment'
-            ? ['_wp_attachment_image_alt']
-            : $this->translatableMetaKeys();
-
-        foreach (array_unique($metaKeys) as $metaKey) {
-            if ($this->isSlugKey($metaKey) || !function_exists('get_post_meta')) {
+            $text = (string) $post->{$field};
+            if (TL_Key::normalize($text) === '') {
+                ++$this->skipped;
                 continue;
             }
-
-            $value = get_post_meta($post->ID, $metaKey, true);
-            if (!is_scalar($value)) {
-                continue;
-            }
-
-            // Scalar postmeta only in v1; ref2 (serialized/repeater context) is deferred.
-            $this->addCandidate($candidates, TL_Key::TYPE_POSTMETA, $post->ID, $metaKey, null, (string) $value);
+            $records[] = new PostSource($post->ID, $field, $text);
         }
 
-        return $candidates;
+        if (function_exists('get_post_meta')) {
+            foreach ($this->metaKeysForPost($post) as $metaKey) {
+                $value = get_post_meta($post->ID, $metaKey, true);
+                array_push($records, ...$this->metaCandidates($post->ID, $metaKey, $value));
+            }
+        }
+
+        return $records;
     }
 
     /**
-     * @return SourceCandidate[]
+     * @return SourceRecord[]
+     */
+    private function metaCandidates(int $postId, string $metaKey, mixed $value): array
+    {
+        $records = [];
+
+        foreach (PostMetaValuePaths::extract($value) as $leaf) {
+            $records[] = new PostMetaSource($postId, $metaKey, $leaf['context'], $leaf['text']);
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return SourceRecord[]
      */
     private function candidatesForTerm(int $termTaxonomyId, string $name, string $description): array
     {
-        $candidates = [];
+        $records = [];
 
-        $this->addCandidate($candidates, TL_Key::TYPE_TERMS, $termTaxonomyId, 'name', null, $name);
-        $this->addCandidate($candidates, TL_Key::TYPE_TERMS, $termTaxonomyId, 'description', null, $description);
-
-        return $candidates;
-    }
-
-    /**
-     * Push a candidate unless its normalized text is empty or the ref is slug-like.
-     *
-     * @param SourceCandidate[] $candidates
-     */
-    private function addCandidate(
-        array &$candidates,
-        int $type,
-        int $ownerId,
-        string $ref1,
-        ?string $ref2,
-        string $text
-    ): void {
-        if ($this->isSlugKey($ref1)) {
-            return;
+        foreach (['name' => $name, 'description' => $description] as $field => $text) {
+            if (TL_Key::normalize($text) === '') {
+                ++$this->skipped;
+                continue;
+            }
+            $records[] = new TermSource($termTaxonomyId, $field, $text);
         }
 
-        if (TL_Key::normalize($text) === '') {
-            ++$this->skipped;
-            return;
-        }
-
-        $candidates[] = new SourceCandidate($type, $ownerId, $ref1, $ref2, $text);
+        return $records;
     }
 
     private function shouldScanPost(\WP_Post $post): bool
     {
         return array_key_exists($post->post_type, $this->scannablePostTypes())
             || in_array($post->post_type, $this->publicCustomPostTypes(), true);
+    }
+
+    private function isScannableStatus(\WP_Post $post): bool
+    {
+        return in_array($post->post_status, self::SCANNABLE_STATUSES, true);
+    }
+
+    /** Attachments expose only ALT text; other post types use the meta allow-list. */
+    private function isDiscoverableMetaKey(\WP_Post $post, string $metaKey): bool
+    {
+        if ($this->isSlugKey($metaKey)) {
+            return false;
+        }
+        if ($post->post_type === 'attachment') {
+            return $metaKey === '_wp_attachment_image_alt';
+        }
+
+        return in_array($metaKey, $this->translatableMetaKeys(), true);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function metaKeysForPost(\WP_Post $post): array
+    {
+        $keys = $post->post_type === 'attachment'
+            ? ['_wp_attachment_image_alt']
+            : $this->translatableMetaKeys();
+
+        return array_values(array_filter(
+            array_unique($keys),
+            fn(string $key): bool => !$this->isSlugKey($key)
+        ));
+    }
+
+    private function isTranslatableTaxonomy(string $taxonomy): bool
+    {
+        return in_array($taxonomy, $this->translatableTaxonomies(), true);
     }
 
     /**
@@ -241,13 +292,13 @@ final class StructuredSourceScanner
      */
     private function allTerms(): array
     {
-        if (!function_exists('get_taxonomies') || !function_exists('get_terms')) {
+        if (!function_exists('get_terms')) {
             return [];
         }
 
         $rows = [];
 
-        foreach (get_taxonomies(['public' => true], 'names') as $taxonomy) {
+        foreach ($this->translatableTaxonomies() as $taxonomy) {
             $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => false]);
             if (!is_array($terms)) {
                 continue;
@@ -295,60 +346,65 @@ final class StructuredSourceScanner
     }
 
     /**
+     * Translatable taxonomies — all public by default; the filter only restricts.
+     *
+     * @return string[]
+     */
+    private function translatableTaxonomies(): array
+    {
+        $all = function_exists('get_taxonomies')
+            ? array_values(get_taxonomies(['public' => true], 'names'))
+            : [];
+
+        $list = function_exists('apply_filters')
+            ? apply_filters('translangs_translatable_taxonomies', $all)
+            : $all;
+
+        return array_values(array_filter(
+            array_map('strval', is_array($list) ? $list : $all),
+            static fn(string $taxonomy): bool => $taxonomy !== ''
+        ));
+    }
+
+    /**
      * @return string[]
      */
     private function translatableMetaKeys(): array
     {
-        $default = [
-            '_yoast_wpseo_title',
-            '_yoast_wpseo_metadesc',
-            '_wc_product_short_description',
-        ];
-
-        $keys = function_exists('apply_filters')
-            ? apply_filters('translangs_translatable_meta_keys', $default)
-            : $default;
-
-        return array_values(array_filter(
-            array_map('strval', is_array($keys) ? $keys : $default),
-            fn(string $key): bool => $key !== '' && !$this->isSlugKey($key)
-        ));
+        return TranslatableMetaKeys::keys();
     }
 
     private function isSlugKey(string $key): bool
     {
-        $key = strtolower(trim($key));
-
-        return in_array($key, ['slug', '_slug', 'post_name', '_wp_old_slug'], true)
-            || str_ends_with($key, '_slug');
+        return TranslatableMetaKeys::isSlugKey($key);
     }
 
     /**
-     * @param SourceCandidate[] $candidates
-     * @return SourceCandidate[]
+     * @param SourceRecord[] $records
+     * @return SourceRecord[]
      */
-    private function dedupeByKey(array $candidates): array
+    private function dedupeByKey(array $records): array
     {
         $seen   = [];
         $unique = [];
 
-        foreach ($candidates as $candidate) {
-            $hex = bin2hex($candidate->key());
+        foreach ($records as $record) {
+            $hex = bin2hex($record->key());
             if (isset($seen[$hex])) {
                 continue;
             }
             $seen[$hex] = true;
-            $unique[]   = $candidate;
+            $unique[]   = $record;
         }
 
         return $unique;
     }
 
     /**
-     * @param SourceCandidate[] $candidates
-     * @return array<string, SourceCandidate[]> route slug => candidates
+     * @param SourceRecord[] $records
+     * @return array<string, SourceRecord[]> route slug => records
      */
-    private function groupByRoute(array $candidates): array
+    private function groupByRoute(array $records): array
     {
         $route  = [
             TL_Key::TYPE_POST     => 'post',
@@ -357,20 +413,20 @@ final class StructuredSourceScanner
         ];
         $groups = [];
 
-        foreach ($candidates as $candidate) {
-            $slug              = $route[$candidate->type] ?? 'post';
-            $groups[$slug][]   = $candidate;
+        foreach ($records as $record) {
+            $slug            = $route[$record->type()] ?? 'post';
+            $groups[$slug][] = $record;
         }
 
         return $groups;
     }
 
     /**
-     * @param SourceCandidate[] $candidates
-     * @return string[] Raw 32-byte keys.
+     * @param SourceRecord[] $records
+     * @return string[] Raw 32-byte locational keys.
      */
-    private function keysOf(array $candidates): array
+    private function keysOf(array $records): array
     {
-        return array_map(static fn(SourceCandidate $c): string => $c->key(), $candidates);
+        return array_map(static fn(SourceRecord $r): string => $r->key(), $records);
     }
 }

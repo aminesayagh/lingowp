@@ -7,21 +7,24 @@ use InvalidArgumentException;
 /**
  * The single chokepoint for source_key generation (database architecture §1).
  *
- * Every translatable string in the plugin is identified by a fixed-width
- * 32-byte binary key, big-endian throughout:
+ * Every translatable string is identified by a fixed-width 32-byte binary key,
+ * big-endian throughout. Identity is LOCATIONAL, not textual (D26): the key
+ * encodes WHERE a string lives, never the string itself — so editing the text
+ * keeps the same key and the translation stays attached. The only exception is
+ * plain gettext (type 4), which has no location and falls back to text identity.
  *
- *     source_key = [ type : 1 ][ owner_id : 8 ][ H(ref1|ref2) : 8 ][ text_hash : 15 ]
+ *     source_key = [ type : 1 ][ owner_id : 8 ][ H(ref1|ref2) : 8 ][ tail : 15 ]
  *
- * | Segment    | Bytes | Content                                                        |
- * |------------|-------|----------------------------------------------------------------|
- * | type       | 1     | 1=post · 2=postmeta · 3=terms · 4=i18n (gettext) · 5=html       |
- * | owner_id   | 8     | pack('J', post_id) for 1-2; pack('J', tt_id) for 3; zeros 4-5  |
- * | H(ref1|ref2)| 8    | first 8 bytes of SHA-256 of ref1 . '|' . (ref2 ?? '')          |
- * | text_hash  | 15    | first 15 bytes of original_hash                                |
+ * | Segment     | Bytes | Content                                                         |
+ * |-------------|-------|-----------------------------------------------------------------|
+ * | type        | 1     | 1=post · 2=postmeta · 3=terms · 4=i18n (gettext) · 5=html        |
+ * | owner_id    | 8     | pack('J', post_id) for 1-2; pack('J', tt_id) for 3; zeros 4-5   |
+ * | H(ref1|ref2)| 8     | first 8 bytes of SHA-256 of ref1 . '|' . (ref2 ?? '')           |
+ * | tail        | 15    | types 1,2,3,5: 15 ZERO bytes (location is the identity). type 4 |
+ * |             |       | ONLY: first 15 bytes of the text hash (gettext has no location) |
  *
- * This is the ONLY place keys are constructed. No inline key building anywhere
- * else, ever (§1 contract rule 1). The byte layout is a versioned contract:
- * any change requires a full key-rebuild migration (§1 rule 2).
+ * This is the ONLY place keys are constructed (§1 contract rule 1). The byte
+ * layout is a versioned contract: any change requires a key-rebuild migration.
  */
 final class TL_Key
 {
@@ -39,35 +42,39 @@ final class TL_Key
     /**
      * Build the 32-byte binary source_key for one source string.
      *
-     * Normalization and hashing of $originalText happen here so callers never
-     * hash inline — the chokepoint owns the whole §1 recipe.
+     * The key is locational: for types 1,2,3,5 the text is irrelevant (zero
+     * tail), so editing a string keeps the same key. Only type 4 (gettext) hashes
+     * the text into the tail, since it has no location.
      *
-     * @param int         $type         one of the TYPE_* constants
-     * @param int|null    $ownerId      post_id (types 1-2), term_taxonomy_id (type 3); null for 4-5
-     * @param string      $ref1         NOT NULL per type: field / meta_key / domain / selector
-     * @param string|null $ref2         nullable: meta context / gettext context / reference
-     * @param string      $originalText raw source text; normalized + hashed internally
+     * @param int         $type    one of the TYPE_* constants
+     * @param int|null    $ownerId post_id (types 1-2), term_taxonomy_id (type 3); null for 4-5
+     * @param string      $ref1    NOT NULL per type: field / meta_key / domain / selector
+     * @param string|null $ref2    nullable: meta context / gettext context / reference
+     * @param string      $text    raw source text; consumed ONLY for the type-4 tail
      *
      * @throws InvalidArgumentException when the (type, owner, ref1) shape is illegal.
      */
-    public static function make(int $type, ?int $ownerId, string $ref1, ?string $ref2, string $originalText): string
+    public static function make(int $type, ?int $ownerId, string $ref1, ?string $ref2, string $text): string
     {
         self::assertShape($type, $ownerId, $ref1);
 
         $ownerBytes = self::packOwner($type, $ownerId);
         $refBytes   = substr(hash('sha256', $ref1 . '|' . ($ref2 ?? ''), true), 0, 8);
-        $textBytes  = substr(self::originalHash($originalText), 0, 15);
+        $tailBytes  = $type === self::TYPE_I18N
+            ? substr(self::currentHash($text), 0, 15)
+            : str_repeat("\0", 15);
 
-        return chr($type) . $ownerBytes . $refBytes . $textBytes;
+        return chr($type) . $ownerBytes . $refBytes . $tailBytes;
     }
 
     /**
-     * Full 32-byte SHA-256 of the normalized original text.
-     * Stored verbatim in wp_tl_source.original_hash; its first 15 bytes feed make().
+     * Full 32-byte SHA-256 of the normalized current text. Stored verbatim in
+     * wp_tl_source.current_hash (staleness detection, NOT identity); its first
+     * 15 bytes also feed the type-4 key tail.
      */
-    public static function originalHash(string $originalText): string
+    public static function currentHash(string $text): string
     {
-        return hash('sha256', self::normalize($originalText), true);
+        return hash('sha256', self::normalize($text), true);
     }
 
     /**

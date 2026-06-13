@@ -5,6 +5,7 @@ namespace TransLangs\Setup;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
+use TransLangs\TranslationMemory\Infrastructure\InitialDiscoveryScan;
 use TransLangs\TranslationMemory\Infrastructure\Schema\SchemaFailure;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
 
@@ -38,6 +39,10 @@ class Activator
         // Carry any previously configured languages over to the v4 code lists.
         $registry = new OptionLanguageRegistry();
         $registry->seedFromLegacyOption();
+
+        // Request a one-time initial discovery scan; the batched Action Scheduler
+        // job is enqueued on the next init, once the AS store is ready.
+        update_option(InitialDiscoveryScan::OPTION_FLAG, 1);
 
         // Register the rewrite compilation filter now, then flush so language
         // rule copies are included immediately. The normal plugin boot may not
