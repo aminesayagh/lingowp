@@ -3,15 +3,17 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
 
 /**
- * Frontend output buffer — link rewriting only (v4).
+ * Frontend output buffer (v4). Structured text (types 1–4) is already translated
+ * by the hooks before the buffer closes; here we run the type-5 REPLACE pass over
+ * the final HTML and rewrite links to their localized URLs.
  *
- * Structured translation now happens via identity hooks (StructuredRenderResolver),
- * so this no longer parses the HTML for text replacement. The buffer is retained
- * to rewrite links to their localized URLs on translated pages; the type-5 HTML
- * fallback (and its gettext companion) will be rebuilt on this buffer in a later
- * step.
+ * The DOM parse is the one heavy step, so it is gated: when the language has no
+ * type-5 translations at all, the per-language map is empty and the parse is
+ * skipped entirely (parsing spec §3 step 5 / P8). Type-5 discovery is marking-mode
+ * only and is not done here.
  */
 final class PublicRenderPipeline
 {
@@ -20,7 +22,9 @@ final class PublicRenderPipeline
     public function __construct(
         private ResolveRequestLanguage $languageResolver,
         private RequestContext $requestContext,
-        private PublicLinkRewriter $linkRewriter
+        private PublicLinkRewriter $linkRewriter,
+        private SourceTranslationRepository $repository,
+        private HtmlRenderer $htmlRenderer
     ) {}
 
     public function register(): void
@@ -53,7 +57,38 @@ final class PublicRenderPipeline
             return $html;
         }
 
+        $map = $this->htmlTranslations($this->targetLang);
+        if ($map !== []) {
+            $html = $this->htmlRenderer->render($html, $map);
+        }
+
         return $this->linkRewriter->rewrite($html, $this->targetLang);
+    }
+
+    /**
+     * Per-language type-5 map, object-cached. Empty array is a valid cached value
+     * (means "skip the parse"); a cache miss returns false and triggers a fetch.
+     *
+     * @return array<string, string>
+     */
+    private function htmlTranslations(string $lang): array
+    {
+        $cacheKey = 'tl:html:' . $lang;
+
+        if (function_exists('wp_cache_get')) {
+            $cached = wp_cache_get($cacheKey, 'translangs');
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+
+        $map = $this->repository->fetchHtmlTranslations($lang);
+
+        if (function_exists('wp_cache_set')) {
+            wp_cache_set($cacheKey, $map, 'translangs', 300);
+        }
+
+        return $map;
     }
 
     private function isHtmlResponse(): bool

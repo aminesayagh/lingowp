@@ -1,0 +1,13 @@
+{
+  "name": "translangs-admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TransLangs admin board (React, @wordpress/scripts).",
+  "scripts": {
+    "build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build",
+    "start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^30.0.0"
+  }
+}

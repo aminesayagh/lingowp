@@ -1,0 +1,90 @@
+.tl-shell { background: #fff; border: 1px solid #dcdcde; border-radius: 6px; overflow: hidden; }
+.tl-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #dcdcde; }
+.tl-brand { font-size: 15px; }
+.tl-header-right { display: flex; align-items: center; gap: 12px; }
+.tl-lang select { margin-left: 4px; }
+
+.tl-body { display: flex; min-height: 60vh; }
+.tl-sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid #dcdcde; padding: 12px 0; background: #f6f7f7; }
+.tl-nav-group { padding: 8px 16px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #787c82; }
+.tl-nav-item { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 7px 16px; cursor: pointer; color: #2c3338; }
+.tl-nav-item:hover:not([disabled]) { background: #ebebeb; }
+.tl-nav-item.is-active { background: #2271b1; color: #fff; }
+.tl-nav-item[disabled] { color: #a7aaad; cursor: default; }
+
+.tl-main { flex: 1; min-width: 0; padding: 16px 20px; }
+.tl-list-head { display: flex; align-items: center; justify-content: space-between; }
+.tl-filters { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.tl-filters input { min-width: 180px; }
+
+.tl-tabs { display: flex; gap: 4px; border-bottom: 1px solid #dcdcde; margin-bottom: 8px; }
+.tl-tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; cursor: pointer; }
+.tl-tab.is-active { border-bottom-color: #2271b1; font-weight: 600; }
+
+.tl-progress { display: flex; align-items: center; gap: 10px; color: #50575e; margin-bottom: 12px; }
+.tl-progress-bar { position: relative; flex: 0 0 160px; height: 8px; border-radius: 4px; background: #e2e4e7; overflow: hidden; }
+.tl-progress-bar::before { content: ''; position: absolute; inset: 0; width: calc( var( --tl-pct, 0 ) * 1% ); background: #2271b1; }
+
+/* Cards = one owner (page/product/term); each row is an inline paired editor. */
+.tl-card { border: 1px solid #dcdcde; border-radius: 6px; margin-bottom: 12px; }
+.tl-card-title { padding: 8px 12px; border-bottom: 1px solid #f0f0f1; font-weight: 600; }
+.tl-kind { color: #787c82; font-weight: 400; }
+
+.tl-pair { padding: 10px 12px; border-bottom: 1px solid #f6f7f7; }
+.tl-pair:last-child { border-bottom: 0; }
+.tl-field { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #787c82; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-pair-cols { display: flex; gap: 16px; align-items: stretch; }
+.tl-col { flex: 1 1 50%; min-width: 0; }
+.tl-col-original { padding: 6px 8px; background: #f6f7f7; border: 1px solid #f0f0f1; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-col-translation .tl-textarea { width: 100%; min-height: 38px; }
+.tl-pair-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; justify-content: flex-end; }
+.tl-row-error { margin: 6px 0 0; }
+
+.tl-state { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #f0f0f1; color: #50575e; white-space: nowrap; }
+.tl-state-new { background: #fcf0e6; color: #8a4b00; }
+.tl-state-flagged, .tl-state-changed { background: #fcf9e8; color: #674e00; }
+.tl-state-done { background: #edfaef; color: #00622e; }
+
+.tl-pager { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+
+/* Per-row [⋯] menu */
+.tl-menu { position: relative; display: inline-block; }
+.tl-menu-toggle { padding: 0 8px; }
+.tl-menu-overlay { position: fixed; inset: 0; z-index: 90; }
+.tl-menu-list { position: absolute; right: 0; top: 100%; z-index: 91; margin-top: 2px; background: #fff; border: 1px solid #dcdcde; border-radius: 4px; box-shadow: 0 4px 16px rgba(0,0,0,.15); min-width: 190px; padding: 4px 0; }
+.tl-menu-list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 7px 14px; cursor: pointer; color: #2c3338; }
+.tl-menu-list button:hover { background: #f0f0f1; }
+.tl-menu-danger { color: #b32d2e; }
+
+/* Shared input + placeholder chips (used in rows and modals) */
+.tl-label { display: block; margin: 14px 0 4px; font-weight: 600; }
+.tl-original { border: 1px solid #dcdcde; border-radius: 4px; padding: 10px; background: #f6f7f7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-textarea { width: 100%; overflow: hidden; resize: none; }
+.tl-chip { display: inline-block; background: #2271b1; color: #fff; border-radius: 3px; padding: 0 4px; margin: 0 1px; font-size: 11px; font-family: monospace; }
+
+/* All-languages modal table */
+.tl-lang-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.tl-lang-table th { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; width: 140px; font-weight: 600; }
+.tl-lang-table td { padding: 6px 0; }
+.tl-lang-code { display: block; font-size: 11px; font-weight: 400; color: #787c82; }
+
+/* Modals */
+.tl-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100000; }
+.tl-modal { background: #fff; border-radius: 6px; width: 560px; max-width: 92vw; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 6px 30px rgba(0,0,0,.3); }
+.tl-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #dcdcde; }
+.tl-modal-head h2 { margin: 0; font-size: 15px; }
+.tl-modal-close { background: none; border: 0; font-size: 22px; line-height: 1; cursor: pointer; color: #50575e; }
+.tl-modal-body { padding: 12px 16px; overflow: auto; }
+.tl-modal-intro { margin: 8px 0 0; color: #50575e; }
+.tl-modal-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid #dcdcde; }
+
+.tl-dup-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.tl-dup-list li { padding: 4px 0; border-bottom: 1px solid #f6f7f7; }
+.tl-dup-list label { display: flex; align-items: baseline; gap: 8px; }
+.tl-dup-field { font-weight: 600; }
+.tl-dup-existing { color: #787c82; font-size: 12px; font-style: italic; }
+.tl-overwrite { display: flex; align-items: center; gap: 6px; }
+
+.tl-loading, .tl-empty { padding: 24px; color: #50575e; text-align: center; }
+.tl-error { background: #fcf0f1; border: 1px solid #f0c0c4; color: #8a1f24; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
+.tl-notice { background: #edfaef; border: 1px solid #b8e6c2; color: #00622e; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }

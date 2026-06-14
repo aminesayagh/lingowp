@@ -103,6 +103,10 @@ final class StructuredRenderResolver
     }
 
     /**
+     * Post content is one whole-field type-1 source. The resolved output is
+     * wrapped in a data-tl-region marker so the type-5 parser skips the whole
+     * post body (it is already handled here), per the parsing spec §4/P5.
+     *
      * @param mixed $content
      * @return mixed
      */
@@ -116,7 +120,9 @@ final class StructuredRenderResolver
             return $content;
         }
 
-        return $this->translate(TL_Key::TYPE_POST, $id, 'post_content', (string) $content);
+        $out = $this->translate(TL_Key::TYPE_POST, $id, 'post_content', (string) $content);
+
+        return '<div data-tl-region="content">' . $out . '</div>';
     }
 
     /**

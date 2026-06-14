@@ -41,6 +41,49 @@ interface SourceTranslationRepository
     public function fetchTranslations(array $rawKeys, string $langCode): array;
 
     /**
+     * All produced type-5 (HTML) translations for one language — a join-free
+     * prefix range scan on the clustered PK (all type-5 keys start with byte 5).
+     * Used to build the render-time type-5 map (empty ⇒ skip the DOM parse).
+     *
+     * @return array<string, string> hex(source_key) => translated_text
+     */
+    public function fetchHtmlTranslations(string $langCode): array;
+
+    // ── Path D: translation writes (admin) ────────────────────────────────────
+
+    /**
+     * Create or update one (source, language) translation. translated_against_hash
+     * is stamped server-side from the source's current_hash — never from the
+     * caller. No-op if the source does not exist.
+     */
+    public function saveTranslation(string $rawKey, string $langCode, string $text, int $status, ?string $provider): void;
+
+    /** Remove one (source, language) translation — the string returns to untranslated. */
+    public function deleteTranslation(string $rawKey, string $langCode): void;
+
+    /**
+     * Save the same translation into every given source key (apply-everywhere).
+     * With $overwrite = false, keys that already have a translation are skipped.
+     *
+     * @param string[] $rawKeys
+     * @return int Keys written.
+     */
+    public function applyTranslationToKeys(array $rawKeys, string $langCode, string $text, int $status, bool $overwrite): int;
+
+    /** Mark a source ignored (status 3) and delete all its translations, atomically (D1). */
+    public function ignoreSource(string $rawKey): void;
+
+    /**
+     * Return ignored sources to discovered (status 0); translations rebuild on demand.
+     *
+     * @param string[] $rawKeys
+     */
+    public function restoreSources(array $rawKeys): void;
+
+    /** updated_at of one (source, language) translation, for the concurrent-edit guard. */
+    public function translationUpdatedAt(string $rawKey, string $langCode): ?string;
+
+    /**
      * Delete this post's source rows (types 1 AND 2 — both ride post_id) whose
      * locational key is not in $currentKeys. FK cascade clears their
      * translations. Empty $currentKeys deletes all of the post's sources.

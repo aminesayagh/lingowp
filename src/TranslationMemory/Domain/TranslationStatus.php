@@ -2,25 +2,22 @@
 
 namespace TransLangs\TranslationMemory\Domain;
 
+/**
+ * Status vocabulary (architecture §4).
+ *
+ * Translation rows: machine (default on insert) / reviewed / needs_review.
+ * Source rows: discovered (translatable) / ignored (never translate).
+ * "Original text changed" is NOT a stored status — it is derived at read time
+ * from translated_against_hash <> current_hash.
+ */
 final class TranslationStatus
 {
-    public const DISCOVERED = 0;
-    public const MACHINE = 1;
-    public const REVIEWED = 2;
-    public const IGNORED = 3;
+    public const MACHINE      = 1;
+    public const REVIEWED     = 2;
     public const NEEDS_REVIEW = 4;
 
-    /**
-     * @return array<int, string>
-     */
-    public static function labels(): array
-    {
-        return [
-            self::DISCOVERED   => 'Discovered',
-            self::MACHINE      => 'Machine',
-            self::REVIEWED     => 'Reviewed',
-            self::IGNORED      => 'Ignored',
-            self::NEEDS_REVIEW => 'Needs review',
-        ];
-    }
+    public const SOURCE_DISCOVERED = 0;
+    public const SOURCE_IGNORED    = 3;
+
+    private function __construct() {}
 }

@@ -4,6 +4,7 @@ namespace TransLangs\TranslationMemory\Infrastructure\Repositories;
 
 use TransLangs\TranslationMemory\Domain\SourceRecord;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
+use TransLangs\TranslationMemory\Domain\TranslationStatus;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
 
 /**
@@ -195,6 +196,151 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         }
 
         return $out;
+    }
+
+    public function fetchHtmlTranslations(string $langCode): array
+    {
+        if ($langCode === '') {
+            return [];
+        }
+
+        $table = TranslationMemorySchema::tlTranslationTable();
+
+        // All keys whose first (type) byte is 5: [05 00…00, 06 00…00).
+        $lo = '05' . str_repeat('00', 31);
+        $hi = '06' . str_repeat('00', 31);
+
+        $sql = "SELECT HEX(source_key) AS k, translated_text
+                FROM {$table}
+                WHERE lang_code = %s
+                  AND status IN (1, 2, 4)
+                  AND source_key >= UNHEX(%s)
+                  AND source_key <  UNHEX(%s)";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $langCode, $lo, $hi), ARRAY_A);
+
+        $out = [];
+        foreach ((array) $rows as $row) {
+            $out[strtolower((string) $row['k'])] = (string) $row['translated_text'];
+        }
+
+        return $out;
+    }
+
+    public function saveTranslation(string $rawKey, string $langCode, string $text, int $status, ?string $provider): void
+    {
+        $source = TranslationMemorySchema::tlSourceTable();
+        $table  = TranslationMemorySchema::tlTranslationTable();
+        $now    = current_time('mysql');
+        $keyHex = bin2hex($rawKey);
+
+        // INSERT … SELECT reads current_hash from the source row server-side, so
+        // translated_against_hash is always stamped against the live source.
+        $providerExpr = $provider === null ? 'NULL' : '%s';
+
+        $args = [$langCode, $text, $status];
+        if ($provider !== null) {
+            $args[] = $provider;
+        }
+        $args[] = $now;   // created_at
+        $args[] = $now;   // updated_at
+        $args[] = $keyHex;
+
+        $sql = "INSERT INTO {$table}
+                    (source_key, lang_code, translated_text, translated_against_hash,
+                     status, provider, created_at, updated_at)
+                SELECT s.source_key, %s, %s, s.current_hash, %d, {$providerExpr}, %s, %s
+                FROM {$source} s
+                WHERE s.source_key = UNHEX(%s)
+                ON DUPLICATE KEY UPDATE
+                    translated_text = VALUES(translated_text),
+                    translated_against_hash = VALUES(translated_against_hash),
+                    status = VALUES(status),
+                    provider = VALUES(provider),
+                    updated_at = VALUES(updated_at)";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+    }
+
+    public function deleteTranslation(string $rawKey, string $langCode): void
+    {
+        $table = TranslationMemorySchema::tlTranslationTable();
+
+        $this->wpdb->query( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "DELETE FROM {$table} WHERE source_key = UNHEX(%s) AND lang_code = %s",
+                bin2hex($rawKey),
+                $langCode
+            )
+        );
+    }
+
+    public function applyTranslationToKeys(array $rawKeys, string $langCode, string $text, int $status, bool $overwrite): int
+    {
+        $applied = 0;
+
+        foreach ($rawKeys as $rawKey) {
+            if (!$overwrite && $this->translationUpdatedAt($rawKey, $langCode) !== null) {
+                continue;
+            }
+            $this->saveTranslation($rawKey, $langCode, $text, $status, null);
+            $applied++;
+        }
+
+        return $applied;
+    }
+
+    public function ignoreSource(string $rawKey): void
+    {
+        $source = TranslationMemorySchema::tlSourceTable();
+        $table  = TranslationMemorySchema::tlTranslationTable();
+        $keyHex = bin2hex($rawKey);
+
+        $this->wpdb->query('START TRANSACTION'); // phpcs:ignore WordPress.DB
+        $this->wpdb->query( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "UPDATE {$source} SET status = %d, updated_at = %s WHERE source_key = UNHEX(%s)",
+                TranslationStatus::SOURCE_IGNORED,
+                current_time('mysql'),
+                $keyHex
+            )
+        );
+        $this->wpdb->query( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare("DELETE FROM {$table} WHERE source_key = UNHEX(%s)", $keyHex)
+        );
+        $this->wpdb->query('COMMIT'); // phpcs:ignore WordPress.DB
+    }
+
+    public function restoreSources(array $rawKeys): void
+    {
+        if ($rawKeys === []) {
+            return;
+        }
+
+        $source = TranslationMemorySchema::tlSourceTable();
+        [$placeholders, $hexes] = $this->notInList($rawKeys);
+
+        $sql = "UPDATE {$source} SET status = %d, updated_at = %s WHERE source_key IN ({$placeholders})";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $this->wpdb->query($this->wpdb->prepare($sql, TranslationStatus::SOURCE_DISCOVERED, current_time('mysql'), ...$hexes));
+    }
+
+    public function translationUpdatedAt(string $rawKey, string $langCode): ?string
+    {
+        $table = TranslationMemorySchema::tlTranslationTable();
+
+        $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "SELECT updated_at FROM {$table} WHERE source_key = UNHEX(%s) AND lang_code = %s",
+                bin2hex($rawKey),
+                $langCode
+            )
+        );
+
+        return is_string($value) ? $value : null;
     }
 
     /**

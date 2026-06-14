@@ -8,10 +8,10 @@ use InvalidArgumentException;
  * The single chokepoint for source_key generation (database architecture §1).
  *
  * Every translatable string is identified by a fixed-width 32-byte binary key,
- * big-endian throughout. Identity is LOCATIONAL, not textual (D26): the key
- * encodes WHERE a string lives, never the string itself — so editing the text
- * keeps the same key and the translation stays attached. The only exception is
- * plain gettext (type 4), which has no location and falls back to text identity.
+ * big-endian throughout. Types 1–3 and 5 are LOCATIONAL (D26, P4): the key
+ * encodes WHERE a string lives, never the text — for type 5 the location is the
+ * block's DOM selector, so editing the hardcoded text keeps the same key. Only
+ * plain gettext (type 4) has no location and falls back to TEXT identity.
  *
  *     source_key = [ type : 1 ][ owner_id : 8 ][ H(ref1|ref2) : 8 ][ tail : 15 ]
  *
@@ -42,7 +42,7 @@ final class TL_Key
     /**
      * Build the 32-byte binary source_key for one source string.
      *
-     * The key is locational: for types 1,2,3,5 the text is irrelevant (zero
+     * The key is locational for types 1–3 and 5: the text is irrelevant (zero
      * tail), so editing a string keeps the same key. Only type 4 (gettext) hashes
      * the text into the tail, since it has no location.
      *

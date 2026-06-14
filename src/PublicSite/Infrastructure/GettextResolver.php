@@ -25,6 +25,14 @@ final class GettextResolver
     private ?bool $active = null;
     private string $lang = '';
 
+    /**
+     * Re-entrancy guard. Computing activation calls conditional tags
+     * (is_feed/is_sitemap/…); before the main query those tags emit __() via
+     * core's "Conditional query tags…" _doing_it_wrong, which re-fires the
+     * gettext filter. Without this guard that recurses until the stack blows.
+     */
+    private bool $activating = false;
+
     /** @var array<string, string> hex(source_key) => translated_text */
     private array $map = [];
 
@@ -245,7 +253,32 @@ final class GettextResolver
             return $this->active;
         }
 
-        $this->active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
+        // The conditional tags shouldTranslate() relies on (is_feed/is_sitemap/…)
+        // and the language resolver's get_query_var() read the main query, which
+        // does not exist until the `wp` action. __() fires long before then
+        // (cookie/salt checks during plugins_loaded). Defer without memoizing:
+        // those early strings are never page content, and the real verdict is
+        // computed once the query is up.
+        if (!did_action('wp')) {
+            return false;
+        }
+
+        // A gettext call fired while we're still deciding activation (a
+        // conditional tag emitting __() before the main query). Treat it as
+        // inactive without memoizing, so the real verdict is computed once the
+        // outer call completes.
+        if ($this->activating) {
+            return false;
+        }
+
+        $this->activating = true;
+        try {
+            $active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
+        } finally {
+            $this->activating = false;
+        }
+
+        $this->active = $active;
         if ($this->active) {
             $this->lang = $this->language->resolve();
         }
