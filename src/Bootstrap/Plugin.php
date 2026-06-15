@@ -11,6 +11,7 @@ use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\GettextResolver;
 use TransLangs\PublicSite\Infrastructure\HreflangPresenter;
 use TransLangs\PublicSite\Infrastructure\HtmlRenderer;
+use TransLangs\PublicSite\Infrastructure\HtmlUnitExtractor;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\PublicSite\Infrastructure\LanguageSwitcherShortcode;
 use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
@@ -20,6 +21,7 @@ use TransLangs\PublicSite\Infrastructure\PublicRenderPipeline;
 use TransLangs\PublicSite\Infrastructure\RequestContext;
 use TransLangs\PublicSite\Infrastructure\StructuredRenderResolver;
 use TransLangs\PublicSite\Infrastructure\TranslationUnitCodec;
+use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
 use TransLangs\TranslationMemory\Infrastructure\InitialDiscoveryScan;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminBoardQuery;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\WpDbSourceTranslationRepository;
@@ -45,7 +47,10 @@ class Plugin
 
         // v4 persistence: one repository over tl_source / tl_translation.
         $sourceRepository  = new WpDbSourceTranslationRepository($wpdb);
-        $structuredScanner = new StructuredSourceScanner($languageRegistry, $sourceRepository);
+
+        // Shared block-unit extractor (type-5 + split fields): one walk, three callers.
+        $unitExtractor     = new HtmlUnitExtractor(new TranslationUnitCodec());
+        $structuredScanner = new StructuredSourceScanner($languageRegistry, $sourceRepository, $unitExtractor);
 
         // Admin board REST API (translangs/v1) — backs the React admin SPA.
         (new AdminRestController(
@@ -62,10 +67,13 @@ class Plugin
         (new InitialDiscoveryScan($wpdb, $structuredScanner))->register();
 
         // v4 structured render: resolve types 1-3 by location via identity hooks.
-        (new StructuredRenderResolver($languageResolver, $context, $sourceRepository))->register();
+        (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor))->register();
 
         // gettext: resolve + render-time discovery on the gettext filters.
         (new GettextResolver($languageResolver, $context, $sourceRepository))->register();
+
+        // Off-request writer for discovered gettext strings (Action Scheduler job).
+        (new GettextCaptureWorker($sourceRepository))->register();
 
         // Front-end highlight for the admin "Preview on site" action (self-gates
         // to preview mode + logged-in editors).
@@ -77,7 +85,7 @@ class Plugin
             $context,
             new PublicLinkRewriter($urlBuilder),
             $sourceRepository,
-            new HtmlRenderer(new TranslationUnitCodec())
+            new HtmlRenderer($unitExtractor)
         ))->register();
 
         if (is_admin()) {

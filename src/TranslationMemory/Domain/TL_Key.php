@@ -68,6 +68,27 @@ final class TL_Key
     }
 
     /**
+     * Split-field key (split-field spec §1-2): a piece of a rich/HTML field
+     * (post_content) — type 1 like its parent post, but TEXT-tailed like type 4.
+     * Each block-level piece is its own key: shared prefix [type][owner][H(ref1|'')],
+     * the 15-byte text tail disambiguates pieces of the SAME field of the SAME
+     * post.
+     *
+     * ponytail: the owner_id segment — NOT the tail — carries global uniqueness.
+     * Never shrink/drop it for split fields or the tail's collision scope widens
+     * from "one field of one post" (tiny) to the whole table (spec §2/SF-D3).
+     */
+    public static function makeSplit(int $ownerId, string $ref1, string $text): string
+    {
+        self::assertShape(self::TYPE_POST, $ownerId, $ref1);
+
+        return chr(self::TYPE_POST)
+            . self::packOwner(self::TYPE_POST, $ownerId)
+            . substr(hash('sha256', $ref1 . '|', true), 0, 8)
+            . substr(self::currentHash($text), 0, 15);
+    }
+
+    /**
      * Full 32-byte SHA-256 of the normalized current text. Stored verbatim in
      * wp_tl_source.current_hash (staleness detection, NOT identity); its first
      * 15 bytes also feed the type-4 key tail.

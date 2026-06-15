@@ -67,6 +67,37 @@ class RequestContext
         return true;
     }
 
+    /**
+     * True when this request may DISCOVER gettext strings — a real frontend page
+     * load. Deliberately request-context only: never calls conditional query tags
+     * (is_feed/is_singular/…), which read the main query and fatal before `wp`.
+     * Unlike shouldTranslate(), it is independent of the target language (default-
+     * language loads discover too) and omits the feed/sitemap checks for that
+     * reason. Cheap; callers memoize.
+     */
+    public function shouldCaptureGettext(): bool
+    {
+        if (function_exists('did_action') && !did_action('plugins_loaded')) {
+            return false;
+        }
+        if (defined('WP_CLI') && WP_CLI) {
+            return false;
+        }
+        if (defined('WP_INSTALLING') && WP_INSTALLING) {
+            return false;
+        }
+
+        return !$this->isAdmin()
+            && !$this->isAdminPath()
+            && !$this->isAjax()
+            && !$this->isRest()
+            && !$this->isCron()
+            && !$this->isLogin()
+            && !$this->isXmlRpc()
+            && !$this->isStaticAsset()
+            && $this->isGetRequest();
+    }
+
     public function isAdmin(): bool
     {
         return function_exists('is_admin') && is_admin();

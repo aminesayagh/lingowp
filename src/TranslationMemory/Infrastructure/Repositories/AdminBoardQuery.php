@@ -82,6 +82,10 @@ final class AdminBoardQuery
 
         $args[] = $limit + 1;
 
+        // Owner-less types (4 i18n / 5 html) have ownerExpr '0'; a bare integer in
+        // ORDER BY is read as a column position by MySQL (0 = error), so order by id.
+        $orderBy = $ownerExpr === '0' ? 's.id' : "{$ownerExpr}, s.id";
+
         $sql = "SELECT s.id, LOWER(HEX(s.source_key)) AS source_key, s.type,
                        s.post_id, s.term_taxonomy_id, s.ref1, s.ref2, s.original_text,
                        LOWER(HEX(s.current_hash)) AS current_hash,
@@ -93,7 +97,7 @@ final class AdminBoardQuery
                 {$join}
                 LEFT JOIN {$trans} t ON t.source_key = s.source_key AND t.lang_code = %s
                 WHERE " . implode(' AND ', $where) . "
-                ORDER BY {$ownerExpr}, s.id
+                ORDER BY {$orderBy}
                 LIMIT %d";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery

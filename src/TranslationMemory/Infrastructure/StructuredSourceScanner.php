@@ -3,11 +3,13 @@
 namespace TransLangs\TranslationMemory\Infrastructure;
 
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\PublicSite\Infrastructure\HtmlUnitExtractor;
 use TransLangs\TranslationMemory\Domain\PostMetaSource;
 use TransLangs\TranslationMemory\Domain\PostMetaValuePaths;
 use TransLangs\TranslationMemory\Domain\PostSource;
 use TransLangs\TranslationMemory\Domain\SourceRecord;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
+use TransLangs\TranslationMemory\Domain\SplitPostSource;
 use TransLangs\TranslationMemory\Domain\TermSource;
 use TransLangs\TranslationMemory\Domain\TL_Key;
 use TransLangs\TranslationMemory\Domain\TranslatableMetaKeys;
@@ -27,8 +29,9 @@ use TransLangs\TranslationMemory\Domain\TranslatableMetaKeys;
  */
 final class StructuredSourceScanner
 {
-    /** Type-1 post fields, each keyed by its whole value (matches the render hooks). */
-    private const POST_FIELDS = ['post_title', 'post_content', 'post_excerpt'];
+    /** Atomic type-1 post fields, each keyed by its whole value. post_content is
+     * split into block-level pieces instead (split-field spec), see below. */
+    private const POST_FIELDS = ['post_title', 'post_excerpt'];
 
     /** Post statuses eligible for discovery (publish, plus inherit for attachments). */
     private const SCANNABLE_STATUSES = ['publish', 'inherit'];
@@ -37,7 +40,8 @@ final class StructuredSourceScanner
 
     public function __construct(
         private LanguageRegistry $languageRegistry,
-        private SourceTranslationRepository $repository
+        private SourceTranslationRepository $repository,
+        private HtmlUnitExtractor $unitExtractor
     ) {}
 
     /**
@@ -147,6 +151,16 @@ final class StructuredSourceScanner
                 continue;
             }
             $records[] = new PostSource($post->ID, $field, $text);
+        }
+
+        // post_content is split HTML (split-field spec): one source row per
+        // block-level piece, text-tailed. Extracts the stored markup ($post->
+        // post_content) — block comments/wrappers are scaffolding and ignored.
+        foreach ($this->unitExtractor->units((string) $post->post_content) as $unit) {
+            if (TL_Key::normalize($unit) === '') {
+                continue;
+            }
+            $records[] = new SplitPostSource($post->ID, 'post_content', $unit);
         }
 
         if (function_exists('get_post_meta')) {

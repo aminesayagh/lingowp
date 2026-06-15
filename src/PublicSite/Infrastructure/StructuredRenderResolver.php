@@ -39,7 +39,8 @@ final class StructuredRenderResolver
     public function __construct(
         private ResolveRequestLanguage $language,
         private RequestContext $context,
-        private SourceTranslationRepository $repository
+        private SourceTranslationRepository $repository,
+        private HtmlUnitExtractor $unitExtractor
     ) {}
 
     public function register(): void
@@ -73,8 +74,12 @@ final class StructuredRenderResolver
             if (!$post instanceof \WP_Post) {
                 continue;
             }
-            foreach (['post_title', 'post_content', 'post_excerpt'] as $field) {
+            foreach (['post_title', 'post_excerpt'] as $field) {
                 $keys[] = TL_Key::make(TL_Key::TYPE_POST, $post->ID, $field, null, '');
+            }
+            // post_content is split: one key per block-level piece (text-tailed).
+            foreach ($this->unitExtractor->units((string) $post->post_content) as $unit) {
+                $keys[] = TL_Key::makeSplit($post->ID, 'post_content', $unit);
             }
             foreach ($this->metaKeys() as $metaKey) {
                 $keys[] = TL_Key::make(TL_Key::TYPE_POSTMETA, $post->ID, $metaKey, null, '');
@@ -103,9 +108,11 @@ final class StructuredRenderResolver
     }
 
     /**
-     * Post content is one whole-field type-1 source. The resolved output is
-     * wrapped in a data-tl-region marker so the type-5 parser skips the whole
-     * post body (it is already handled here), per the parsing spec §4/P5.
+     * Post content is a SPLIT field (split-field spec §5): each block-level piece
+     * is translated independently and reassembled in place — block scaffolding
+     * and any theme/builder wrappers pass through untouched. No marker element is
+     * injected: the type-5 page pass is map-driven on type-5 keys only, and these
+     * pieces are type-1 split keys, so the body can never be re-translated there.
      *
      * @param mixed $content
      * @return mixed
@@ -120,9 +127,19 @@ final class StructuredRenderResolver
             return $content;
         }
 
-        $out = $this->translate(TL_Key::TYPE_POST, $id, 'post_content', (string) $content);
+        $content = (string) $content;
 
-        return '<div data-tl-region="content">' . $out . '</div>';
+        // Batch-load this body's piece translations, then replace per piece.
+        $keys = [];
+        foreach ($this->unitExtractor->units($content) as $unit) {
+            $keys[] = TL_Key::makeSplit($id, 'post_content', $unit);
+        }
+        $this->ensureKeysLoaded($keys);
+
+        return $this->unitExtractor->render(
+            $content,
+            fn(string $unit): ?string => $this->map[bin2hex(TL_Key::makeSplit($id, 'post_content', $unit))] ?? null
+        );
     }
 
     /**

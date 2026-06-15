@@ -6,6 +6,7 @@ import {
 	deleteTranslation,
 	ignoreSource,
 	getPreview,
+	getDuplicates,
 	runScan,
 	errorMessage,
 } from '../api';
@@ -297,6 +298,14 @@ function InlineRow( { item, lang, dir, onSaved, onRemoved, onModal } ) {
 					updated_at: s ? s.updated_at : null,
 					origin: 'human',
 				} );
+				// Same text elsewhere? Offer to reuse it.
+				getDuplicates( item.key, lang )
+					.then( ( dups ) => {
+						if ( dups.length > 0 ) {
+							onModal( { type: 'apply', key: item.key, text: value } );
+						}
+					} )
+					.catch( () => {} );
 			} )
 			.catch( ( e ) => {
 				setBusy( false );
@@ -388,11 +397,6 @@ function InlineRow( { item, lang, dir, onSaved, onRemoved, onModal } ) {
 				<RowMenu
 					onPreview={ preview }
 					onAllLanguages={ () => onModal( { type: 'all', key: item.key } ) }
-					onApplyEverywhere={ () =>
-						text.trim() === ''
-							? setRowError( 'Add a translation first, then apply it elsewhere.' )
-							: onModal( { type: 'apply', key: item.key, text } )
-					}
 					onClear={ clear }
 					onDontTranslate={ dontTranslate }
 					hasTranslation={ ( item.translation || '' ) !== '' }
@@ -404,7 +408,7 @@ function InlineRow( { item, lang, dir, onSaved, onRemoved, onModal } ) {
 	);
 }
 
-function RowMenu( { onPreview, onAllLanguages, onApplyEverywhere, onClear, onDontTranslate, hasTranslation } ) {
+function RowMenu( { onPreview, onAllLanguages, onClear, onDontTranslate, hasTranslation } ) {
 	const [ open, setOpen ] = useState( false );
 	const run = ( fn ) => () => {
 		setOpen( false );
@@ -431,9 +435,6 @@ function RowMenu( { onPreview, onAllLanguages, onApplyEverywhere, onClear, onDon
 						</button>
 						<button type="button" role="menuitem" onClick={ run( onAllLanguages ) }>
 							Translate all languages
-						</button>
-						<button type="button" role="menuitem" onClick={ run( onApplyEverywhere ) }>
-							Apply everywhere
 						</button>
 						{ hasTranslation && (
 							<button type="button" role="menuitem" onClick={ run( onClear ) }>

@@ -41,7 +41,7 @@ abstract class SourceRecord
     final protected function toRow(string $ref1, ?string $ref2 = null, ?string $sourceUrl = null): array
     {
         return [
-            'source_key'       => TL_Key::make($this->type(), $this->ownerId(), $ref1, $ref2, $this->originalText()),
+            'source_key'       => $this->buildKey($ref1, $ref2),
             'type'             => $this->type(),
             'post_id'          => $this->postOwner(),
             'term_taxonomy_id' => $this->termOwner(),
@@ -51,6 +51,15 @@ abstract class SourceRecord
             'current_hash'     => TL_Key::currentHash($this->originalText()),
             'original_text'    => $this->originalText(),
         ];
+    }
+
+    /**
+     * The source_key for this record. Atomic types are locational (zero tail);
+     * split fields override this to text-tail the key (SplitPostSource).
+     */
+    protected function buildKey(string $ref1, ?string $ref2): string
+    {
+        return TL_Key::make($this->type(), $this->ownerId(), $ref1, $ref2, $this->originalText());
     }
 
     /** The deterministic 32-byte source_key (raw bytes). */

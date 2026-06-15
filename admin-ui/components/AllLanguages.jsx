@@ -85,7 +85,6 @@ export default function AllLanguages( { config, sourceKey, lang, onClose, onSave
 										<tr key={ l.code }>
 											<th scope="row">
 												{ l.native || l.name }
-												<span className="tl-lang-code">{ l.code }</span>
 											</th>
 											<td>
 												<AutoTextarea

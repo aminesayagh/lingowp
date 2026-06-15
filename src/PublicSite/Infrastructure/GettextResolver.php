@@ -6,19 +6,23 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\TranslationMemory\Domain\GettextSource;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
 use TransLangs\TranslationMemory\Domain\TL_Key;
+use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
 
 /**
  * v4 gettext (type 4) resolution + render-time discovery (data pipeline §1 row
  * 11, Path C).
  *
- * On the gettext filters this both (a) resolves the string to its translation by
- * key and (b) collects unknown strings as discovery candidates, flushed to
- * wp_tl_source after the response. Gettext identity is textual (the key tail is
- * the text hash), so the live text IS hashed into the key here — unlike the
- * structured (locational) resolver.
+ * On the gettext filters this both (a) RESOLVES the string to its translation by
+ * key — only on a translated (target-language) request — and (b) CAPTURES unknown
+ * strings as discovery candidates on any genuine frontend load (independent of
+ * the target language, so default-language views discover too).
  *
- * Resolution is lazy + negative-cached. Hook callbacks never write to the DB;
- * discovery is batched and written on shutdown, throttled to once/day per key.
+ * Capture is gated to real visitor views: an editor/admin browsing the front
+ * would feed the admin toolbar + editor chrome into the table, so at flush time
+ * an editor request discards its whole buffer (decided once, late — never a
+ * per-call current_user_can that would recurse through wp_salt()). New strings
+ * are throttled once/day per key, then written OFF the request via an Action
+ * Scheduler job (GettextCaptureWorker) — never at shutdown.
  */
 final class GettextResolver
 {
@@ -33,13 +37,19 @@ final class GettextResolver
      */
     private bool $activating = false;
 
+    /** Memoized "may this request discover gettext strings?" verdict. */
+    private ?bool $capturing = null;
+
+    /** Transient pause flag — true while a widget sidebar is rendering. */
+    private bool $capturePaused = false;
+
     /** @var array<string, string> hex(source_key) => translated_text */
     private array $map = [];
 
     /** @var array<string, true> hex(source_key) => already-queried (negative cache) */
     private array $loaded = [];
 
-    /** @var array<string, GettextSource> hex(source_key) => candidate (deduped per request) */
+    /** @var array<string, array{domain: string, context: ?string, text: string}> deduped per request */
     private array $candidates = [];
 
     public function __construct(
@@ -55,6 +65,21 @@ final class GettextResolver
         add_filter('ngettext', [$this, 'ngettext'], 10, 5);
         add_filter('ngettext_with_context', [$this, 'ngettextWithContext'], 10, 6);
         add_action('shutdown', [$this, 'flush'], 0);
+
+        // Don't learn widget-sidebar strings: pause capture while a sidebar
+        // renders (the sidebar still displays — we just skip its strings).
+        add_action('dynamic_sidebar_before', [$this, 'pauseCapture']);
+        add_action('dynamic_sidebar_after', [$this, 'resumeCapture']);
+    }
+
+    public function pauseCapture(): void
+    {
+        $this->capturePaused = true;
+    }
+
+    public function resumeCapture(): void
+    {
+        $this->capturePaused = false;
     }
 
     /**
@@ -103,19 +128,25 @@ final class GettextResolver
      */
     private function resolve($incoming, string $text, ?string $context, string $domain)
     {
-        if (!$this->isActive() || $text === '') {
+        if ($text === '') {
             return $incoming;
         }
 
         $key = TL_Key::make(TL_Key::TYPE_I18N, null, $this->domain($domain), $context, $text);
-        $this->ensureKeysLoaded([$key]);
         $hex = bin2hex($key);
 
-        if (isset($this->map[$hex])) {
-            return $this->map[$hex];
+        // Resolve only on a translated (target-language) request.
+        if ($this->isActive()) {
+            $this->ensureKeysLoaded([$key]);
+            if (isset($this->map[$hex])) {
+                return $this->map[$hex];
+            }
         }
 
-        $this->capture($hex, $domain, $context, $text);
+        // Discover on any genuine frontend load, regardless of target language.
+        if ($this->shouldCapture()) {
+            $this->capture($hex, $domain, $context, $text);
+        }
 
         return $incoming;
     }
@@ -129,10 +160,6 @@ final class GettextResolver
      */
     private function resolvePlural($incoming, string $single, string $plural, int $number, ?string $context, string $domain)
     {
-        if (!$this->isActive()) {
-            return $incoming;
-        }
-
         $forms = array_values(array_filter([$single, $plural], static fn(string $f): bool => $f !== ''));
         if ($forms === []) {
             return $incoming;
@@ -142,13 +169,23 @@ final class GettextResolver
         foreach ($forms as $form) {
             $keys[$form] = TL_Key::make(TL_Key::TYPE_I18N, null, $this->domain($domain), $context, $form);
         }
-        $this->ensureKeysLoaded(array_values($keys));
 
-        foreach ($forms as $form) {
-            $hex = bin2hex($keys[$form]);
-            if (!isset($this->map[$hex])) {
-                $this->capture($hex, $domain, $context, $form);
+        $active = $this->isActive();
+        if ($active) {
+            $this->ensureKeysLoaded(array_values($keys));
+        }
+
+        if ($this->shouldCapture()) {
+            foreach ($forms as $form) {
+                $hex = bin2hex($keys[$form]);
+                if (!($active && isset($this->map[$hex]))) {
+                    $this->capture($hex, $domain, $context, $form);
+                }
             }
+        }
+
+        if (!$active) {
+            return $incoming;
         }
 
         $chosen = $number === 1 ? $single : $plural;
@@ -162,36 +199,55 @@ final class GettextResolver
     private function capture(string $hex, string $domain, ?string $context, string $text): void
     {
         if (!isset($this->candidates[$hex])) {
-            $this->candidates[$hex] = new GettextSource($domain, $context, $text);
+            $this->candidates[$hex] = ['domain' => $domain, 'context' => $context, 'text' => $text];
         }
     }
 
     /**
-     * Write the request's newly-seen gettext sources after the response, skipping
-     * keys whose last-seen was touched within 24h (object-cache throttle).
+     * Hand the request's newly-seen gettext strings to the background worker,
+     * skipping keys touched within 24h (object-cache throttle). No DB write here;
+     * the worker does the bulk upsert. Capture runs for any frontend view
+     * (logged-in admins included) — admin chrome is kept out by suppressing it
+     * during render, not by discarding the buffer.
      */
     public function flush(): void
     {
-        if (!$this->isActive() || $this->candidates === []) {
+        if ($this->candidates === []) {
             return;
         }
 
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-        }
-
-        $records = [];
-        foreach ($this->candidates as $hex => $record) {
+        $payload = [];
+        foreach ($this->candidates as $hex => $data) {
             if ($this->recentlySeen($hex)) {
                 continue;
             }
-            $records[] = $record;
+            $payload[] = $data;
         }
         $this->candidates = [];
 
-        if ($records !== []) {
-            $this->repository->upsertSources($records);
+        if ($payload !== []) {
+            GettextCaptureWorker::enqueue($payload);
         }
+    }
+
+    private function shouldCapture(): bool
+    {
+        if ($this->capturePaused) {
+            return false;
+        }
+
+        if ($this->capturing !== null) {
+            return $this->capturing;
+        }
+
+        // Only once page rendering has begun (`wp` fired) — skips bootstrap/system
+        // strings (salts, cookie checks) emitted during plugins_loaded. All
+        // visitor-facing text renders after this point.
+        if (!did_action('wp')) {
+            return false;
+        }
+
+        return $this->capturing = $this->context->shouldCaptureGettext();
     }
 
     /**

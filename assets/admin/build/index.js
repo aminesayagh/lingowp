@@ -291,12 +291,9 @@ function AllLanguages({
             className: "tl-lang-table",
             children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("tbody", {
               children: config.languages.map(l => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsxs)("tr", {
-                children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsxs)("th", {
+                children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("th", {
                   scope: "row",
-                  children: [l.native || l.name, /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("span", {
-                    className: "tl-lang-code",
-                    children: l.code
-                  })]
+                  children: l.native || l.name
                 }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("td", {
                   children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_AutoTextarea__WEBPACK_IMPORTED_MODULE_3__["default"], {
                     className: "tl-textarea",
@@ -864,6 +861,16 @@ function InlineRow({
         updated_at: s ? s.updated_at : null,
         origin: 'human'
       });
+      // Same text elsewhere? Offer to reuse it.
+      (0,_api__WEBPACK_IMPORTED_MODULE_1__.getDuplicates)(item.key, lang).then(dups => {
+        if (dups.length > 0) {
+          onModal({
+            type: 'apply',
+            key: item.key,
+            text: value
+          });
+        }
+      }).catch(() => {});
     }).catch(e => {
       setBusy(false);
       setRowError((0,_api__WEBPACK_IMPORTED_MODULE_1__.errorMessage)(e));
@@ -951,11 +958,6 @@ function InlineRow({
           type: 'all',
           key: item.key
         }),
-        onApplyEverywhere: () => text.trim() === '' ? setRowError('Add a translation first, then apply it elsewhere.') : onModal({
-          type: 'apply',
-          key: item.key,
-          text
-        }),
         onClear: clear,
         onDontTranslate: dontTranslate,
         hasTranslation: (item.translation || '') !== ''
@@ -969,7 +971,6 @@ function InlineRow({
 function RowMenu({
   onPreview,
   onAllLanguages,
-  onApplyEverywhere,
   onClear,
   onDontTranslate,
   hasTranslation
@@ -1005,11 +1006,6 @@ function RowMenu({
           role: "menuitem",
           onClick: run(onAllLanguages),
           children: "Translate all languages"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
-          type: "button",
-          role: "menuitem",
-          onClick: run(onApplyEverywhere),
-          children: "Apply everywhere"
         }), hasTranslation && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
           type: "button",
           role: "menuitem",

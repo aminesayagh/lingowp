@@ -10,10 +10,11 @@ use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
  * by the hooks before the buffer closes; here we run the type-5 REPLACE pass over
  * the final HTML and rewrite links to their localized URLs.
  *
- * The DOM parse is the one heavy step, so it is gated: when the language has no
- * type-5 translations at all, the per-language map is empty and the parse is
- * skipped entirely (parsing spec §3 step 5 / P8). Type-5 discovery is marking-mode
- * only and is not done here.
+ * The DOM parse is the one heavy step, so it is gated to PREVIEW requests only
+ * (logged-in editor with ?translangs_preview): public visitors never pay for the
+ * type-5 HTML parse. Link rewriting still runs for everyone. (Within preview it
+ * is further skipped when the language has no type-5 translations.) Type-5
+ * discovery is marking-mode only and is not done here.
  */
 final class PublicRenderPipeline
 {
@@ -57,12 +58,24 @@ final class PublicRenderPipeline
             return $html;
         }
 
-        $map = $this->htmlTranslations($this->targetLang);
-        if ($map !== []) {
-            $html = $this->htmlRenderer->render($html, $map);
+        // Type-5 HTML parse: preview only. Public visitors get types 1–4 (already
+        // applied via hooks) + link rewriting, but never the DOM parse.
+        if ($this->isPreview()) {
+            $map = $this->htmlTranslations($this->targetLang);
+            if ($map !== []) {
+                $html = $this->htmlRenderer->render($html, $map);
+            }
         }
 
         return $this->linkRewriter->rewrite($html, $this->targetLang);
+    }
+
+    /** Preview = logged-in editor viewing with ?translangs_preview (matches ResolveRequestLanguage). */
+    private function isPreview(): bool
+    {
+        return !empty($_GET['translangs_preview'])
+            && function_exists('current_user_can')
+            && current_user_can('edit_posts');
     }
 
     /**
