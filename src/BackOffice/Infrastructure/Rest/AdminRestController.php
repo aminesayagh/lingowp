@@ -38,6 +38,7 @@ final class AdminRestController
         register_rest_route(self::NS, '/config', $this->route('GET', 'config'));
         register_rest_route(self::NS, '/items', $this->route('GET', 'items'));
         register_rest_route(self::NS, '/counts', $this->route('GET', 'counts'));
+        register_rest_route(self::NS, '/counts-all', $this->route('GET', 'countsAll'));
         register_rest_route(self::NS, '/ignored', $this->route('GET', 'ignored'));
         register_rest_route(self::NS, '/ignored/restore', $this->route('POST', 'restore'));
         register_rest_route(self::NS, '/scan', $this->route('POST', 'scan'));
@@ -136,6 +137,30 @@ final class AdminRestController
         }
 
         return rest_ensure_response($this->query->counts($area['types'], $area['post_type'], $lang));
+    }
+
+    /** Per-area {to_translate, total} for the sidebar badges, for one language. */
+    public function countsAll(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
+    {
+        $lang = $this->targetLang($request);
+        if ($lang instanceof \WP_Error) {
+            return $lang;
+        }
+
+        $out = [];
+        foreach (['page', 'post', 'product', 'term', 'media', 'i18n', 'html'] as $key) {
+            $area = AdminBoardQuery::area($key);
+            if ($area === null) {
+                continue;
+            }
+            $counts      = $this->query->counts($area['types'], $area['post_type'], $lang);
+            $out[$key] = [
+                'to_translate' => $counts['to_translate'],
+                'total'        => $counts['total'],
+            ];
+        }
+
+        return rest_ensure_response($out);
     }
 
     public function getString(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
@@ -496,6 +521,7 @@ final class AdminRestController
                 'translation' => $row['translated_text'],
                 'state'       => $row['effective_state'],
                 'updated_at'  => $row['tr_updated'] ?? null,
+                'preview'     => $this->previewable($type, (string) ($row['source_url'] ?? '')),
                 'origin'      => $row['translated_text'] === null
                     ? null
                     : ($row['provider'] !== null ? 'machine' : 'human'),
@@ -503,6 +529,16 @@ final class AdminRestController
         }
 
         return array_map(static fn(string $k): array => $groups[$k], $order);
+    }
+
+    /** Theme/button text (type 4) has no live URL; HTML (type 5) needs a source_url. */
+    private function previewable(int $type, string $sourceUrl): bool
+    {
+        return match ($type) {
+            4 => false,
+            5 => $sourceUrl !== '',
+            default => true,
+        };
     }
 
     /**

@@ -21,6 +21,24 @@ const TABS = [
 	[ 'done', 'Done' ],
 ];
 
+const FIELD_LABELS = {
+	post_title: 'Title',
+	post_content: 'Content',
+	post_excerpt: 'Excerpt',
+	_wp_attachment_image_alt: 'Alt text',
+};
+
+const fieldLabel = ( field ) => {
+	if ( ! field ) {
+		return '';
+	}
+	if ( FIELD_LABELS[ field ] ) {
+		return FIELD_LABELS[ field ];
+	}
+	const words = field.replace( /^_+/, '' ).replace( /_/g, ' ' );
+	return words.charAt( 0 ).toUpperCase() + words.slice( 1 );
+};
+
 const STATE_CHIP = {
 	to_translate: { cls: 'new', label: '● new' },
 	done: { cls: 'done', label: '✓ done' },
@@ -28,11 +46,8 @@ const STATE_CHIP = {
 	review_flagged: { cls: 'flagged', label: '👤 flagged' },
 };
 
-export default function ContentList( { config, area, lang } ) {
+export default function ContentList( { config, area, lang, filters, onCountsChanged } ) {
 	const [ tab, setTab ] = useState( 'to_translate' );
-	const [ qOriginal, setQOriginal ] = useState( '' );
-	const [ qTranslated, setQTranslated ] = useState( '' );
-	const [ origin, setOrigin ] = useState( 'all' );
 
 	const [ data, setData ] = useState( null );
 	const [ error, setError ] = useState( null );
@@ -54,9 +69,9 @@ export default function ContentList( { config, area, lang } ) {
 				area,
 				lang,
 				tab,
-				q_original: qOriginal,
-				q_translated: qTranslated,
-				origin,
+				q_original: filters.q_original,
+				q_translated: filters.q_translated,
+				origin: filters.origin,
 				cursor: cur || undefined,
 				limit: 20,
 			} )
@@ -69,21 +84,24 @@ export default function ContentList( { config, area, lang } ) {
 					setLoading( false );
 				} );
 		},
-		[ area, lang, tab, qOriginal, qTranslated, origin ]
+		[ area, lang, tab, filters ]
 	);
 
-	// Reset paging and reload whenever the area, language, or tab changes.
+	// Reset paging and reload whenever the area, language, tab, or filters change.
 	useEffect( () => {
 		setCursor( null );
 		setStack( [] );
 		load( null );
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [ area, lang, tab ] );
+	}, [ area, lang, tab, filters ] );
 
 	const refreshCounts = () => {
 		getCounts( { area, lang } )
 			.then( ( counts ) => setData( ( d ) => ( d ? { ...d, counts } : d ) ) )
 			.catch( () => {} );
+		if ( onCountsChanged ) {
+			onCountsChanged();
+		}
 	};
 
 	/** Patch one item in place (keeps other rows' unsaved edits intact). */
@@ -110,12 +128,6 @@ export default function ContentList( { config, area, lang } ) {
 				.filter( ( g ) => g.items.length > 0 );
 			return { ...d, groups };
 		} );
-	};
-
-	const applyFilters = () => {
-		setCursor( null );
-		setStack( [] );
-		load( null );
 	};
 
 	const next = () => {
@@ -153,27 +165,6 @@ export default function ContentList( { config, area, lang } ) {
 				<h2>{ areaLabel }</h2>
 				<button type="button" className="button" disabled={ scanning } onClick={ check }>
 					{ scanning ? 'Checking…' : 'Check for new text' }
-				</button>
-			</div>
-
-			<div className="tl-filters">
-				<input
-					placeholder="Search original"
-					value={ qOriginal }
-					onChange={ ( e ) => setQOriginal( e.target.value ) }
-				/>
-				<input
-					placeholder="Search translated"
-					value={ qTranslated }
-					onChange={ ( e ) => setQTranslated( e.target.value ) }
-				/>
-				<select value={ origin } onChange={ ( e ) => setOrigin( e.target.value ) }>
-					<option value="all">All</option>
-					<option value="machine">Machine</option>
-					<option value="human">Human</option>
-				</select>
-				<button type="button" className="button" onClick={ applyFilters }>
-					Filter
 				</button>
 			</div>
 
@@ -222,6 +213,7 @@ export default function ContentList( { config, area, lang } ) {
 								item={ it }
 								lang={ lang }
 								dir={ dir }
+								multiLang={ config.languages.length > 1 }
 								onSaved={ ( patch ) => {
 									patchItem( it.key, patch );
 									refreshCounts();
@@ -272,7 +264,7 @@ export default function ContentList( { config, area, lang } ) {
 	);
 }
 
-function InlineRow( { item, lang, dir, onSaved, onRemoved, onModal } ) {
+function InlineRow( { item, lang, dir, multiLang, onSaved, onRemoved, onModal } ) {
 	const [ text, setText ] = useState( item.translation || '' );
 	const [ busy, setBusy ] = useState( false );
 	const [ rowError, setRowError ] = useState( null );
@@ -282,7 +274,7 @@ function InlineRow( { item, lang, dir, onSaved, onRemoved, onModal } ) {
 		setText( item.translation || '' );
 	}, [ item.translation ] );
 
-	const chip = STATE_CHIP[ item.state ] || { cls: 'new', label: item.state };
+	const chip = STATE_CHIP[ item.state ];
 	const dirty = text !== ( item.translation || '' );
 
 	const save = ( value ) => {
@@ -351,56 +343,64 @@ function InlineRow( { item, lang, dir, onSaved, onRemoved, onModal } ) {
 
 	return (
 		<div className={ 'tl-pair' + ( item.field ? '' : ' tl-pair-nofield' ) }>
-			{ item.field && <span className="tl-field" title={ item.field }>{ item.field }</span> }
+			{ item.field && (
+				<span className="tl-field" title={ item.field }>{ fieldLabel( item.field ) }</span>
+			) }
 
-			<div className="tl-pair-cols">
-				<div className="tl-col tl-col-original" title={ item.original }>
-					<Placeholders text={ item.original } />
+			<div className="tl-pair-row">
+				<div className="tl-pair-cols">
+					<div className="tl-col tl-col-original" title={ item.original }>
+						<Placeholders text={ item.original } />
+					</div>
+					<div className="tl-col tl-col-translation">
+						<AutoTextarea
+							className="tl-textarea"
+							rows={ 1 }
+							dir={ dir }
+							value={ text }
+							disabled={ busy }
+							placeholder="Add translation…"
+							onChange={ ( e ) => setText( e.target.value ) }
+						/>
+					</div>
 				</div>
-				<div className="tl-col tl-col-translation">
-					<AutoTextarea
-						className="tl-textarea"
-						rows={ 1 }
-						dir={ dir }
-						value={ text }
-						disabled={ busy }
-						placeholder="Add translation…"
-						onChange={ ( e ) => setText( e.target.value ) }
-					/>
-				</div>
-			</div>
 
-			<div className="tl-pair-actions">
-				<span className={ 'tl-state tl-state-' + chip.cls }>{ chip.label }</span>
+				<div className="tl-pair-actions">
+					{ chip && chip.cls !== 'new' && (
+						<span className={ 'tl-state tl-state-' + chip.cls }>{ chip.label }</span>
+					) }
 
-				{ item.state === 'review_changed' && (
+					{ item.state === 'review_changed' && (
+						<button
+							type="button"
+							className="button"
+							disabled={ busy }
+							title="Accept the current translation for the new wording"
+							onClick={ () => save( item.translation || text ) }
+						>
+							Keep &amp; approve
+						</button>
+					) }
+
 					<button
 						type="button"
-						className="button"
-						disabled={ busy }
-						title="Accept the current translation for the new wording"
-						onClick={ () => save( item.translation || text ) }
+						className="button button-primary"
+						disabled={ busy || text.trim() === '' || ( ! dirty && item.state === 'done' ) }
+						onClick={ () => save( text ) }
 					>
-						Keep &amp; approve
+						Valid
 					</button>
-				) }
 
-				<button
-					type="button"
-					className="button button-primary"
-					disabled={ busy || text.trim() === '' || ( ! dirty && item.state === 'done' ) }
-					onClick={ () => save( text ) }
-				>
-					Valid
-				</button>
-
-				<RowMenu
-					onPreview={ preview }
-					onAllLanguages={ () => onModal( { type: 'all', key: item.key } ) }
-					onClear={ clear }
-					onDontTranslate={ dontTranslate }
-					hasTranslation={ ( item.translation || '' ) !== '' }
-				/>
+					<RowMenu
+						canPreview={ item.preview !== false }
+						canAllLanguages={ multiLang }
+						onPreview={ preview }
+						onAllLanguages={ () => onModal( { type: 'all', key: item.key } ) }
+						onClear={ clear }
+						onDontTranslate={ dontTranslate }
+						hasTranslation={ ( item.translation || '' ) !== '' }
+					/>
+				</div>
 			</div>
 
 			{ rowError && <div className="tl-error tl-row-error">{ rowError }</div> }
@@ -408,7 +408,7 @@ function InlineRow( { item, lang, dir, onSaved, onRemoved, onModal } ) {
 	);
 }
 
-function RowMenu( { onPreview, onAllLanguages, onClear, onDontTranslate, hasTranslation } ) {
+function RowMenu( { canPreview, canAllLanguages, onPreview, onAllLanguages, onClear, onDontTranslate, hasTranslation } ) {
 	const [ open, setOpen ] = useState( false );
 	const run = ( fn ) => () => {
 		setOpen( false );
@@ -430,12 +430,16 @@ function RowMenu( { onPreview, onAllLanguages, onClear, onDontTranslate, hasTran
 				<>
 					<div className="tl-menu-overlay" onClick={ () => setOpen( false ) } />
 					<div className="tl-menu-list" role="menu">
-						<button type="button" role="menuitem" onClick={ run( onPreview ) }>
-							Preview on site
-						</button>
-						<button type="button" role="menuitem" onClick={ run( onAllLanguages ) }>
-							Translate all languages
-						</button>
+						{ canPreview && (
+							<button type="button" role="menuitem" onClick={ run( onPreview ) }>
+								Preview on site
+							</button>
+						) }
+						{ canAllLanguages && (
+							<button type="button" role="menuitem" onClick={ run( onAllLanguages ) }>
+								Translate all languages
+							</button>
+						) }
 						{ hasTranslation && (
 							<button type="button" role="menuitem" onClick={ run( onClear ) }>
 								Clear translation

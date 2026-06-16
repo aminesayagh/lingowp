@@ -88,6 +88,7 @@ final class AdminBoardQuery
 
         $sql = "SELECT s.id, LOWER(HEX(s.source_key)) AS source_key, s.type,
                        s.post_id, s.term_taxonomy_id, s.ref1, s.ref2, s.original_text,
+                       s.source_url,
                        LOWER(HEX(s.current_hash)) AS current_hash,
                        t.translated_text, t.status AS tr_status, t.provider,
                        LOWER(HEX(t.translated_against_hash)) AS against_hash,

@@ -15,6 +15,8 @@ export const getItems = ( params ) => apiFetch( { path: `${ NS }/items${ qs( par
 
 export const getCounts = ( params ) => apiFetch( { path: `${ NS }/counts${ qs( params ) }` } );
 
+export const getAllCounts = ( params ) => apiFetch( { path: `${ NS }/counts-all${ qs( params ) }` } );
+
 export const getString = ( key, lang ) =>
 	apiFetch( { path: `${ NS }/string/${ key }${ qs( { lang } ) }` } );
 

@@ -24,17 +24,59 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+// Active area + filters live in the URL query so a refresh restores them.
+// ponytail: native URLSearchParams instead of nuqs — no dep/provider for 4 keys.
+
+const readUrl = () => {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    area: p.get('area') || 'page',
+    filters: {
+      q_original: p.get('q_original') || '',
+      q_translated: p.get('q_translated') || '',
+      origin: p.get('origin') || 'all'
+    }
+  };
+};
+const writeUrl = (area, filters) => {
+  const p = new URLSearchParams(window.location.search);
+  const setOrDel = (k, v, empty) => v && v !== empty ? p.set(k, v) : p.delete(k);
+  setOrDel('area', area, 'page');
+  setOrDel('q_original', filters.q_original, '');
+  setOrDel('q_translated', filters.q_translated, '');
+  setOrDel('origin', filters.origin, 'all');
+  window.history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
+};
 function App() {
+  const initial = readUrl();
   const [config, setConfig] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  const [area, setArea] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('page');
+  const [area, setArea] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(initial.area);
   const [lang, setLang] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('');
+  const [filters, setFilters] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(initial.filters);
+  const [areaCounts, setAreaCounts] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)({});
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     (0,_api__WEBPACK_IMPORTED_MODULE_1__.getConfig)().then(cfg => {
       setConfig(cfg);
       setLang(cfg.languages[0] ? cfg.languages[0].code : '');
     }).catch(e => setError((0,_api__WEBPACK_IMPORTED_MODULE_1__.errorMessage)(e)));
   }, []);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    writeUrl(area, filters);
+  }, [area, filters]);
+  const refreshAreaCounts = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useCallback)(() => {
+    if (!lang) {
+      return;
+    }
+    (0,_api__WEBPACK_IMPORTED_MODULE_1__.getAllCounts)({
+      lang
+    }).then(setAreaCounts).catch(() => {});
+  }, [lang]);
+
+  // Refresh sidebar badges whenever the language changes.
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    refreshAreaCounts();
+  }, [refreshAreaCounts]);
   if (error) {
     return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("div", {
       className: "tl-error",
@@ -59,10 +101,15 @@ function App() {
     onArea: setArea,
     lang: lang,
     onLang: setLang,
+    filters: filters,
+    onFilters: setFilters,
+    areaCounts: areaCounts,
     children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_components_ContentList__WEBPACK_IMPORTED_MODULE_3__["default"], {
       config: config,
       area: area,
-      lang: lang
+      lang: lang,
+      filters: filters,
+      onCountsChanged: refreshAreaCounts
     })
   });
 }
@@ -80,6 +127,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   applyEverywhere: () => (/* binding */ applyEverywhere),
 /* harmony export */   deleteTranslation: () => (/* binding */ deleteTranslation),
 /* harmony export */   errorMessage: () => (/* binding */ errorMessage),
+/* harmony export */   getAllCounts: () => (/* binding */ getAllCounts),
 /* harmony export */   getConfig: () => (/* binding */ getConfig),
 /* harmony export */   getCounts: () => (/* binding */ getCounts),
 /* harmony export */   getDuplicates: () => (/* binding */ getDuplicates),
@@ -107,6 +155,9 @@ const getItems = params => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___def
 });
 const getCounts = params => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
   path: `${NS}/counts${qs(params)}`
+});
+const getAllCounts = params => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+  path: `${NS}/counts-all${qs(params)}`
 });
 const getString = (key, lang) => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
   path: `${NS}/string/${key}${qs({
@@ -565,6 +616,22 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const TABS = [['to_translate', 'To translate'], ['to_review', 'To review'], ['done', 'Done']];
+const FIELD_LABELS = {
+  post_title: 'Title',
+  post_content: 'Content',
+  post_excerpt: 'Excerpt',
+  _wp_attachment_image_alt: 'Alt text'
+};
+const fieldLabel = field => {
+  if (!field) {
+    return '';
+  }
+  if (FIELD_LABELS[field]) {
+    return FIELD_LABELS[field];
+  }
+  const words = field.replace(/^_+/, '').replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
 const STATE_CHIP = {
   to_translate: {
     cls: 'new',
@@ -586,12 +653,11 @@ const STATE_CHIP = {
 function ContentList({
   config,
   area,
-  lang
+  lang,
+  filters,
+  onCountsChanged
 }) {
   const [tab, setTab] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('to_translate');
-  const [qOriginal, setQOriginal] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('');
-  const [qTranslated, setQTranslated] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('');
-  const [origin, setOrigin] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('all');
   const [data, setData] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [loading, setLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
@@ -607,9 +673,9 @@ function ContentList({
       area,
       lang,
       tab,
-      q_original: qOriginal,
-      q_translated: qTranslated,
-      origin,
+      q_original: filters.q_original,
+      q_translated: filters.q_translated,
+      origin: filters.origin,
       cursor: cur || undefined,
       limit: 20
     }).then(res => {
@@ -619,15 +685,15 @@ function ContentList({
       setError((0,_api__WEBPACK_IMPORTED_MODULE_1__.errorMessage)(e));
       setLoading(false);
     });
-  }, [area, lang, tab, qOriginal, qTranslated, origin]);
+  }, [area, lang, tab, filters]);
 
-  // Reset paging and reload whenever the area, language, or tab changes.
+  // Reset paging and reload whenever the area, language, tab, or filters change.
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     setCursor(null);
     setStack([]);
     load(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [area, lang, tab]);
+  }, [area, lang, tab, filters]);
   const refreshCounts = () => {
     (0,_api__WEBPACK_IMPORTED_MODULE_1__.getCounts)({
       area,
@@ -636,6 +702,9 @@ function ContentList({
       ...d,
       counts
     } : d)).catch(() => {});
+    if (onCountsChanged) {
+      onCountsChanged();
+    }
   };
 
   /** Patch one item in place (keeps other rows' unsaved edits intact). */
@@ -671,11 +740,6 @@ function ContentList({
         groups
       };
     });
-  };
-  const applyFilters = () => {
-    setCursor(null);
-    setStack([]);
-    load(null);
   };
   const next = () => {
     if (data && data.next_cursor) {
@@ -718,35 +782,6 @@ function ContentList({
         onClick: check,
         children: scanning ? 'Checking…' : 'Check for new text'
       })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      className: "tl-filters",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("input", {
-        placeholder: "Search original",
-        value: qOriginal,
-        onChange: e => setQOriginal(e.target.value)
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("input", {
-        placeholder: "Search translated",
-        value: qTranslated,
-        onChange: e => setQTranslated(e.target.value)
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("select", {
-        value: origin,
-        onChange: e => setOrigin(e.target.value),
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("option", {
-          value: "all",
-          children: "All"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("option", {
-          value: "machine",
-          children: "Machine"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("option", {
-          value: "human",
-          children: "Human"
-        })]
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
-        type: "button",
-        className: "button",
-        onClick: applyFilters,
-        children: "Filter"
-      })]
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
       className: "tl-tabs",
       children: TABS.map(([k, label]) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("button", {
@@ -784,6 +819,7 @@ function ContentList({
         item: it,
         lang: lang,
         dir: dir,
+        multiLang: config.languages.length > 1,
         onSaved: patch => {
           patchItem(it.key, patch);
           refreshCounts();
@@ -828,6 +864,7 @@ function InlineRow({
   item,
   lang,
   dir,
+  multiLang,
   onSaved,
   onRemoved,
   onModal
@@ -840,10 +877,7 @@ function InlineRow({
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     setText(item.translation || '');
   }, [item.translation]);
-  const chip = STATE_CHIP[item.state] || {
-    cls: 'new',
-    label: item.state
-  };
+  const chip = STATE_CHIP[item.state];
   const dirty = text !== (item.translation || '');
   const save = value => {
     setBusy(true);
@@ -913,54 +947,59 @@ function InlineRow({
     children: [item.field && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
       className: "tl-field",
       title: item.field,
-      children: item.field
+      children: fieldLabel(item.field)
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      className: "tl-pair-cols",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-        className: "tl-col tl-col-original",
-        title: item.original,
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_Placeholders__WEBPACK_IMPORTED_MODULE_2__["default"], {
-          text: item.original
-        })
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
-        className: "tl-col tl-col-translation",
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_AutoTextarea__WEBPACK_IMPORTED_MODULE_3__["default"], {
-          className: "tl-textarea",
-          rows: 1,
-          dir: dir,
-          value: text,
+      className: "tl-pair-row",
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
+        className: "tl-pair-cols",
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
+          className: "tl-col tl-col-original",
+          title: item.original,
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_Placeholders__WEBPACK_IMPORTED_MODULE_2__["default"], {
+            text: item.original
+          })
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
+          className: "tl-col tl-col-translation",
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(_AutoTextarea__WEBPACK_IMPORTED_MODULE_3__["default"], {
+            className: "tl-textarea",
+            rows: 1,
+            dir: dir,
+            value: text,
+            disabled: busy,
+            placeholder: "Add translation\u2026",
+            onChange: e => setText(e.target.value)
+          })
+        })]
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
+        className: "tl-pair-actions",
+        children: [chip && chip.cls !== 'new' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
+          className: 'tl-state tl-state-' + chip.cls,
+          children: chip.label
+        }), item.state === 'review_changed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
+          type: "button",
+          className: "button",
           disabled: busy,
-          placeholder: "Add translation\u2026",
-          onChange: e => setText(e.target.value)
-        })
-      })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
-      className: "tl-pair-actions",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("span", {
-        className: 'tl-state tl-state-' + chip.cls,
-        children: chip.label
-      }), item.state === 'review_changed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
-        type: "button",
-        className: "button",
-        disabled: busy,
-        title: "Accept the current translation for the new wording",
-        onClick: () => save(item.translation || text),
-        children: "Keep & approve"
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
-        type: "button",
-        className: "button button-primary",
-        disabled: busy || text.trim() === '' || !dirty && item.state === 'done',
-        onClick: () => save(text),
-        children: "Valid"
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(RowMenu, {
-        onPreview: preview,
-        onAllLanguages: () => onModal({
-          type: 'all',
-          key: item.key
-        }),
-        onClear: clear,
-        onDontTranslate: dontTranslate,
-        hasTranslation: (item.translation || '') !== ''
+          title: "Accept the current translation for the new wording",
+          onClick: () => save(item.translation || text),
+          children: "Keep & approve"
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
+          type: "button",
+          className: "button button-primary",
+          disabled: busy || text.trim() === '' || !dirty && item.state === 'done',
+          onClick: () => save(text),
+          children: "Valid"
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)(RowMenu, {
+          canPreview: item.preview !== false,
+          canAllLanguages: multiLang,
+          onPreview: preview,
+          onAllLanguages: () => onModal({
+            type: 'all',
+            key: item.key
+          }),
+          onClear: clear,
+          onDontTranslate: dontTranslate,
+          hasTranslation: (item.translation || '') !== ''
+        })]
       })]
     }), rowError && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("div", {
       className: "tl-error tl-row-error",
@@ -969,6 +1008,8 @@ function InlineRow({
   });
 }
 function RowMenu({
+  canPreview,
+  canAllLanguages,
   onPreview,
   onAllLanguages,
   onClear,
@@ -996,12 +1037,12 @@ function RowMenu({
       }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsxs)("div", {
         className: "tl-menu-list",
         role: "menu",
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
+        children: [canPreview && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
           type: "button",
           role: "menuitem",
           onClick: run(onPreview),
           children: "Preview on site"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
+        }), canAllLanguages && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_6__.jsx)("button", {
           type: "button",
           role: "menuitem",
           onClick: run(onAllLanguages),
@@ -1071,8 +1112,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ Shell)
 /* harmony export */ });
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__);
+
 
 const settingsUrl = () => typeof window !== 'undefined' && window.TranslangsBoard && window.TranslangsBoard.settingsUrl || '#';
 function Shell({
@@ -1081,68 +1125,123 @@ function Shell({
   onArea,
   lang,
   onLang,
+  filters,
+  onFilters,
+  areaCounts,
   children
 }) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("div", {
+  const [draft, setDraft] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(filters);
+  const set = patch => setDraft(d => ({
+    ...d,
+    ...patch
+  }));
+  const changed = draft.q_original !== filters.q_original || draft.q_translated !== filters.q_translated || draft.origin !== filters.origin;
+  const apply = e => {
+    e.preventDefault();
+    onFilters(draft);
+  };
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("div", {
     className: "tl-shell",
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("header", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("header", {
       className: "tl-header",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("strong", {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("strong", {
         className: "tl-brand",
         children: "TransLangs"
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("div", {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("form", {
+        className: "tl-header-filters",
+        onSubmit: apply,
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("input", {
+          placeholder: "Search original",
+          value: draft.q_original,
+          onChange: e => set({
+            q_original: e.target.value
+          })
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("input", {
+          placeholder: "Search translated",
+          value: draft.q_translated,
+          onChange: e => set({
+            q_translated: e.target.value
+          })
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("select", {
+          value: draft.origin,
+          onChange: e => set({
+            origin: e.target.value
+          }),
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("option", {
+            value: "all",
+            children: "All"
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("option", {
+            value: "human",
+            children: "Manually edited"
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("option", {
+            value: "machine",
+            children: "Auto-translated"
+          })]
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("button", {
+          type: "submit",
+          className: "button",
+          disabled: !changed,
+          children: "Filter"
+        })]
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("div", {
         className: "tl-header-right",
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("label", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("label", {
           className: "tl-lang",
-          children: ["Translate to:", ' ', /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("select", {
+          children: ["Translate to:", ' ', /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("select", {
             value: lang,
             onChange: e => onLang(e.target.value),
-            children: config.languages.map(l => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("option", {
+            children: config.languages.map(l => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("option", {
               value: l.code,
               children: l.native || l.name
             }, l.code))
           })]
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("a", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("a", {
           className: "button",
           href: settingsUrl(),
           children: "Settings"
         })]
       })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("div", {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("div", {
       className: "tl-body",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxs)("nav", {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("nav", {
         className: "tl-sidebar",
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("div", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("div", {
           className: "tl-nav-group",
           children: "Content"
-        }), config.content_areas.map(a => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("button", {
-          type: "button",
-          className: 'tl-nav-item' + (a.key === area ? ' is-active' : ''),
-          onClick: () => onArea(a.key),
-          children: a.label
-        }, a.key)), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("div", {
+        }), config.content_areas.map(a => {
+          const c = areaCounts && areaCounts[a.key];
+          return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("button", {
+            type: "button",
+            className: 'tl-nav-item' + (a.key === area ? ' is-active' : ''),
+            onClick: () => onArea(a.key),
+            children: [a.label, c && c.total > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsxs)("span", {
+              className: "tl-nav-count",
+              children: ["(", c.to_translate, "/", c.total, ")"]
+            })]
+          }, a.key);
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("div", {
           className: "tl-nav-group",
           children: "Site"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("button", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("button", {
           type: "button",
           className: "tl-nav-item",
           disabled: true,
           children: "Menus & Branding"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("div", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("div", {
           className: "tl-nav-group",
           children: "Manage"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("button", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("button", {
           type: "button",
           className: "tl-nav-item",
           disabled: true,
           children: "Don\u2019t-translate"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("button", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("button", {
           type: "button",
           className: "tl-nav-item",
           disabled: true,
           children: "Import / Export"
         })]
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_0__.jsx)("main", {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)("main", {
         className: "tl-main",
         children: children
       })]
