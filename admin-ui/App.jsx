@@ -2,6 +2,12 @@ import { useState, useEffect, useCallback } from '@wordpress/element';
 import { getConfig, getAllCounts, errorMessage } from './api';
 import Shell from './components/Shell';
 import ContentList from './components/ContentList';
+import DontTranslate from './components/DontTranslate';
+import MenusBranding from './components/MenusBranding';
+import ImportExport from './components/ImportExport';
+
+// Non-content sidebar sections share the `area` slot but render their own screen.
+const SECTIONS = [ 'menus-branding', 'dont-translate', 'import-export' ];
 
 // Active area + filters live in the URL query so a refresh restores them.
 // ponytail: native URLSearchParams instead of nuqs — no dep/provider for 4 keys.
@@ -13,6 +19,7 @@ const readUrl = () => {
 			q_original: p.get( 'q_original' ) || '',
 			q_translated: p.get( 'q_translated' ) || '',
 			origin: p.get( 'origin' ) || 'all',
+			sort: p.get( 'sort' ) || 'default',
 		},
 	};
 };
@@ -24,6 +31,7 @@ const writeUrl = ( area, filters ) => {
 	setOrDel( 'q_original', filters.q_original, '' );
 	setOrDel( 'q_translated', filters.q_translated, '' );
 	setOrDel( 'origin', filters.origin, 'all' );
+	setOrDel( 'sort', filters.sort, 'default' );
 	window.history.replaceState( null, '', `${ window.location.pathname }?${ p.toString() }` );
 };
 
@@ -88,13 +96,22 @@ export default function App() {
 			onFilters={ setFilters }
 			areaCounts={ areaCounts }
 		>
-			<ContentList
-				config={ config }
-				area={ area }
-				lang={ lang }
-				filters={ filters }
-				onCountsChanged={ refreshAreaCounts }
-			/>
+			{ area === 'dont-translate' && (
+				<DontTranslate onCountsChanged={ refreshAreaCounts } />
+			) }
+			{ area === 'menus-branding' && (
+				<MenusBranding config={ config } lang={ lang } onCountsChanged={ refreshAreaCounts } />
+			) }
+			{ area === 'import-export' && <ImportExport config={ config } /> }
+			{ ! SECTIONS.includes( area ) && (
+				<ContentList
+					config={ config }
+					area={ area }
+					lang={ lang }
+					filters={ filters }
+					onCountsChanged={ refreshAreaCounts }
+				/>
+			) }
 		</Shell>
 	);
 }

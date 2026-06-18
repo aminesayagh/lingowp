@@ -2,67 +2,126 @@
 
 namespace TransLangs\TranslationMemory\Infrastructure\Repositories;
 
+use TransLangs\TranslationMemory\Domain\SourceRef;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
 
 /**
- * Read queries for the admin board (API spec §0, §2, §3, §6). Everything keys off
- * the effective-state CASE — `to_translate` / `review_flagged` / `review_changed`
- * / `done` — derived from the LEFT-JOINed translation for the selected language
- * (by lang_code) and the staleness comparison (translated_against_hash vs
- * current_hash). Lists use keyset pagination, never OFFSET.
+ * Read queries for the admin board, v5 — table-driven, hybrid child joins.
+ *
+ * Areas map to parent tables by requirement: page/post/product/media → tl_post +
+ * tl_meta (filtered by post_type); term → tl_term; staticText → tl_staticText;
+ * html → tl_html. A board row is a parent LEFT-JOINed to its child for the
+ * selected language, joined by the child's key model:
+ *   hash-link (post/term/html): ON child.original_hash = parent.original_hash
+ *   parent_id (meta/staticText): ON child.parent_id = parent.id
+ *
+ * State is child-status only (no translated_against_hash): no child =
+ * to_translate, status -1 = review_flagged, status > 0 = done. Lists use keyset
+ * pagination over (owner, sort_id), with the table ordinal folded into sort_id.
  */
 final class AdminBoardQuery
 {
-    /** Content area → source type(s) + optional post_type filter. */
     private const AREAS = [
-        'page'    => ['types' => [1], 'post_type' => 'page'],
-        'post'    => ['types' => [1], 'post_type' => 'post'],
-        'product' => ['types' => [1], 'post_type' => 'product'],
-        'media'   => ['types' => [1, 2], 'post_type' => 'attachment'],
-        'term'    => ['types' => [3], 'post_type' => null],
-        'i18n'    => ['types' => [4], 'post_type' => null],
-        'html'    => ['types' => [5], 'post_type' => null],
+        'page'       => ['post_type' => 'page',       'tables' => ['tl_post', 'tl_meta']],
+        'post'       => ['post_type' => 'post',       'tables' => ['tl_post', 'tl_meta']],
+        'product'    => ['post_type' => 'product',    'tables' => ['tl_post', 'tl_meta']],
+        'media'      => ['post_type' => 'attachment', 'tables' => ['tl_post', 'tl_meta']],
+        'term'       => ['post_type' => null,         'tables' => ['tl_term']],
+        'staticText' => ['post_type' => null,         'tables' => ['tl_staticText']],
+        'html'       => ['post_type' => null,         'tables' => ['tl_html']],
+        'menus'      => ['post_type' => 'nav_menu_item', 'tables' => ['tl_post']],
+        'branding'   => ['post_type' => null,         'tables' => ['tl_option']],
     ];
+
+    /** Hash-link parent tables (child joins on original_hash, not parent_id). */
+    private const HASH_LINK = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
+
+    /** Keyset-sort ordinal per table (tiebreaker only, never an API field). */
+    private const ORDINAL = ['tl_post' => 1, 'tl_meta' => 2, 'tl_term' => 3, 'tl_staticText' => 4, 'tl_html' => 5, 'tl_option' => 6];
 
     public function __construct(private \wpdb $wpdb) {}
 
-    /** @return array{types: int[], post_type: ?string}|null */
+    /** @return array{post_type:?string, tables:string[]}|null */
     public static function area(string $area): ?array
     {
         return self::AREAS[$area] ?? null;
     }
 
+    /** @return string[] all area keys, in nav order. */
+    public static function areaKeys(): array
+    {
+        return array_keys(self::AREAS);
+    }
+
     /**
-     * @param array{types:int[], post_type:?string, lang:string, tab:string,
+     * @param array{post_type:?string, tables:string[], lang:string, tab:string,
      *              q_original:?string, q_translated:?string, origin:string,
      *              cursor:?array{owner:int,id:int}, limit:int} $c
      * @return array{rows: array<int,array<string,mixed>>, next_cursor: ?array{owner:int,id:int}}
      */
     public function items(array $c): array
     {
-        $source    = TranslationMemorySchema::tlSourceTable();
-        $trans     = TranslationMemorySchema::tlTranslationTable();
-        $ownerExpr = $this->ownerExpr($c['types']);
-        $limit     = max(1, min(100, $c['limit']));
+        $limit = max(1, min(100, $c['limit']));
 
-        $args  = [];
-        $join  = '';
-        if ($c['post_type'] !== null) {
-            $join   = "INNER JOIN {$this->wpdb->posts} p ON p.ID = s.post_id AND p.post_type = %s";
-            $args[] = $c['post_type'];
+        $subSqls = [];
+        $args    = [];
+        foreach ($c['tables'] as $tableKey) {
+            [$sql, $subArgs] = $this->subquery($tableKey, $c);
+            $subSqls[]       = $sql;
+            array_push($args, ...$subArgs);
         }
+
+        $union = count($subSqls) === 1 ? $subSqls[0] : '(' . implode(') UNION ALL (', $subSqls) . ')';
+
+        // "recent" sorts by last-changed (owner = translation timestamp, see
+        // subquery) descending; default sorts by owner ascending. Both keyset
+        // over the same (owner, sort_id) tuple, only the direction flips.
+        $recent = ($c['sort'] ?? 'default') === 'recent';
+        $cmp    = $recent ? '<' : '>';
+        $dir    = $recent ? 'DESC' : 'ASC';
+
+        $where = '';
+        if ($c['cursor'] !== null) {
+            $where  = "WHERE (owner, sort_id) {$cmp} (%d, %d)";
+            $args[] = $c['cursor']['owner'];
+            $args[] = $c['cursor']['id'];
+        }
+        $args[] = $limit + 1;
+
+        $sql = "SELECT * FROM ({$union}) board {$where} ORDER BY owner {$dir}, sort_id {$dir} LIMIT %d";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = (array) $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+
+        $next = null;
+        if (count($rows) > $limit) {
+            $rows = array_slice($rows, 0, $limit);
+            $last = $rows[$limit - 1];
+            $next = ['owner' => (int) $last['owner'], 'id' => (int) $last['sort_id']];
+        }
+
+        return ['rows' => $rows, 'next_cursor' => $next];
+    }
+
+    /**
+     * One area-table SELECT, normalized to the shared board column shape.
+     *
+     * @param array<string,mixed> $c
+     * @return array{0:string,1:array<int,mixed>}
+     */
+    private function subquery(string $tableKey, array $c): array
+    {
+        $parent = $this->parent($tableKey);
+        $child  = $parent . '_translation';
+        $kind   = SourceRef::kindForTable($tableKey);
+
+        $args = [];
+        $from = $this->boardFrom($tableKey, $c['post_type'], $args);
         $args[] = $c['lang'];
 
-        $where    = [];
-        $where[]  = 's.type IN (' . implode(',', array_fill(0, count($c['types']), '%d')) . ')';
-        foreach ($c['types'] as $type) {
-            $args[] = $type;
-        }
-        $where[] = 's.status = 0';
-        $where[] = $this->tabClause($c['tab']);
-
+        $where = ['p.status = 0', $this->tabClause($c['tab'])];
         if (($c['q_original'] ?? '') !== '') {
-            $where[] = 's.original_text LIKE %s';
+            $where[] = 'p.original_text LIKE %s';
             $args[]  = '%' . $this->wpdb->esc_like($c['q_original']) . '%';
         }
         if (($c['q_translated'] ?? '') !== '') {
@@ -74,161 +133,164 @@ final class AdminBoardQuery
             $where[] = $origin;
         }
 
-        if ($c['cursor'] !== null) {
-            $where[] = "({$ownerExpr}, s.id) > (%d, %d)";
-            $args[]  = $c['cursor']['owner'];
-            $args[]  = $c['cursor']['id'];
-        }
+        $ownerExpr = ($c['sort'] ?? 'default') === 'recent'
+            ? 'COALESCE(UNIX_TIMESTAMP(t.updated_at), 0)'
+            : $this->ownerCol($tableKey);
 
-        $args[] = $limit + 1;
-
-        // Owner-less types (4 i18n / 5 html) have ownerExpr '0'; a bare integer in
-        // ORDER BY is read as a column position by MySQL (0 = error), so order by id.
-        $orderBy = $ownerExpr === '0' ? 's.id' : "{$ownerExpr}, s.id";
-
-        $sql = "SELECT s.id, LOWER(HEX(s.source_key)) AS source_key, s.type,
-                       s.post_id, s.term_taxonomy_id, s.ref1, s.ref2, s.original_text,
-                       s.source_url,
-                       LOWER(HEX(s.current_hash)) AS current_hash,
+        $sql = "SELECT p.id,
+                       {$this->sortId($tableKey)} AS sort_id,
+                       {$ownerExpr} AS owner,
+                       CONCAT('{$kind}', ':', p.id) AS source_key,
+                       '{$kind}' AS kind,
+                       {$this->refColumns($tableKey)},
+                       p.original_text,
+                       {$this->sourceUrlCol($tableKey)} AS source_url,
+                       LOWER(HEX(p.original_hash)) AS current_hash,
                        t.translated_text, t.status AS tr_status, t.provider,
-                       LOWER(HEX(t.translated_against_hash)) AS against_hash,
                        t.updated_at AS tr_updated,
                        {$this->stateCase()} AS effective_state
-                FROM {$source} s
-                {$join}
-                LEFT JOIN {$trans} t ON t.source_key = s.source_key AND t.lang_code = %s
-                WHERE " . implode(' AND ', $where) . "
-                ORDER BY {$orderBy}
-                LIMIT %d";
+                {$from}
+                LEFT JOIN {$child} t ON {$this->childOn($tableKey)} AND t.lang_code = %s
+                WHERE " . implode(' AND ', $where);
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $rows = (array) $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
-
-        $next = null;
-        if (count($rows) > $limit) {
-            $rows = array_slice($rows, 0, $limit);
-            $last = $rows[$limit - 1];
-            $next = ['owner' => $this->ownerOf($last, $ownerExpr), 'id' => (int) $last['id']];
-        }
-
-        return ['rows' => $rows, 'next_cursor' => $next];
+        return [$sql, $args];
     }
 
     /**
-     * @param int[] $types
+     * @param array{post_type:?string, tables:string[]} $area
      * @return array{to_translate:int, to_review:int, done:int, total:int}
      */
-    public function counts(array $types, ?string $postType, string $lang): array
+    public function counts(array $area, string $lang): array
     {
-        $source = TranslationMemorySchema::tlSourceTable();
-        $trans  = TranslationMemorySchema::tlTranslationTable();
+        $totals = ['to_translate' => 0, 'to_review' => 0, 'done' => 0, 'total' => 0];
 
-        $args = [];
-        $join = '';
-        if ($postType !== null) {
-            $join   = "INNER JOIN {$this->wpdb->posts} p ON p.ID = s.post_id AND p.post_type = %s";
-            $args[] = $postType;
+        foreach ($area['tables'] as $tableKey) {
+            $parent = $this->parent($tableKey);
+            $child  = $parent . '_translation';
+
+            $args = [];
+            $from = $this->boardFrom($tableKey, $area['post_type'], $args);
+            $args[] = $lang;
+
+            $sql = "SELECT
+                      SUM(t.id IS NULL) AS to_translate,
+                      SUM(t.status = -1) AS to_review,
+                      SUM(t.status > 0) AS done,
+                      COUNT(*) AS total
+                    {$from}
+                    LEFT JOIN {$child} t ON {$this->childOn($tableKey)} AND t.lang_code = %s
+                    WHERE p.status = 0";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $row = $this->wpdb->get_row($this->wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
+
+            $totals['to_translate'] += (int) ($row['to_translate'] ?? 0);
+            $totals['to_review']    += (int) ($row['to_review'] ?? 0);
+            $totals['done']         += (int) ($row['done'] ?? 0);
+            $totals['total']        += (int) ($row['total'] ?? 0);
         }
-        $args[] = $lang;
-        foreach ($types as $type) {
-            $args[] = $type;
-        }
-        $typeIn = implode(',', array_fill(0, count($types), '%d'));
 
-        $sql = "SELECT
-                  SUM(t.source_key IS NULL) AS to_translate,
-                  SUM(t.status = 4 OR (t.source_key IS NOT NULL
-                      AND t.translated_against_hash <> s.current_hash)) AS to_review,
-                  SUM(t.source_key IS NOT NULL AND t.status IN (1,2)
-                      AND t.translated_against_hash = s.current_hash) AS done,
-                  COUNT(*) AS total
-                FROM {$source} s
-                {$join}
-                LEFT JOIN {$trans} t ON t.source_key = s.source_key AND t.lang_code = %s
-                WHERE s.type IN ({$typeIn}) AND s.status = 0";
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $row = $this->wpdb->get_row($this->wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
-
-        return [
-            'to_translate' => (int) ($row['to_translate'] ?? 0),
-            'to_review'    => (int) ($row['to_review'] ?? 0),
-            'done'         => (int) ($row['done'] ?? 0),
-            'total'        => (int) ($row['total'] ?? 0),
-        ];
+        return $totals;
     }
 
     /** @return array<string,mixed>|null */
-    public function loadString(string $rawKey, string $lang): ?array
+    public function loadString(SourceRef $ref, string $lang): ?array
     {
-        $source = TranslationMemorySchema::tlSourceTable();
-        $trans  = TranslationMemorySchema::tlTranslationTable();
+        $tableKey = $ref->parentTableKey();
+        $parent   = $this->parent($tableKey);
+        $child    = $parent . '_translation';
+        $kind     = $ref->kind;
 
-        $sql = "SELECT s.id, LOWER(HEX(s.source_key)) AS source_key, s.type,
-                       s.post_id, s.term_taxonomy_id, s.ref1, s.ref2,
-                       s.original_text, LOWER(HEX(s.current_hash)) AS current_hash,
-                       s.source_url, s.status AS src_status,
+        $sql = "SELECT p.id,
+                       CONCAT('{$kind}', ':', p.id) AS source_key,
+                       '{$kind}' AS kind,
+                       {$this->refColumns($tableKey)},
+                       p.original_text,
+                       {$this->sourceUrlCol($tableKey)} AS source_url,
+                       LOWER(HEX(p.original_hash)) AS current_hash,
+                       p.status AS src_status,
                        t.translated_text, t.status AS tr_status, t.provider,
-                       LOWER(HEX(t.translated_against_hash)) AS against_hash,
                        t.updated_at AS tr_updated,
                        {$this->stateCase()} AS effective_state
-                FROM {$source} s
-                LEFT JOIN {$trans} t ON t.source_key = s.source_key AND t.lang_code = %s
-                WHERE s.source_key = UNHEX(%s)";
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON {$this->childOn($tableKey)} AND t.lang_code = %s
+                WHERE p.id = %d";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $row = $this->wpdb->get_row($this->wpdb->prepare($sql, $lang, bin2hex($rawKey)), ARRAY_A);
+        $row = $this->wpdb->get_row($this->wpdb->prepare($sql, $lang, $ref->id), ARRAY_A);
 
         return is_array($row) ? $row : null;
     }
 
-    /** All languages of one source (PK prefix scan). @return array<int,array<string,mixed>> */
-    public function siblings(string $rawKey): array
+    /** All languages of one source. @return array<int,array<string,mixed>> */
+    public function siblings(SourceRef $ref): array
     {
-        $trans = TranslationMemorySchema::tlTranslationTable();
+        $tableKey = $ref->parentTableKey();
+        $child    = $this->parent($tableKey) . '_translation';
 
-        $sql = "SELECT lang_code, translated_text, status,
-                       LOWER(HEX(translated_against_hash)) AS against_hash, updated_at
-                FROM {$trans} WHERE source_key = UNHEX(%s)";
+        if ($this->isHashLink($tableKey)) {
+            $parent = $this->parent($tableKey);
+            $sql    = "SELECT lang_code, translated_text, status, updated_at
+                       FROM {$child}
+                       WHERE original_hash = (SELECT original_hash FROM {$parent} WHERE id = %d)";
+        } else {
+            $sql = "SELECT lang_code, translated_text, status, updated_at
+                    FROM {$child} WHERE parent_id = %d";
+        }
 
-        // phpcs:ignore WordPress.DB
-        return (array) $this->wpdb->get_results($this->wpdb->prepare($sql, bin2hex($rawKey)), ARRAY_A);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        return (array) $this->wpdb->get_results($this->wpdb->prepare($sql, $ref->id), ARRAY_A);
     }
 
-    /** Other sources with the same text + type (apply-everywhere). @return array<int,array<string,mixed>> */
-    public function duplicates(string $rawKey, int $type, string $rawCurrentHash, string $lang): array
+    /**
+     * Other sources of the same kind with identical original text. Mostly relevant
+     * for parent_id types (hash-link positions already share one translation).
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function duplicates(SourceRef $ref, string $lang): array
     {
-        $source = TranslationMemorySchema::tlSourceTable();
-        $trans  = TranslationMemorySchema::tlTranslationTable();
+        $tableKey = $ref->parentTableKey();
+        $parent   = $this->parent($tableKey);
+        $child    = $parent . '_translation';
+        $kind     = $ref->kind;
 
-        $sql = "SELECT LOWER(HEX(s.source_key)) AS source_key, s.type, s.post_id,
-                       s.term_taxonomy_id, s.ref1, s.original_text,
+        $sql = "SELECT CONCAT('{$kind}', ':', p.id) AS source_key, '{$kind}' AS kind, p.id,
+                       {$this->refColumns($tableKey)}, p.original_text,
                        t.translated_text AS existing_translation, t.status AS tr_status
-                FROM {$source} s
-                LEFT JOIN {$trans} t ON t.source_key = s.source_key AND t.lang_code = %s
-                WHERE s.type = %d AND s.current_hash = UNHEX(%s) AND s.status = 0
-                  AND s.source_key <> UNHEX(%s)";
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON {$this->childOn($tableKey)} AND t.lang_code = %s
+                WHERE p.status = 0 AND p.id <> %d
+                  AND p.original_hash = (SELECT original_hash FROM {$parent} WHERE id = %d)";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         return (array) $this->wpdb->get_results(
-            $this->wpdb->prepare($sql, $lang, $type, bin2hex($rawCurrentHash), bin2hex($rawKey)),
+            $this->wpdb->prepare($sql, $lang, $ref->id, $ref->id),
             ARRAY_A
         );
     }
 
     /**
+     * Ignored (status -1) parents across all five tables, keyset-paginated.
+     *
      * @return array{rows: array<int,array<string,mixed>>, next_cursor: ?int}
      */
     public function ignored(?int $cursorId, int $limit): array
     {
-        $source = TranslationMemorySchema::tlSourceTable();
-        $limit  = max(1, min(100, $limit));
+        $limit   = max(1, min(100, $limit));
+        $subSqls = [];
 
-        $sql = "SELECT s.id, LOWER(HEX(s.source_key)) AS source_key, s.type, s.ref1,
-                       s.original_text, s.post_id, s.term_taxonomy_id
-                FROM {$source} s
-                WHERE s.status = 3 AND (%d = 0 OR s.id > %d)
-                ORDER BY s.id LIMIT %d";
+        foreach (array_keys(self::ORDINAL) as $tableKey) {
+            $parent    = $this->parent($tableKey);
+            $kind      = SourceRef::kindForTable($tableKey);
+            $subSqls[] = "SELECT p.id, {$this->sortId($tableKey)} AS sort_id,
+                                 CONCAT('{$kind}', ':', p.id) AS source_key, '{$kind}' AS kind,
+                                 {$this->refColumns($tableKey)}, p.original_text
+                          FROM {$parent} p WHERE p.status = -1";
+        }
+
+        $union = '(' . implode(') UNION ALL (', $subSqls) . ')';
+        $sql   = "SELECT * FROM ({$union}) ig WHERE (%d = 0 OR sort_id > %d) ORDER BY sort_id LIMIT %d";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = (array) $this->wpdb->get_results(
@@ -239,18 +301,66 @@ final class AdminBoardQuery
         $next = null;
         if (count($rows) > $limit) {
             $rows = array_slice($rows, 0, $limit);
-            $next = (int) $rows[$limit - 1]['id'];
+            $next = (int) $rows[$limit - 1]['sort_id'];
         }
 
         return ['rows' => $rows, 'next_cursor' => $next];
     }
 
+    // ── SQL fragments ───────────────────────────────────────────────────────────
+
+    /**
+     * FROM (+ owner join) for one area table, pushing any positional args.
+     *
+     * Hash-link tables (post/term/html) collapse to ONE representative row per
+     * original_hash (MIN id) — the translation is shared by text, so listing the
+     * same string once per occurrence is redundant. The representative is picked
+     * within the same scope shown (status 0, and post_type for tl_post), so an
+     * occurrence is never dropped from an area that contains it. Parent_id tables
+     * (meta/staticText) are context-owned and stay one row per parent.
+     *
+     * @param array<int,mixed> $args
+     */
+    private function boardFrom(string $tableKey, ?string $postType, array &$args): string
+    {
+        $parent = $this->parent($tableKey);
+
+        if ($this->isHashLink($tableKey)) {
+            if ($postType !== null && $this->hasPostOwner($tableKey)) {
+                $args[] = $postType;
+                $rep    = "SELECT MIN(p2.id) AS rep_id
+                           FROM {$parent} p2
+                           INNER JOIN {$this->wpdb->posts} wp2
+                                   ON wp2.ID = p2.post_id AND wp2.post_type = %s
+                           WHERE p2.status = 0
+                           GROUP BY p2.original_hash";
+            } else {
+                $rep = "SELECT MIN(id) AS rep_id FROM {$parent} WHERE status = 0 GROUP BY original_hash";
+            }
+
+            return "FROM {$parent} p INNER JOIN ({$rep}) rep ON rep.rep_id = p.id";
+        }
+
+        $join = '';
+        if ($postType !== null && $this->hasPostOwner($tableKey)) {
+            $join   = "INNER JOIN {$this->wpdb->posts} wp ON wp.ID = p.post_id AND wp.post_type = %s";
+            $args[] = $postType;
+        }
+
+        return "FROM {$parent} p {$join}";
+    }
+
+    /** Child join condition for this table's key model. */
+    private function childOn(string $tableKey): string
+    {
+        return $this->isHashLink($tableKey) ? 't.original_hash = p.original_hash' : 't.parent_id = p.id';
+    }
+
     private function stateCase(): string
     {
         return "CASE
-                  WHEN t.source_key IS NULL                        THEN 'to_translate'
-                  WHEN t.status = 4                                THEN 'review_flagged'
-                  WHEN t.translated_against_hash <> s.current_hash THEN 'review_changed'
+                  WHEN t.id IS NULL  THEN 'to_translate'
+                  WHEN t.status = -1 THEN 'review_flagged'
                   ELSE 'done'
                 END";
     }
@@ -258,9 +368,9 @@ final class AdminBoardQuery
     private function tabClause(string $tab): string
     {
         return match ($tab) {
-            'to_translate' => 't.source_key IS NULL',
-            'to_review'    => '(t.status = 4 OR (t.source_key IS NOT NULL AND t.translated_against_hash <> s.current_hash))',
-            'done'         => '(t.source_key IS NOT NULL AND t.status IN (1,2) AND t.translated_against_hash = s.current_hash)',
+            'to_translate' => 't.id IS NULL',
+            'to_review'    => 't.status = -1',
+            'done'         => 't.status > 0',
             default        => '1=1',
         };
     }
@@ -269,31 +379,57 @@ final class AdminBoardQuery
     {
         return match ($origin) {
             'machine' => 't.provider IS NOT NULL',
-            'human'   => 't.provider IS NULL AND t.source_key IS NOT NULL',
+            'human'   => 't.provider IS NULL AND t.id IS NOT NULL',
             default   => '',
         };
     }
 
-    /** @param int[] $types */
-    private function ownerExpr(array $types): string
+    /** ref1/ref2/post_id/term_taxonomy_id selection per table (uniform for UNION). */
+    private function refColumns(string $tableKey): string
     {
-        if (in_array(3, $types, true)) {
-            return 's.term_taxonomy_id';
-        }
-        if (array_intersect([1, 2], $types) !== []) {
-            return 's.post_id';
-        }
-
-        return '0';
+        return match ($tableKey) {
+            'tl_post'       => 'p.field AS ref1, NULL AS ref2, p.post_id, NULL AS term_taxonomy_id',
+            'tl_meta'       => 'p.meta_key AS ref1, p.context AS ref2, p.post_id, NULL AS term_taxonomy_id',
+            'tl_term'       => 'p.field AS ref1, NULL AS ref2, NULL AS post_id, p.term_taxonomy_id',
+            'tl_staticText' => 'p.source AS ref1, p.reference AS ref2, NULL AS post_id, NULL AS term_taxonomy_id',
+            'tl_html'       => 'p.selector AS ref1, NULL AS ref2, NULL AS post_id, NULL AS term_taxonomy_id',
+            'tl_option'     => 'p.option_name AS ref1, p.option_path AS ref2, NULL AS post_id, NULL AS term_taxonomy_id',
+            default         => 'NULL AS ref1, NULL AS ref2, NULL AS post_id, NULL AS term_taxonomy_id',
+        };
     }
 
-    /** @param array<string,mixed> $row */
-    private function ownerOf(array $row, string $ownerExpr): int
+    private function sourceUrlCol(string $tableKey): string
     {
-        return match ($ownerExpr) {
-            's.post_id'          => (int) ($row['post_id'] ?? 0),
-            's.term_taxonomy_id' => (int) ($row['term_taxonomy_id'] ?? 0),
-            default              => 0,
+        return $tableKey === 'tl_html' ? 'p.source_url' : 'NULL';
+    }
+
+    private function ownerCol(string $tableKey): string
+    {
+        return match ($tableKey) {
+            'tl_post', 'tl_meta' => 'p.post_id',
+            'tl_term'            => 'p.term_taxonomy_id',
+            default              => '0',
         };
+    }
+
+    private function hasPostOwner(string $tableKey): bool
+    {
+        return $tableKey === 'tl_post' || $tableKey === 'tl_meta';
+    }
+
+    private function isHashLink(string $tableKey): bool
+    {
+        return in_array($tableKey, self::HASH_LINK, true);
+    }
+
+    /** Monotonic, globally-unique sort key; table ordinal folded in for UNION order. */
+    private function sortId(string $tableKey): string
+    {
+        return '(' . self::ORDINAL[$tableKey] . ' * 100000000000 + p.id)';
+    }
+
+    private function parent(string $tableKey): string
+    {
+        return TranslationMemorySchema::parentTables()[$tableKey];
     }
 }

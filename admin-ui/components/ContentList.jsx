@@ -5,7 +5,6 @@ import {
 	saveTranslation,
 	deleteTranslation,
 	ignoreSource,
-	getPreview,
 	getDuplicates,
 	runScan,
 	errorMessage,
@@ -14,6 +13,8 @@ import Placeholders from './Placeholders';
 import AutoTextarea from './AutoTextarea';
 import AllLanguages from './AllLanguages';
 import ApplyEverywhere from './ApplyEverywhere';
+import CopyFromLanguage from './CopyFromLanguage';
+import { setDirty, confirmDiscard } from '../unsavedGuard';
 
 const TABS = [
 	[ 'to_translate', 'To translate' ],
@@ -46,7 +47,12 @@ const STATE_CHIP = {
 	review_flagged: { cls: 'flagged', label: '👤 flagged' },
 };
 
-export default function ContentList( { config, area, lang, filters, onCountsChanged } ) {
+// Hash-link kinds key their translation by text, so identical strings already
+// share one translation everywhere — the "apply everywhere" prompt only makes
+// sense for parent-id kinds (meta/staticText), where each position is separate.
+const HASH_LINK_KINDS = [ 'post', 'term', 'html', 'option' ];
+
+export default function ContentList( { config, area, lang, filters, onCountsChanged, title } ) {
 	const [ tab, setTab ] = useState( 'to_translate' );
 
 	const [ data, setData ] = useState( null );
@@ -72,6 +78,7 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 				q_original: filters.q_original,
 				q_translated: filters.q_translated,
 				origin: filters.origin,
+				sort: filters.sort,
 				cursor: cur || undefined,
 				limit: 20,
 			} )
@@ -131,7 +138,7 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 	};
 
 	const next = () => {
-		if ( data && data.next_cursor ) {
+		if ( data && data.next_cursor && confirmDiscard() ) {
 			setStack( ( s ) => [ ...s, cursor ] );
 			setCursor( data.next_cursor );
 			load( data.next_cursor );
@@ -139,6 +146,9 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 	};
 
 	const prev = () => {
+		if ( ! confirmDiscard() ) {
+			return;
+		}
 		const s = [ ...stack ];
 		const p = s.pop() || null;
 		setStack( s );
@@ -157,7 +167,7 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 	};
 
 	const counts = ( data && data.counts ) || { to_translate: 0, to_review: 0, done: 0, total: 0 };
-	const areaLabel = ( config.content_areas.find( ( a ) => a.key === area ) || {} ).label || area;
+	const areaLabel = title || ( config.content_areas.find( ( a ) => a.key === area ) || {} ).label || area;
 
 	return (
 		<div className="tl-list">
@@ -174,7 +184,7 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 						key={ k }
 						type="button"
 						className={ 'tl-tab' + ( tab === k ? ' is-active' : '' ) }
-						onClick={ () => setTab( k ) }
+						onClick={ () => { if ( confirmDiscard() ) setTab( k ); } }
 					>
 						{ label } ({ counts[ k ] || 0 })
 					</button>
@@ -205,7 +215,10 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 				data.groups.map( ( g ) => (
 					<div className="tl-card" key={ g.owner.kind + ':' + g.owner.id }>
 						<div className="tl-card-title">
-							{ g.owner.label } <span className="tl-kind">({ g.owner.kind })</span>
+							{ g.owner.thumb && <img className="tl-thumb" src={ g.owner.thumb } alt="" /> }
+							<span>
+								{ g.owner.label } <span className="tl-kind">({ g.owner.kind })</span>
+							</span>
 						</div>
 						{ g.items.map( ( it ) => (
 							<InlineRow
@@ -213,6 +226,7 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 								item={ it }
 								lang={ lang }
 								dir={ dir }
+								languages={ config.languages }
 								multiLang={ config.languages.length > 1 }
 								onSaved={ ( patch ) => {
 									patchItem( it.key, patch );
@@ -264,10 +278,12 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 	);
 }
 
-function InlineRow( { item, lang, dir, multiLang, onSaved, onRemoved, onModal } ) {
+function InlineRow( { item, lang, dir, languages, multiLang, onSaved, onRemoved, onModal } ) {
 	const [ text, setText ] = useState( item.translation || '' );
 	const [ busy, setBusy ] = useState( false );
 	const [ rowError, setRowError ] = useState( null );
+	const [ conflict, setConflict ] = useState( null );
+	const [ copyOpen, setCopyOpen ] = useState( false );
 
 	// Keep the field in sync if the row is patched from elsewhere.
 	useEffect( () => {
@@ -277,12 +293,24 @@ function InlineRow( { item, lang, dir, multiLang, onSaved, onRemoved, onModal } 
 	const chip = STATE_CHIP[ item.state ];
 	const dirty = text !== ( item.translation || '' );
 
-	const save = ( value ) => {
+	// Register the row's unsaved state so navigation can warn (A12 / UC-AD30).
+	useEffect( () => {
+		setDirty( item.key, dirty );
+		return () => setDirty( item.key, false );
+	}, [ dirty, item.key ] );
+
+	// `force` skips the optimistic-lock check (used by "Keep mine" on a conflict).
+	const save = ( value, force ) => {
 		setBusy( true );
 		setRowError( null );
-		saveTranslation( item.key, lang, { text: value, mark: 'reviewed', updated_at: item.updated_at || '' } )
+		saveTranslation( item.key, lang, {
+			text: value,
+			mark: 'reviewed',
+			updated_at: force ? '' : ( item.updated_at || '' ),
+		} )
 			.then( ( res ) => {
 				setBusy( false );
+				setConflict( null );
 				const s = res.string;
 				onSaved( {
 					translation: s ? s.translation : value,
@@ -290,19 +318,40 @@ function InlineRow( { item, lang, dir, multiLang, onSaved, onRemoved, onModal } 
 					updated_at: s ? s.updated_at : null,
 					origin: 'human',
 				} );
-				// Same text elsewhere? Offer to reuse it.
-				getDuplicates( item.key, lang )
-					.then( ( dups ) => {
-						if ( dups.length > 0 ) {
-							onModal( { type: 'apply', key: item.key, text: value } );
-						}
-					} )
-					.catch( () => {} );
+				// Hash-link kinds already propagate to every identical string; only
+				// parent-id kinds (meta/staticText) need the apply-everywhere prompt.
+				const kind = ( item.key || '' ).split( ':' )[ 0 ];
+				if ( ! HASH_LINK_KINDS.includes( kind ) ) {
+					getDuplicates( item.key, lang )
+						.then( ( dups ) => {
+							if ( dups.length > 0 ) {
+								onModal( { type: 'apply', key: item.key, text: value } );
+							}
+						} )
+						.catch( () => {} );
+				}
 			} )
 			.catch( ( e ) => {
 				setBusy( false );
-				setRowError( errorMessage( e ) );
+				if ( e && e.code === 'conflict' && e.data && e.data.server ) {
+					setConflict( e.data.server );
+				} else {
+					setRowError( errorMessage( e ) );
+				}
 			} );
+	};
+
+	// Accept the version saved elsewhere (UC-AD31), replacing the local edit.
+	const loadLatest = () => {
+		const s = conflict;
+		setConflict( null );
+		setText( s.translated_text || '' );
+		onSaved( {
+			translation: s.translated_text,
+			state: s.effective_state,
+			updated_at: s.tr_updated,
+			origin: s.translated_text ? ( s.provider ? 'machine' : 'human' ) : null,
+		} );
 	};
 
 	const clear = () => {
@@ -329,19 +378,8 @@ function InlineRow( { item, lang, dir, multiLang, onSaved, onRemoved, onModal } 
 			} );
 	};
 
-	const preview = () => {
-		getPreview( item.key, lang )
-			.then( ( res ) => {
-				if ( res.url ) {
-					window.open( res.url, '_blank', 'noopener' );
-				} else {
-					setRowError( 'No preview available for this string.' );
-				}
-			} )
-			.catch( ( e ) => setRowError( errorMessage( e ) ) );
-	};
-
 	return (
+		<>
 		<div className={ 'tl-pair' + ( item.field ? '' : ' tl-pair-nofield' ) }>
 			{ item.field && (
 				<span className="tl-field" title={ item.field }>{ fieldLabel( item.field ) }</span>
@@ -392,10 +430,10 @@ function InlineRow( { item, lang, dir, multiLang, onSaved, onRemoved, onModal } 
 					</button>
 
 					<RowMenu
-						canPreview={ item.preview !== false }
 						canAllLanguages={ multiLang }
-						onPreview={ preview }
+						canCopy={ multiLang }
 						onAllLanguages={ () => onModal( { type: 'all', key: item.key } ) }
+						onCopyFrom={ () => setCopyOpen( true ) }
 						onClear={ clear }
 						onDontTranslate={ dontTranslate }
 						hasTranslation={ ( item.translation || '' ) !== '' }
@@ -403,12 +441,38 @@ function InlineRow( { item, lang, dir, multiLang, onSaved, onRemoved, onModal } 
 				</div>
 			</div>
 
+			{ conflict && (
+				<div className="tl-notice tl-row-error tl-conflict">
+					<span>Someone changed this translation while you were editing.</span>
+					<button type="button" className="button" disabled={ busy } onClick={ loadLatest }>
+						Load latest
+					</button>
+					<button type="button" className="button" disabled={ busy } onClick={ () => save( text, true ) }>
+						Keep mine
+					</button>
+				</div>
+			) }
+
 			{ rowError && <div className="tl-error tl-row-error">{ rowError }</div> }
 		</div>
+
+		{ copyOpen && (
+			<CopyFromLanguage
+				sourceKey={ item.key }
+				lang={ lang }
+				languages={ languages }
+				onClose={ () => setCopyOpen( false ) }
+				onPick={ ( t ) => {
+					setText( t );
+					setCopyOpen( false );
+				} }
+			/>
+		) }
+		</>
 	);
 }
 
-function RowMenu( { canPreview, canAllLanguages, onPreview, onAllLanguages, onClear, onDontTranslate, hasTranslation } ) {
+function RowMenu( { canAllLanguages, canCopy, onAllLanguages, onCopyFrom, onClear, onDontTranslate, hasTranslation } ) {
 	const [ open, setOpen ] = useState( false );
 	const run = ( fn ) => () => {
 		setOpen( false );
@@ -430,14 +494,14 @@ function RowMenu( { canPreview, canAllLanguages, onPreview, onAllLanguages, onCl
 				<>
 					<div className="tl-menu-overlay" onClick={ () => setOpen( false ) } />
 					<div className="tl-menu-list" role="menu">
-						{ canPreview && (
-							<button type="button" role="menuitem" onClick={ run( onPreview ) }>
-								Preview on site
-							</button>
-						) }
 						{ canAllLanguages && (
 							<button type="button" role="menuitem" onClick={ run( onAllLanguages ) }>
 								Translate all languages
+							</button>
+						) }
+						{ canCopy && (
+							<button type="button" role="menuitem" onClick={ run( onCopyFrom ) }>
+								Copy from another language
 							</button>
 						) }
 						{ hasTranslation && (

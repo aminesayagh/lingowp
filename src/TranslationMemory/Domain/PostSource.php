@@ -9,7 +9,7 @@ use InvalidArgumentException;
  * the_content / get_the_excerpt). A post has no context and no source URL — this
  * class passes only its field, so those columns can never be set for a post.
  */
-final class PostSource extends SourceRecord
+class PostSource extends SourceRecord
 {
     private const FIELDS = ['post_title', 'post_content', 'post_excerpt'];
 
@@ -31,14 +31,9 @@ final class PostSource extends SourceRecord
         return $this->field;
     }
 
-    public function type(): int
+    public function table(): string
     {
-        return TL_Key::TYPE_POST;
-    }
-
-    public function ownerId(): ?int
-    {
-        return $this->postId;
+        return 'tl_post';
     }
 
     public function originalText(): string
@@ -46,8 +41,12 @@ final class PostSource extends SourceRecord
         return $this->text;
     }
 
-    public function row(): array
+    public function identity(): array
     {
-        return $this->toRow($this->field);
+        return [
+            'post_id'       => $this->postId,
+            'field'         => $this->field,
+            'original_hash' => $this->originalHash(),
+        ];
     }
 }

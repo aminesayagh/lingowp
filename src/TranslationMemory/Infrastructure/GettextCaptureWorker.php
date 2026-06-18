@@ -21,7 +21,10 @@ final class GettextCaptureWorker
 
     private const TRANSIENT_PREFIX = 'tl_gx_';
 
-    public function __construct(private SourceTranslationRepository $repository) {}
+    public function __construct(
+        private SourceTranslationRepository $repository,
+        private OwnedStringIndex $ownedIndex
+    ) {}
 
     public function register(): void
     {
@@ -74,8 +77,32 @@ final class GettextCaptureWorker
             $records[] = new GettextSource((string) ($row['domain'] ?? ''), $context, $text);
         }
 
+        // Tier-2 ownership gate: drop any string a structured source already owns,
+        // so the same text is never stored as both structured and static.
+        $records = $this->rejectOwned($records);
+
         if ($records !== []) {
             $this->repository->upsertSources($records);
         }
+    }
+
+    /**
+     * @param GettextSource[] $records
+     * @return GettextSource[]
+     */
+    private function rejectOwned(array $records): array
+    {
+        if ($records === []) {
+            return [];
+        }
+
+        $owned = $this->ownedIndex->ownedHexes(
+            array_map(static fn(GettextSource $r): string => $r->originalHash(), $records)
+        );
+
+        return array_values(array_filter(
+            $records,
+            static fn(GettextSource $r): bool => !isset($owned[bin2hex($r->originalHash())])
+        ));
     }
 }

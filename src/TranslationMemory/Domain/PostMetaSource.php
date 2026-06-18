@@ -35,14 +35,9 @@ final class PostMetaSource extends SourceRecord
         return $this->context;
     }
 
-    public function type(): int
+    public function table(): string
     {
-        return TL_Key::TYPE_POSTMETA;
-    }
-
-    public function ownerId(): ?int
-    {
-        return $this->postId;
+        return 'tl_meta';
     }
 
     public function originalText(): string
@@ -50,8 +45,22 @@ final class PostMetaSource extends SourceRecord
         return $this->text;
     }
 
+    public function identity(): array
+    {
+        return [
+            'post_id'       => $this->postId,
+            'meta_key_hash' => hash('sha256', $this->metaKey, true),
+            'context_hash'  => hash('sha256', $this->context ?? '', true),
+            'original_hash' => $this->originalHash(),
+        ];
+    }
+
     public function row(): array
     {
-        return $this->toRow($this->metaKey, $this->context);
+        return $this->identity() + [
+            'meta_key'      => $this->metaKey,
+            'context'       => $this->context,
+            'original_text' => $this->originalText(),
+        ];
     }
 }

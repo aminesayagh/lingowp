@@ -64,9 +64,9 @@ final class StructuredSourceScanner
             array_push($records, ...$this->candidatesForTerm($termTaxonomyId, $name, $description));
         }
 
-        $records = $this->dedupeByKey($records);
+        $records = $this->dedupeByIdentity($records);
 
-        $sourceByRoute   = ['post' => 0, 'postmeta' => 0, 'terms' => 0, 'i18n' => 0];
+        $sourceByRoute   = ['post' => 0, 'meta' => 0, 'term' => 0];
         $insertedByRoute = $sourceByRoute;
 
         foreach ($this->groupByRoute($records) as $route => $group) {
@@ -93,10 +93,9 @@ final class StructuredSourceScanner
             return;
         }
 
-        $records = $this->dedupeByKey($this->candidatesForPost($post));
+        $records = $this->dedupeByIdentity($this->candidatesForPost($post));
 
-        $this->repository->upsertSources($records);
-        $this->repository->deleteStaleSourcesForPost($post->ID, $this->keysOf($records));
+        $this->repository->reconcilePost($post->ID, $records);
     }
 
     /**
@@ -115,10 +114,9 @@ final class StructuredSourceScanner
         }
 
         $value   = get_post_meta($postId, $metaKey, true);
-        $records = $this->dedupeByKey($this->metaCandidates($postId, $metaKey, $value));
+        $records = $this->dedupeByIdentity($this->metaCandidates($postId, $metaKey, $value));
 
-        $this->repository->upsertSources($records);
-        $this->repository->deleteStaleSourcesForPostMetaKey($postId, $metaKey, $this->keysOf($records));
+        $this->repository->reconcilePostMetaKey($postId, $metaKey, $records);
     }
 
     /**
@@ -131,10 +129,9 @@ final class StructuredSourceScanner
             return;
         }
 
-        $records = $this->dedupeByKey($this->candidatesForTerm($termTaxonomyId, $name, $description));
+        $records = $this->dedupeByIdentity($this->candidatesForTerm($termTaxonomyId, $name, $description));
 
-        $this->repository->upsertSources($records);
-        $this->repository->deleteStaleSourcesForTerm($termTaxonomyId, $this->keysOf($records));
+        $this->repository->reconcileTerm($termTaxonomyId, $records);
     }
 
     /**
@@ -397,17 +394,17 @@ final class StructuredSourceScanner
      * @param SourceRecord[] $records
      * @return SourceRecord[]
      */
-    private function dedupeByKey(array $records): array
+    private function dedupeByIdentity(array $records): array
     {
         $seen   = [];
         $unique = [];
 
         foreach ($records as $record) {
-            $hex = bin2hex($record->key());
-            if (isset($seen[$hex])) {
+            $key = $record->dedupeKey();
+            if (isset($seen[$key])) {
                 continue;
             }
-            $seen[$hex] = true;
+            $seen[$key] = true;
             $unique[]   = $record;
         }
 
@@ -421,26 +418,17 @@ final class StructuredSourceScanner
     private function groupByRoute(array $records): array
     {
         $route  = [
-            TL_Key::TYPE_POST     => 'post',
-            TL_Key::TYPE_POSTMETA => 'postmeta',
-            TL_Key::TYPE_TERMS    => 'terms',
+            'tl_post' => 'post',
+            'tl_meta' => 'meta',
+            'tl_term' => 'term',
         ];
         $groups = [];
 
         foreach ($records as $record) {
-            $slug            = $route[$record->type()] ?? 'post';
+            $slug            = $route[$record->table()] ?? 'post';
             $groups[$slug][] = $record;
         }
 
         return $groups;
-    }
-
-    /**
-     * @param SourceRecord[] $records
-     * @return string[] Raw 32-byte locational keys.
-     */
-    private function keysOf(array $records): array
-    {
-        return array_map(static fn(SourceRecord $r): string => $r->key(), $records);
     }
 }

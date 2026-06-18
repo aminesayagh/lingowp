@@ -12,6 +12,9 @@ final class GettextSource extends SourceRecord
 {
     public const DEFAULT_DOMAIN = 'default';
 
+    /** staticText.source token for gettext-originated strings (varchar(20)). */
+    public const SOURCE = 'gettext';
+
     private string $domain;
 
     public function __construct(
@@ -37,14 +40,9 @@ final class GettextSource extends SourceRecord
         return $this->context;
     }
 
-    public function type(): int
+    public function table(): string
     {
-        return TL_Key::TYPE_I18N;
-    }
-
-    public function ownerId(): ?int
-    {
-        return null;
+        return 'tl_staticText';
     }
 
     public function originalText(): string
@@ -52,8 +50,26 @@ final class GettextSource extends SourceRecord
         return $this->text;
     }
 
+    /** Readable reference (domain|context) stored on the parent, capped to varchar(191). */
+    public function reference(): string
+    {
+        return mb_substr($this->domain . '|' . ($this->context ?? ''), 0, 191);
+    }
+
+    public function identity(): array
+    {
+        return [
+            'source'         => self::SOURCE,
+            'reference_hash' => hash('sha256', $this->reference(), true),
+            'original_hash'  => $this->originalHash(),
+        ];
+    }
+
     public function row(): array
     {
-        return $this->toRow($this->domain, $this->context);
+        return $this->identity() + [
+            'reference'     => $this->reference(),
+            'original_text' => $this->originalText(),
+        ];
     }
 }

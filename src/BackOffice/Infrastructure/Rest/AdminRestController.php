@@ -3,29 +3,34 @@
 namespace TransLangs\BackOffice\Infrastructure\Rest;
 
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\TranslationMemory\Domain\SourceRef;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
+use TransLangs\TranslationMemory\Infrastructure\OptionSourceScanner;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminBoardQuery;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
 
 /**
- * Admin board REST API (spec: translangs_api_admin_board.md), namespace
- * translangs/v1. Adapted to the v4 code-based model: languages travel as codes
- * (no lang_id), provider is a free string. source_key travels as lowercase hex.
+ * Admin board REST API, namespace translangs/v1.
  *
- * Every route requires manage_options; the SPA sends the wp_rest cookie nonce
- * (X-WP-Nonce), enforced by core. current_hash is always read server-side.
+ * v5 is table-driven: a source is addressed by a SourceRef ({kind}:{id}) instead
+ * of a hex source_key, and per-kind behavior (owner grouping) switches on the
+ * kind token — there is no numeric source type. Languages travel as codes,
+ * provider is a free string. Every route requires manage_options; the SPA sends
+ * the wp_rest cookie nonce (X-WP-Nonce).
  */
 final class AdminRestController
 {
     private const NS  = 'translangs/v1';
-    private const KEY = '(?P<key>[0-9a-fA-F]{64})';
+    /** A SourceRef: {kind}:{id}, e.g. post:123 / staticText:9. */
+    private const KEY = '(?P<key>[a-zA-Z]+:[0-9]+)';
 
     public function __construct(
         private AdminBoardQuery $query,
         private SourceTranslationRepository $repository,
         private LanguageRegistry $languages,
-        private StructuredSourceScanner $scanner
+        private StructuredSourceScanner $scanner,
+        private OptionSourceScanner $optionScanner
     ) {}
 
     public function register(): void
@@ -42,6 +47,8 @@ final class AdminRestController
         register_rest_route(self::NS, '/ignored', $this->route('GET', 'ignored'));
         register_rest_route(self::NS, '/ignored/restore', $this->route('POST', 'restore'));
         register_rest_route(self::NS, '/scan', $this->route('POST', 'scan'));
+        register_rest_route(self::NS, '/export', $this->route('GET', 'export'));
+        register_rest_route(self::NS, '/import', $this->route('POST', 'import'));
 
         register_rest_route(self::NS, '/string/' . self::KEY, $this->route('GET', 'getString'));
         register_rest_route(self::NS, '/string/' . self::KEY . '/translation', [
@@ -52,7 +59,6 @@ final class AdminRestController
         register_rest_route(self::NS, '/string/' . self::KEY . '/ignore', $this->route('POST', 'ignore'));
         register_rest_route(self::NS, '/string/' . self::KEY . '/duplicates', $this->route('GET', 'duplicates'));
         register_rest_route(self::NS, '/string/' . self::KEY . '/apply-everywhere', $this->route('POST', 'applyEverywhere'));
-        register_rest_route(self::NS, '/string/' . self::KEY . '/preview', $this->route('GET', 'preview'));
     }
 
     public function canManage(): bool
@@ -83,7 +89,7 @@ final class AdminRestController
                 ['key' => 'product', 'label' => 'Products'],
                 ['key' => 'term', 'label' => 'Categories'],
                 ['key' => 'media', 'label' => 'Media'],
-                ['key' => 'i18n', 'label' => 'Theme & button text'],
+                ['key' => 'staticText', 'label' => 'Static text'],
                 ['key' => 'html', 'label' => 'Templates'],
             ],
             'providers'     => [],
@@ -106,11 +112,17 @@ final class AdminRestController
             $tab = 'to_translate';
         }
 
+        $sort = (string) $request->get_param('sort');
+        if (!in_array($sort, ['default', 'recent'], true)) {
+            $sort = 'default';
+        }
+
         $result = $this->query->items([
-            'types'        => $area['types'],
             'post_type'    => $area['post_type'],
+            'tables'       => $area['tables'],
             'lang'         => $lang,
             'tab'          => $tab,
+            'sort'         => $sort,
             'q_original'   => (string) $request->get_param('q_original'),
             'q_translated' => (string) $request->get_param('q_translated'),
             'origin'       => (string) ($request->get_param('origin') ?: 'all'),
@@ -121,7 +133,7 @@ final class AdminRestController
         return rest_ensure_response([
             'groups'      => $this->groupRows($result['rows']),
             'next_cursor' => KeysetCursor::encodeOwner($result['next_cursor']),
-            'counts'      => $this->query->counts($area['types'], $area['post_type'], $lang),
+            'counts'      => $this->query->counts($area, $lang),
         ]);
     }
 
@@ -136,10 +148,10 @@ final class AdminRestController
             return $lang;
         }
 
-        return rest_ensure_response($this->query->counts($area['types'], $area['post_type'], $lang));
+        return rest_ensure_response($this->query->counts($area, $lang));
     }
 
-    /** Per-area {to_translate, total} for the sidebar badges, for one language. */
+    /** Per-area {done, total} for the sidebar badges, for one language. */
     public function countsAll(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $lang = $this->targetLang($request);
@@ -148,15 +160,15 @@ final class AdminRestController
         }
 
         $out = [];
-        foreach (['page', 'post', 'product', 'term', 'media', 'i18n', 'html'] as $key) {
+        foreach (AdminBoardQuery::areaKeys() as $key) {
             $area = AdminBoardQuery::area($key);
             if ($area === null) {
                 continue;
             }
-            $counts      = $this->query->counts($area['types'], $area['post_type'], $lang);
+            $counts    = $this->query->counts($area, $lang);
             $out[$key] = [
-                'to_translate' => $counts['to_translate'],
-                'total'        => $counts['total'],
+                'done'  => $counts['done'],
+                'total' => $counts['total'],
             ];
         }
 
@@ -165,43 +177,35 @@ final class AdminRestController
 
     public function getString(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
         }
         $lang = $this->langParam($request);
 
-        $row = $this->query->loadString($key, $lang);
+        $row = $this->query->loadString($ref, $lang);
         if ($row === null) {
             return $this->error('not_found', 'Source not found.', 404);
         }
 
         return rest_ensure_response([
             'string'   => $this->presentString($row),
-            'siblings' => $this->query->siblings($key),
+            'siblings' => $this->query->siblings($ref),
         ]);
     }
 
     public function duplicates(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
         }
         $lang = $this->targetLang($request);
         if ($lang instanceof \WP_Error) {
             return $lang;
         }
 
-        $row = $this->query->loadString($key, $lang);
-        if ($row === null) {
-            return $this->error('not_found', 'Source not found.', 404);
-        }
-        $currentHash = HexSourceKey::toBinary((string) $row['current_hash']);
-
-        return rest_ensure_response(
-            $this->query->duplicates($key, (int) $row['type'], (string) $currentHash, $lang)
-        );
+        return rest_ensure_response($this->query->duplicates($ref, $lang));
     }
 
     public function ignored(\WP_REST_Request $request): \WP_REST_Response
@@ -217,67 +221,20 @@ final class AdminRestController
         ]);
     }
 
-    public function preview(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
-    {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
-        }
-        $lang = $this->langParam($request);
-
-        $row = $this->query->loadString($key, $lang);
-        if ($row === null) {
-            return $this->error('not_found', 'Source not found.', 404);
-        }
-
-        $focus = bin2hex($key);
-
-        $type = (int) $row['type'];
-        if ($type === 5) {
-            $htmlUrl = (string) ($row['source_url'] ?? '');
-            if ($htmlUrl !== '') {
-                $htmlUrl = add_query_arg(['translangs_preview' => $lang, 'translangs_focus' => $focus], $htmlUrl);
-            }
-
-            return rest_ensure_response([
-                'url'      => $htmlUrl,
-                'selector' => (string) $row['ref1'],
-            ]);
-        }
-
-        $url = '';
-        if ($type === 3) {
-            $term = function_exists('get_term_by') ? get_term_by('term_taxonomy_id', (int) $row['term_taxonomy_id']) : null;
-            $link = $term instanceof \WP_Term && function_exists('get_term_link') ? get_term_link($term) : '';
-            $url  = is_string($link) ? $link : '';
-        } elseif (function_exists('get_permalink')) {
-            $url = (string) get_permalink((int) $row['post_id']);
-        }
-
-        if ($url !== '') {
-            // The editor-gated preview param (resolveFromPreview), not the
-            // path-prefix query var translangs_lang — a bare ?translangs_lang
-            // on a normal permalink can be dropped by canonical redirect.
-            $url = add_query_arg(['translangs_preview' => $lang, 'translangs_focus' => $focus], $url);
-        }
-
-        return rest_ensure_response(['url' => $url, 'selector' => null]);
-    }
-
     // ── writes ──────────────────────────────────────────────────────────────
 
     public function putTranslation(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
         }
         $lang = $this->targetLang($request);
         if ($lang instanceof \WP_Error) {
             return $lang;
         }
 
-        $row = $this->query->loadString($key, $lang);
+        $row = $this->query->loadString($ref, $lang);
         if ($row === null) {
             return $this->error('not_found', 'Source not found.', 404);
         }
@@ -289,43 +246,43 @@ final class AdminRestController
 
         $expected = $request->get_param('updated_at');
         if (is_string($expected) && $expected !== '') {
-            $current = $this->repository->translationUpdatedAt($key, $lang);
+            $current = $this->repository->translationUpdatedAt($ref, $lang);
             if ($current !== null && $current !== $expected) {
                 return $this->error('conflict', 'This translation was changed elsewhere.', 409, ['server' => $row]);
             }
         }
 
-        $this->repository->saveTranslation($key, $lang, $text, $this->markStatus((string) $request->get_param('mark')), null);
+        $this->repository->saveTranslation($ref, $lang, $text, $this->markStatus((string) $request->get_param('mark')), null);
 
-        $fresh = $this->query->loadString($key, $lang);
+        $fresh = $this->query->loadString($ref, $lang);
 
         return rest_ensure_response(['string' => $fresh === null ? null : $this->presentString($fresh)]);
     }
 
     public function deleteTranslation(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
         }
         $lang = $this->targetLang($request);
         if ($lang instanceof \WP_Error) {
             return $lang;
         }
 
-        $this->repository->deleteTranslation($key, $lang);
+        $this->repository->deleteTranslation($ref, $lang);
 
         return rest_ensure_response(['ok' => true]);
     }
 
     public function putTranslations(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
         }
 
-        $original = $this->query->loadString($key, $this->languages->getDefaultLanguage());
+        $original = $this->query->loadString($ref, $this->languages->getDefaultLanguage());
         if ($original === null) {
             return $this->error('not_found', 'Source not found.', 404);
         }
@@ -342,7 +299,7 @@ final class AdminRestController
             if (!$this->placeholdersPresent($originalText, $text)) {
                 return $this->error('placeholder_mismatch', "Formatting placeholders missing for '{$lang}'.", 400);
             }
-            $this->repository->saveTranslation($key, $lang, $text, TranslationStatus::NEEDS_REVIEW, null);
+            $this->repository->saveTranslation($ref, $lang, $text, TranslationStatus::NEEDS_REVIEW, null);
             $saved++;
         }
 
@@ -351,35 +308,35 @@ final class AdminRestController
 
     public function ignore(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
         }
-        $this->repository->ignoreSource($key);
+        $this->repository->ignoreSource($ref);
 
         return rest_ensure_response(['ok' => true]);
     }
 
     public function restore(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $keys = [];
-        foreach ((array) $request->get_param('keys') as $hex) {
-            $bin = HexSourceKey::toBinary((string) $hex);
-            if ($bin === null) {
-                return $this->error('invalid_key', 'Malformed source key.', 400);
+        $refs = [];
+        foreach ((array) $request->get_param('keys') as $key) {
+            $ref = SourceRef::parse((string) $key);
+            if ($ref === null) {
+                return $this->error('invalid_key', 'Malformed source ref.', 400);
             }
-            $keys[] = $bin;
+            $refs[] = $ref;
         }
-        $this->repository->restoreSources($keys);
+        $this->repository->restoreSources($refs);
 
-        return rest_ensure_response(['ok' => true, 'restored' => count($keys)]);
+        return rest_ensure_response(['ok' => true, 'restored' => count($refs)]);
     }
 
     public function applyEverywhere(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
-        $key = $this->key($request);
-        if ($key instanceof \WP_Error) {
-            return $key;
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
         }
         $lang = $this->targetLang($request);
         if ($lang instanceof \WP_Error) {
@@ -387,19 +344,22 @@ final class AdminRestController
         }
 
         $targets = [];
-        foreach ((array) $request->get_param('targets') as $hex) {
-            $bin = HexSourceKey::toBinary((string) $hex);
-            if ($bin === null) {
-                return $this->error('invalid_key', 'Malformed target key.', 400);
+        foreach ((array) $request->get_param('targets') as $key) {
+            $target = SourceRef::parse((string) $key);
+            if ($target === null) {
+                return $this->error('invalid_key', 'Malformed target ref.', 400);
             }
-            $targets[] = $bin;
+            $targets[] = $target;
         }
 
-        $applied = $this->repository->applyTranslationToKeys(
+        // Applying a translation to its duplicates IS the confirmation, so the
+        // copies land at the same status the user chose for the primary string
+        // (default Reviewed/Done) — they do not get parked in "To review".
+        $applied = $this->repository->applyTranslationToRefs(
             $targets,
             $lang,
             (string) $request->get_param('text'),
-            TranslationStatus::NEEDS_REVIEW,
+            $this->markStatus((string) $request->get_param('mark')),
             (bool) $request->get_param('overwrite')
         );
 
@@ -414,14 +374,209 @@ final class AdminRestController
             return rest_ensure_response(['ok' => true, 'scope' => 'owner']);
         }
 
-        $result = $this->scanner->scan();
+        $result        = $this->scanner->scan();
+        $optionInserted = $this->optionScanner->scan();
 
         return rest_ensure_response([
             'ok'       => true,
             'sources'  => $result->totalSourceStrings(),
-            'inserted' => $result->totalInsertedRows(),
+            'inserted' => $result->totalInsertedRows() + $optionInserted,
             'skipped'  => $result->skipped,
         ]);
+    }
+
+    /**
+     * Stream a CSV of every source + its translations: one row per source, one
+     * column per language. Downloads directly (headers + exit), so the SPA must
+     * fetch it with the nonce (apiFetch parse:false) and save the blob.
+     */
+    public function export(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
+    {
+        $langs = $this->exportLangs($request);
+        if ($langs instanceof \WP_Error) {
+            return $langs;
+        }
+
+        $areaParam = (string) $request->get_param('area');
+        $areaKeys  = ($areaParam === '' || $areaParam === 'all') ? AdminBoardQuery::areaKeys() : [$areaParam];
+
+        $rows  = [];
+        $order = [];
+        foreach ($areaKeys as $areaKey) {
+            $area = AdminBoardQuery::area($areaKey);
+            if ($area === null) {
+                continue;
+            }
+            foreach ($langs as $lang) {
+                $cursor = null;
+                do {
+                    $res = $this->query->items([
+                        'post_type'    => $area['post_type'],
+                        'tables'       => $area['tables'],
+                        'lang'         => $lang,
+                        'tab'          => 'all',
+                        'q_original'   => '',
+                        'q_translated' => '',
+                        'origin'       => 'all',
+                        'cursor'       => $cursor,
+                        'limit'        => 100,
+                    ]);
+                    foreach ($res['rows'] as $r) {
+                        $key = (string) $r['source_key'];
+                        if (!isset($rows[$key])) {
+                            $rows[$key] = [
+                                'kind'      => (string) $r['kind'],
+                                'reference' => trim(((string) ($r['ref1'] ?? '')) . ' ' . ((string) ($r['ref2'] ?? ''))),
+                                'original'  => (string) $r['original_text'],
+                                'tr'        => [],
+                            ];
+                            $order[] = $key;
+                        }
+                        if ($r['translated_text'] !== null) {
+                            $rows[$key]['tr'][$lang] = (string) $r['translated_text'];
+                        }
+                    }
+                    $cursor = $res['next_cursor'];
+                } while ($cursor !== null);
+            }
+        }
+
+        // ponytail: loops items() once per language; add a dedicated multi-lang
+        // export query only if export volume becomes a problem.
+        if (function_exists('nocache_headers')) {
+            nocache_headers();
+        }
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="translangs-export.csv"');
+
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads accents correctly.
+        fputcsv($out, array_merge(['source_key', 'type', 'reference', 'original'], $langs));
+        foreach ($order as $key) {
+            $row  = $rows[$key];
+            $line = [$key, $row['kind'], $row['reference'], $row['original']];
+            foreach ($langs as $lang) {
+                $line[] = $row['tr'][$lang] ?? '';
+            }
+            fputcsv($out, $line);
+        }
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * Import a previously-exported CSV. With ?preview=1 it validates and counts
+     * without writing; otherwise each non-empty language cell is saved as
+     * needs_review (imported rows land in "To review"). Bad refs / unknown
+     * sources are skipped; placeholder mismatches are reported, never fatal.
+     */
+    public function import(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
+    {
+        $files = $request->get_file_params();
+        $file  = $files['file'] ?? null;
+        if (!is_array($file) || empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+            return $this->error('no_file', 'No CSV file was uploaded.', 400);
+        }
+
+        $handle = fopen($file['tmp_name'], 'r');
+        if ($handle === false) {
+            return $this->error('unreadable', 'Could not read the uploaded file.', 400);
+        }
+
+        $header = fgetcsv($handle);
+        if (!is_array($header)) {
+            fclose($handle);
+            return $this->error('empty', 'The file is empty.', 400);
+        }
+        $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $header[0]); // strip BOM
+
+        $header  = array_map(static fn($h): string => trim((string) $h), $header);
+        $keyCol  = array_search('source_key', $header, true);
+        if ($keyCol === false) {
+            fclose($handle);
+            return $this->error('no_key', 'The file has no source_key column.', 400);
+        }
+
+        $targets  = $this->languages->getTargetLanguages();
+        $langCols = [];
+        foreach ($header as $i => $name) {
+            if (in_array($name, $targets, true)) {
+                $langCols[$i] = $name;
+            }
+        }
+
+        $preview = (bool) $request->get_param('preview');
+        $saved   = 0;
+        $skipped = 0;
+        $errors  = [];
+
+        while (($line = fgetcsv($handle)) !== false) {
+            $key = isset($line[$keyCol]) ? trim((string) $line[$keyCol]) : '';
+            $ref = SourceRef::parse($key);
+            if ($ref === null) {
+                $skipped++;
+                continue;
+            }
+            $original = $this->query->loadString($ref, $this->languages->getDefaultLanguage());
+            if ($original === null) {
+                $skipped++;
+                continue;
+            }
+            $originalText = (string) $original['original_text'];
+
+            foreach ($langCols as $i => $lang) {
+                $text = isset($line[$i]) ? (string) $line[$i] : '';
+                if (trim($text) === '') {
+                    continue;
+                }
+                if (!$this->placeholdersPresent($originalText, $text)) {
+                    $errors[] = "{$key} [{$lang}]: formatting placeholders missing";
+                    continue;
+                }
+                if (!$preview) {
+                    $this->repository->saveTranslation($ref, $lang, $text, TranslationStatus::NEEDS_REVIEW, null);
+                }
+                $saved++;
+            }
+        }
+        fclose($handle);
+
+        return rest_ensure_response([
+            'ok'      => !$preview,
+            'preview' => $preview,
+            'saved'   => $saved,
+            'skipped' => $skipped,
+            'errors'  => $errors,
+        ]);
+    }
+
+    /**
+     * Validated, comma-separated target languages from the `langs` param; all
+     * targets when empty.
+     *
+     * @return string[]|\WP_Error
+     */
+    private function exportLangs(\WP_REST_Request $request): array|\WP_Error
+    {
+        $targets = $this->languages->getTargetLanguages();
+        $raw     = (string) $request->get_param('langs');
+        if ($raw === '') {
+            return $targets;
+        }
+
+        $langs = [];
+        foreach (explode(',', $raw) as $code) {
+            $code = trim($code);
+            if ($code === '') {
+                continue;
+            }
+            if (!in_array($code, $targets, true)) {
+                return $this->error('invalid_lang', "Unknown or inactive target language '{$code}'.", 400);
+            }
+            $langs[] = $code;
+        }
+
+        return $langs === [] ? $targets : $langs;
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -442,11 +597,11 @@ final class AdminRestController
         ];
     }
 
-    private function key(\WP_REST_Request $request): string|\WP_Error
+    private function ref(\WP_REST_Request $request): SourceRef|\WP_Error
     {
-        $bin = HexSourceKey::toBinary((string) $request->get_param('key'));
+        $ref = SourceRef::parse((string) $request->get_param('key'));
 
-        return $bin ?? $this->error('invalid_key', 'Malformed source key.', 400);
+        return $ref ?? $this->error('invalid_key', 'Malformed source ref.', 400);
     }
 
     /** A target language code, or 400. Writes/lists are scoped to target languages. */
@@ -474,7 +629,7 @@ final class AdminRestController
         };
     }
 
-    /** Every {n}/{/n}/{n/} token in the original must be present in the text (UC-AD14). */
+    /** Every {n}/{/n}/{n/} token in the original must be present in the text. */
     private function placeholdersPresent(string $original, string $text): bool
     {
         if (preg_match_all('/\{\/?\d+\/?\}/', $original, $matches) === false) {
@@ -499,13 +654,13 @@ final class AdminRestController
         $order  = [];
 
         foreach ($rows as $row) {
-            $type = (int) $row['type'];
-            if ($type === 1 || $type === 2) {
+            $kind = (string) $row['kind'];
+            if ($kind === 'post' || $kind === 'meta') {
                 $ownerKey = 'p' . (int) $row['post_id'];
-            } elseif ($type === 3) {
+            } elseif ($kind === 'term') {
                 $ownerKey = 't' . (int) $row['term_taxonomy_id'];
             } else {
-                $ownerKey = 's' . (int) $row['id']; // gettext/html: each string is its own card
+                $ownerKey = 's' . (int) $row['id']; // staticText/html: each string is its own card
             }
 
             if (!isset($groups[$ownerKey])) {
@@ -521,7 +676,6 @@ final class AdminRestController
                 'translation' => $row['translated_text'],
                 'state'       => $row['effective_state'],
                 'updated_at'  => $row['tr_updated'] ?? null,
-                'preview'     => $this->previewable($type, (string) ($row['source_url'] ?? '')),
                 'origin'      => $row['translated_text'] === null
                     ? null
                     : ($row['provider'] !== null ? 'machine' : 'human'),
@@ -531,34 +685,28 @@ final class AdminRestController
         return array_map(static fn(string $k): array => $groups[$k], $order);
     }
 
-    /** Theme/button text (type 4) has no live URL; HTML (type 5) needs a source_url. */
-    private function previewable(int $type, string $sourceUrl): bool
-    {
-        return match ($type) {
-            4 => false,
-            5 => $sourceUrl !== '',
-            default => true,
-        };
-    }
-
     /**
      * @param array<string,mixed> $row
      * @return array<string,mixed>
      */
     private function ownerInfo(array $row): array
     {
-        $type = (int) $row['type'];
+        $kind = (string) $row['kind'];
 
-        if (($type === 1 || $type === 2) && function_exists('get_post')) {
-            $post = get_post((int) $row['post_id']);
+        if (($kind === 'post' || $kind === 'meta') && function_exists('get_post')) {
+            $postId = (int) $row['post_id'];
+            $post   = get_post($postId);
             return [
-                'id'    => (int) $row['post_id'],
-                'label' => $post instanceof \WP_Post ? $post->post_title : ('#' . (int) $row['post_id']),
+                'id'    => $postId,
+                'label' => $post instanceof \WP_Post ? $post->post_title : ('#' . $postId),
                 'kind'  => $post instanceof \WP_Post ? $post->post_type : 'post',
+                'thumb' => $post instanceof \WP_Post && $post->post_type === 'attachment'
+                    ? $this->attachmentThumb($postId)
+                    : null,
             ];
         }
 
-        if ($type === 3 && function_exists('get_term_by')) {
+        if ($kind === 'term' && function_exists('get_term_by')) {
             $term = get_term_by('term_taxonomy_id', (int) $row['term_taxonomy_id']);
             return [
                 'id'    => (int) $row['term_taxonomy_id'],
@@ -567,7 +715,24 @@ final class AdminRestController
             ];
         }
 
-        return ['id' => (int) $row['id'], 'label' => (string) $row['ref1'], 'kind' => $type === 4 ? 'i18n' : 'html'];
+        return ['id' => (int) $row['id'], 'label' => (string) $row['ref1'], 'kind' => $kind];
+    }
+
+    /** A 64px preview URL for a media attachment: image thumbnail, else a file-type icon. */
+    private function attachmentThumb(int $attachmentId): ?string
+    {
+        if (function_exists('wp_get_attachment_image_url')) {
+            $url = wp_get_attachment_image_url($attachmentId, [64, 64]);
+            if (is_string($url) && $url !== '') {
+                return $url;
+            }
+        }
+        if (function_exists('wp_mime_type_icon')) {
+            $icon = wp_mime_type_icon($attachmentId);
+            return is_string($icon) && $icon !== '' ? $icon : null;
+        }
+
+        return null;
     }
 
     /**
@@ -581,7 +746,7 @@ final class AdminRestController
 
         return [
             'key'          => $row['source_key'],
-            'type'         => (int) $row['type'],
+            'kind'         => $row['kind'],
             'field'        => $row['ref1'],
             'context'      => $row['ref2'],
             'original'     => $row['original_text'],

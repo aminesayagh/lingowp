@@ -3,29 +3,33 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\TranslationMemory\Domain\HtmlSource;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
+use TransLangs\TranslationMemory\Infrastructure\OwnedStringIndex;
 
 /**
- * Frontend output buffer (v4). Structured text (types 1–4) is already translated
- * by the hooks before the buffer closes; here we run the type-5 REPLACE pass over
- * the final HTML and rewrite links to their localized URLs.
+ * Frontend output buffer (v5). Structured text (post/term/meta + gettext) is
+ * already translated by the hooks before the buffer closes; here we only rewrite
+ * internal links to their localized URLs on a translated request.
  *
- * The DOM parse is the one heavy step, so it is gated to PREVIEW requests only
- * (logged-in editor with ?translangs_preview): public visitors never pay for the
- * type-5 HTML parse. Link rewriting still runs for everyone. (Within preview it
- * is further skipped when the language has no type-5 translations.) Type-5
- * discovery is marking-mode only and is not done here.
+ * The same buffer also powers MARKING MODE: an editor loads a frontend page in the
+ * SOURCE language with ?translangs_mark, and every block-level unit not already
+ * owned by a structured source is minted as a tl_html parent. It runs on the
+ * source language on purpose — captured text is then genuine source text, and the
+ * ownership gate (post/term/meta/html source hashes) excludes structured content.
  */
 final class PublicRenderPipeline
 {
     private ?string $targetLang = null;
+    private bool $marking = false;
 
     public function __construct(
         private ResolveRequestLanguage $languageResolver,
         private RequestContext $requestContext,
         private PublicLinkRewriter $linkRewriter,
         private SourceTranslationRepository $repository,
-        private HtmlRenderer $htmlRenderer
+        private HtmlRenderer $htmlRenderer,
+        private OwnedStringIndex $ownedIndex
     ) {}
 
     public function register(): void
@@ -35,11 +39,20 @@ final class PublicRenderPipeline
 
     public function maybeStart(): void
     {
-        if (!$this->requestContext->shouldTranslate() || !$this->languageResolver->isTranslatedRequest()) {
+        if (!$this->requestContext->shouldTranslate()) {
             return;
         }
 
-        $this->targetLang = $this->languageResolver->resolve();
+        $translated    = $this->languageResolver->isTranslatedRequest();
+        $this->marking = !$translated && $this->isMarking();
+
+        // Translated visitor view (rewrite/preview) or a source-language editor
+        // marking pass — otherwise leave the response untouched.
+        if (!$translated && !$this->marking) {
+            return;
+        }
+
+        $this->targetLang = $translated ? $this->languageResolver->resolve() : null;
 
         ob_start(
             [$this, 'finish'],
@@ -50,58 +63,73 @@ final class PublicRenderPipeline
 
     public function finish(string $html, int $phase = 0): string
     {
-        if (
-            ($phase & PHP_OUTPUT_HANDLER_CLEAN) !== 0
-            || $this->targetLang === null
-            || !$this->isHtmlResponse()
-        ) {
+        if (($phase & PHP_OUTPUT_HANDLER_CLEAN) !== 0 || !$this->isHtmlResponse()) {
             return $html;
         }
 
-        // Type-5 HTML parse: preview only. Public visitors get types 1–4 (already
-        // applied via hooks) + link rewriting, but never the DOM parse.
-        if ($this->isPreview()) {
-            $map = $this->htmlTranslations($this->targetLang);
-            if ($map !== []) {
-                $html = $this->htmlRenderer->render($html, $map);
-            }
+        // Marking mode: discover hardcoded HTML, leave the (source-language) output
+        // as-is. The DB write happens inside the buffer callback (before flush),
+        // so it is safe on managed hosts; it is an editor-only, low-frequency pass.
+        if ($this->marking) {
+            $this->discoverHtml($html);
+
+            return $html;
         }
 
+        if ($this->targetLang === null) {
+            return $html;
+        }
+
+        // Structured text (post/term/meta + gettext) is already translated by the
+        // hooks; here we only localize internal links for the translated request.
         return $this->linkRewriter->rewrite($html, $this->targetLang);
     }
 
-    /** Preview = logged-in editor viewing with ?translangs_preview (matches ResolveRequestLanguage). */
-    private function isPreview(): bool
+    /**
+     * Walk the page's block units and mint a tl_html parent for each one no
+     * structured source already owns (so the same string is never stored as both
+     * structured content and html). INSERT IGNORE makes a re-mark idempotent.
+     */
+    private function discoverHtml(string $html): void
     {
-        return !empty($_GET['translangs_preview'])
+        $sourceUrl = $this->currentUrl();
+        $units     = [];
+
+        $this->htmlRenderer->render($html, [], static function (string $selector, string $text) use (&$units, $sourceUrl): void {
+            $units[$selector . "\0" . $text] = new HtmlSource($selector, $sourceUrl, $text);
+        });
+
+        if ($units === []) {
+            return;
+        }
+
+        $owned   = $this->ownedIndex->ownedHexes(array_map(static fn(HtmlSource $s): string => $s->originalHash(), $units));
+        $records = array_values(array_filter(
+            $units,
+            static fn(HtmlSource $s): bool => !isset($owned[bin2hex($s->originalHash())])
+        ));
+
+        if ($records !== []) {
+            $this->repository->upsertSources($records);
+        }
+    }
+
+    /** Marking = logged-in editor viewing a source-language page with ?translangs_mark. */
+    private function isMarking(): bool
+    {
+        return !empty($_GET['translangs_mark'])
             && function_exists('current_user_can')
             && current_user_can('edit_posts');
     }
 
-    /**
-     * Per-language type-5 map, object-cached. Empty array is a valid cached value
-     * (means "skip the parse"); a cache miss returns false and triggers a fetch.
-     *
-     * @return array<string, string>
-     */
-    private function htmlTranslations(string $lang): array
+    private function currentUrl(): ?string
     {
-        $cacheKey = 'tl:html:' . $lang;
-
-        if (function_exists('wp_cache_get')) {
-            $cached = wp_cache_get($cacheKey, 'translangs');
-            if (is_array($cached)) {
-                return $cached;
-            }
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        if ($uri === '' || !function_exists('home_url')) {
+            return $uri === '' ? null : $uri;
         }
 
-        $map = $this->repository->fetchHtmlTranslations($lang);
-
-        if (function_exists('wp_cache_set')) {
-            wp_cache_set($cacheKey, $map, 'translangs', 300);
-        }
-
-        return $map;
+        return home_url($uri);
     }
 
     private function isHtmlResponse(): bool

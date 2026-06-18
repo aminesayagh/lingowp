@@ -30,14 +30,9 @@ final class TermSource extends SourceRecord
         return $this->field;
     }
 
-    public function type(): int
+    public function table(): string
     {
-        return TL_Key::TYPE_TERMS;
-    }
-
-    public function ownerId(): ?int
-    {
-        return $this->termTaxonomyId;
+        return 'tl_term';
     }
 
     public function originalText(): string
@@ -45,8 +40,12 @@ final class TermSource extends SourceRecord
         return $this->text;
     }
 
-    public function row(): array
+    public function identity(): array
     {
-        return $this->toRow($this->field);
+        return [
+            'term_taxonomy_id' => $this->termTaxonomyId,
+            'field'            => $this->field,
+            'original_hash'    => $this->originalHash(),
+        ];
     }
 }

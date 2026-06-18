@@ -3,35 +3,42 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\TranslationMemory\Domain\IdentityKey;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
 use TransLangs\TranslationMemory\Domain\TL_Key;
 use TransLangs\TranslationMemory\Domain\TranslatableMetaKeys;
 
 /**
- * v4 structured render resolution (data pipeline §3, types 1–3).
+ * v5 structured render resolution (post, term, meta).
  *
- * Resolves text BY LOCATION (D26): WordPress filter hooks supply the identity
- * (post id + field, meta key, term), the key is recomputed via TL_Key, and the
- * translation is read from a request-local map preloaded in batches — never a
- * query per string, never a join on the hot path.
+ * Two lookup models, matching the child-key split:
+ *   - post + term are HASH-LINK: the original text is on the filter, so the
+ *     resolver hashes it and reads a hash → translation map (no parent join).
+ *   - meta is PARENT_ID: get_post_metadata short-circuits without the original
+ *     value, so it is matched by location (post_id, meta_key_hash, context_hash)
+ *     against the single discovered parent, joined to its child.
  *
- * Staleness policy is the default "stale-but-shown": a produced translation is
- * always returned when present, so no current_hash comparison is needed here
- * (the admin queue surfaces edited-since-translated rows separately).
- *
- * Gettext (type 4) and the HTML output-buffer fallback (type 5) are handled
- * elsewhere; this class only touches structured content.
+ * Maps are preloaded in batches per WP_Query — never a query per string. A
+ * missing entry means untranslated or ignored (ignore deletes the child), so the
+ * original text renders. Gettext and the HTML fallback are handled elsewhere.
  */
 final class StructuredRenderResolver
 {
     private ?bool $active = null;
+    private bool $activating = false;
     private string $lang = '';
 
-    /** @var array<string, string> hex(source_key) => translated_text */
-    private array $map = [];
+    /** @var array<string, string> "tableKey|hex(original_hash)" => translated_text (post/term) */
+    private array $hashMap = [];
 
-    /** @var array<string, true> hex(source_key) => already-queried (negative cache) */
-    private array $loaded = [];
+    /** @var array<string, true> "tableKey|hex(original_hash)" => already-queried */
+    private array $hashLoaded = [];
+
+    /** @var array<string, string> IdentityKey(meta lookup) => translated_text */
+    private array $metaMap = [];
+
+    /** @var array<string, true> IdentityKey(meta lookup) => already-queried */
+    private array $metaLoaded = [];
 
     /** @var string[]|null memoized allow-listed meta keys */
     private ?array $metaKeys = null;
@@ -40,7 +47,8 @@ final class StructuredRenderResolver
         private ResolveRequestLanguage $language,
         private RequestContext $context,
         private SourceTranslationRepository $repository,
-        private HtmlUnitExtractor $unitExtractor
+        private HtmlUnitExtractor $unitExtractor,
+        private PageOwnedHashes $pageOwned
     ) {}
 
     public function register(): void
@@ -53,6 +61,16 @@ final class StructuredRenderResolver
         add_filter('get_term', [$this, 'term'], 10, 2);
         add_filter('get_terms', [$this, 'terms'], 10, 1);
         add_filter('get_the_terms', [$this, 'theTerms'], 10, 1);
+    }
+
+    /** Scalar meta render lookup — matched by location (no original text here). @return array<string, scalar> */
+    private function metaLookup(int $postId, string $metaKey): array
+    {
+        return [
+            'post_id'       => $postId,
+            'meta_key_hash' => hash('sha256', $metaKey, true),
+            'context_hash'  => hash('sha256', '', true),
+        ];
     }
 
     // ── preload (one batch per WP_Query) ──────────────────────────────────────
@@ -69,29 +87,29 @@ final class StructuredRenderResolver
             return $posts;
         }
 
-        $keys = [];
+        $postHashes  = [];
+        $metaLookups = [];
         foreach ($posts as $post) {
             if (!$post instanceof \WP_Post) {
                 continue;
             }
-            foreach (['post_title', 'post_excerpt'] as $field) {
-                $keys[] = TL_Key::make(TL_Key::TYPE_POST, $post->ID, $field, null, '');
-            }
-            // post_content is split: one key per block-level piece (text-tailed).
+            $postHashes[] = TL_Key::currentHash((string) $post->post_title);
+            $postHashes[] = TL_Key::currentHash((string) $post->post_excerpt);
             foreach ($this->unitExtractor->units((string) $post->post_content) as $unit) {
-                $keys[] = TL_Key::makeSplit($post->ID, 'post_content', $unit);
+                $postHashes[] = TL_Key::currentHash($unit);
             }
             foreach ($this->metaKeys() as $metaKey) {
-                $keys[] = TL_Key::make(TL_Key::TYPE_POSTMETA, $post->ID, $metaKey, null, '');
+                $metaLookups[] = $this->metaLookup($post->ID, $metaKey);
             }
         }
 
-        $this->ensureKeysLoaded($keys);
+        $this->ensureHashLoaded('tl_post', $postHashes);
+        $this->ensureMetaLoaded($metaLookups);
 
         return $posts;
     }
 
-    // ── type 1: post fields ───────────────────────────────────────────────────
+    // ── post fields (hash-link) ───────────────────────────────────────────────
 
     /**
      * @param mixed $title
@@ -99,46 +117,37 @@ final class StructuredRenderResolver
      */
     public function title($title, $postId = null)
     {
-        $id = (int) $postId;
-        if ($id <= 0) {
+        if (!$this->isActive()) {
             return $title;
         }
 
-        return $this->translate(TL_Key::TYPE_POST, $id, 'post_title', (string) $title);
+        return $this->hashValue('tl_post', (string) $title);
     }
 
     /**
-     * Post content is a SPLIT field (split-field spec §5): each block-level piece
-     * is translated independently and reassembled in place — block scaffolding
-     * and any theme/builder wrappers pass through untouched. No marker element is
-     * injected: the type-5 page pass is map-driven on type-5 keys only, and these
-     * pieces are type-1 split keys, so the body can never be re-translated there.
+     * Post content is split into block-level pieces; each is translated by its
+     * own text hash and reassembled in place. Scaffolding/wrappers pass through.
      *
      * @param mixed $content
      * @return mixed
      */
     public function content($content)
     {
-        if (!$this->isActive() || !function_exists('get_the_ID')) {
-            return $content;
-        }
-        $id = (int) get_the_ID();
-        if ($id <= 0) {
+        if (!$this->isActive()) {
             return $content;
         }
 
         $content = (string) $content;
 
-        // Batch-load this body's piece translations, then replace per piece.
-        $keys = [];
+        $hashes = [];
         foreach ($this->unitExtractor->units($content) as $unit) {
-            $keys[] = TL_Key::makeSplit($id, 'post_content', $unit);
+            $hashes[] = TL_Key::currentHash($unit);
         }
-        $this->ensureKeysLoaded($keys);
+        $this->ensureHashLoaded('tl_post', $hashes);
 
         return $this->unitExtractor->render(
             $content,
-            fn(string $unit): ?string => $this->map[bin2hex(TL_Key::makeSplit($id, 'post_content', $unit))] ?? null
+            fn(string $unit): ?string => $this->hashMap[$this->hashKey('tl_post', TL_Key::currentHash($unit))] ?? null
         );
     }
 
@@ -148,22 +157,21 @@ final class StructuredRenderResolver
      */
     public function excerpt($excerpt, $post = null)
     {
-        $id = $post instanceof \WP_Post
-            ? $post->ID
-            : (function_exists('get_the_ID') ? (int) get_the_ID() : 0);
-        if ($id <= 0) {
+        unset($post);
+
+        if (!$this->isActive()) {
             return $excerpt;
         }
 
-        return $this->translate(TL_Key::TYPE_POST, $id, 'post_excerpt', (string) $excerpt);
+        return $this->hashValue('tl_post', (string) $excerpt);
     }
 
-    // ── type 2: scalar post meta ──────────────────────────────────────────────
+    // ── scalar post meta (parent_id) ──────────────────────────────────────────
 
     /**
      * get_post_metadata short-circuit. Returns a translation only for an
-     * allow-listed key that has one; otherwise returns $value (null) so WordPress
-     * fetches the original. Never calls get_post_meta() — no recursion.
+     * allow-listed key that has one; otherwise returns $value. Never calls
+     * get_post_meta() — no recursion.
      *
      * @param mixed $value
      * @return mixed
@@ -181,15 +189,15 @@ final class StructuredRenderResolver
             return $value;
         }
 
-        $key = TL_Key::make(TL_Key::TYPE_POSTMETA, $objectId, $metaKey, null, '');
-        $this->ensureKeysLoaded([$key]);
-        $hex = bin2hex($key);
+        $lookup = $this->metaLookup($objectId, $metaKey);
+        $this->ensureMetaLoaded([$lookup]);
+        $key = IdentityKey::of($lookup);
 
         // Wrap in an array; core unwraps to a scalar when $single is true.
-        return isset($this->map[$hex]) ? [$this->map[$hex]] : $value;
+        return isset($this->metaMap[$key]) ? [$this->metaMap[$key]] : $value;
     }
 
-    // ── type 3: terms ─────────────────────────────────────────────────────────
+    // ── terms (hash-link) ─────────────────────────────────────────────────────
 
     /**
      * @param mixed $term
@@ -234,20 +242,17 @@ final class StructuredRenderResolver
 
     // ── internals ─────────────────────────────────────────────────────────────
 
-    private function translate(int $type, int $ownerId, string $field, string $original): string
+    /** Hash-link lookup: hash the original text, read the map, fall back to original. */
+    private function hashValue(string $tableKey, string $original): string
     {
-        if (!$this->isActive()) {
-            return $original;
-        }
+        $hash = TL_Key::currentHash($original);
+        $this->ensureHashLoaded($tableKey, [$hash]);
 
-        $key = TL_Key::make($type, $ownerId, $field, null, '');
-        $this->ensureKeysLoaded([$key]);
-
-        return $this->map[bin2hex($key)] ?? $original;
+        return $this->hashMap[$this->hashKey($tableKey, $hash)] ?? $original;
     }
 
     /**
-     * Replace name/description on every WP_Term in the list, batching the lookup.
+     * Replace name/description on every WP_Term, batching the hash lookup.
      *
      * @param array<int, mixed> $terms
      */
@@ -258,59 +263,89 @@ final class StructuredRenderResolver
             return;
         }
 
-        $keys = [];
+        $hashes = [];
         foreach ($objects as $term) {
-            $tt = (int) ($term->term_taxonomy_id ?? 0);
-            if ($tt <= 0) {
-                continue;
-            }
-            $keys[] = TL_Key::make(TL_Key::TYPE_TERMS, $tt, 'name', null, '');
-            $keys[] = TL_Key::make(TL_Key::TYPE_TERMS, $tt, 'description', null, '');
+            $hashes[] = TL_Key::currentHash((string) $term->name);
+            $hashes[] = TL_Key::currentHash((string) $term->description);
         }
-        $this->ensureKeysLoaded($keys);
+        $this->ensureHashLoaded('tl_term', $hashes);
 
         foreach ($objects as $term) {
-            $tt = (int) ($term->term_taxonomy_id ?? 0);
-            if ($tt <= 0) {
-                continue;
+            $nameKey = $this->hashKey('tl_term', TL_Key::currentHash((string) $term->name));
+            $descKey = $this->hashKey('tl_term', TL_Key::currentHash((string) $term->description));
+            if (isset($this->hashMap[$nameKey])) {
+                $term->name = $this->hashMap[$nameKey];
             }
-            $nameHex = bin2hex(TL_Key::make(TL_Key::TYPE_TERMS, $tt, 'name', null, ''));
-            $descHex = bin2hex(TL_Key::make(TL_Key::TYPE_TERMS, $tt, 'description', null, ''));
-            if (isset($this->map[$nameHex])) {
-                $term->name = $this->map[$nameHex];
-            }
-            if (isset($this->map[$descHex])) {
-                $term->description = $this->map[$descHex];
+            if (isset($this->hashMap[$descKey])) {
+                $term->description = $this->hashMap[$descKey];
             }
         }
     }
 
     /**
-     * Query the keys not yet seen this request; cache hits AND misses.
+     * Batch-load hash-link translations for the hashes not yet seen this request.
      *
-     * @param string[] $rawKeys
+     * @param string[] $rawHashes
      */
-    private function ensureKeysLoaded(array $rawKeys): void
+    private function ensureHashLoaded(string $tableKey, array $rawHashes): void
     {
         $todo = [];
-        foreach ($rawKeys as $raw) {
-            $hex = bin2hex($raw);
-            if (!isset($this->loaded[$hex])) {
-                $todo[$hex] = $raw;
+        foreach ($rawHashes as $hash) {
+            // Tier-1 ownership: this text is owned by a structured source, so
+            // gettext capture must not also claim it as static text.
+            $this->pageOwned->mark($hash);
+
+            $key = $this->hashKey($tableKey, $hash);
+            if (!isset($this->hashLoaded[$key])) {
+                $todo[$key] = $hash;
             }
         }
         if ($todo === []) {
             return;
         }
 
-        $fetched = $this->repository->fetchTranslations(array_values($todo), $this->lang);
+        $fetched = $this->repository->fetchHashTranslations($tableKey, array_values($todo), $this->lang);
 
-        foreach ($todo as $hex => $raw) {
-            $this->loaded[$hex] = true;
+        foreach ($todo as $key => $hash) {
+            $this->hashLoaded[$key] = true;
+            $hex                    = bin2hex($hash);
             if (isset($fetched[$hex])) {
-                $this->map[$hex] = $fetched[$hex];
+                $this->hashMap[$key] = $fetched[$hex];
             }
         }
+    }
+
+    /**
+     * Batch-load meta (parent_id) translations for the lookups not yet seen.
+     *
+     * @param array<int, array<string, scalar>> $lookups
+     */
+    private function ensureMetaLoaded(array $lookups): void
+    {
+        $todo = [];
+        foreach ($lookups as $lookup) {
+            $key = IdentityKey::of($lookup);
+            if (!isset($this->metaLoaded[$key])) {
+                $todo[$key] = $lookup;
+            }
+        }
+        if ($todo === []) {
+            return;
+        }
+
+        $fetched = $this->repository->fetchParentTranslations('tl_meta', array_values($todo), $this->lang);
+
+        foreach ($todo as $key => $lookup) {
+            $this->metaLoaded[$key] = true;
+            if (isset($fetched[$key])) {
+                $this->metaMap[$key] = $fetched[$key];
+            }
+        }
+    }
+
+    private function hashKey(string $tableKey, string $rawHash): string
+    {
+        return $tableKey . '|' . bin2hex($rawHash);
     }
 
     private function isActive(): bool
@@ -319,8 +354,27 @@ final class StructuredRenderResolver
             return $this->active;
         }
 
-        $this->active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
-        if ($this->active) {
+        // shouldTranslate()/isTranslatedRequest() read the main query (conditional
+        // tags, the resolved language) which does not exist until the `wp` action.
+        // Structured filters fire earlier — the MAIN query's `the_posts` runs
+        // inside WP::main() BEFORE `wp`, and get_term(s) fire during menu/widget
+        // setup. Returning a verdict then would memoize "untranslated" for the
+        // whole request. Defer without memoizing until the query is up (mirrors
+        // GettextResolver); the re-entrancy guard covers a filter firing while we
+        // are still deciding.
+        if (!did_action('wp') || $this->activating) {
+            return false;
+        }
+
+        $this->activating = true;
+        try {
+            $active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
+        } finally {
+            $this->activating = false;
+        }
+
+        $this->active = $active;
+        if ($active) {
             $this->lang = $this->language->resolve();
         }
 

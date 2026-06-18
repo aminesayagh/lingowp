@@ -15,20 +15,21 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 global $wpdb;
 
 // Drop tables in FK-safe order: children before the parents they reference.
-// The v4 tables come first; the legacy v3 split tables are dropped too so
-// deleting the plugin from a pre-v4 install still cleans up completely.
 $tables = [
-    // v4
-    $wpdb->prefix . 'tl_translation',
-    $wpdb->prefix . 'tl_source',
-    // legacy v3 (clean reset)
-    $wpdb->prefix . 'tl_translations_html',
-    $wpdb->prefix . 'tl_translations_i18n_meta',
-    $wpdb->prefix . 'tl_translations_i18n',
-    $wpdb->prefix . 'tl_translations_terms',
-    $wpdb->prefix . 'tl_translations_postmeta',
-    $wpdb->prefix . 'tl_translations_post',
-    $wpdb->prefix . 'tl_languages',
+    // v5 children
+    $wpdb->prefix . 'tl_post_translation',
+    $wpdb->prefix . 'tl_meta_translation',
+    $wpdb->prefix . 'tl_term_translation',
+    $wpdb->prefix . 'tl_staticText_translation',
+    $wpdb->prefix . 'tl_html_translation',
+    $wpdb->prefix . 'tl_option_translation',
+    // v5 parents
+    $wpdb->prefix . 'tl_post',
+    $wpdb->prefix . 'tl_meta',
+    $wpdb->prefix . 'tl_term',
+    $wpdb->prefix . 'tl_staticText',
+    $wpdb->prefix . 'tl_html',
+    $wpdb->prefix . 'tl_option',
 ];
 
 foreach ($tables as $table) {
@@ -40,6 +41,7 @@ $options = [
     'translangs_db_version',
     'translangs_active_lang',
     'translangs_existing_lang',
+    'translangs_source_locale',
     'translangs_default_language',
     'translangs_enabled_languages',
     'translangs_prefix_default_language',

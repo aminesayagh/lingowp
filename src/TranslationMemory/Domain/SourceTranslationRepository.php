@@ -3,109 +3,121 @@
 namespace TransLangs\TranslationMemory\Domain;
 
 /**
- * The v4 translation persistence contract: reads and writes wp_tl_source and
- * wp_tl_translation, keyed by the deterministic source_key (architecture §2).
+ * The v5 translation persistence contract — per-type, with TWO child-key models.
  *
- * Discovery is language-independent — one source row per string, no per-language
- * placeholders. Translation rows (added to this contract in later sub-batches)
- * exist only when a translation has actually been produced; absence means
- * "not yet translated."
+ *   hash-link (post, term, html): child keyed (original_hash, lang_code); a
+ *     translation is shared by every parent position with the same text. Render
+ *     reads it by hash (no parent join); ignore/delete are text-global.
+ *   parent_id (meta, staticText): child keyed (parent_id, lang_code); the
+ *     position owns its translation. Render reads it by joining the parent.
  *
- * Entity deletion is handled by InnoDB foreign keys (wp_posts /
- * wp_term_taxonomy → source → translation). Because keys are locational (D26),
- * editing a string's text updates its row in place (same key) — the delete-stale
- * methods remove ONLY rows whose location genuinely disappeared (a field/meta
- * key removed, a repeater item deleted), never edits.
+ * There is no translated_against_hash and no stale parent status: a source-text
+ * change deletes the stale parent and (Phase 5) seeds the new translation as
+ * needs_review. Ignore sets parent.status=-1 AND deletes the children, so render's
+ * "no child ⇒ original" covers untranslated and ignored alike. Adding a language
+ * creates zero rows. Languages stay option-backed (lang_code is a plain column).
  */
 interface SourceTranslationRepository
 {
     /**
-     * Upsert source rows by their locational key. A new location inserts; an
-     * existing location whose text changed updates original_text + current_hash
-     * in place (D27 — translations stay attached). Each record supplies its full
-     * column payload via SourceRecord::row().
+     * Upsert parent rows (INSERT IGNORE on uniq_source), grouped by table. A new
+     * identity inserts; an existing one is left as-is (identity includes
+     * original_hash, so same identity = same text). No child rows are touched.
      *
      * @param SourceRecord[] $records
-     * @return int Rows affected (inserts + in-place updates).
+     * @return int Rows inserted.
      */
     public function upsertSources(array $records): int;
 
     /**
-     * Render read path: fetch produced translations for a set of locational keys
-     * in one language. Only renderable statuses (machine / reviewed /
-     * needs_review) are returned. Join-free — keys are computed by the caller.
+     * Render read for hash-link types (post/term/html): the produced translations
+     * for a set of original hashes in one language, from that type's child table.
+     * Keyed by lowercase hex(original_hash) => translated_text.
      *
-     * @param  string[] $rawKeys Raw 32-byte source keys.
-     * @return array<string, string> hex(source_key) => translated_text
+     * @param string   $parentTableKey TranslationMemorySchema key, e.g. 'tl_post'
+     * @param string[] $hashes         raw 32-byte original hashes
+     * @return array<string, string>
      */
-    public function fetchTranslations(array $rawKeys, string $langCode): array;
+    public function fetchHashTranslations(string $parentTableKey, array $hashes, string $langCode): array;
 
     /**
-     * All produced type-5 (HTML) translations for one language — a join-free
-     * prefix range scan on the clustered PK (all type-5 keys start with byte 5).
-     * Used to build the render-time type-5 map (empty ⇒ skip the DOM parse).
+     * Every produced translation for a hash-link type in one language, keyed by
+     * lowercase hex(original_hash) => translated_text. For the HTML fallback,
+     * where the lookup hashes are only known after walking the page DOM.
      *
-     * @return array<string, string> hex(source_key) => translated_text
+     * @return array<string, string>
      */
-    public function fetchHtmlTranslations(string $langCode): array;
+    public function fetchAllHashTranslations(string $parentTableKey, string $langCode): array;
 
-    // ── Path D: translation writes (admin) ────────────────────────────────────
 
     /**
-     * Create or update one (source, language) translation. translated_against_hash
-     * is stamped server-side from the source's current_hash — never from the
-     * caller. No-op if the source does not exist.
+     * Render read for parent_id types (meta/staticText): join each parent lookup
+     * (parent.status = 0) to its child for $langCode. Keyed by
+     * IdentityKey::of(lookup) => translated_text.
+     *
+     * @param string                           $parentTableKey e.g. 'tl_meta'
+     * @param array<int, array<string,scalar>> $lookups        list of identity-column maps
+     * @return array<string, string>
      */
-    public function saveTranslation(string $rawKey, string $langCode, string $text, int $status, ?string $provider): void;
+    public function fetchParentTranslations(string $parentTableKey, array $lookups, string $langCode): array;
 
-    /** Remove one (source, language) translation — the string returns to untranslated. */
-    public function deleteTranslation(string $rawKey, string $langCode): void;
+    // ── translation writes (admin) ─────────────────────────────────────────────
 
     /**
-     * Save the same translation into every given source key (apply-everywhere).
-     * With $overwrite = false, keys that already have a translation are skipped.
-     *
-     * @param string[] $rawKeys
-     * @return int Keys written.
+     * Create or update one translation for the parent addressed by $ref.
+     * hash-link: keyed (parent.original_hash, lang) — shared across positions.
+     * parent_id: keyed (parent.id, lang). No-op if the parent row is gone.
      */
-    public function applyTranslationToKeys(array $rawKeys, string $langCode, string $text, int $status, bool $overwrite): int;
+    public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): void;
 
-    /** Mark a source ignored (status 3) and delete all its translations, atomically (D1). */
-    public function ignoreSource(string $rawKey): void;
+    /** Remove the translation for $ref + language (hash-link delete is text-global). */
+    public function deleteTranslation(SourceRef $ref, string $langCode): void;
 
     /**
-     * Return ignored sources to discovered (status 0); translations rebuild on demand.
+     * Apply the same translation to several parents (apply-everywhere). Mostly for
+     * parent_id types — hash-link positions already share by text.
      *
-     * @param string[] $rawKeys
+     * @param SourceRef[] $refs
+     * @return int Translations written.
      */
-    public function restoreSources(array $rawKeys): void;
+    public function applyTranslationToRefs(array $refs, string $langCode, string $text, int $status, bool $overwrite): int;
 
-    /** updated_at of one (source, language) translation, for the concurrent-edit guard. */
-    public function translationUpdatedAt(string $rawKey, string $langCode): ?string;
-
-    /**
-     * Delete this post's source rows (types 1 AND 2 — both ride post_id) whose
-     * locational key is not in $currentKeys. FK cascade clears their
-     * translations. Empty $currentKeys deletes all of the post's sources.
-     *
-     * @param string[] $currentKeys Raw 32-byte source keys still present.
-     */
-    public function deleteStaleSourcesForPost(int $postId, array $currentKeys): void;
+    /** Mark a parent ignored (status -1) AND delete its child(ren) across languages. */
+    public function ignoreSource(SourceRef $ref): void;
 
     /**
-     * Delete this post+meta-key's type-2 source rows whose key is not in
-     * $currentKeys (reconciles one meta key — e.g. a removed repeater path).
-     * Empty $currentKeys deletes all source rows for that post + meta key.
+     * Return ignored parents to discovered (status 0). Children were deleted on
+     * ignore, so the string is untranslated until re-translated.
      *
-     * @param string[] $currentKeys Raw 32-byte source keys still present.
+     * @param SourceRef[] $refs
      */
-    public function deleteStaleSourcesForPostMetaKey(int $postId, string $metaKey, array $currentKeys): void;
+    public function restoreSources(array $refs): void;
+
+    /** updated_at of $ref's translation for the concurrent-edit guard, or null. */
+    public function translationUpdatedAt(SourceRef $ref, string $langCode): ?string;
+
+    // ── discovery reconciliation (delete-stale; carry-forward in Phase 5) ───────
 
     /**
-     * Delete this term's source rows (type 3) whose key is not in $currentKeys.
-     * FK cascade clears their translations.
+     * Reconcile a post's parents (post fields + meta) after re-discovery: upsert
+     * the current $records, then delete this post's still-discovered parents that
+     * are absent from $records. Empty $records deletes all of the post's parents.
      *
-     * @param string[] $currentKeys Raw 32-byte source keys still present.
+     * @param SourceRecord[] $records
      */
-    public function deleteStaleSourcesForTerm(int $termTaxonomyId, array $currentKeys): void;
+    public function reconcilePost(int $postId, array $records): void;
+
+    /**
+     * Reconcile one post + meta key's parents. Same delete-stale rule, scoped.
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcilePostMetaKey(int $postId, string $metaKey, array $records): void;
+
+    /**
+     * Reconcile a term's parents.
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcileTerm(int $termTaxonomyId, array $records): void;
 }

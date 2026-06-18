@@ -45,15 +45,14 @@ final class DatabaseHealthReport
      */
     public function gather(): array
     {
-        $missing = (new ConstraintVerifier($this->wpdb))->findMissing([
-            'fk_src_post'  => TranslationMemorySchema::tlSourceTable(),
-            'fk_src_tt'    => TranslationMemorySchema::tlSourceTable(),
-            'fk_tr_source' => TranslationMemorySchema::tlTranslationTable(),
-        ]);
-
-        $rows = (int) $this->wpdb->get_var( // phpcs:ignore WordPress.DB
-            'SELECT COUNT(*) FROM ' . TranslationMemorySchema::tlTranslationTable()
+        $missing = (new ConstraintVerifier($this->wpdb))->findMissing(
+            TranslationMemorySchema::expectedForeignKeys()
         );
+
+        $rows = 0;
+        foreach (TranslationMemorySchema::childTables() as $table) {
+            $rows += (int) $this->wpdb->get_var('SELECT COUNT(*) FROM ' . $table); // phpcs:ignore WordPress.DB
+        }
 
         return [
             'posts_engine'               => $this->engineOf($this->wpdb->posts),
@@ -75,30 +74,28 @@ final class DatabaseHealthReport
     {
         $state = $this->gather();
 
+        $fields = [
+            'posts_engine' => [
+                'label' => 'wp_posts engine',
+                'value' => $this->engineLabel($state['posts_engine']),
+            ],
+            'tt_engine' => [
+                'label' => 'wp_term_taxonomy engine',
+                'value' => $this->engineLabel($state['tt_engine']),
+            ],
+        ];
+
+        foreach (array_keys(TranslationMemorySchema::expectedForeignKeys()) as $fk) {
+            $fields[$fk] = [
+                'label' => $fk,
+                'value' => $this->fkLabel($fk, $state['missing_fks']),
+            ];
+        }
+
         $info['translangs_db'] = [
             'label'       => __('TransLangs DB integrity', 'translangs'),
             'description' => __('Storage engines, foreign keys, and maintenance state for the TransLangs translation tables.', 'translangs'),
-            'fields'      => [
-                'posts_engine' => [
-                    'label' => 'wp_posts engine',
-                    'value' => $this->engineLabel($state['posts_engine']),
-                ],
-                'tt_engine' => [
-                    'label' => 'wp_term_taxonomy engine',
-                    'value' => $this->engineLabel($state['tt_engine']),
-                ],
-                'fk_src_post' => [
-                    'label' => 'fk_src_post',
-                    'value' => $this->fkLabel('fk_src_post', $state['missing_fks']),
-                ],
-                'fk_src_tt' => [
-                    'label' => 'fk_src_tt',
-                    'value' => $this->fkLabel('fk_src_tt', $state['missing_fks']),
-                ],
-                'fk_tr_source' => [
-                    'label' => 'fk_tr_source',
-                    'value' => $this->fkLabel('fk_tr_source', $state['missing_fks']),
-                ],
+            'fields'      => $fields + [
                 'deferred_indexes' => [
                     'label' => __('Deferred indexes', 'translangs'),
                     'value' => $state['deferred_indexes_suggested']

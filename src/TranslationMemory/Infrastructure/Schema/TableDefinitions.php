@@ -3,83 +3,218 @@
 namespace TransLangs\TranslationMemory\Infrastructure\Schema;
 
 /**
- * Pure DDL definitions for the v4 TransLangs tables (architecture §2).
+ * Pure DDL definitions for the v5 TransLangs tables (parent_child_unique_review_v5).
  *
- * Two tables only:
- *   - wp_tl_source       one row per translatable source string of every type
- *   - wp_tl_translation  one row per (source_key, lang_code); absence = untranslated
+ * Ten content tables: five readable PARENT source tables and five CHILD
+ * translation tables in TWO key variants:
+ *   - hash-link children (post, term, html): keyed (original_hash, lang_code),
+ *     no parent_id. original_hash is the SHA-256 of the normalized original text
+ *     (the same value stored on the parent), so identical text shares one
+ *     translation across every position that has it.
+ *   - parent_id children (meta, staticText): keyed (parent_id, lang_code) —
+ *     context can make identical text translate differently, so the translation
+ *     is owned by the specific position.
  *
- * Methods return CREATE TABLE SQL with every FK clause inlined. No execution
- * logic here — the orchestrator calls $wpdb->query() with raw DDL (never
- * dbDelta(), which mangles FOREIGN KEY clauses, D13). All table and reference
- * names are passed in as concrete strings so this class has no global state and
- * is trivially testable.
+ *   parent.status  0 discovered · -1 ignored        (SIGNED tinyint)
+ *   child.status   1 machine · 2 reviewed · -1 needs_review  (done = status > 0)
+ *
+ * There is no translated_against_hash: a source-text change deletes the stale
+ * parent and seeds the new one's translation as needs_review (carry-forward),
+ * so child status alone drives the admin queue. Every parent stamps
+ * hash_algorithm_version so a future normalizer change can be re-hashed.
+ *
+ * Languages stay option-backed (no languages table), so lang_code is a plain
+ * column with no FK. Methods return CREATE TABLE SQL with FK clauses inlined —
+ * never dbDelta() (it mangles FOREIGN KEY clauses).
  */
 final class TableDefinitions
 {
     private function __construct() {}
 
-    /**
-     * wp_tl_source — every source string, identified by the §1 binary key.
-     * FKs to wp_posts (types 1-2) and wp_term_taxonomy (type 3) give the
-     * engine-enforced deletion chain; types 4-5 have NULL owners (no parent).
-     */
-    public static function source(
-        string $table,
-        string $postsTable,
-        string $termTaxonomyTable,
-        string $charsetCollate
-    ): string {
+    /** wp_tl_post — identity (post_id, field, original_hash). post_content rows are fragments. */
+    public static function post(string $table, string $postsTable, string $charsetCollate): string
+    {
         return "CREATE TABLE IF NOT EXISTS {$table} (
-    id               bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    source_key       binary(32)          NOT NULL,
-    type             tinyint unsigned    NOT NULL,
-    post_id          bigint(20) unsigned NULL,
-    term_taxonomy_id bigint(20) unsigned NULL,
-    ref1             varchar(191)        NOT NULL,
-    ref2             text                NULL,
-    current_hash     binary(32)          NOT NULL,             -- SHA-256 of current normalized text; MUTABLE; staleness detection, NOT identity (D26/D27)
-    original_text    longtext            NOT NULL,
-    status           tinyint unsigned    NOT NULL DEFAULT 0,
-    source_url       text                NULL,
-    created_at       datetime            NOT NULL,
-    updated_at       datetime            NOT NULL,
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    post_id                bigint unsigned  NOT NULL,
+    field                  varchar(32)      NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uniq_key (source_key),
-    KEY idx_post (post_id),
-    KEY idx_tt (term_taxonomy_id),
-    KEY idx_admin_queue (status, updated_at),
-    CONSTRAINT fk_src_post FOREIGN KEY (post_id)
-        REFERENCES {$postsTable} (ID) ON DELETE CASCADE,
-    CONSTRAINT fk_src_tt FOREIGN KEY (term_taxonomy_id)
+    UNIQUE KEY uniq_source (post_id, field, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_post_owner FOREIGN KEY (post_id)
+        REFERENCES {$postsTable} (ID) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /** wp_tl_meta — identity (post_id, meta_key_hash, context_hash, original_hash). */
+    public static function meta(string $table, string $postsTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    post_id                bigint unsigned  NOT NULL,
+    meta_key               varchar(191)     NOT NULL,
+    meta_key_hash          binary(32)       NOT NULL,
+    context                text             NULL,
+    context_hash           binary(32)       NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (post_id, meta_key_hash, context_hash, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_meta_owner FOREIGN KEY (post_id)
+        REFERENCES {$postsTable} (ID) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /** wp_tl_option — identity (option_id, option_path_hash, original_hash). Owner FK to wp_options. */
+    public static function option(string $table, string $optionsTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    option_id              bigint unsigned  NOT NULL,
+    option_name            varchar(191)     NOT NULL,
+    option_path            text             NULL,
+    option_path_hash       binary(32)       NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (option_id, option_path_hash, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_option_owner FOREIGN KEY (option_id)
+        REFERENCES {$optionsTable} (option_id) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /** wp_tl_term — identity (term_taxonomy_id, field, original_hash). */
+    public static function term(string $table, string $termTaxonomyTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    term_taxonomy_id       bigint unsigned  NOT NULL,
+    field                  varchar(32)      NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (term_taxonomy_id, field, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_term_owner FOREIGN KEY (term_taxonomy_id)
         REFERENCES {$termTaxonomyTable} (term_taxonomy_id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    /**
-     * wp_tl_translation — one row per produced (source, language) pair.
-     * Languages are identified by their short code (no numeric dictionary), and
-     * the provider name is stored directly. The clustered PK
-     * (source_key, lang_code) is the only index: it serves render dives, FK
-     * satisfaction, cascade ranges, and prefix scans (§2).
-     */
-    public static function translation(
-        string $table,
-        string $sourceTable,
-        string $charsetCollate
-    ): string {
+    /** wp_tl_staticText — identity (source, reference_hash, original_hash). No content FK. */
+    public static function staticText(string $table, string $charsetCollate): string
+    {
         return "CREATE TABLE IF NOT EXISTS {$table} (
-    source_key      binary(32)       NOT NULL,
-    lang_code       varchar(10)      NOT NULL,
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    source                 varchar(20)      NOT NULL,
+    reference              varchar(191)     NOT NULL,
+    reference_hash         binary(32)       NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (source, reference_hash, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id)
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /** wp_tl_html — identity (selector_hash, original_hash). No content FK. */
+    public static function html(string $table, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    selector               varchar(255)     NOT NULL,
+    selector_hash          binary(32)       NOT NULL,
+    source_url             text             NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (selector_hash, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id)
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /**
+     * Hash-link child (post, term, html): one translation per (original_hash,
+     * lang_code), shared by every parent position with the same text. No
+     * parent_id and no FK — the link is original_hash (idx_hash on the parent);
+     * orphaned rows are reclaimed by the background sweep.
+     */
+    public static function hashLinkTranslation(string $table, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id              bigint unsigned  NOT NULL AUTO_INCREMENT,
+    original_hash   binary(32)       NOT NULL,
+    lang_code       varchar(20)      NOT NULL,
     translated_text longtext         NOT NULL,
-    translated_against_hash binary(32) NOT NULL,              -- source current_hash AT translation time; frozen; compared to source.current_hash at render to detect staleness (D27)
-    status          tinyint unsigned NOT NULL DEFAULT 1,
+    status          tinyint          NOT NULL DEFAULT 1,
     provider        varchar(50)      NULL,
     created_at      datetime         NOT NULL,
     updated_at      datetime         NOT NULL,
-    PRIMARY KEY (source_key, lang_code),
-    CONSTRAINT fk_tr_source FOREIGN KEY (source_key)
-        REFERENCES {$sourceTable} (source_key) ON DELETE CASCADE
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_translation (original_hash, lang_code),
+    KEY idx_queue (lang_code, status, id)
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /**
+     * parent_id child (meta, staticText): one translation per (parent_id,
+     * lang_code). The position owns its translation; parent deletion cascades.
+     *
+     * @param string $fkName unique FK constraint name for this child→parent link
+     */
+    public static function parentIdTranslation(
+        string $table,
+        string $parentTable,
+        string $fkName,
+        string $charsetCollate
+    ): string {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id              bigint unsigned  NOT NULL AUTO_INCREMENT,
+    parent_id       bigint unsigned  NOT NULL,
+    lang_code       varchar(20)      NOT NULL,
+    translated_text longtext         NOT NULL,
+    status          tinyint          NOT NULL DEFAULT 1,
+    provider        varchar(50)      NULL,
+    created_at      datetime         NOT NULL,
+    updated_at      datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_translation (parent_id, lang_code),
+    KEY idx_queue (lang_code, status, id),
+    CONSTRAINT {$fkName} FOREIGN KEY (parent_id)
+        REFERENCES {$parentTable} (id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 }

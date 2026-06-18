@@ -55,13 +55,28 @@ export const applyEverywhere = ( key, body ) =>
 		data: body,
 	} );
 
-/** Mark a source as "don't translate" (drops its translation rows). */
+/** Mark a source as "don't translate" (its translations are kept, just hidden). */
 export const ignoreSource = ( key ) =>
 	apiFetch( { path: `${ NS }/string/${ key }/ignore`, method: 'POST' } );
 
-/** Where this string appears on the live site (permalink, or selector for HTML). */
-export const getPreview = ( key, lang ) =>
-	apiFetch( { path: `${ NS }/string/${ key }/preview${ qs( { lang } ) }` } );
+/** Paginated list of "don't translate" sources across all tables. */
+export const getIgnored = ( cursor ) =>
+	apiFetch( { path: `${ NS }/ignored${ qs( { cursor } ) }` } );
+
+/** Un-ignore a set of sources (put them back into translation). */
+export const restoreSources = ( keys ) =>
+	apiFetch( { path: `${ NS }/ignored/restore`, method: 'POST', data: { keys } } );
+
+/** Fetch the export CSV as a Blob (carries the nonce, unlike a plain link). */
+export const exportCsv = ( params ) =>
+	apiFetch( { path: `${ NS }/export${ qs( params ) }`, parse: false } ).then( ( r ) => r.blob() );
+
+/** Upload a CSV; pass preview=1 to validate + count without writing. */
+export const importCsv = ( file, { preview } = {} ) => {
+	const body = new FormData();
+	body.append( 'file', file );
+	return apiFetch( { path: `${ NS }/import${ qs( { preview: preview ? 1 : '' } ) }`, method: 'POST', body } );
+};
 
 /** Pull a human message out of an apiFetch/WP_Error rejection. */
 export const errorMessage = ( e ) =>

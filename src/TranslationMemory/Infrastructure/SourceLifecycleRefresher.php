@@ -26,6 +26,7 @@ final class SourceLifecycleRefresher
         add_action('wp_after_insert_post', [$this, 'refreshPost'], 10, 4);
         add_action('added_post_meta', [$this, 'refreshMeta'], 10, 4);
         add_action('updated_post_meta', [$this, 'refreshMeta'], 10, 4);
+        add_action('deleted_post_meta', [$this, 'refreshDeletedMeta'], 10, 4);
         add_action('created_term', [$this, 'refreshTerm'], 10, 3);
         add_action('edited_term', [$this, 'refreshTerm'], 10, 3);
     }
@@ -57,6 +58,22 @@ final class SourceLifecycleRefresher
     public function refreshMeta(int $metaId, int $objectId, string $metaKey, mixed $metaValue): void
     {
         unset($metaId, $metaValue);
+
+        if ($objectId <= 0 || $metaKey === '') {
+            return;
+        }
+
+        $this->guard(fn() => $this->scanner->refreshPostMetaKey($objectId, $metaKey));
+    }
+
+    /**
+     * deleted_post_meta passes ($meta_ids, $object_id, $meta_key, $meta_value).
+     * Re-scanning the now-removed key finds no current value, so reconciliation
+     * marks its parents stale (translations are kept, not deleted).
+     */
+    public function refreshDeletedMeta(mixed $metaIds, int $objectId, string $metaKey, mixed $metaValue): void
+    {
+        unset($metaIds, $metaValue);
 
         if ($objectId <= 0 || $metaKey === '') {
             return;

@@ -4,6 +4,7 @@ namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\TranslationMemory\Domain\GettextSource;
+use TransLangs\TranslationMemory\Domain\IdentityKey;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
 use TransLangs\TranslationMemory\Domain\TL_Key;
 use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
@@ -43,10 +44,10 @@ final class GettextResolver
     /** Transient pause flag — true while a widget sidebar is rendering. */
     private bool $capturePaused = false;
 
-    /** @var array<string, string> hex(source_key) => translated_text */
+    /** @var array<string, string> IdentityKey => translated_text */
     private array $map = [];
 
-    /** @var array<string, true> hex(source_key) => already-queried (negative cache) */
+    /** @var array<string, true> IdentityKey => already-queried (negative cache) */
     private array $loaded = [];
 
     /** @var array<string, array{domain: string, context: ?string, text: string}> deduped per request */
@@ -55,7 +56,8 @@ final class GettextResolver
     public function __construct(
         private ResolveRequestLanguage $language,
         private RequestContext $context,
-        private SourceTranslationRepository $repository
+        private SourceTranslationRepository $repository,
+        private PageOwnedHashes $pageOwned
     ) {}
 
     public function register(): void
@@ -103,12 +105,15 @@ final class GettextResolver
     }
 
     /**
+     * v1 is singular-only (v5 §1.2): plurals pass through untouched. Plural forms
+     * carry CLDR rules per language and are deferred to a later version.
+     *
      * @param mixed $translation
      * @return mixed
      */
     public function ngettext($translation, $single = '', $plural = '', $number = 1, $domain = 'default')
     {
-        return $this->resolvePlural($translation, (string) $single, (string) $plural, (int) $number, null, (string) $domain);
+        return $translation;
     }
 
     /**
@@ -117,9 +122,7 @@ final class GettextResolver
      */
     public function ngettextWithContext($translation, $single = '', $plural = '', $number = 1, $context = '', $domain = 'default')
     {
-        $context = (string) $context;
-
-        return $this->resolvePlural($translation, (string) $single, (string) $plural, (int) $number, $context === '' ? null : $context, (string) $domain);
+        return $translation;
     }
 
     /**
@@ -132,75 +135,48 @@ final class GettextResolver
             return $incoming;
         }
 
-        $key = TL_Key::make(TL_Key::TYPE_I18N, null, $this->domain($domain), $context, $text);
-        $hex = bin2hex($key);
+        $lookup = $this->staticTextLookup($domain, $context, $text);
+        $key    = IdentityKey::of($lookup);
 
         // Resolve only on a translated (target-language) request.
         if ($this->isActive()) {
-            $this->ensureKeysLoaded([$key]);
-            if (isset($this->map[$hex])) {
-                return $this->map[$hex];
+            $this->ensureLoaded([$lookup]);
+            if (isset($this->map[$key])) {
+                return $this->map[$key];
             }
         }
 
-        // Discover on any genuine frontend load, regardless of target language.
-        if ($this->shouldCapture()) {
-            $this->capture($hex, $domain, $context, $text);
+        // Discover on any genuine frontend load, regardless of target language —
+        // unless a structured source already owns this text (Tier-1 gate).
+        if ($this->shouldCapture() && !$this->pageOwned->owns($lookup['original_hash'])) {
+            $this->capture($key, $domain, $context, $text);
         }
 
         return $incoming;
     }
 
-    /**
-     * Singular and plural are two independent strings: capture both, resolve the
-     * form WordPress would display for $number.
-     *
-     * @param mixed $incoming
-     * @return mixed
-     */
-    private function resolvePlural($incoming, string $single, string $plural, int $number, ?string $context, string $domain)
+    private function capture(string $key, string $domain, ?string $context, string $text): void
     {
-        $forms = array_values(array_filter([$single, $plural], static fn(string $f): bool => $f !== ''));
-        if ($forms === []) {
-            return $incoming;
+        if (!isset($this->candidates[$key])) {
+            $this->candidates[$key] = ['domain' => $domain, 'context' => $context, 'text' => $text];
         }
-
-        $keys = [];
-        foreach ($forms as $form) {
-            $keys[$form] = TL_Key::make(TL_Key::TYPE_I18N, null, $this->domain($domain), $context, $form);
-        }
-
-        $active = $this->isActive();
-        if ($active) {
-            $this->ensureKeysLoaded(array_values($keys));
-        }
-
-        if ($this->shouldCapture()) {
-            foreach ($forms as $form) {
-                $hex = bin2hex($keys[$form]);
-                if (!($active && isset($this->map[$hex]))) {
-                    $this->capture($hex, $domain, $context, $form);
-                }
-            }
-        }
-
-        if (!$active) {
-            return $incoming;
-        }
-
-        $chosen = $number === 1 ? $single : $plural;
-        if ($chosen === '' || !isset($keys[$chosen])) {
-            return $incoming;
-        }
-
-        return $this->map[bin2hex($keys[$chosen])] ?? $incoming;
     }
 
-    private function capture(string $hex, string $domain, ?string $context, string $text): void
+    /**
+     * The tl_staticText render-lookup columns for a gettext string — must match
+     * GettextSource::identity() exactly, or render keys diverge from discovery.
+     *
+     * @return array<string, scalar>
+     */
+    private function staticTextLookup(string $domain, ?string $context, string $text): array
     {
-        if (!isset($this->candidates[$hex])) {
-            $this->candidates[$hex] = ['domain' => $domain, 'context' => $context, 'text' => $text];
-        }
+        $reference = mb_substr($this->domain($domain) . '|' . ($context ?? ''), 0, 191);
+
+        return [
+            'source'         => GettextSource::SOURCE,
+            'reference_hash' => hash('sha256', $reference, true),
+            'original_hash'  => TL_Key::currentHash($text),
+        ];
     }
 
     /**
@@ -251,27 +227,27 @@ final class GettextResolver
     }
 
     /**
-     * @param string[] $rawKeys
+     * @param array<int, array<string, scalar>> $lookups
      */
-    private function ensureKeysLoaded(array $rawKeys): void
+    private function ensureLoaded(array $lookups): void
     {
         $todo = [];
-        foreach ($rawKeys as $raw) {
-            $hex = bin2hex($raw);
-            if (!isset($this->loaded[$hex])) {
-                $todo[$hex] = $raw;
+        foreach ($lookups as $lookup) {
+            $key = IdentityKey::of($lookup);
+            if (!isset($this->loaded[$key])) {
+                $todo[$key] = $lookup;
             }
         }
         if ($todo === []) {
             return;
         }
 
-        $fetched = $this->repository->fetchTranslations(array_values($todo), $this->lang);
+        $fetched = $this->repository->fetchParentTranslations('tl_staticText', array_values($todo), $this->lang);
 
-        foreach ($todo as $hex => $raw) {
-            $this->loaded[$hex] = true;
-            if (isset($fetched[$hex])) {
-                $this->map[$hex] = $fetched[$hex];
+        foreach ($todo as $key => $lookup) {
+            $this->loaded[$key] = true;
+            if (isset($fetched[$key])) {
+                $this->map[$key] = $fetched[$key];
             }
         }
     }

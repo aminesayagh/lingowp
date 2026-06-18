@@ -3,80 +3,61 @@
 namespace TransLangs\TranslationMemory\Domain;
 
 /**
- * A discovered source string ready to be written to wp_tl_source.
+ * A discovered source string ready to be written to its v5 parent table.
  *
- * This is the v4 write-path base. Each source type has a final subclass that
- * speaks ITS OWN vocabulary (PostSource::field(), PostMetaSource::metaKey()/
- * context(), …). The raw DB columns — ref1, ref2, source_url — live ONLY inside
- * toRow() here; no business code mentions them. Because a subclass passes only
- * the columns it legitimately owns, a type cannot populate a column that does
- * not apply to it (a post has no ref2 and no source_url). This is the code layer
- * that protects the table's per-type shape (architecture §2).
+ * Each source type has a final subclass that speaks its own vocabulary
+ * (PostSource::field(), PostMetaSource::metaKey()/context(), …) and declares:
+ *   - table():    which parent table it belongs to (a TranslationMemorySchema key)
+ *   - identity(): the uniq_source columns => values, including original_hash
  *
- * Discovery is language-independent: a record is the same regardless of how many
- * target languages exist.
+ * The base assembles the full insert row (identity + original_text) and the
+ * original_hash. Because a subclass lists only the columns it legitimately owns,
+ * a type cannot populate a column that does not apply to it. Discovery is
+ * language-independent: a record is the same regardless of how many target
+ * languages exist.
  */
 abstract class SourceRecord
 {
-    /** TL_Key::TYPE_* constant for this source type. */
-    abstract public function type(): int;
-
-    /** owner_id for the key + owner columns: post_id (1-2), term_taxonomy_id (3), null (4-5). */
-    abstract public function ownerId(): ?int;
+    /** Parent table key (TranslationMemorySchema::parentTables() index), e.g. 'tl_post'.
+     * The table is the record's kind — there is no separate numeric type. */
+    abstract public function table(): string;
 
     /** Raw original source text. */
     abstract public function originalText(): string;
 
-    /** Each type assembles its own row by calling toRow() with the columns it owns. */
-    abstract public function row(): array;
-
     /**
-     * The single place the raw columns are assembled. ref2 and source_url default
-     * to null, so a type that does not pass them simply cannot set them. The
-     * deterministic (locational) source_key and the mutable current_hash are
-     * computed here via TL_Key.
+     * The uniq_source columns for this record, including original_hash. This is
+     * both the duplicate-detection identity and the WHERE used to resolve the
+     * parent id after insert.
      *
      * @return array<string, mixed>
      */
-    final protected function toRow(string $ref1, ?string $ref2 = null, ?string $sourceUrl = null): array
+    abstract public function identity(): array;
+
+    /** original_hash = SHA-256(normalized original text), raw 32 bytes. */
+    final public function originalHash(): string
     {
-        return [
-            'source_key'       => $this->buildKey($ref1, $ref2),
-            'type'             => $this->type(),
-            'post_id'          => $this->postOwner(),
-            'term_taxonomy_id' => $this->termOwner(),
-            'ref1'             => $ref1,
-            'ref2'             => $ref2,
-            'source_url'       => $sourceUrl,
-            'current_hash'     => TL_Key::currentHash($this->originalText()),
-            'original_text'    => $this->originalText(),
-        ];
+        return TL_Key::currentHash($this->originalText());
     }
 
     /**
-     * The source_key for this record. Atomic types are locational (zero tail);
-     * split fields override this to text-tail the key (SplitPostSource).
+     * Full parent column set for an insert: every identity column plus the
+     * stored original_text. status and timestamps are added by the repository.
+     *
+     * @return array<string, mixed>
      */
-    protected function buildKey(string $ref1, ?string $ref2): string
+    public function row(): array
     {
-        return TL_Key::make($this->type(), $this->ownerId(), $ref1, $ref2, $this->originalText());
+        return $this->identity() + ['original_text' => $this->originalText()];
     }
 
-    /** The deterministic 32-byte source_key (raw bytes). */
-    final public function key(): string
+    /**
+     * Stable in-memory de-duplication key for one discovery pass: the type plus
+     * a hex digest of the identity columns. Not stored — render and the database
+     * use the readable identity itself.
+     */
+    final public function dedupeKey(): string
     {
-        return $this->row()['source_key'];
-    }
-
-    private function postOwner(): ?int
-    {
-        return ($this->type() === TL_Key::TYPE_POST || $this->type() === TL_Key::TYPE_POSTMETA)
-            ? $this->ownerId()
-            : null;
-    }
-
-    private function termOwner(): ?int
-    {
-        return $this->type() === TL_Key::TYPE_TERMS ? $this->ownerId() : null;
+        return $this->table() . ':' . IdentityKey::of($this->identity());
     }
 }

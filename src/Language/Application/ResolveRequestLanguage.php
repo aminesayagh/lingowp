@@ -9,11 +9,10 @@ use TransLangs\Language\Domain\LanguageRegistry;
  *
  * Priority chain (highest wins):
  *   1. URL language prefix          /fr/about
- *   2. Admin/preview query param    ?translangs_preview=fr
- *   3. Unprefixed default URL       /about, when default language is unprefixed
- *   4. Cookie preference            preferred_lang=fr   (if enabled in settings)
- *   5. Browser Accept-Language      (only if browser detection enabled)
- *   6. Default site language        from get_locale()
+ *   2. Unprefixed default URL       /about, when default language is unprefixed
+ *   3. Cookie preference            preferred_lang=fr   (if enabled in settings)
+ *   4. Browser Accept-Language      (only if browser detection enabled)
+ *   5. Default site language        from get_locale()
  *
  * Hard rule: the URL always wins. /fr/about renders French even if the
  * cookie says preferred_lang=es. When the default language is not prefixed,
@@ -40,7 +39,6 @@ class ResolveRequestLanguage
         }
 
         $lang = $this->resolveFromUrl()
-            ?? $this->resolveFromPreview()
             ?? $this->resolveFromUnprefixedDefaultUrl()
             ?? $this->resolveFromCookie()
             ?? $this->resolveFromBrowser()
@@ -102,24 +100,7 @@ class ResolveRequestLanguage
     }
 
     /**
-     * 2. Explicit preview parameter, used by the visual editor iframe.
-     *    Only honored for users who can edit, so it cannot be abused publicly.
-     */
-    private function resolveFromPreview(): ?string
-    {
-        if (empty($_GET['translangs_preview'])) {
-            return null;
-        }
-
-        if (!function_exists('current_user_can') || !current_user_can('edit_posts')) {
-            return null;
-        }
-
-        return $this->validate(sanitize_key(wp_unslash($_GET['translangs_preview'])));
-    }
-
-    /**
-     * 3. When the default language has no URL prefix, an unprefixed public URL
+     * 2. When the default language has no URL prefix, an unprefixed public URL
      *    is the canonical default-language URL and must beat the preference
      *    cookie.
      */
