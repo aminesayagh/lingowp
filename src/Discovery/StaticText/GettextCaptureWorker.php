@@ -2,7 +2,7 @@
 
 namespace TransLangs\Discovery\StaticText;
 
-use TransLangs\Core\Source\Type\GettextSource;
+use TransLangs\Core\Source\Type\StaticTextSource;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Repository\OwnedStringIndex;
 
@@ -93,7 +93,7 @@ final class GettextCaptureWorker
                 continue;
             }
             $context = isset($row['context']) ? (string) $row['context'] : null;
-            $records[] = new GettextSource((string) ($row['domain'] ?? ''), $context, $text);
+            $records[] = new StaticTextSource((string) ($row['domain'] ?? ''), $context, $text);
         }
 
         // Tier-2 ownership gate: drop any string a structured source already owns,
@@ -151,8 +151,8 @@ final class GettextCaptureWorker
     }
 
     /**
-     * @param GettextSource[] $records
-     * @return GettextSource[]
+     * @param StaticTextSource[] $records
+     * @return StaticTextSource[]
      */
     private function rejectOwned(array $records): array
     {
@@ -161,12 +161,12 @@ final class GettextCaptureWorker
         }
 
         $owned = $this->ownedIndex->ownedHexes(
-            array_map(static fn(GettextSource $r): string => $r->originalHash(), $records)
+            array_map(static fn(StaticTextSource $r): string => $r->originalHash(), $records)
         );
 
         return array_values(array_filter(
             $records,
-            static fn(GettextSource $r): bool => !isset($owned[bin2hex($r->originalHash())])
+            static fn(StaticTextSource $r): bool => !isset($owned[bin2hex($r->originalHash())])
         ));
     }
 }

@@ -6,7 +6,7 @@ use TransLangs\Rendering\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\PluralRules;
-use TransLangs\Core\Source\Type\GettextSource;
+use TransLangs\Core\Source\Type\StaticTextSource;
 use TransLangs\Core\Text\IdentityKey;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Text\TL_Key;
@@ -257,7 +257,7 @@ final class GettextResolver
 
     /**
      * The tl_staticText render-lookup columns for a gettext string — must match
-     * GettextSource::identity() exactly, or render keys diverge from discovery.
+     * StaticTextSource::identity() exactly, or render keys diverge from discovery.
      *
      * @return array<string, scalar>
      */
@@ -266,7 +266,7 @@ final class GettextResolver
         $reference = mb_substr($this->domain($domain) . '|' . ($context ?? ''), 0, 191);
 
         return [
-            'source'         => GettextSource::SOURCE,
+            'source'         => StaticTextSource::SOURCE,
             'reference_hash' => hash('sha256', $reference, true),
             'original_hash'  => TL_Key::currentHash($text),
         ];
@@ -387,12 +387,12 @@ final class GettextResolver
         return false;
     }
 
-    /** Must match GettextSource's normalization exactly, or keys diverge. */
+    /** Must match StaticTextSource's normalization exactly, or keys diverge. */
     private function domain(string $domain): string
     {
         $domain = trim($domain);
         if ($domain === '') {
-            $domain = GettextSource::DEFAULT_DOMAIN;
+            $domain = StaticTextSource::DEFAULT_DOMAIN;
         }
 
         return mb_substr($domain, 0, 191);

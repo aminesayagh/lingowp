@@ -2,7 +2,7 @@
 
 namespace TransLangs\Core\Repository;
 
-use TransLangs\Core\Source\Type\GettextSource;
+use TransLangs\Core\Source\Type\StaticTextSource;
 use TransLangs\Core\Text\IdentityKey;
 use TransLangs\Core\Source\Base\SourceRecord;
 use TransLangs\Core\Source\Value\SourceRef;
@@ -66,7 +66,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         foreach ($candidates as $c) {
             $single = (string) ($c['single'] ?? '');
             if ($single !== '') {
-                $singulars[] = new GettextSource((string) ($c['domain'] ?? ''), $c['context'] ?? null, $single);
+                $singulars[] = new StaticTextSource((string) ($c['domain'] ?? ''), $c['context'] ?? null, $single);
             }
         }
         if ($singulars !== []) {
@@ -85,7 +85,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                 continue;
             }
 
-            $anchor   = new GettextSource((string) ($c['domain'] ?? ''), $c['context'] ?? null, $single);
+            $anchor   = new StaticTextSource((string) ($c['domain'] ?? ''), $c['context'] ?? null, $single);
             $anchorId = $this->staticTextIdByIdentity($anchor->identity());
             if ($anchorId === null) {
                 continue; // singular was rejected by the gate

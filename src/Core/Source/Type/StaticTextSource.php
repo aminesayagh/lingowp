@@ -10,7 +10,7 @@ use TransLangs\Core\Text\TL_Key;
  * (handled by TL_Key for type 4). ref1 is the text domain; ref2 the optional
  * gettext context (`_x()`). No owner, no source URL.
  */
-final class GettextSource extends SourceRecord
+final class StaticTextSource extends SourceRecord
 {
     public const DEFAULT_DOMAIN = 'default';
 
