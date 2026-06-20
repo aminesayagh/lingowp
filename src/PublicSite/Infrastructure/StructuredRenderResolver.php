@@ -3,10 +3,11 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\TranslationMemory\Domain\IdentityKey;
-use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
-use TransLangs\TranslationMemory\Domain\TL_Key;
-use TransLangs\TranslationMemory\Domain\TranslatableMetaKeys;
+use TransLangs\Source\Domain\IdentityKey;
+use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
+use TransLangs\Source\Domain\SourceTranslationRepository;
+use TransLangs\Source\Domain\TL_Key;
+use TransLangs\Source\Domain\TranslatableMetaKeys;
 
 /**
  * v5 structured render resolution (post, term, meta).

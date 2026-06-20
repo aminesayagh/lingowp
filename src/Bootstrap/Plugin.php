@@ -11,11 +11,11 @@ use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\GettextResolver;
 use TransLangs\PublicSite\Infrastructure\HreflangPresenter;
 use TransLangs\PublicSite\Infrastructure\HtmlRenderer;
-use TransLangs\PublicSite\Infrastructure\HtmlUnitExtractor;
+use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
 use TransLangs\PublicSite\Infrastructure\OptionResolver;
 use TransLangs\PublicSite\Infrastructure\PageOwnedHashes;
 use TransLangs\PublicSite\Infrastructure\PreviewHighlighter;
-use TransLangs\TranslationMemory\Infrastructure\OwnedStringIndex;
+use TransLangs\Source\Infrastructure\OwnedStringIndex;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\PublicSite\Infrastructure\LanguageSwitcherShortcode;
 use TransLangs\PublicSite\Infrastructure\LocalizedUrlBuilder;
@@ -23,16 +23,16 @@ use TransLangs\PublicSite\Infrastructure\PublicLinkRewriter;
 use TransLangs\PublicSite\Infrastructure\PublicRenderPipeline;
 use TransLangs\PublicSite\Infrastructure\RequestContext;
 use TransLangs\PublicSite\Infrastructure\StructuredRenderResolver;
-use TransLangs\PublicSite\Infrastructure\TranslationUnitCodec;
+use TransLangs\Source\Infrastructure\TranslationUnitCodec;
 use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
 use TransLangs\TranslationMemory\Infrastructure\InitialDiscoveryScan;
 use TransLangs\TranslationMemory\Infrastructure\OptionSourceScanner;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminBoardQuery;
-use TransLangs\TranslationMemory\Infrastructure\Repositories\WpDbSourceTranslationRepository;
+use TransLangs\Source\Infrastructure\Repositories\WpDbSourceTranslationRepository;
 use TransLangs\TranslationMemory\Infrastructure\Schema\DatabaseHealthReport;
 use TransLangs\TranslationMemory\Infrastructure\SourceLifecycleRefresher;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
-use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
+use TransLangs\Source\Infrastructure\TranslationMemorySchema;
 
 class Plugin
 {

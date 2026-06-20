@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure;
+namespace TransLangs\Source\Infrastructure;
 
-use TransLangs\TranslationMemory\Infrastructure\Schema\ConstraintVerifier;
-use TransLangs\TranslationMemory\Infrastructure\Schema\SchemaFailure;
-use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
+use TransLangs\Source\Infrastructure\Schema\ConstraintVerifier;
+use TransLangs\Source\Infrastructure\Schema\SchemaFailure;
+use TransLangs\Source\Infrastructure\Schema\TableDefinitions;
 
 /**
  * Schema orchestrator — install, verify, and version-gate the v5 TransLangs tables.

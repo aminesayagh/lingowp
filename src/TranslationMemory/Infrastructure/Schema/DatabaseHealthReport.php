@@ -2,7 +2,8 @@
 
 namespace TransLangs\TranslationMemory\Infrastructure\Schema;
 
-use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
+use TransLangs\Source\Infrastructure\Schema\ConstraintVerifier;
+use TransLangs\Source\Infrastructure\TranslationMemorySchema;
 
 /**
  * Site Health diagnostic panel for the v4 schema (architecture §10, D23).

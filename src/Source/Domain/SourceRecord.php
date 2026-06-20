@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Domain;
+namespace TransLangs\Source\Domain;
 
 /**
  * A discovered source string ready to be written to its v5 parent table.

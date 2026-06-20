@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Domain;
+namespace TransLangs\Source\Domain;
 
 use InvalidArgumentException;
 

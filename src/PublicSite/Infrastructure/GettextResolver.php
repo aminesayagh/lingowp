@@ -4,10 +4,10 @@ namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\PluralRules;
-use TransLangs\TranslationMemory\Domain\GettextSource;
-use TransLangs\TranslationMemory\Domain\IdentityKey;
-use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
-use TransLangs\TranslationMemory\Domain\TL_Key;
+use TransLangs\Source\Domain\GettextSource;
+use TransLangs\Source\Domain\IdentityKey;
+use TransLangs\Source\Domain\SourceTranslationRepository;
+use TransLangs\Source\Domain\TL_Key;
 use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
 
 /**

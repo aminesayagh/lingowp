@@ -2,7 +2,7 @@
 
 namespace TransLangs\PublicSite\Infrastructure;
 
-use TransLangs\TranslationMemory\Domain\SourceRef;
+use TransLangs\Source\Domain\SourceRef;
 use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminBoardQuery;
 
 /**

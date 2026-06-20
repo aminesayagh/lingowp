@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure\Schema;
+namespace TransLangs\Source\Infrastructure\Schema;
 
 use RuntimeException;
 

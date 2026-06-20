@@ -3,16 +3,16 @@
 namespace TransLangs\TranslationMemory\Infrastructure;
 
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\PublicSite\Infrastructure\HtmlUnitExtractor;
-use TransLangs\TranslationMemory\Domain\PostMetaSource;
-use TransLangs\TranslationMemory\Domain\PostMetaValuePaths;
-use TransLangs\TranslationMemory\Domain\PostSource;
-use TransLangs\TranslationMemory\Domain\SourceRecord;
-use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
-use TransLangs\TranslationMemory\Domain\SplitPostSource;
-use TransLangs\TranslationMemory\Domain\TermSource;
-use TransLangs\TranslationMemory\Domain\TL_Key;
-use TransLangs\TranslationMemory\Domain\TranslatableMetaKeys;
+use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
+use TransLangs\Source\Domain\PostMetaSource;
+use TransLangs\Source\Domain\PostMetaValuePaths;
+use TransLangs\Source\Domain\PostSource;
+use TransLangs\Source\Domain\SourceRecord;
+use TransLangs\Source\Domain\SourceTranslationRepository;
+use TransLangs\Source\Domain\SplitPostSource;
+use TransLangs\Source\Domain\TermSource;
+use TransLangs\Source\Domain\TL_Key;
+use TransLangs\Source\Domain\TranslatableMetaKeys;
 
 /**
  * Save-time structured discovery for owned WordPress content (data pipeline §1-2,

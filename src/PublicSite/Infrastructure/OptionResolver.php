@@ -3,8 +3,8 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
-use TransLangs\TranslationMemory\Domain\TL_Key;
+use TransLangs\Source\Domain\SourceTranslationRepository;
+use TransLangs\Source\Domain\TL_Key;
 
 /**
  * Frontend rendering for translatable wp_options text (branding). Replaces the

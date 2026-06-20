@@ -3,8 +3,9 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use Masterminds\HTML5;
-use TransLangs\TranslationMemory\Domain\HtmlSource;
-use TransLangs\TranslationMemory\Domain\TL_Key;
+use TransLangs\Source\Domain\HtmlSource;
+use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
+use TransLangs\Source\Domain\TL_Key;
 
 /**
  * Hardcoded-HTML translation renderer — the frontend REPLACE pass for the html

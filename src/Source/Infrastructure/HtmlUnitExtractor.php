@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\PublicSite\Infrastructure;
+namespace TransLangs\Source\Infrastructure;
 
 use Masterminds\HTML5;
 

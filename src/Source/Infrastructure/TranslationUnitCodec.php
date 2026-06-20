@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\PublicSite\Infrastructure;
+namespace TransLangs\Source\Infrastructure;
 
-use TransLangs\TranslationMemory\Domain\StringNormalizer;
+use TransLangs\Source\Domain\StringNormalizer;
 
 /**
  * The placeholder chokepoint for type-5 composed units (parsing spec §5).

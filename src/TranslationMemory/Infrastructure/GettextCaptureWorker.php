@@ -2,8 +2,9 @@
 
 namespace TransLangs\TranslationMemory\Infrastructure;
 
-use TransLangs\TranslationMemory\Domain\GettextSource;
-use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
+use TransLangs\Source\Domain\GettextSource;
+use TransLangs\Source\Domain\SourceTranslationRepository;
+use TransLangs\Source\Infrastructure\OwnedStringIndex;
 
 /**
  * Off-request writer for discovered gettext (type-4) strings. GettextResolver

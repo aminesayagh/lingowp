@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Domain;
+namespace TransLangs\Source\Domain;
 
 /**
  * Type-4 source: a gettext string (`__()`, `_e()`, `_x()`, `_n()`). Gettext has

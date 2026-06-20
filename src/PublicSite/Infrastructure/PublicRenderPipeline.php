@@ -3,9 +3,9 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\TranslationMemory\Domain\HtmlSource;
-use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
-use TransLangs\TranslationMemory\Infrastructure\OwnedStringIndex;
+use TransLangs\Source\Domain\HtmlSource;
+use TransLangs\Source\Domain\SourceTranslationRepository;
+use TransLangs\Source\Infrastructure\OwnedStringIndex;
 
 /**
  * Frontend output buffer (v5). Structured text (post/term/meta + gettext) is
