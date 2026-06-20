@@ -5,9 +5,9 @@ use TransLangs\Rendering\Infrastructure\Html\HtmlRenderer;
 use TransLangs\Localization\Infrastructure\PublicLinkRewriter;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Source\Domain\HtmlSource;
-use TransLangs\Source\Domain\SourceTranslationRepository;
-use TransLangs\Source\Infrastructure\OwnedStringIndex;
+use TransLangs\Core\Source\HtmlSource;
+use TransLangs\Core\Repository\SourceTranslationRepository;
+use TransLangs\Core\Repository\OwnedStringIndex;
 
 /**
  * Frontend output buffer (v5). Structured text (post/term/meta + gettext) is

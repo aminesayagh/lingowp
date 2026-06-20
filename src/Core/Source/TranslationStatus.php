@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Source;
 
 /**
  * Status vocabulary (v5). The column is a SIGNED tinyint so "done" reads as a

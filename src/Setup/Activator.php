@@ -6,8 +6,8 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Localization\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\Discovery\Infrastructure\InitialDiscoveryScan;
-use TransLangs\Source\Infrastructure\Schema\SchemaFailure;
-use TransLangs\Source\Infrastructure\TranslationMemorySchema;
+use TransLangs\Core\Schema\SchemaFailure;
+use TransLangs\Core\Schema\TranslationMemorySchema;
 
 /**
  * Runs once on plugin activation.

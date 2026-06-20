@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Infrastructure\Schema;
+namespace TransLangs\Core\Schema;
 
 /**
  * Pure DDL definitions for the v5 TransLangs tables (parent_child_unique_review_v5).

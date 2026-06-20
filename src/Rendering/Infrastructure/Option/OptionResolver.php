@@ -4,8 +4,8 @@ namespace TransLangs\Rendering\Infrastructure\Option;
 use TransLangs\Rendering\Infrastructure\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Source\Domain\SourceTranslationRepository;
-use TransLangs\Source\Domain\TL_Key;
+use TransLangs\Core\Repository\SourceTranslationRepository;
+use TransLangs\Core\Text\TL_Key;
 
 /**
  * Frontend rendering for translatable wp_options text (branding). Replaces the

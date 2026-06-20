@@ -2,8 +2,8 @@
 
 namespace TransLangs\Discovery\Infrastructure\Option;
 
-use TransLangs\Source\Domain\OptionSource;
-use TransLangs\Source\Domain\SourceTranslationRepository;
+use TransLangs\Core\Source\OptionSource;
+use TransLangs\Core\Repository\SourceTranslationRepository;
 
 /**
  * Options discovery (Path E): extract the small subset of visitor-facing text

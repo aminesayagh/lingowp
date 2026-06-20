@@ -1,16 +1,16 @@
 <?php
 
-namespace TransLangs\Source\Infrastructure\Repositories;
+namespace TransLangs\Core\Repository;
 
-use TransLangs\Source\Domain\GettextSource;
-use TransLangs\Source\Domain\IdentityKey;
-use TransLangs\Source\Domain\SourceRecord;
-use TransLangs\Source\Domain\SourceRef;
-use TransLangs\Source\Domain\SourceTranslationRepository;
-use TransLangs\Source\Domain\TL_Key;
-use TransLangs\Source\Domain\TranslatableText;
-use TransLangs\Source\Domain\TranslationStatus;
-use TransLangs\Source\Infrastructure\TranslationMemorySchema;
+use TransLangs\Core\Source\GettextSource;
+use TransLangs\Core\Text\IdentityKey;
+use TransLangs\Core\Source\SourceRecord;
+use TransLangs\Core\Source\SourceRef;
+use TransLangs\Core\Repository\SourceTranslationRepository;
+use TransLangs\Core\Text\TL_Key;
+use TransLangs\Core\Text\TranslatableText;
+use TransLangs\Core\Source\TranslationStatus;
+use TransLangs\Core\Schema\TranslationMemorySchema;
 
 /**
  * $wpdb implementation of the v5 per-type persistence contract.

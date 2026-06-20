@@ -1,6 +1,7 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Source;
+use TransLangs\Core\Text\TL_Key;
 
 /**
  * Type-4 source: a gettext string (`__()`, `_e()`, `_x()`, `_n()`). Gettext has

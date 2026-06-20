@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Source;
 
 /**
  * One block-level piece of a split rich-HTML post field (post_content).

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Text;
 
 /**
  * Deterministic in-memory digest of an identity-column map, used to index

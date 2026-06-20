@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Text;
 
 /**
  * Decides whether a discovered string is worth translating, applied AFTER the

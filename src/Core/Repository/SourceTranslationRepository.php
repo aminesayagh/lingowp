@@ -1,6 +1,9 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Repository;
+use TransLangs\Core\Source\SourceRef;
+use TransLangs\Core\Source\SourceRecord;
+use TransLangs\Core\Text\IdentityKey;
 
 /**
  * The v5 translation persistence contract — per-type, with TWO child-key models.

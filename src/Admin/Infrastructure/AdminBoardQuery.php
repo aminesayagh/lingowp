@@ -2,8 +2,8 @@
 
 namespace TransLangs\Admin\Infrastructure;
 
-use TransLangs\Source\Domain\SourceRef;
-use TransLangs\Source\Infrastructure\TranslationMemorySchema;
+use TransLangs\Core\Source\SourceRef;
+use TransLangs\Core\Schema\TranslationMemorySchema;
 
 /**
  * Read queries for the admin board, v5 — table-driven, hybrid child joins.

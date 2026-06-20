@@ -11,11 +11,11 @@ use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Rendering\Infrastructure\StaticText\GettextResolver;
 use TransLangs\Localization\Infrastructure\HreflangPresenter;
 use TransLangs\Rendering\Infrastructure\Html\HtmlRenderer;
-use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
+use TransLangs\Core\Parsing\HtmlUnitExtractor;
 use TransLangs\Rendering\Infrastructure\Option\OptionResolver;
 use TransLangs\Rendering\Infrastructure\PageOwnedHashes;
 use TransLangs\Admin\Infrastructure\PreviewHighlighter;
-use TransLangs\Source\Infrastructure\OwnedStringIndex;
+use TransLangs\Core\Repository\OwnedStringIndex;
 use TransLangs\Localization\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\Localization\Infrastructure\LanguageSwitcherShortcode;
 use TransLangs\Localization\Infrastructure\LocalizedUrlBuilder;
@@ -23,16 +23,16 @@ use TransLangs\Localization\Infrastructure\PublicLinkRewriter;
 use TransLangs\Rendering\Infrastructure\PublicRenderPipeline;
 use TransLangs\Rendering\Infrastructure\RequestContext;
 use TransLangs\Rendering\Infrastructure\Primary\StructuredRenderResolver;
-use TransLangs\Source\Infrastructure\TranslationUnitCodec;
+use TransLangs\Core\Parsing\TranslationUnitCodec;
 use TransLangs\Discovery\Infrastructure\StaticText\GettextCaptureWorker;
 use TransLangs\Discovery\Infrastructure\InitialDiscoveryScan;
 use TransLangs\Discovery\Infrastructure\Option\OptionSourceScanner;
 use TransLangs\Admin\Infrastructure\AdminBoardQuery;
-use TransLangs\Source\Infrastructure\Repositories\WpDbSourceTranslationRepository;
+use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
 use TransLangs\Admin\Infrastructure\DatabaseHealthReport;
 use TransLangs\Discovery\Infrastructure\SourceLifecycleRefresher;
 use TransLangs\Discovery\Infrastructure\StructuredSourceScanner;
-use TransLangs\Source\Infrastructure\TranslationMemorySchema;
+use TransLangs\Core\Schema\TranslationMemorySchema;
 
 class Plugin
 {

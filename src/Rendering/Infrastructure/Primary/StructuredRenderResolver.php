@@ -5,11 +5,11 @@ use TransLangs\Rendering\Infrastructure\PageOwnedHashes;
 use TransLangs\Rendering\Infrastructure\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Source\Domain\IdentityKey;
-use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
-use TransLangs\Source\Domain\SourceTranslationRepository;
-use TransLangs\Source\Domain\TL_Key;
-use TransLangs\Source\Domain\TranslatableMetaKeys;
+use TransLangs\Core\Text\IdentityKey;
+use TransLangs\Core\Parsing\HtmlUnitExtractor;
+use TransLangs\Core\Repository\SourceTranslationRepository;
+use TransLangs\Core\Text\TL_Key;
+use TransLangs\Core\Source\TranslatableMetaKeys;
 
 /**
  * v5 structured render resolution (post, term, meta).

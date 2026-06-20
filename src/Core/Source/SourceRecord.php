@@ -1,6 +1,8 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Source;
+use TransLangs\Core\Text\TL_Key;
+use TransLangs\Core\Text\IdentityKey;
 
 /**
  * A discovered source string ready to be written to its v5 parent table.

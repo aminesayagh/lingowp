@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Text;
 
 /**
  * The text-hash helper for the v5 schema.

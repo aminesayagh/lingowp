@@ -6,10 +6,10 @@ use TransLangs\Rendering\Infrastructure\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\PluralRules;
-use TransLangs\Source\Domain\GettextSource;
-use TransLangs\Source\Domain\IdentityKey;
-use TransLangs\Source\Domain\SourceTranslationRepository;
-use TransLangs\Source\Domain\TL_Key;
+use TransLangs\Core\Source\GettextSource;
+use TransLangs\Core\Text\IdentityKey;
+use TransLangs\Core\Repository\SourceTranslationRepository;
+use TransLangs\Core\Text\TL_Key;
 use TransLangs\Discovery\Infrastructure\StaticText\GettextCaptureWorker;
 
 /**

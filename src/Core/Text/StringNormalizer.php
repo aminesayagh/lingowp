@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Text;
 
 /**
  * Makes strings deterministic before hashing and storage.

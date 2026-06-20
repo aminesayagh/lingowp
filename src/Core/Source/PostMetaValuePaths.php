@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Source\Domain;
+namespace TransLangs\Core\Source;
 
 /**
  * Flattens a post meta value into its translatable string leaves with a context

@@ -1,6 +1,7 @@
 <?php
 
-namespace TransLangs\Source\Infrastructure;
+namespace TransLangs\Core\Repository;
+use TransLangs\Core\Schema\TranslationMemorySchema;
 
 /**
  * Tier-2 ownership gate (v5 §5): the authoritative check of whether a text hash
