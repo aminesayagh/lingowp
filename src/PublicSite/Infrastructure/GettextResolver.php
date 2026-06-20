@@ -8,7 +8,7 @@ use TransLangs\Source\Domain\GettextSource;
 use TransLangs\Source\Domain\IdentityKey;
 use TransLangs\Source\Domain\SourceTranslationRepository;
 use TransLangs\Source\Domain\TL_Key;
-use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
+use TransLangs\Discovery\Infrastructure\StaticText\GettextCaptureWorker;
 
 /**
  * v4 gettext (type 4) resolution + render-time discovery (data pipeline §1 row

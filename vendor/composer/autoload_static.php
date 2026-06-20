@@ -59,6 +59,12 @@ class ComposerStaticInit1a2974ec01b961dc67ffdd78d53ce292
         'TransLangs\\Admin\\Infrastructure\\Rest\\KeysetCursor' => __DIR__ . '/../..' . '/src/Admin/Infrastructure/Rest/KeysetCursor.php',
         'TransLangs\\Admin\\Infrastructure\\SettingsPageController' => __DIR__ . '/../..' . '/src/Admin/Infrastructure/SettingsPageController.php',
         'TransLangs\\Bootstrap\\Plugin' => __DIR__ . '/../..' . '/src/Bootstrap/Plugin.php',
+        'TransLangs\\Discovery\\Infrastructure\\InitialDiscoveryScan' => __DIR__ . '/../..' . '/src/Discovery/Infrastructure/InitialDiscoveryScan.php',
+        'TransLangs\\Discovery\\Infrastructure\\Option\\OptionSourceScanner' => __DIR__ . '/../..' . '/src/Discovery/Infrastructure/Option/OptionSourceScanner.php',
+        'TransLangs\\Discovery\\Infrastructure\\SourceLifecycleRefresher' => __DIR__ . '/../..' . '/src/Discovery/Infrastructure/SourceLifecycleRefresher.php',
+        'TransLangs\\Discovery\\Infrastructure\\StaticText\\GettextCaptureWorker' => __DIR__ . '/../..' . '/src/Discovery/Infrastructure/StaticText/GettextCaptureWorker.php',
+        'TransLangs\\Discovery\\Infrastructure\\StructuredSourceScanResult' => __DIR__ . '/../..' . '/src/Discovery/Infrastructure/StructuredSourceScanResult.php',
+        'TransLangs\\Discovery\\Infrastructure\\StructuredSourceScanner' => __DIR__ . '/../..' . '/src/Discovery/Infrastructure/StructuredSourceScanner.php',
         'TransLangs\\Language\\Application\\ResolveRequestLanguage' => __DIR__ . '/../..' . '/src/Language/Application/ResolveRequestLanguage.php',
         'TransLangs\\Language\\Domain\\LanguageRegistry' => __DIR__ . '/../..' . '/src/Language/Domain/LanguageRegistry.php',
         'TransLangs\\Language\\Domain\\LocaleNormalizer' => __DIR__ . '/../..' . '/src/Language/Domain/LocaleNormalizer.php',
@@ -106,12 +112,6 @@ class ComposerStaticInit1a2974ec01b961dc67ffdd78d53ce292
         'TransLangs\\Source\\Infrastructure\\Schema\\TableDefinitions' => __DIR__ . '/../..' . '/src/Source/Infrastructure/Schema/TableDefinitions.php',
         'TransLangs\\Source\\Infrastructure\\TranslationMemorySchema' => __DIR__ . '/../..' . '/src/Source/Infrastructure/TranslationMemorySchema.php',
         'TransLangs\\Source\\Infrastructure\\TranslationUnitCodec' => __DIR__ . '/../..' . '/src/Source/Infrastructure/TranslationUnitCodec.php',
-        'TransLangs\\TranslationMemory\\Infrastructure\\GettextCaptureWorker' => __DIR__ . '/../..' . '/src/TranslationMemory/Infrastructure/GettextCaptureWorker.php',
-        'TransLangs\\TranslationMemory\\Infrastructure\\InitialDiscoveryScan' => __DIR__ . '/../..' . '/src/TranslationMemory/Infrastructure/InitialDiscoveryScan.php',
-        'TransLangs\\TranslationMemory\\Infrastructure\\OptionSourceScanner' => __DIR__ . '/../..' . '/src/TranslationMemory/Infrastructure/OptionSourceScanner.php',
-        'TransLangs\\TranslationMemory\\Infrastructure\\SourceLifecycleRefresher' => __DIR__ . '/../..' . '/src/TranslationMemory/Infrastructure/SourceLifecycleRefresher.php',
-        'TransLangs\\TranslationMemory\\Infrastructure\\StructuredSourceScanResult' => __DIR__ . '/../..' . '/src/TranslationMemory/Infrastructure/StructuredSourceScanResult.php',
-        'TransLangs\\TranslationMemory\\Infrastructure\\StructuredSourceScanner' => __DIR__ . '/../..' . '/src/TranslationMemory/Infrastructure/StructuredSourceScanner.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

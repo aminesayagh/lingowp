@@ -24,14 +24,14 @@ use TransLangs\PublicSite\Infrastructure\PublicRenderPipeline;
 use TransLangs\PublicSite\Infrastructure\RequestContext;
 use TransLangs\PublicSite\Infrastructure\StructuredRenderResolver;
 use TransLangs\Source\Infrastructure\TranslationUnitCodec;
-use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
-use TransLangs\TranslationMemory\Infrastructure\InitialDiscoveryScan;
-use TransLangs\TranslationMemory\Infrastructure\OptionSourceScanner;
+use TransLangs\Discovery\Infrastructure\StaticText\GettextCaptureWorker;
+use TransLangs\Discovery\Infrastructure\InitialDiscoveryScan;
+use TransLangs\Discovery\Infrastructure\Option\OptionSourceScanner;
 use TransLangs\Admin\Infrastructure\AdminBoardQuery;
 use TransLangs\Source\Infrastructure\Repositories\WpDbSourceTranslationRepository;
 use TransLangs\Admin\Infrastructure\DatabaseHealthReport;
-use TransLangs\TranslationMemory\Infrastructure\SourceLifecycleRefresher;
-use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
+use TransLangs\Discovery\Infrastructure\SourceLifecycleRefresher;
+use TransLangs\Discovery\Infrastructure\StructuredSourceScanner;
 use TransLangs\Source\Infrastructure\TranslationMemorySchema;
 
 class Plugin

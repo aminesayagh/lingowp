@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure;
+namespace TransLangs\Discovery\Infrastructure\Option;
 
 use TransLangs\Source\Domain\OptionSource;
 use TransLangs\Source\Domain\SourceTranslationRepository;

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure;
+namespace TransLangs\Discovery\Infrastructure\StaticText;
 
 use TransLangs\Source\Domain\GettextSource;
 use TransLangs\Source\Domain\SourceTranslationRepository;

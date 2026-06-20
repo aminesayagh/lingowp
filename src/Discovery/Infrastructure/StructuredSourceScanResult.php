@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure;
+namespace TransLangs\Discovery\Infrastructure;
 
 final class StructuredSourceScanResult
 {

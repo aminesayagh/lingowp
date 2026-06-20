@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure;
+namespace TransLangs\Discovery\Infrastructure;
 
 /**
  * Wires save-time structured discovery to WordPress lifecycle hooks (data

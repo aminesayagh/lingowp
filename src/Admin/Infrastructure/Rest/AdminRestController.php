@@ -7,9 +7,9 @@ use TransLangs\Language\Domain\PluralRules;
 use TransLangs\Source\Domain\SourceRef;
 use TransLangs\Source\Domain\SourceTranslationRepository;
 use TransLangs\Source\Domain\TranslationStatus;
-use TransLangs\TranslationMemory\Infrastructure\OptionSourceScanner;
+use TransLangs\Discovery\Infrastructure\Option\OptionSourceScanner;
 use TransLangs\Admin\Infrastructure\AdminBoardQuery;
-use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
+use TransLangs\Discovery\Infrastructure\StructuredSourceScanner;
 
 /**
  * Admin board REST API, namespace translangs/v1.

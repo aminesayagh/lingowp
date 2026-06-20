@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure;
+namespace TransLangs\Discovery\Infrastructure;
 
 /**
  * Initial / activation discovery scan (data pipeline §2, Path B1).

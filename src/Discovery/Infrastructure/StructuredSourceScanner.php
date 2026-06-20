@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure;
+namespace TransLangs\Discovery\Infrastructure;
 
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
