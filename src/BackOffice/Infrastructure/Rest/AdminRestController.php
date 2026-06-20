@@ -59,6 +59,7 @@ final class AdminRestController
         register_rest_route(self::NS, '/string/' . self::KEY . '/ignore', $this->route('POST', 'ignore'));
         register_rest_route(self::NS, '/string/' . self::KEY . '/duplicates', $this->route('GET', 'duplicates'));
         register_rest_route(self::NS, '/string/' . self::KEY . '/apply-everywhere', $this->route('POST', 'applyEverywhere'));
+        register_rest_route(self::NS, '/string/' . self::KEY . '/preview', $this->route('GET', 'preview'));
     }
 
     public function canManage(): bool
@@ -131,7 +132,8 @@ final class AdminRestController
         ]);
 
         return rest_ensure_response([
-            'groups'      => $this->groupRows($result['rows']),
+            // Media (attachments) has no front-end text to preview/highlight.
+            'groups'      => $this->groupRows($result['rows'], (string) $request->get_param('area') !== 'media'),
             'next_cursor' => KeysetCursor::encodeOwner($result['next_cursor']),
             'counts'      => $this->query->counts($area, $lang),
         ]);
@@ -206,6 +208,53 @@ final class AdminRestController
         }
 
         return rest_ensure_response($this->query->duplicates($ref, $lang));
+    }
+
+    /**
+     * Builds a front-end URL that opens the source highlighted in the target
+     * language. The companion PreviewHighlighter (editor-gated) reads the same
+     * query args on the page. staticText/option have no front-end location → url ''.
+     */
+    public function preview(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
+    {
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
+        }
+        $lang = $this->langParam($request);
+
+        $row = $this->query->loadString($ref, $lang);
+        if ($row === null) {
+            return $this->error('not_found', 'Source not found.', 404);
+        }
+
+        $focus = $ref->format();
+
+        if ($row['kind'] === 'html') {
+            $url = (string) ($row['source_url'] ?? '');
+            if ($url !== '') {
+                $url = add_query_arg(['translangs_preview' => $lang, 'translangs_focus' => $focus], $url);
+            }
+
+            return rest_ensure_response(['url' => $url, 'selector' => (string) $row['ref1']]);
+        }
+
+        $url = '';
+        if ($row['kind'] === 'term') {
+            $term = function_exists('get_term_by') ? get_term_by('term_taxonomy_id', (int) $row['term_taxonomy_id']) : null;
+            $link = $term instanceof \WP_Term && function_exists('get_term_link') ? get_term_link($term) : '';
+            $url  = is_string($link) ? $link : '';
+        } elseif (!empty($row['post_id']) && function_exists('get_permalink')) {
+            $url = (string) get_permalink((int) $row['post_id']);
+        }
+
+        if ($url !== '') {
+            // The editor-gated preview param (resolveFromPreview), not the path-prefix
+            // query var — a bare lang query on a permalink can be dropped by canonical redirect.
+            $url = add_query_arg(['translangs_preview' => $lang, 'translangs_focus' => $focus], $url);
+        }
+
+        return rest_ensure_response(['url' => $url, 'selector' => null]);
     }
 
     public function ignored(\WP_REST_Request $request): \WP_REST_Response
@@ -648,7 +697,7 @@ final class AdminRestController
      * @param array<int,array<string,mixed>> $rows
      * @return array<int,array<string,mixed>>
      */
-    private function groupRows(array $rows): array
+    private function groupRows(array $rows, bool $canPreview = true): array
     {
         $groups = [];
         $order  = [];
@@ -670,7 +719,9 @@ final class AdminRestController
 
             $groups[$ownerKey]['items'][] = [
                 'key'         => $row['source_key'],
-                'field'       => $row['ref1'],
+                // html ref1 is the DOM selector — internal positioning only, not a
+                // meaningful field label, so hide it on the board.
+                'field'       => $kind === 'html' ? null : $row['ref1'],
                 'context'     => $row['ref2'],
                 'original'    => $row['original_text'],
                 'translation' => $row['translated_text'],
@@ -679,6 +730,9 @@ final class AdminRestController
                 'origin'      => $row['translated_text'] === null
                     ? null
                     : ($row['provider'] !== null ? 'machine' : 'human'),
+                // staticText/option have no single front-end location to preview;
+                // $canPreview is false for the media area (attachments).
+                'preview'     => $canPreview && in_array($kind, ['post', 'meta', 'term', 'html'], true),
             ];
         }
 
@@ -715,6 +769,12 @@ final class AdminRestController
             ];
         }
 
+        if ($kind === 'html') {
+            // Never surface the DOM selector to the client; show the page it lives on.
+            $url = (string) ($row['source_url'] ?? '');
+            return ['id' => (int) $row['id'], 'label' => $url !== '' ? $url : 'Template text', 'kind' => $kind];
+        }
+
         return ['id' => (int) $row['id'], 'label' => (string) $row['ref1'], 'kind' => $kind];
     }
 
@@ -747,7 +807,7 @@ final class AdminRestController
         return [
             'key'          => $row['source_key'],
             'kind'         => $row['kind'],
-            'field'        => $row['ref1'],
+            'field'        => $row['kind'] === 'html' ? null : $row['ref1'],
             'context'      => $row['ref2'],
             'original'     => $row['original_text'],
             'translation'  => $row['translated_text'],

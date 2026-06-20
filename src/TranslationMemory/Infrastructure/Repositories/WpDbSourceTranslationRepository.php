@@ -7,6 +7,7 @@ use TransLangs\TranslationMemory\Domain\SourceRecord;
 use TransLangs\TranslationMemory\Domain\SourceRef;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
 use TransLangs\TranslationMemory\Domain\StringNormalizer;
+use TransLangs\TranslationMemory\Domain\TranslatableText;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
 use TransLangs\TranslationMemory\Infrastructure\TranslationMemorySchema;
 
@@ -52,6 +53,13 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
      */
     private function insertParents(string $tableKey, array $records): int
     {
+        // Single chokepoint for every discovery path: drop anything that carries
+        // no translatable content before it ever reaches a parent table.
+        $records = array_values(array_filter(
+            $records,
+            static fn (SourceRecord $r): bool => TranslatableText::isTranslatable($r->originalText())
+        ));
+
         if ($records === []) {
             return 0;
         }
@@ -214,6 +222,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
             $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+            $this->flushHtmlCache($ref, $langCode);
             return;
         }
 
@@ -253,6 +262,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                     $langCode
                 )
             );
+            $this->flushHtmlCache($ref, $langCode);
             return;
         }
 
@@ -273,6 +283,18 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         }
 
         return $applied;
+    }
+
+    /**
+     * Drop the per-language html map PublicRenderPipeline caches under
+     * 'tl:html:{lang}', so an edited template translation shows on the next render
+     * instead of waiting out the 300s TTL. No-op for non-html kinds.
+     */
+    private function flushHtmlCache(SourceRef $ref, string $langCode): void
+    {
+        if ($ref->kind === 'html' && $langCode !== '' && function_exists('wp_cache_delete')) {
+            wp_cache_delete('tl:html:' . $langCode, 'translangs');
+        }
     }
 
     public function ignoreSource(SourceRef $ref): void

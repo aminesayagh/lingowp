@@ -6,6 +6,7 @@ import {
 	deleteTranslation,
 	ignoreSource,
 	getDuplicates,
+	getPreview,
 	runScan,
 	errorMessage,
 } from '../api';
@@ -217,7 +218,7 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 						<div className="tl-card-title">
 							{ g.owner.thumb && <img className="tl-thumb" src={ g.owner.thumb } alt="" /> }
 							<span>
-								{ g.owner.label } <span className="tl-kind">({ g.owner.kind })</span>
+								{ g.owner.label }
 							</span>
 						</div>
 						{ g.items.map( ( it ) => (
@@ -378,6 +379,19 @@ function InlineRow( { item, lang, dir, languages, multiLang, onSaved, onRemoved,
 			} );
 	};
 
+	const preview = () => {
+		setRowError( null );
+		getPreview( item.key, lang )
+			.then( ( res ) => {
+				if ( res && res.url ) {
+					window.open( res.url, '_blank', 'noopener' );
+				} else {
+					setRowError( 'No preview available for this string.' );
+				}
+			} )
+			.catch( ( e ) => setRowError( errorMessage( e ) ) );
+	};
+
 	return (
 		<>
 		<div className={ 'tl-pair' + ( item.field ? '' : ' tl-pair-nofield' ) }>
@@ -432,6 +446,8 @@ function InlineRow( { item, lang, dir, languages, multiLang, onSaved, onRemoved,
 					<RowMenu
 						canAllLanguages={ multiLang }
 						canCopy={ multiLang }
+						canPreview={ item.preview !== false }
+						onPreview={ preview }
 						onAllLanguages={ () => onModal( { type: 'all', key: item.key } ) }
 						onCopyFrom={ () => setCopyOpen( true ) }
 						onClear={ clear }
@@ -472,7 +488,7 @@ function InlineRow( { item, lang, dir, languages, multiLang, onSaved, onRemoved,
 	);
 }
 
-function RowMenu( { canAllLanguages, canCopy, onAllLanguages, onCopyFrom, onClear, onDontTranslate, hasTranslation } ) {
+function RowMenu( { canAllLanguages, canCopy, canPreview, onPreview, onAllLanguages, onCopyFrom, onClear, onDontTranslate, hasTranslation } ) {
 	const [ open, setOpen ] = useState( false );
 	const run = ( fn ) => () => {
 		setOpen( false );
@@ -494,6 +510,11 @@ function RowMenu( { canAllLanguages, canCopy, onAllLanguages, onCopyFrom, onClea
 				<>
 					<div className="tl-menu-overlay" onClick={ () => setOpen( false ) } />
 					<div className="tl-menu-list" role="menu">
+						{ canPreview && (
+							<button type="button" role="menuitem" onClick={ run( onPreview ) }>
+								Preview on site
+							</button>
+						) }
 						{ canAllLanguages && (
 							<button type="button" role="menuitem" onClick={ run( onAllLanguages ) }>
 								Translate all languages

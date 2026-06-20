@@ -55,6 +55,10 @@ export const applyEverywhere = ( key, body ) =>
 		data: body,
 	} );
 
+/** Build the front-end "Preview on site" URL (opens the string highlighted in lang). */
+export const getPreview = ( key, lang ) =>
+	apiFetch( { path: `${ NS }/string/${ key }/preview${ qs( { lang } ) }` } );
+
 /** Mark a source as "don't translate" (its translations are kept, just hidden). */
 export const ignoreSource = ( key ) =>
 	apiFetch( { path: `${ NS }/string/${ key }/ignore`, method: 'POST' } );

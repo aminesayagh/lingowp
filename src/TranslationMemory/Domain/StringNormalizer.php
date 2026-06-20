@@ -30,8 +30,10 @@ namespace TransLangs\TranslationMemory\Domain;
  */
 final class StringNormalizer
 {
-    /** Stamped on every parent row; bump (+ re-hash migration) on any rule change. */
-    public const HASH_ALGORITHM_VERSION = 2;
+    /** Stamped on every parent row; bump (+ re-hash migration) on any rule change.
+     *  v3: single-wrapper HTML units are stored by their bare text (wrapper-strip),
+     *  so their unit hash changed and old rows must be re-discovered. */
+    public const HASH_ALGORITHM_VERSION = 3;
 
     private function __construct() {}
 

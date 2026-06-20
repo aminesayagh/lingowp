@@ -114,7 +114,9 @@ final class HtmlUnitExtractor
                 return;
             }
 
-            $decoded  = $this->codec->decode($translated, $encoded['tags']);
+            // Stripped single-wrapper units store the bare text; re-apply the
+            // wrappers (if any) so decode rebuilds the original inline tags.
+            $decoded  = $this->codec->decode($this->codec->rewrap($translated, $encoded), $encoded['tags']);
             $fragment = $html5->loadHTMLFragment($decoded);
             if (!$fragment instanceof \DOMNode) {
                 return;

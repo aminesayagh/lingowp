@@ -14,6 +14,7 @@ use TransLangs\PublicSite\Infrastructure\HtmlRenderer;
 use TransLangs\PublicSite\Infrastructure\HtmlUnitExtractor;
 use TransLangs\PublicSite\Infrastructure\OptionResolver;
 use TransLangs\PublicSite\Infrastructure\PageOwnedHashes;
+use TransLangs\PublicSite\Infrastructure\PreviewHighlighter;
 use TransLangs\TranslationMemory\Infrastructure\OwnedStringIndex;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\PublicSite\Infrastructure\LanguageSwitcherShortcode;
@@ -99,6 +100,10 @@ class Plugin
             new HtmlRenderer($unitExtractor),
             $ownedStringIndex
         ))->register();
+
+        // Front-end highlight for the admin "Preview on site" action (self-gates
+        // to preview mode + logged-in editors).
+        (new PreviewHighlighter(new AdminBoardQuery($wpdb)))->register();
 
         if (is_admin()) {
             (new DatabaseHealthReport($wpdb))->register();

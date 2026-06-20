@@ -29,15 +29,78 @@ final class TranslationUnitCodec
     ];
 
     /**
-     * @return array{unit: string, tags: array<int, array{open: string, close: string}>}
+     * @return array{unit: string, tags: array<int, array{open: string, close: string}>, wrap: ?array{0: string, 1: string}}
      */
     public function encode(\DOMElement $block): array
     {
         $counter = 0;
         $tags    = [];
-        $unit    = $this->walk($block, $counter, $tags);
+        $unit    = $this->tidy($this->walk($block, $counter, $tags));
+        $strip   = $this->stripWrapper($unit);
 
-        return ['unit' => $unit, 'tags' => $tags];
+        if ($strip === null) {
+            return ['unit' => $unit, 'tags' => $tags, 'wrap' => null];
+        }
+
+        return ['unit' => $strip['key'], 'tags' => $tags, 'wrap' => [$strip['prefix'], $strip['suffix']]];
+    }
+
+    /**
+     * Restore the wrappers stripped by encode() onto a translated unit, so decode()
+     * rebuilds the original inline tags. A no-op for units that were not stripped.
+     *
+     * @param array{wrap?: ?array{0: string, 1: string}} $encoded
+     */
+    public function rewrap(string $translatedUnit, array $encoded): string
+    {
+        if (empty($encoded['wrap'])) {
+            return $translatedUnit;
+        }
+
+        [$prefix, $suffix] = $encoded['wrap'];
+
+        return $prefix . $translatedUnit . $suffix;
+    }
+
+    /**
+     * When a unit is nothing but text inside a chain of nested single wrappers
+     * (e.g. "{1}{2}Team{/2}{/1}"), peel the wrappers so the translation key and the
+     * board display are the bare text ("Team"); render re-applies them via rewrap().
+     * A unit with two or more segments ("{1}A{/1} {2}B{/2}") or any inline structure
+     * left after peeling is kept whole. Returns null when nothing is strippable.
+     *
+     * @return array{key: string, prefix: string, suffix: string}|null
+     */
+    private function stripWrapper(string $unit): ?array
+    {
+        $prefix = '';
+        $suffix = '';
+        $inner  = $unit;
+
+        while (preg_match('/^\{(\d+)\}(.*)\{\/\1\}$/s', $inner, $m)) {
+            $prefix .= '{' . $m[1] . '}';
+            $suffix  = '{/' . $m[1] . '}' . $suffix;
+            $inner   = $m[2];
+        }
+
+        $inner = trim($inner);
+        if ($prefix === '' || $inner === '' || preg_match('/[{}]/', $inner)) {
+            return null;
+        }
+
+        return ['key' => $inner, 'prefix' => $prefix, 'suffix' => $suffix];
+    }
+
+    /**
+     * Collapse the indentation whitespace a theme leaves between tags down to what
+     * HTML actually renders (runs → one space, ends trimmed). Case- and
+     * entity-preserving, and a strict subset of StringNormalizer's whitespace
+     * rules, so the unit hash is unchanged — this only tidies what is stored and
+     * shown (e.g. a multi-line "{1}\n  Dashboard {/1}" becomes "{1} Dashboard {/1}").
+     */
+    private function tidy(string $unit): string
+    {
+        return trim((string) preg_replace('/\s+/', ' ', $unit));
     }
 
     /** Shared normalizer — the unit string is normalized before hashing/storing. */

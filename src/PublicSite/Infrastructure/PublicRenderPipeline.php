@@ -80,9 +80,43 @@ final class PublicRenderPipeline
             return $html;
         }
 
+        // html (type-5) REPLACE pass. The map is object-cached per language and the
+        // DOM parse is skipped entirely when it is empty (no html translations for
+        // this language), so a site that uses none never pays the parse cost.
+        $map = $this->htmlTranslations($this->targetLang);
+        if ($map !== []) {
+            $html = $this->htmlRenderer->render($html, $map);
+        }
+
         // Structured text (post/term/meta + gettext) is already translated by the
         // hooks; here we only localize internal links for the translated request.
         return $this->linkRewriter->rewrite($html, $this->targetLang);
+    }
+
+    /**
+     * Per-language html (type-5) map, object-cached. Empty array is a valid cached
+     * value (means "skip the parse"); a cache miss triggers a fetch.
+     *
+     * @return array<string, string>
+     */
+    private function htmlTranslations(string $lang): array
+    {
+        $cacheKey = 'tl:html:' . $lang;
+
+        if (function_exists('wp_cache_get')) {
+            $cached = wp_cache_get($cacheKey, 'translangs');
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+
+        $map = $this->repository->fetchAllHashTranslations('tl_html', $lang);
+
+        if (function_exists('wp_cache_set')) {
+            wp_cache_set($cacheKey, $map, 'translangs', 300);
+        }
+
+        return $map;
     }
 
     /**
@@ -93,7 +127,12 @@ final class PublicRenderPipeline
     private function discoverHtml(string $html): void
     {
         $sourceUrl = $this->currentUrl();
-        $units     = [];
+
+        // Stamp the daily throttle up front so even a page with nothing new to
+        // discover is not re-parsed on every admin view today.
+        set_transient($this->markThrottleKey(), 1, DAY_IN_SECONDS);
+
+        $units = [];
 
         $this->htmlRenderer->render($html, [], static function (string $selector, string $text) use (&$units, $sourceUrl): void {
             $units[$selector . "\0" . $text] = new HtmlSource($selector, $sourceUrl, $text);
@@ -114,12 +153,30 @@ final class PublicRenderPipeline
         }
     }
 
-    /** Marking = logged-in editor viewing a source-language page with ?translangs_mark. */
+    /**
+     * Marking = a logged-in editor viewing a source-language page. It runs
+     * automatically, throttled to once per day per URL (a DB-backed transient,
+     * since the object cache may be non-persistent), so ordinary admin browsing
+     * gradually discovers hardcoded template text without re-parsing every view.
+     * An explicit ?translangs_mark forces a re-mark, bypassing the throttle.
+     */
     private function isMarking(): bool
     {
-        return !empty($_GET['translangs_mark'])
-            && function_exists('current_user_can')
-            && current_user_can('edit_posts');
+        if (!function_exists('current_user_can') || !current_user_can('edit_posts')) {
+            return false;
+        }
+
+        if (!empty($_GET['translangs_mark'])) {
+            return true;
+        }
+
+        return get_transient($this->markThrottleKey()) === false;
+    }
+
+    /** Per-URL daily throttle key for auto-marking. */
+    private function markThrottleKey(): string
+    {
+        return 'tl_html_marked_' . md5((string) $this->currentUrl());
     }
 
     private function currentUrl(): ?string

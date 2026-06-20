@@ -39,6 +39,7 @@ class ResolveRequestLanguage
         }
 
         $lang = $this->resolveFromUrl()
+            ?? $this->resolveFromPreview()
             ?? $this->resolveFromUnprefixedDefaultUrl()
             ?? $this->resolveFromCookie()
             ?? $this->resolveFromBrowser()
@@ -97,6 +98,24 @@ class ResolveRequestLanguage
         $lang = get_query_var('translangs_lang');
 
         return $this->validate(is_string($lang) ? $lang : '');
+    }
+
+    /**
+     * 1b. Admin "Preview on site" param: a logged-in editor can view any page in
+     *     a target language via ?translangs_preview=<lang>. Editor-gated so a bare
+     *     URL never switches a public visitor's language.
+     */
+    private function resolveFromPreview(): ?string
+    {
+        if (empty($_GET['translangs_preview'])) {
+            return null;
+        }
+
+        if (!function_exists('current_user_can') || !current_user_can('edit_posts')) {
+            return null;
+        }
+
+        return $this->validate(sanitize_key(wp_unslash($_GET['translangs_preview'])));
     }
 
     /**
