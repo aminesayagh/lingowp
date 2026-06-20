@@ -2,10 +2,10 @@
 
 namespace TransLangs\Bootstrap;
 
-use TransLangs\BackOffice\Infrastructure\AdminAssets;
-use TransLangs\BackOffice\Infrastructure\BoardPageController;
-use TransLangs\BackOffice\Infrastructure\Rest\AdminRestController;
-use TransLangs\BackOffice\Infrastructure\SettingsPageController;
+use TransLangs\Admin\Infrastructure\AdminAssets;
+use TransLangs\Admin\Infrastructure\BoardPageController;
+use TransLangs\Admin\Infrastructure\Rest\AdminRestController;
+use TransLangs\Admin\Infrastructure\SettingsPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\PublicSite\Infrastructure\GettextResolver;
@@ -14,7 +14,7 @@ use TransLangs\PublicSite\Infrastructure\HtmlRenderer;
 use TransLangs\Source\Infrastructure\HtmlUnitExtractor;
 use TransLangs\PublicSite\Infrastructure\OptionResolver;
 use TransLangs\PublicSite\Infrastructure\PageOwnedHashes;
-use TransLangs\PublicSite\Infrastructure\PreviewHighlighter;
+use TransLangs\Admin\Infrastructure\PreviewHighlighter;
 use TransLangs\Source\Infrastructure\OwnedStringIndex;
 use TransLangs\PublicSite\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\PublicSite\Infrastructure\LanguageSwitcherShortcode;
@@ -27,9 +27,9 @@ use TransLangs\Source\Infrastructure\TranslationUnitCodec;
 use TransLangs\TranslationMemory\Infrastructure\GettextCaptureWorker;
 use TransLangs\TranslationMemory\Infrastructure\InitialDiscoveryScan;
 use TransLangs\TranslationMemory\Infrastructure\OptionSourceScanner;
-use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminBoardQuery;
+use TransLangs\Admin\Infrastructure\AdminBoardQuery;
 use TransLangs\Source\Infrastructure\Repositories\WpDbSourceTranslationRepository;
-use TransLangs\TranslationMemory\Infrastructure\Schema\DatabaseHealthReport;
+use TransLangs\Admin\Infrastructure\DatabaseHealthReport;
 use TransLangs\TranslationMemory\Infrastructure\SourceLifecycleRefresher;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
 use TransLangs\Source\Infrastructure\TranslationMemorySchema;

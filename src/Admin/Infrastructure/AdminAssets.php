@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\BackOffice\Infrastructure;
+namespace TransLangs\Admin\Infrastructure;
 
 /**
  * Loads the centralized admin stylesheet, but only on TransLangs screens.

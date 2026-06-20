@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\BackOffice\Infrastructure;
+namespace TransLangs\Admin\Infrastructure;
 
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Infrastructure\SupportedLanguages;

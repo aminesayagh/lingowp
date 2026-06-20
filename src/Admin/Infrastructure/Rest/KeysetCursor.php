@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\BackOffice\Infrastructure\Rest;
+namespace TransLangs\Admin\Infrastructure\Rest;
 
 /**
  * Opaque base64url cursors for keyset pagination (never OFFSET). Item lists page

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\BackOffice\Infrastructure;
+namespace TransLangs\Admin\Infrastructure;
 
 /**
  * Mounts the React admin board (the Translations screen) under the TransLangs

@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\PublicSite\Infrastructure;
+namespace TransLangs\Admin\Infrastructure;
 
 use TransLangs\Source\Domain\SourceRef;
-use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminBoardQuery;
+use TransLangs\Admin\Infrastructure\AdminBoardQuery;
 
 /**
  * Front-end companion to the admin "Preview on site" action. When a page is

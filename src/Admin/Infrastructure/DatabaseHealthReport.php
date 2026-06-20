@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure\Schema;
+namespace TransLangs\Admin\Infrastructure;
 
 use TransLangs\Source\Infrastructure\Schema\ConstraintVerifier;
 use TransLangs\Source\Infrastructure\TranslationMemorySchema;

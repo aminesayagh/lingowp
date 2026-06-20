@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\BackOffice\Infrastructure\Rest;
+namespace TransLangs\Admin\Infrastructure\Rest;
 
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Domain\PluralRules;
@@ -8,7 +8,7 @@ use TransLangs\Source\Domain\SourceRef;
 use TransLangs\Source\Domain\SourceTranslationRepository;
 use TransLangs\Source\Domain\TranslationStatus;
 use TransLangs\TranslationMemory\Infrastructure\OptionSourceScanner;
-use TransLangs\TranslationMemory\Infrastructure\Repositories\AdminBoardQuery;
+use TransLangs\Admin\Infrastructure\AdminBoardQuery;
 use TransLangs\TranslationMemory\Infrastructure\StructuredSourceScanner;
 
 /**

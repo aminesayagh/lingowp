@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\TranslationMemory\Infrastructure\Repositories;
+namespace TransLangs\Admin\Infrastructure;
 
 use TransLangs\Source\Domain\SourceRef;
 use TransLangs\Source\Infrastructure\TranslationMemorySchema;
