@@ -1,6 +1,8 @@
 <?php
 
-namespace TransLangs\Core\Source;
+namespace TransLangs\Core\Source\Base;
+use TransLangs\Core\Source\Type\PostSource;
+use TransLangs\Core\Source\Type\PostMetaSource;
 use TransLangs\Core\Text\TL_Key;
 use TransLangs\Core\Text\IdentityKey;
 

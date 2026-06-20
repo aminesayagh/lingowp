@@ -2,14 +2,14 @@
 
 namespace TransLangs\Core\Repository;
 
-use TransLangs\Core\Source\GettextSource;
+use TransLangs\Core\Source\Type\GettextSource;
 use TransLangs\Core\Text\IdentityKey;
-use TransLangs\Core\Source\SourceRecord;
-use TransLangs\Core\Source\SourceRef;
+use TransLangs\Core\Source\Base\SourceRecord;
+use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Text\TL_Key;
 use TransLangs\Core\Text\TranslatableText;
-use TransLangs\Core\Source\TranslationStatus;
+use TransLangs\Core\Source\Value\TranslationStatus;
 use TransLangs\Core\Schema\TranslationMemorySchema;
 
 /**

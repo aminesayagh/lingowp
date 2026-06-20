@@ -2,7 +2,7 @@
 
 namespace TransLangs\Discovery\StaticText;
 
-use TransLangs\Core\Source\GettextSource;
+use TransLangs\Core\Source\Type\GettextSource;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Repository\OwnedStringIndex;
 

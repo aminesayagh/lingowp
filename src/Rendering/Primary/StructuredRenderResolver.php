@@ -9,7 +9,7 @@ use TransLangs\Core\Text\IdentityKey;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Text\TL_Key;
-use TransLangs\Core\Source\TranslatableMetaKeys;
+use TransLangs\Core\Source\Type\TranslatableMetaKeys;
 
 /**
  * v5 structured render resolution (post, term, meta).

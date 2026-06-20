@@ -1,8 +1,8 @@
 <?php
 
 namespace TransLangs\Core\Repository;
-use TransLangs\Core\Source\SourceRef;
-use TransLangs\Core\Source\SourceRecord;
+use TransLangs\Core\Source\Value\SourceRef;
+use TransLangs\Core\Source\Base\SourceRecord;
 use TransLangs\Core\Text\IdentityKey;
 
 /**

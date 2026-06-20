@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Core\Source;
+namespace TransLangs\Core\Source\Value;
 
 use InvalidArgumentException;
 

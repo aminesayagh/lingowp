@@ -5,7 +5,7 @@ use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Localization\PublicLinkRewriter;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Core\Source\HtmlSource;
+use TransLangs\Core\Source\Type\HtmlSource;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Repository\OwnedStringIndex;
 

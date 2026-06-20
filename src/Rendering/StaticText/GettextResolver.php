@@ -6,7 +6,7 @@ use TransLangs\Rendering\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\PluralRules;
-use TransLangs\Core\Source\GettextSource;
+use TransLangs\Core\Source\Type\GettextSource;
 use TransLangs\Core\Text\IdentityKey;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Text\TL_Key;

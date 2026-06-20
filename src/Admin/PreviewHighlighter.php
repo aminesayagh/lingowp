@@ -2,7 +2,7 @@
 
 namespace TransLangs\Admin;
 
-use TransLangs\Core\Source\SourceRef;
+use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Admin\AdminBoardQuery;
 
 /**

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Core\Source;
+namespace TransLangs\Core\Source\Type;
 
 /**
  * The single source of truth for which post-meta keys are translatable

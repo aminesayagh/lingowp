@@ -1,6 +1,7 @@
 <?php
 
-namespace TransLangs\Core\Source;
+namespace TransLangs\Core\Source\Type;
+use TransLangs\Core\Source\Base\SourceRecord;
 use TransLangs\Core\Text\TL_Key;
 
 /**

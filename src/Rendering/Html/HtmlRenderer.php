@@ -3,7 +3,7 @@
 namespace TransLangs\Rendering\Html;
 
 use Masterminds\HTML5;
-use TransLangs\Core\Source\HtmlSource;
+use TransLangs\Core\Source\Type\HtmlSource;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
 use TransLangs\Core\Text\TL_Key;
 

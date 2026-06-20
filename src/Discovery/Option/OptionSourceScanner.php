@@ -2,7 +2,7 @@
 
 namespace TransLangs\Discovery\Option;
 
-use TransLangs\Core\Source\OptionSource;
+use TransLangs\Core\Source\Type\OptionSource;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 
 /**

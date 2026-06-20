@@ -4,9 +4,9 @@ namespace TransLangs\Admin\Rest;
 
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Domain\PluralRules;
-use TransLangs\Core\Source\SourceRef;
+use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Repository\SourceTranslationRepository;
-use TransLangs\Core\Source\TranslationStatus;
+use TransLangs\Core\Source\Value\TranslationStatus;
 use TransLangs\Discovery\Option\OptionSourceScanner;
 use TransLangs\Admin\AdminBoardQuery;
 use TransLangs\Discovery\StructuredSourceScanner;
