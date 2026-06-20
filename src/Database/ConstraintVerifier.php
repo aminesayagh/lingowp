@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Core\Schema;
+namespace TransLangs\Database;
 
 /**
  * Verifies that FK constraints actually exist in information_schema after table creation.

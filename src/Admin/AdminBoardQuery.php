@@ -3,7 +3,7 @@
 namespace TransLangs\Admin;
 
 use TransLangs\Core\Source\Value\SourceRef;
-use TransLangs\Core\Schema\TranslationMemorySchema;
+use TransLangs\Database\TranslationMemorySchema;
 
 /**
  * Read queries for the admin board, v5 — table-driven, hybrid child joins.

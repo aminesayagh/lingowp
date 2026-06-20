@@ -32,7 +32,7 @@ use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
 use TransLangs\Admin\DatabaseHealthReport;
 use TransLangs\Discovery\SourceLifecycleRefresher;
 use TransLangs\Discovery\StructuredSourceScanner;
-use TransLangs\Core\Schema\TranslationMemorySchema;
+use TransLangs\Database\TranslationMemorySchema;
 
 class Plugin
 {

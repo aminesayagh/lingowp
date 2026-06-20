@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Core\Schema;
+namespace TransLangs\Database;
 
 use RuntimeException;
 

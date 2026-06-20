@@ -10,7 +10,7 @@ use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Text\TL_Key;
 use TransLangs\Core\Text\TranslatableText;
 use TransLangs\Core\Source\Value\TranslationStatus;
-use TransLangs\Core\Schema\TranslationMemorySchema;
+use TransLangs\Database\TranslationMemorySchema;
 
 /**
  * $wpdb implementation of the v5 per-type persistence contract.
