@@ -75,9 +75,8 @@ children away — no orphans possible.
 
 Common columns on every parent: `id` (PK, auto-increment), `original_hash`
 `binary(32)`, `original_text` `longtext` (the readable source, kept for display),
-`status` `tinyint` (signed — see §5), `hash_algorithm_version` `tinyint unsigned`,
-`created_at` / `updated_at` `datetime`. Common indexes: `idx_hash (original_hash)`,
-`idx_queue (status, id)`.
+`status` `tinyint` (signed — see §5), `created_at` / `updated_at` `datetime`.
+Common indexes: `idx_hash (original_hash)`, `idx_queue (status, id)`.
 
 The `UNIQUE KEY uniq_source` per table defines what makes a source distinct (its
 *location*), and is what `INSERT IGNORE` deduplicates against during discovery.
@@ -89,6 +88,7 @@ The `UNIQUE KEY uniq_source` per table defines what makes a source distinct (its
 | `tl_term` | `term_taxonomy_id`, `field` varchar(32) | `(term_taxonomy_id, field, original_hash)` | `fk_term_owner` → `wp_term_taxonomy(term_taxonomy_id)` |
 | `tl_staticText` | `source` varchar(20), `reference` varchar(191), `reference_hash` | `(source, reference_hash, original_hash)` | none |
 | `tl_html` | `selector` varchar(255), `selector_hash`, `source_url` text | `(selector_hash, original_hash)` | none |
+| `tl_staticPluralText` | `static_text_id` (the singular anchor) | `(static_text_id)` | `fk_plural_owner` → `tl_staticText(id)` |
 
 Notes:
 - `field` on post = `post_title` / `post_excerpt` / `post_content` (block units).
@@ -99,6 +99,12 @@ Notes:
 - `html.selector` is a structural CSS-ish path for admin display only. It is **not**
   part of the translation key — html is hash-link, so two positions with the same
   text share one translation even with different selectors.
+- `tl_staticPluralText` holds the *plural* original (`msgid_plural`) of a gettext
+  `_n()` message; the singular `tl_staticText` row stays the message anchor. Its
+  translated forms live on the anchor in `tl_staticText_translation`, distinguished
+  by an extra `form_index tinyint` column (gettext `msgstr` 0..N-1; singular = 0).
+  Render never reads this table — WordPress hands `$plural` to the `ngettext`
+  filter live; it exists so the admin board can show the plural and flag the message.
 - The owner FKs are why post/term/meta sources vanish automatically when the
   underlying WordPress post or term is deleted.
 
@@ -169,10 +175,9 @@ Normalization steps (order is load-bearing):
 Accents are **kept** (lexical in fr/es/…). The display text is preserved
 separately in `original_text`, so normalization only affects matching.
 
-`HASH_ALGORITHM_VERSION` (currently **2**) is stamped on every parent's
-`hash_algorithm_version` column. Any change to the five rules above must bump this
-constant and re-hash stored rows, or stored hashes silently stop matching freshly
-computed ones.
+There is no hash-version column: changing any of the five rules above re-hashes
+every string, so existing `tl_*` rows must be re-discovered (drop the tables) or
+re-hashed by hand. The normalizer is treated as a frozen contract for that reason.
 
 ---
 

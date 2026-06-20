@@ -80,10 +80,12 @@ final class PublicRenderPipeline
             return $html;
         }
 
-        // html (type-5) REPLACE pass. The map is object-cached per language and the
-        // DOM parse is skipped entirely when it is empty (no html translations for
-        // this language), so a site that uses none never pays the parse cost.
-        $map = $this->htmlTranslations($this->targetLang);
+        // Final-HTML REPLACE pass. Covers hardcoded template text (tl_html) and
+        // visitor-facing wp_options text (tl_option) — both hash-linked, so one
+        // map drives the output rewrite. The map is object-cached per language and
+        // the DOM parse is skipped entirely when it is empty, so a site that uses
+        // neither never pays the parse cost.
+        $map = $this->pageOutputTranslations($this->targetLang);
         if ($map !== []) {
             $html = $this->htmlRenderer->render($html, $map);
         }
@@ -94,12 +96,15 @@ final class PublicRenderPipeline
     }
 
     /**
-     * Per-language html (type-5) map, object-cached. Empty array is a valid cached
-     * value (means "skip the parse"); a cache miss triggers a fetch.
+     * Per-language map for the final-HTML replace pass, object-cached. Merges the
+     * hash-linked template text (tl_html) and wp_options text (tl_option) maps;
+     * rewriting the page output (never option retrieval) keeps business logic on
+     * the original value. Empty array is a valid cached value (means "skip the
+     * parse"); a cache miss triggers a fetch.
      *
      * @return array<string, string>
      */
-    private function htmlTranslations(string $lang): array
+    private function pageOutputTranslations(string $lang): array
     {
         $cacheKey = 'tl:html:' . $lang;
 
@@ -110,7 +115,8 @@ final class PublicRenderPipeline
             }
         }
 
-        $map = $this->repository->fetchAllHashTranslations('tl_html', $lang);
+        $map = $this->repository->fetchAllHashTranslations('tl_html', $lang)
+            + $this->repository->fetchAllHashTranslations('tl_option', $lang);
 
         if (function_exists('wp_cache_set')) {
             wp_cache_set($cacheKey, $map, 'translangs', 300);

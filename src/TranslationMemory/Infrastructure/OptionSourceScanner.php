@@ -63,9 +63,35 @@ final class OptionSourceScanner
     /** @return array<string, string[]> */
     private function allowlist(): array
     {
-        $list = apply_filters('translangs_option_paths', self::ALLOWLIST);
+        $list = self::ALLOWLIST;
+
+        // Customizer text (theme-specific option name) and legacy widget instances
+        // are walked recursively ('' = every leaf string); looksTranslatable() drops
+        // the technical/markup values that come with them.
+        $list['theme_mods_' . get_stylesheet()] = [''];
+        foreach ($this->widgetOptionNames() as $name) {
+            $list[$name] = [''];
+        }
+
+        $list = apply_filters('translangs_option_paths', $list);
 
         return is_array($list) ? $list : self::ALLOWLIST;
+    }
+
+    /**
+     * Legacy widget option names (widget_text, widget_nav_menu, …). Block widgets
+     * (widget_block) carry block markup, dropped by looksTranslatable() and better
+     * served by the type-5 HTML pipeline, so they need no special-casing here.
+     *
+     * @return string[]
+     */
+    private function widgetOptionNames(): array
+    {
+        $names = $this->wpdb->get_col( // phpcs:ignore WordPress.DB
+            "SELECT option_name FROM {$this->wpdb->options} WHERE option_name LIKE 'widget\\_%'"
+        );
+
+        return is_array($names) ? array_map('strval', $names) : [];
     }
 
     private function optionId(string $optionName): ?int
@@ -136,6 +162,9 @@ final class OptionSourceScanner
             return false;
         }
         if (!preg_match('/\p{L}/u', $t)) {            // must contain a letter
+            return false;
+        }
+        if (preg_match('/<[!\/a-z]/i', $t)) {         // HTML / block markup
             return false;
         }
         if ($t[0] === '/' || preg_match('#^https?://#i', $t)) { // path / url

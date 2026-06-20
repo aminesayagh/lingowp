@@ -83,7 +83,7 @@ Save-time discovery is not just an insert; it **reconciles** the entity's scope
 
 1. **Upsert** the current candidates — `INSERT IGNORE` on `uniq_source`. An
    unchanged location is a no-op; a brand-new one inserts (status
-   `SOURCE_DISCOVERED = 0`, stamped with `hash_algorithm_version`).
+   `SOURCE_DISCOVERED = 0`).
 2. **Find stale parents** — still-discovered rows in the same scope (same post /
    meta key / term) whose identity is *not* in the current candidate set. These are
    positions whose text changed.
@@ -186,8 +186,9 @@ callback (before flush) and is editor-only/low-frequency, so it's host-safe.
   exactly one table.
 - **No translations created.** Discovery only writes parents. Children appear later
   via the admin board or MT, seeded as machine/needs_review.
-- **Hash version.** Each parent stamps `hash_algorithm_version`; a normalizer change
-  requires a version bump + re-hash, or discovery and render stop agreeing.
+- **Frozen normalizer.** There is no hash-version column; a normalizer change
+  re-hashes everything, so existing rows must be dropped/re-discovered or re-hashed
+  by hand, or discovery and render stop agreeing.
 
 ---
 

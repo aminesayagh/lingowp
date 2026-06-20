@@ -23,6 +23,8 @@ $tables = [
     $wpdb->prefix . 'tl_staticText_translation',
     $wpdb->prefix . 'tl_html_translation',
     $wpdb->prefix . 'tl_option_translation',
+    // gettext plural (references tl_staticText, so drop before the parents)
+    $wpdb->prefix . 'tl_staticPluralText',
     // v5 parents
     $wpdb->prefix . 'tl_post',
     $wpdb->prefix . 'tl_meta',

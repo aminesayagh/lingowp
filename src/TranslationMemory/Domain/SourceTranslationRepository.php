@@ -30,6 +30,15 @@ interface SourceTranslationRepository
     public function upsertSources(array $records): int;
 
     /**
+     * Discover gettext plural messages: ensure each singular anchor exists in
+     * tl_staticText, then link the plural original via tl_staticPluralText.
+     *
+     * @param array<int, array{domain:string, context:?string, single:string, plural:string}> $candidates
+     * @return int Plural rows inserted.
+     */
+    public function upsertPluralSources(array $candidates): int;
+
+    /**
      * Render read for hash-link types (post/term/html): the produced translations
      * for a set of original hashes in one language, from that type's child table.
      * Keyed by lowercase hex(original_hash) => translated_text.
@@ -61,6 +70,15 @@ interface SourceTranslationRepository
      */
     public function fetchParentTranslations(string $parentTableKey, array $lookups, string $langCode): array;
 
+    /**
+     * Render read for gettext plurals: every translated form per message in one
+     * language, keyed IdentityKey(lookup) => [form_index => translated_text].
+     *
+     * @param array<int, array<string,scalar>> $lookups singular staticText identities
+     * @return array<string, array<int, string>>
+     */
+    public function fetchPluralForms(array $lookups, string $langCode): array;
+
     // ── translation writes (admin) ─────────────────────────────────────────────
 
     /**
@@ -69,6 +87,23 @@ interface SourceTranslationRepository
      * parent_id: keyed (parent.id, lang). No-op if the parent row is gone.
      */
     public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): void;
+
+    /**
+     * Create or update one gettext plural FORM for the message anchored by $ref,
+     * keyed (parent_id, lang_code, form_index). Singular saves use saveTranslation.
+     */
+    public function savePluralForm(SourceRef $ref, string $langCode, int $formIndex, string $text, int $status, ?string $provider): void;
+
+    /** Remove a single gettext plural FORM for $ref + language. */
+    public function deletePluralForm(SourceRef $ref, string $langCode, int $formIndex): void;
+
+    /**
+     * The translated plural forms of $ref for one language, keyed
+     * form_index => translated_text. For the admin plural editor.
+     *
+     * @return array<int, string>
+     */
+    public function loadPluralForms(SourceRef $ref, string $langCode): array;
 
     /** Remove the translation for $ref + language (hash-link delete is text-global). */
     public function deleteTranslation(SourceRef $ref, string $langCode): void;

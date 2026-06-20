@@ -144,12 +144,14 @@ final class AdminBoardQuery
                        '{$kind}' AS kind,
                        {$this->refColumns($tableKey)},
                        p.original_text,
+                       {$this->pluralCol($tableKey)} AS plural_original,
                        {$this->sourceUrlCol($tableKey)} AS source_url,
                        LOWER(HEX(p.original_hash)) AS current_hash,
                        t.translated_text, t.status AS tr_status, t.provider,
                        t.updated_at AS tr_updated,
                        {$this->stateCase()} AS effective_state
                 {$from}
+                {$this->pluralJoin($tableKey)}
                 LEFT JOIN {$child} t ON {$this->childOn($tableKey)} AND t.lang_code = %s
                 WHERE " . implode(' AND ', $where);
 
@@ -206,6 +208,7 @@ final class AdminBoardQuery
                        '{$kind}' AS kind,
                        {$this->refColumns($tableKey)},
                        p.original_text,
+                       {$this->pluralCol($tableKey)} AS plural_original,
                        {$this->sourceUrlCol($tableKey)} AS source_url,
                        LOWER(HEX(p.original_hash)) AS current_hash,
                        p.status AS src_status,
@@ -213,6 +216,7 @@ final class AdminBoardQuery
                        t.updated_at AS tr_updated,
                        {$this->stateCase()} AS effective_state
                 FROM {$parent} p
+                {$this->pluralJoin($tableKey)}
                 LEFT JOIN {$child} t ON {$this->childOn($tableKey)} AND t.lang_code = %s
                 WHERE p.id = %d";
 
@@ -234,8 +238,11 @@ final class AdminBoardQuery
                        FROM {$child}
                        WHERE original_hash = (SELECT original_hash FROM {$parent} WHERE id = %d)";
         } else {
+            // staticText children carry a form_index (plurals); list the base form
+            // only, so each language appears once. Other parent_id tables have none.
+            $formFilter = $tableKey === 'tl_staticText' ? ' AND form_index = 0' : '';
             $sql = "SELECT lang_code, translated_text, status, updated_at
-                    FROM {$child} WHERE parent_id = %d";
+                    FROM {$child} WHERE parent_id = %d{$formFilter}";
         }
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -353,7 +360,30 @@ final class AdminBoardQuery
     /** Child join condition for this table's key model. */
     private function childOn(string $tableKey): string
     {
-        return $this->isHashLink($tableKey) ? 't.original_hash = p.original_hash' : 't.parent_id = p.id';
+        if ($this->isHashLink($tableKey)) {
+            return 't.original_hash = p.original_hash';
+        }
+
+        // staticText children carry form_index (gettext plural forms); the board
+        // represents each message by its base form (0) so a plural lists once. Other
+        // parent_id tables have no form_index column.
+        return $tableKey === 'tl_staticText'
+            ? 't.parent_id = p.id AND t.form_index = 0'
+            : 't.parent_id = p.id';
+    }
+
+    /** Plural original (msgid_plural) column — staticText only, NULL elsewhere. */
+    private function pluralCol(string $tableKey): string
+    {
+        return $tableKey === 'tl_staticText' ? 'pl.original_text' : 'NULL';
+    }
+
+    /** LEFT JOIN to the plural table for staticText; empty for other tables. */
+    private function pluralJoin(string $tableKey): string
+    {
+        return $tableKey === 'tl_staticText'
+            ? 'LEFT JOIN ' . TranslationMemorySchema::pluralTable() . ' pl ON pl.static_text_id = p.id'
+            : '';
     }
 
     private function stateCase(): string

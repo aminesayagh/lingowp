@@ -12,9 +12,10 @@ use TransLangs\TranslationMemory\Domain\TL_Key;
  * so business/plugin logic always receives the original option value while the
  * visitor sees the translation (per the wp_options translation strategy spec).
  *
- * Scope: the two universal branding strings (site name + tagline). Other
- * allowlisted option paths are still discovered and editable on the board, but
- * their frontend replacement is deferred (theme-specific) — see OptionSourceScanner.
+ * Scope: the two universal branding strings (site name + tagline), which surface
+ * through `bloginfo` (e.g. <title>, meta tags) outside the page body. All other
+ * discovered wp_options text (theme mods, widgets) is swapped in the final-HTML
+ * output pass in PublicRenderPipeline, which shares the same tl_option hash map.
  */
 final class OptionResolver
 {

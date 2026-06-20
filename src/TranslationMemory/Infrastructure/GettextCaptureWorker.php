@@ -17,9 +17,11 @@ use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
  */
 final class GettextCaptureWorker
 {
-    public const HOOK = 'translangs_capture_gettext';
+    public const HOOK        = 'translangs_capture_gettext';
+    public const HOOK_PLURAL = 'translangs_capture_gettext_plural';
 
-    private const TRANSIENT_PREFIX = 'tl_gx_';
+    private const TRANSIENT_PREFIX        = 'tl_gx_';
+    private const TRANSIENT_PREFIX_PLURAL = 'tl_gxp_';
 
     public function __construct(
         private SourceTranslationRepository $repository,
@@ -29,6 +31,7 @@ final class GettextCaptureWorker
     public function register(): void
     {
         add_action(self::HOOK, [$this, 'run']);
+        add_action(self::HOOK_PLURAL, [$this, 'runPlural']);
     }
 
     /**
@@ -44,6 +47,21 @@ final class GettextCaptureWorker
         set_transient($key, $payload, HOUR_IN_SECONDS);
 
         as_enqueue_async_action(self::HOOK, [$key], 'translangs');
+    }
+
+    /**
+     * @param array<int, array{domain: string, context: ?string, single: string, plural: string}> $payload
+     */
+    public static function enqueuePlural(array $payload): void
+    {
+        if ($payload === [] || !function_exists('as_enqueue_async_action') || !function_exists('set_transient')) {
+            return;
+        }
+
+        $key = self::TRANSIENT_PREFIX_PLURAL . uniqid('', true);
+        set_transient($key, $payload, HOUR_IN_SECONDS);
+
+        as_enqueue_async_action(self::HOOK_PLURAL, [$key], 'translangs');
     }
 
     /**
@@ -83,6 +101,51 @@ final class GettextCaptureWorker
 
         if ($records !== []) {
             $this->repository->upsertSources($records);
+        }
+    }
+
+    /**
+     * Worker for gettext plural messages. Builds (single, plural) candidates and
+     * upserts them; the singular anchor goes through the same TranslatableText gate
+     * as any gettext string. Page-ownership was already applied at capture time.
+     *
+     * @param string $key transient holding the captured plural payload
+     */
+    public function runPlural($key = ''): void
+    {
+        $key = (string) $key;
+        if ($key === '' || !function_exists('get_transient')) {
+            return;
+        }
+
+        $payload = get_transient($key);
+        if (function_exists('delete_transient')) {
+            delete_transient($key);
+        }
+        if (!is_array($payload)) {
+            return;
+        }
+
+        $candidates = [];
+        foreach ($payload as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $single = (string) ($row['single'] ?? '');
+            $plural = (string) ($row['plural'] ?? '');
+            if ($single === '' || $plural === '') {
+                continue;
+            }
+            $candidates[] = [
+                'domain'  => (string) ($row['domain'] ?? ''),
+                'context' => isset($row['context']) ? (string) $row['context'] : null,
+                'single'  => $single,
+                'plural'  => $plural,
+            ];
+        }
+
+        if ($candidates !== []) {
+            $this->repository->upsertPluralSources($candidates);
         }
     }
 

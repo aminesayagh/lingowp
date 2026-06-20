@@ -38,10 +38,12 @@
     - Remove deleted values
   - Static text
     - Capture text from gettext hooks
+    - Capture plural messages from the _n hooks (singular and plural forms)
     - Exclude text already owned by posts, terms, meta, or HTML
     - Buffer newly discovered text
     - Schedule a background insertion job
     - Insert missing source records
+    - Link the plural original to its singular anchor
   - Raw HTML
     - Start the HTML marking mode from a source-language page
     - Capture the final page output
@@ -49,12 +51,17 @@
     - Exclude text already owned by another content type
     - Insert missing source records
   - Options
-    - Read the allowed WordPress options
+    - Read the allowlisted WordPress options
+      - Site title and tagline
+      - Theme customizer text (theme mods)
+      - Legacy widget text
+      - Extend the allowlist with the translangs_option_paths filter
     - Extract scalar or nested text values
+    - Skip values that are not translatable (markup, urls, emails, colours, numbers)
     - Insert missing source records
-    - Currently include the site title and tagline
   - Common rules
     - Store source text independently from languages
+    - Skip text that is not translatable (empty, numbers, dates, special characters, urls, emails, filenames)
     - Avoid duplicated source records
     - Create translation records only when a translation is saved
 - Front-end rendering
@@ -84,13 +91,16 @@
     - Detect gettext calls
     - Query using the text domain, context, and original text
     - Return the translated text
+    - For plural calls, pick the form for the count using the language's plural rule
+    - Return the original form when the chosen form is missing
   - Raw HTML
     - Capture the final HTML response
     - Load the HTML translation map
     - Replace matching HTML units
   - Options
-    - Detect the site title and tagline through the bloginfo hook
-    - Replace them with their translations
+    - Replace the site title and tagline at the bloginfo display layer
+    - Replace other option text (theme mods, widgets) in the final HTML output pass
+    - Keep the stored option value untouched, so business logic gets the original
   - Rewrite internal links for the current language
   - Generate the language switcher
   - Generate canonical and hreflang links
@@ -109,6 +119,7 @@
   - Display strings grouped by their content owner
   - Translation editing
     - Save one translation
+    - Edit each plural form for a plural message (one box per language plural form)
     - Save translations for several languages
     - Copy a translation from another language
     - Validate formatting placeholders

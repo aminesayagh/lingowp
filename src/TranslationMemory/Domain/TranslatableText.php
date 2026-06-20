@@ -5,8 +5,7 @@ namespace TransLangs\TranslationMemory\Domain;
 /**
  * Decides whether a discovered string is worth translating, applied AFTER the
  * normalizer. A gate, not a transformer: it never changes the stored text or its
- * hash (StringNormalizer owns the frozen contract) — it only answers keep/skip,
- * so it needs no HASH_ALGORITHM_VERSION bump.
+ * hash (StringNormalizer owns the frozen contract) — it only answers keep/skip.
  *
  * Conservative by design: anything containing a real word is kept. A string is
  * skipped only when it demonstrably carries nothing to translate —

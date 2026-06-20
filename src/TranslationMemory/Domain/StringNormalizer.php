@@ -24,17 +24,12 @@ namespace TransLangs\TranslationMemory\Domain;
  * FROZEN CONTRACT (v5 §6): original_hash links parent rows to children, so this
  * algorithm defines row relationships. It is the ONE shared normalizer used by
  * discovery, the render resolvers, gettext capture, and the HTML parser —
- * identical bytes in, identical hash out, everywhere. Any change to the rules
- * MUST bump HASH_ALGORITHM_VERSION and ship a re-hash migration; otherwise
- * previously-stored hashes silently stop matching freshly-computed ones.
+ * identical bytes in, identical hash out, everywhere. Changing any rule re-hashes
+ * every string, so existing tl_* rows must be re-discovered (drop the tables) or
+ * migrated by hand; there is no automatic versioning.
  */
 final class StringNormalizer
 {
-    /** Stamped on every parent row; bump (+ re-hash migration) on any rule change.
-     *  v3: single-wrapper HTML units are stored by their bare text (wrapper-strip),
-     *  so their unit hash changed and old rows must be re-discovered. */
-    public const HASH_ALGORITHM_VERSION = 3;
-
     private function __construct() {}
 
     public static function normalize(string $text): string

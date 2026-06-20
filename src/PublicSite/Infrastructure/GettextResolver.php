@@ -3,6 +3,7 @@
 namespace TransLangs\PublicSite\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\Language\Domain\PluralRules;
 use TransLangs\TranslationMemory\Domain\GettextSource;
 use TransLangs\TranslationMemory\Domain\IdentityKey;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
@@ -52,6 +53,15 @@ final class GettextResolver
 
     /** @var array<string, array{domain: string, context: ?string, text: string}> deduped per request */
     private array $candidates = [];
+
+    /** @var array<string, array<int, string>> IdentityKey(singular) => [form_index => text] */
+    private array $pluralForms = [];
+
+    /** @var array<string, true> IdentityKey(singular) => already-queried (negative cache) */
+    private array $pluralLoaded = [];
+
+    /** @var array<string, array{domain: string, context: ?string, single: string, plural: string}> */
+    private array $pluralCandidates = [];
 
     public function __construct(
         private ResolveRequestLanguage $language,
@@ -105,15 +115,13 @@ final class GettextResolver
     }
 
     /**
-     * v1 is singular-only (v5 §1.2): plurals pass through untouched. Plural forms
-     * carry CLDR rules per language and are deferred to a later version.
-     *
-     * @param mixed $translation
+     * @param mixed $translation already the collapsed English form ($number==1 ?
+     *                            $single : $plural), since no target .mo is loaded
      * @return mixed
      */
     public function ngettext($translation, $single = '', $plural = '', $number = 1, $domain = 'default')
     {
-        return $translation;
+        return $this->resolvePlural($translation, (string) $single, (string) $plural, (int) $number, null, (string) $domain);
     }
 
     /**
@@ -122,7 +130,90 @@ final class GettextResolver
      */
     public function ngettextWithContext($translation, $single = '', $plural = '', $number = 1, $context = '', $domain = 'default')
     {
-        return $translation;
+        $context = (string) $context;
+
+        return $this->resolvePlural(
+            $translation,
+            (string) $single,
+            (string) $plural,
+            (int) $number,
+            $context === '' ? null : $context,
+            (string) $domain
+        );
+    }
+
+    /**
+     * Resolve a plural to the stored form for this language + count, and discover
+     * the message. The anchor (identity) is the SINGULAR string, exactly like a
+     * normal gettext string; the form is picked with the target language's CLDR
+     * rule (PluralRules → WordPress's \Plural_Forms). Capture records BOTH forms so
+     * the message is complete regardless of which one this $number rendered.
+     *
+     * @param mixed $incoming
+     * @return mixed
+     */
+    private function resolvePlural($incoming, string $single, string $plural, int $number, ?string $context, string $domain)
+    {
+        if ($single === '' || $plural === '') {
+            return $incoming;
+        }
+
+        $lookup = $this->staticTextLookup($domain, $context, $single);
+        $key    = IdentityKey::of($lookup);
+
+        if ($this->isActive()) {
+            $this->ensurePluralLoaded([$lookup]);
+            if (isset($this->pluralForms[$key])) {
+                $idx = PluralRules::indexFor($this->lang, $number);
+                if (($this->pluralForms[$key][$idx] ?? '') !== '') {
+                    return $this->pluralForms[$key][$idx];
+                }
+            }
+        }
+
+        if ($this->shouldCapture() && !$this->pageOwned->owns($lookup['original_hash'])) {
+            $this->capturePlural($key, $domain, $context, $single, $plural);
+        }
+
+        return $incoming;
+    }
+
+    private function capturePlural(string $key, string $domain, ?string $context, string $single, string $plural): void
+    {
+        if (!isset($this->pluralCandidates[$key])) {
+            $this->pluralCandidates[$key] = [
+                'domain'  => $domain,
+                'context' => $context,
+                'single'  => $single,
+                'plural'  => $plural,
+            ];
+        }
+    }
+
+    /**
+     * @param array<int, array<string, scalar>> $lookups
+     */
+    private function ensurePluralLoaded(array $lookups): void
+    {
+        $todo = [];
+        foreach ($lookups as $lookup) {
+            $key = IdentityKey::of($lookup);
+            if (!isset($this->pluralLoaded[$key])) {
+                $todo[$key] = $lookup;
+            }
+        }
+        if ($todo === []) {
+            return;
+        }
+
+        $fetched = $this->repository->fetchPluralForms(array_values($todo), $this->lang);
+
+        foreach ($todo as $key => $lookup) {
+            $this->pluralLoaded[$key] = true;
+            if (isset($fetched[$key])) {
+                $this->pluralForms[$key] = $fetched[$key];
+            }
+        }
     }
 
     /**
@@ -188,6 +279,12 @@ final class GettextResolver
      */
     public function flush(): void
     {
+        $this->flushSingular();
+        $this->flushPlural();
+    }
+
+    private function flushSingular(): void
+    {
         if ($this->candidates === []) {
             return;
         }
@@ -203,6 +300,26 @@ final class GettextResolver
 
         if ($payload !== []) {
             GettextCaptureWorker::enqueue($payload);
+        }
+    }
+
+    private function flushPlural(): void
+    {
+        if ($this->pluralCandidates === []) {
+            return;
+        }
+
+        $payload = [];
+        foreach ($this->pluralCandidates as $key => $data) {
+            if ($this->recentlySeen('pl:' . $key)) {
+                continue;
+            }
+            $payload[] = $data;
+        }
+        $this->pluralCandidates = [];
+
+        if ($payload !== []) {
+            GettextCaptureWorker::enqueuePlural($payload);
         }
     }
 

@@ -59,6 +59,18 @@ export const applyEverywhere = ( key, body ) =>
 export const getPreview = ( key, lang ) =>
 	apiFetch( { path: `${ NS }/string/${ key }/preview${ qs( { lang } ) }` } );
 
+/** Read a gettext plural message's per-form inputs (labels/examples + saved text). */
+export const getPlural = ( key, lang ) =>
+	apiFetch( { path: `${ NS }/string/${ key }/plural${ qs( { lang } ) }` } );
+
+/** Save a gettext plural message's forms ({ formIndex: text }) for one language. */
+export const savePlural = ( key, lang, forms, mark = 'reviewed' ) =>
+	apiFetch( {
+		path: `${ NS }/string/${ key }/plural`,
+		method: 'PUT',
+		data: { lang, forms, mark },
+	} );
+
 /** Mark a source as "don't translate" (its translations are kept, just hidden). */
 export const ignoreSource = ( key ) =>
 	apiFetch( { path: `${ NS }/string/${ key }/ignore`, method: 'POST' } );

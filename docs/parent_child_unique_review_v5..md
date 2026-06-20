@@ -41,8 +41,8 @@ CREATE TABLE {$languages} (
 
 ### 1.2 Parent shape (all five)
 Common columns: `id` (PK), the type identity columns, `original_hash binary(32)`,
-`original_text longtext`, `status tinyint` (0 discovered | 3 ignored),
-`hash_algorithm_version tinyint` (see §6), timestamps. Plus per-type identity:
+`original_text longtext`, `status tinyint` (0 discovered | 3 ignored), timestamps.
+Plus per-type identity:
 
 | Table | Identity (UNIQUE uniq_source) | Content FK |
 |---|---|---|
@@ -244,8 +244,9 @@ filter; never auto-scan all meta.
 Because `original_hash` links rows and keys children, the normalization algorithm
 **defines row relationships** — changing it later silently disconnects everything.
 
-- **Freeze and version it:** store `hash_algorithm_version` on every parent;
-  bump on any normalization change and provide a re-hash migration.
+- **Freeze it:** the normalizer is a frozen contract. There is no version column —
+  any normalization change re-hashes everything, so existing rows must be dropped
+  and re-discovered (or re-hashed by hand).
 - **One conservative normalizer**, shared by discovery, the parser, gettext
   capture, and render — identical bytes in, identical hash out, everywhere. If a
   new normalizer is written instead of reusing the shared one, matches silently

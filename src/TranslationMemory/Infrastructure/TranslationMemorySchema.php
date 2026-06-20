@@ -18,7 +18,7 @@ use TransLangs\TranslationMemory\Infrastructure\Schema\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '17';
+    public const DB_VERSION        = '19';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
@@ -68,6 +68,11 @@ class TranslationMemorySchema
         $wpdb->query(TableDefinitions::html($p['tl_html'], $cc));                                       // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::option($p['tl_option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
 
+        // 1b. tl_staticPluralText extends tl_staticText (FK target above) with the
+        // plural original of a gettext message; its translated forms live on the
+        // staticText child via form_index.
+        $wpdb->query(TableDefinitions::staticPluralText(self::pluralTable(), $p['tl_staticText'], $cc)); // phpcs:ignore WordPress.DB
+
         // 2a. Hash-link children (post/term/html): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
             $wpdb->query( // phpcs:ignore WordPress.DB
@@ -76,11 +81,22 @@ class TranslationMemorySchema
         }
 
         // 2b. parent_id children (meta/staticText): FK'd back to their parent id.
+        // The staticText child carries form_index (plural forms); meta does not.
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
             $wpdb->query( // phpcs:ignore WordPress.DB
-                TableDefinitions::parentIdTranslation($p[$parentKey] . '_translation', $p[$parentKey], $fkName, $cc)
+                TableDefinitions::parentIdTranslation(
+                    $p[$parentKey] . '_translation',
+                    $p[$parentKey],
+                    $fkName,
+                    $cc,
+                    $parentKey === 'tl_staticText'
+                )
             );
         }
+
+        // 2c. Upgrade path: an existing tl_staticText_translation (pre-v18) lacks
+        // form_index. CREATE IF NOT EXISTS cannot add it, so migrate in place.
+        self::migrateStaticTextTranslationFormIndex();
 
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
         $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
@@ -90,6 +106,8 @@ class TranslationMemorySchema
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
                 $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // phpcs:ignore WordPress.DB
             }
+            // tl_staticPluralText references tl_staticText — drop it before the parents.
+            $wpdb->query('DROP TABLE IF EXISTS ' . self::pluralTable()); // phpcs:ignore WordPress.DB
             foreach ($p as $table) {
                 $wpdb->query('DROP TABLE IF EXISTS ' . $table); // phpcs:ignore WordPress.DB
             }
@@ -115,6 +133,7 @@ class TranslationMemorySchema
             'fk_meta_owner'   => $p['tl_meta'],
             'fk_term_owner'   => $p['tl_term'],
             'fk_option_owner' => $p['tl_option'],
+            'fk_plural_owner' => self::pluralTable(),
         ];
 
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
@@ -169,6 +188,38 @@ class TranslationMemorySchema
         }
     }
 
+    /**
+     * Add form_index to an existing tl_staticText_translation (pre-v18). Guarded by
+     * an information_schema column check so it never re-runs or touches a freshly
+     * created table (which already has the column). Existing singular rows default
+     * to form_index 0, so the widened unique key keeps them unique — no data loss.
+     */
+    private static function migrateStaticTextTranslationFormIndex(): void
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'tl_staticText_translation';
+
+        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
+            $wpdb->prepare(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'form_index'",
+                $table
+            )
+        );
+
+        if ($hasColumn === 'form_index') {
+            return;
+        }
+
+        $wpdb->query( // phpcs:ignore WordPress.DB
+            "ALTER TABLE {$table}
+                ADD COLUMN form_index tinyint unsigned NOT NULL DEFAULT 0,
+                DROP INDEX uniq_translation,
+                ADD UNIQUE KEY uniq_translation (parent_id, lang_code, form_index)"
+        );
+    }
+
     /** Storage engine of one table per information_schema, or null if unknown. */
     private static function engineOf(string $table): ?string
     {
@@ -219,6 +270,18 @@ class TranslationMemorySchema
             'tl_html'       => $wpdb->prefix . 'tl_html',
             'tl_option'     => $wpdb->prefix . 'tl_option',
         ];
+    }
+
+    /**
+     * The gettext plural parent table (wp_tl_staticPluralText). Kept OUT of
+     * parentTables(): it is not a SourceRef kind and has no standard child, so the
+     * generic board UNION / fetch loops must not iterate it.
+     */
+    public static function pluralTable(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'tl_staticPluralText';
     }
 
     /** The five prefixed child (translation) table names, keyed by parent suffix. */

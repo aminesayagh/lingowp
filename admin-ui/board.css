@@ -115,3 +115,17 @@
 .tl-loading, .tl-empty { padding: 24px; color: #50575e; text-align: center; }
 .tl-error { background: #fcf0f1; border: 1px solid #f0c0c4; color: #8a1f24; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
 .tl-notice { background: #edfaef; border: 1px solid #b8e6c2; color: #00622e; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
+
+/* Gettext plural editor: two-original header + one labelled box per CLDR form. */
+.tl-plural-originals { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 6px; }
+.tl-plural-tag {
+	display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 9px;
+	background: #e7e9ec; color: #50575e; font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+}
+.tl-plural-forms { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.tl-plural-form { display: flex; align-items: flex-start; gap: 8px; }
+.tl-plural-label {
+	flex: 0 0 92px; padding-top: 4px; color: #1d2327; font-weight: 600; text-transform: capitalize;
+}
+.tl-plural-eg { display: block; color: #787c82; font-weight: 400; font-size: 11px; text-transform: none; }
+.tl-plural .tl-textarea { flex: 1; }

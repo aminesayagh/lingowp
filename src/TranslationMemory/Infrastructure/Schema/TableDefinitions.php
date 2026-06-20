@@ -20,8 +20,7 @@ namespace TransLangs\TranslationMemory\Infrastructure\Schema;
  *
  * There is no translated_against_hash: a source-text change deletes the stale
  * parent and seeds the new one's translation as needs_review (carry-forward),
- * so child status alone drives the admin queue. Every parent stamps
- * hash_algorithm_version so a future normalizer change can be re-hashed.
+ * so child status alone drives the admin queue.
  *
  * Languages stay option-backed (no languages table), so lang_code is a plain
  * column with no FK. Methods return CREATE TABLE SQL with FK clauses inlined —
@@ -41,7 +40,6 @@ final class TableDefinitions
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
     status                 tinyint          NOT NULL DEFAULT 0,
-    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
@@ -66,7 +64,6 @@ final class TableDefinitions
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
     status                 tinyint          NOT NULL DEFAULT 0,
-    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
@@ -90,7 +87,6 @@ final class TableDefinitions
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
     status                 tinyint          NOT NULL DEFAULT 0,
-    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
@@ -112,7 +108,6 @@ final class TableDefinitions
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
     status                 tinyint          NOT NULL DEFAULT 0,
-    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
@@ -135,13 +130,38 @@ final class TableDefinitions
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
     status                 tinyint          NOT NULL DEFAULT 0,
-    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uniq_source (source, reference_hash, original_hash),
     KEY idx_hash (original_hash),
     KEY idx_queue (status, id)
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /**
+     * wp_tl_staticPluralText — the plural form (msgid_plural) of a gettext message,
+     * 1:1 with its singular tl_staticText anchor. Holds only the plural ORIGINAL;
+     * the translated forms live on the anchor in tl_staticText_translation, keyed
+     * by form_index. Exists so the admin board can show the plural string and flag
+     * the message as plural — render never reads it (WordPress hands us $plural live
+     * on the ngettext filter).
+     */
+    public static function staticPluralText(string $table, string $staticTextTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    static_text_id         bigint unsigned  NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_plural (static_text_id),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_plural_owner FOREIGN KEY (static_text_id)
+        REFERENCES {$staticTextTable} (id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -156,7 +176,6 @@ final class TableDefinitions
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
     status                 tinyint          NOT NULL DEFAULT 0,
-    hash_algorithm_version tinyint unsigned NOT NULL DEFAULT 1,
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
@@ -193,25 +212,37 @@ final class TableDefinitions
      * parent_id child (meta, staticText): one translation per (parent_id,
      * lang_code). The position owns its translation; parent deletion cascades.
      *
+     * The staticText child additionally carries form_index (gettext plural form
+     * 0..N-1): singular strings stay at 0, a plural message stores all its forms on
+     * the same anchor. $withFormIndex adds the column and widens the unique key.
+     *
      * @param string $fkName unique FK constraint name for this child→parent link
      */
     public static function parentIdTranslation(
         string $table,
         string $parentTable,
         string $fkName,
-        string $charsetCollate
+        string $charsetCollate,
+        bool $withFormIndex = false
     ): string {
+        $formIndexCol = $withFormIndex
+            ? "    form_index      tinyint unsigned NOT NULL DEFAULT 0,\n"
+            : '';
+        $uniqueKey = $withFormIndex
+            ? 'UNIQUE KEY uniq_translation (parent_id, lang_code, form_index)'
+            : 'UNIQUE KEY uniq_translation (parent_id, lang_code)';
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id              bigint unsigned  NOT NULL AUTO_INCREMENT,
     parent_id       bigint unsigned  NOT NULL,
     lang_code       varchar(20)      NOT NULL,
-    translated_text longtext         NOT NULL,
+{$formIndexCol}    translated_text longtext         NOT NULL,
     status          tinyint          NOT NULL DEFAULT 1,
     provider        varchar(50)      NULL,
     created_at      datetime         NOT NULL,
     updated_at      datetime         NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uniq_translation (parent_id, lang_code),
+    {$uniqueKey},
     KEY idx_queue (lang_code, status, id),
     CONSTRAINT {$fkName} FOREIGN KEY (parent_id)
         REFERENCES {$parentTable} (id) ON DELETE CASCADE

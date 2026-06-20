@@ -7,6 +7,8 @@ import {
 	ignoreSource,
 	getDuplicates,
 	getPreview,
+	getPlural,
+	savePlural,
 	runScan,
 	errorMessage,
 } from '../api';
@@ -279,7 +281,12 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 	);
 }
 
-function InlineRow( { item, lang, dir, languages, multiLang, onSaved, onRemoved, onModal } ) {
+// A gettext plural message edits N forms; everything else is a single textarea.
+function InlineRow( props ) {
+	return props.item.plural ? <PluralRow { ...props } /> : <SingleRow { ...props } />;
+}
+
+function SingleRow( { item, lang, dir, languages, multiLang, onSaved, onRemoved, onModal } ) {
 	const [ text, setText ] = useState( item.translation || '' );
 	const [ busy, setBusy ] = useState( false );
 	const [ rowError, setRowError ] = useState( null );
@@ -485,6 +492,162 @@ function InlineRow( { item, lang, dir, languages, multiLang, onSaved, onRemoved,
 			/>
 		) }
 		</>
+	);
+}
+
+// Editor for a gettext plural message: one labelled box per CLDR form (e.g.
+// French shows 2, Arabic 6). Forms + labels/examples come from the API per lang.
+function PluralRow( { item, lang, dir, onSaved, onRemoved } ) {
+	const [ forms, setForms ] = useState( null );
+	const [ loaded, setLoaded ] = useState( '' );
+	const [ busy, setBusy ] = useState( false );
+	const [ rowError, setRowError ] = useState( null );
+
+	useEffect( () => {
+		let alive = true;
+		setForms( null );
+		getPlural( item.key, lang )
+			.then( ( res ) => {
+				if ( ! alive ) {
+					return;
+				}
+				const f = res.forms || [];
+				setForms( f );
+				setLoaded( JSON.stringify( f.map( ( x ) => x.text ) ) );
+			} )
+			.catch( ( e ) => alive && setRowError( errorMessage( e ) ) );
+		return () => {
+			alive = false;
+		};
+	}, [ item.key, lang ] );
+
+	const setFormText = ( idx, val ) =>
+		setForms( ( fs ) => fs.map( ( f ) => ( f.index === idx ? { ...f, text: val } : f ) ) );
+
+	const anyText = !! forms && forms.some( ( f ) => f.text.trim() !== '' );
+	const dirty = !! forms && JSON.stringify( forms.map( ( f ) => f.text ) ) !== loaded;
+	const chip = STATE_CHIP[ item.state ];
+
+	useEffect( () => {
+		setDirty( item.key, dirty && ! busy );
+		return () => setDirty( item.key, false );
+	}, [ dirty, busy, item.key ] );
+
+	const save = () => {
+		setBusy( true );
+		setRowError( null );
+		// Send every form, empty included: the server deletes the empty ones
+		// (per-form clear) and saves the rest.
+		const map = {};
+		forms.forEach( ( f ) => {
+			map[ f.index ] = f.text;
+		} );
+		savePlural( item.key, lang, map )
+			.then( () => {
+				setBusy( false );
+				setLoaded( JSON.stringify( forms.map( ( f ) => f.text ) ) );
+				// The board row tracks the base form (0), matching childOn.
+				const base = forms.find( ( f ) => f.index === 0 );
+				const hasBase = !! base && base.text.trim() !== '';
+				onSaved( {
+					translation: hasBase ? base.text : '',
+					state: hasBase ? 'done' : 'to_translate',
+					updated_at: null,
+					origin: hasBase ? 'human' : null,
+				} );
+			} )
+			.catch( ( e ) => {
+				setBusy( false );
+				setRowError( errorMessage( e ) );
+			} );
+	};
+
+	const clear = () => {
+		setBusy( true );
+		setRowError( null );
+		deleteTranslation( item.key, lang )
+			.then( () => {
+				setBusy( false );
+				setForms( ( fs ) => fs.map( ( f ) => ( { ...f, text: '' } ) ) );
+				setLoaded( JSON.stringify( ( forms || [] ).map( () => '' ) ) );
+				onSaved( { translation: '', state: 'to_translate', updated_at: null, origin: null } );
+			} )
+			.catch( ( e ) => {
+				setBusy( false );
+				setRowError( errorMessage( e ) );
+			} );
+	};
+
+	const dontTranslate = () => {
+		setBusy( true );
+		ignoreSource( item.key )
+			.then( () => onRemoved() )
+			.catch( ( e ) => {
+				setBusy( false );
+				setRowError( errorMessage( e ) );
+			} );
+	};
+
+	return (
+		<div className="tl-pair tl-pair-nofield tl-plural">
+			<div className="tl-plural-originals">
+				<div className="tl-col tl-col-original" title={ item.original }>
+					<span className="tl-plural-tag">singular</span>
+					<Placeholders text={ item.original } />
+				</div>
+				<div className="tl-col tl-col-original" title={ item.plural }>
+					<span className="tl-plural-tag">plural</span>
+					<Placeholders text={ item.plural } />
+				</div>
+			</div>
+
+			<div className="tl-pair-row">
+				<div className="tl-plural-forms">
+					{ ! forms && <div className="tl-loading">Loading…</div> }
+					{ forms &&
+						forms.map( ( f ) => (
+							<div className="tl-plural-form" key={ f.index }>
+								<label className="tl-plural-label">
+									{ f.label } <span className="tl-plural-eg">e.g. { f.example }</span>
+								</label>
+								<AutoTextarea
+									className="tl-textarea"
+									rows={ 1 }
+									dir={ dir }
+									value={ f.text }
+									disabled={ busy }
+									placeholder="Add translation…"
+									onChange={ ( e ) => setFormText( f.index, e.target.value ) }
+								/>
+							</div>
+						) ) }
+				</div>
+
+				<div className="tl-pair-actions">
+					{ chip && chip.cls !== 'new' && (
+						<span className={ 'tl-state tl-state-' + chip.cls }>{ chip.label }</span>
+					) }
+					<button
+						type="button"
+						className="button button-primary"
+						disabled={ busy || ! dirty || ! anyText }
+						onClick={ save }
+					>
+						Valid
+					</button>
+					<RowMenu
+						canAllLanguages={ false }
+						canCopy={ false }
+						canPreview={ false }
+						onClear={ clear }
+						onDontTranslate={ dontTranslate }
+						hasTranslation={ anyText }
+					/>
+				</div>
+			</div>
+
+			{ rowError && <div className="tl-error tl-row-error">{ rowError }</div> }
+		</div>
 	);
 }
 

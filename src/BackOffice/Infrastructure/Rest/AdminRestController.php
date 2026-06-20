@@ -3,6 +3,7 @@
 namespace TransLangs\BackOffice\Infrastructure\Rest;
 
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\Language\Domain\PluralRules;
 use TransLangs\TranslationMemory\Domain\SourceRef;
 use TransLangs\TranslationMemory\Domain\SourceTranslationRepository;
 use TransLangs\TranslationMemory\Domain\TranslationStatus;
@@ -60,6 +61,10 @@ final class AdminRestController
         register_rest_route(self::NS, '/string/' . self::KEY . '/duplicates', $this->route('GET', 'duplicates'));
         register_rest_route(self::NS, '/string/' . self::KEY . '/apply-everywhere', $this->route('POST', 'applyEverywhere'));
         register_rest_route(self::NS, '/string/' . self::KEY . '/preview', $this->route('GET', 'preview'));
+        register_rest_route(self::NS, '/string/' . self::KEY . '/plural', [
+            $this->method('GET', 'getPlural'),
+            $this->method('PUT', 'putPlural'),
+        ]);
     }
 
     public function canManage(): bool
@@ -349,6 +354,99 @@ final class AdminRestController
                 return $this->error('placeholder_mismatch', "Formatting placeholders missing for '{$lang}'.", 400);
             }
             $this->repository->saveTranslation($ref, $lang, $text, TranslationStatus::NEEDS_REVIEW, null);
+            $saved++;
+        }
+
+        return rest_ensure_response(['saved' => $saved]);
+    }
+
+    /**
+     * Read a gettext plural message's forms for one language: the per-form inputs
+     * the editor must render (label + example count), pre-filled with any saved
+     * translation. nplurals/labels come from the target language's CLDR rule.
+     */
+    public function getPlural(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
+    {
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
+        }
+        if ($ref->kind !== 'staticText') {
+            return $this->error('not_plural', 'Only static text can carry plural forms.', 400);
+        }
+        $lang = $this->targetLang($request);
+        if ($lang instanceof \WP_Error) {
+            return $lang;
+        }
+
+        $row = $this->query->loadString($ref, $lang);
+        if ($row === null) {
+            return $this->error('not_found', 'Source not found.', 404);
+        }
+
+        $existing = $this->repository->loadPluralForms($ref, $lang);
+        $forms    = [];
+        foreach (PluralRules::forms($lang) as $form) {
+            $forms[] = [
+                'index'   => $form['index'],
+                'label'   => $form['label'],
+                'example' => $form['example'],
+                'text'    => $existing[$form['index']] ?? '',
+            ];
+        }
+
+        return rest_ensure_response(['forms' => $forms]);
+    }
+
+    /**
+     * Save a gettext plural message's forms for one language. Each entry is keyed by
+     * its gettext form index; out-of-range indexes and empty strings are skipped.
+     */
+    public function putPlural(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
+    {
+        $ref = $this->ref($request);
+        if ($ref instanceof \WP_Error) {
+            return $ref;
+        }
+        if ($ref->kind !== 'staticText') {
+            return $this->error('not_plural', 'Only static text can carry plural forms.', 400);
+        }
+        $lang = $this->targetLang($request);
+        if ($lang instanceof \WP_Error) {
+            return $lang;
+        }
+
+        $row = $this->query->loadString($ref, $lang);
+        if ($row === null) {
+            return $this->error('not_found', 'Source not found.', 404);
+        }
+
+        $forms = $request->get_param('forms');
+        if (!is_array($forms)) {
+            return $this->error('invalid_forms', 'forms must be a map of index => text.', 400);
+        }
+
+        $nplurals     = PluralRules::nplurals($lang);
+        $originalText = (string) $row['original_text'];
+        $status       = $this->markStatus((string) $request->get_param('mark'));
+        $saved        = 0;
+
+        foreach ($forms as $index => $text) {
+            $idx  = (int) $index;
+            $text = (string) $text;
+            if ($idx < 0 || $idx >= $nplurals) {
+                continue;
+            }
+            // An empty form clears just that form (per-form delete); a non-empty one
+            // is validated and saved.
+            if (trim($text) === '') {
+                $this->repository->deletePluralForm($ref, $lang, $idx);
+                continue;
+            }
+            if (!$this->placeholdersPresent($originalText, $text)) {
+                return $this->error('placeholder_mismatch', 'Formatting placeholders are missing from a plural form.', 400);
+            }
+            $this->repository->savePluralForm($ref, $lang, $idx, $text, $status, null);
             $saved++;
         }
 
@@ -719,11 +817,14 @@ final class AdminRestController
 
             $groups[$ownerKey]['items'][] = [
                 'key'         => $row['source_key'],
-                // html ref1 is the DOM selector — internal positioning only, not a
-                // meaningful field label, so hide it on the board.
-                'field'       => $kind === 'html' ? null : $row['ref1'],
+                // html ref1 is the DOM selector and staticText ref1 is the gettext token
+                // (already shown as the card origin) — neither is a meaningful field label.
+                'field'       => in_array($kind, ['html', 'staticText'], true) ? null : $row['ref1'],
                 'context'     => $row['ref2'],
                 'original'    => $row['original_text'],
+                // Non-null only for gettext plural messages: the editor switches to
+                // a per-form (one/two/few/…) layout when this is set.
+                'plural'      => $row['plural_original'] ?? null,
                 'translation' => $row['translated_text'],
                 'state'       => $row['effective_state'],
                 'updated_at'  => $row['tr_updated'] ?? null,
@@ -775,7 +876,61 @@ final class AdminRestController
             return ['id' => (int) $row['id'], 'label' => $url !== '' ? $url : 'Template text', 'kind' => $kind];
         }
 
+        if ($kind === 'staticText') {
+            // ref2 is "domain|context"; show where the string comes from (plugin/theme),
+            // not the bare gettext token.
+            $domain = explode('|', (string) ($row['ref2'] ?? ''))[0];
+            return ['id' => (int) $row['id'], 'label' => $this->gettextOrigin($domain), 'kind' => $kind];
+        }
+
         return ['id' => (int) $row['id'], 'label' => (string) $row['ref1'], 'kind' => $kind];
+    }
+
+    /**
+     * Human label for a gettext text domain: the owning plugin/theme name, or
+     * "WordPress" for core, falling back to the raw domain when unknown.
+     */
+    private function gettextOrigin(string $domain): string
+    {
+        if ($domain === '' || $domain === 'default') {
+            return 'WordPress';
+        }
+
+        return $this->gettextDomainMap()[$domain] ?? $domain;
+    }
+
+    /** @return array<string,string> text domain => "Name (plugin|theme)" */
+    private function gettextDomainMap(): array
+    {
+        static $map = null;
+        if ($map !== null) {
+            return $map;
+        }
+
+        $map = [];
+
+        if (function_exists('wp_get_theme')) {
+            $theme = wp_get_theme();
+            $td    = (string) $theme->get('TextDomain');
+            if ($td !== '') {
+                $map[$td] = $theme->get('Name') . ' (theme)';
+            }
+        }
+
+        if (! function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        foreach (get_plugins() as $file => $data) {
+            $td = (string) ($data['TextDomain'] ?? '');
+            if ($td === '') {
+                $td = dirname((string) $file); // folder name is WP's domain fallback
+            }
+            if ($td !== '' && $td !== '.' && ! isset($map[$td])) {
+                $map[$td] = ($data['Name'] ?? $td) . ' (plugin)';
+            }
+        }
+
+        return $map;
     }
 
     /** A 64px preview URL for a media attachment: image thumbnail, else a file-type icon. */
@@ -807,9 +962,10 @@ final class AdminRestController
         return [
             'key'          => $row['source_key'],
             'kind'         => $row['kind'],
-            'field'        => $row['kind'] === 'html' ? null : $row['ref1'],
+            'field'        => in_array((string) $row['kind'], ['html', 'staticText'], true) ? null : $row['ref1'],
             'context'      => $row['ref2'],
             'original'     => $row['original_text'],
+            'plural'       => $row['plural_original'] ?? null,
             'translation'  => $row['translated_text'],
             'state'        => $row['effective_state'] ?? null,
             'updated_at'   => $row['tr_updated'] ?? null,
