@@ -4,7 +4,7 @@ namespace TransLangs\Setup;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Rendering\Infrastructure\LanguageRouteRegistrar;
+use TransLangs\Localization\Infrastructure\LanguageRouteRegistrar;
 use TransLangs\Discovery\Infrastructure\InitialDiscoveryScan;
 use TransLangs\Source\Infrastructure\Schema\SchemaFailure;
 use TransLangs\Source\Infrastructure\TranslationMemorySchema;

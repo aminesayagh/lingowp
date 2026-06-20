@@ -1,6 +1,8 @@
 <?php
 
-namespace TransLangs\Rendering\Infrastructure;
+namespace TransLangs\Rendering\Infrastructure\StaticText;
+use TransLangs\Rendering\Infrastructure\PageOwnedHashes;
+use TransLangs\Rendering\Infrastructure\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\PluralRules;

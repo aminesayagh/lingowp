@@ -1,6 +1,7 @@
 <?php
 
-namespace TransLangs\Rendering\Infrastructure;
+namespace TransLangs\Localization\Infrastructure;
+use TransLangs\Rendering\Infrastructure\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 

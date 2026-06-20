@@ -1,6 +1,8 @@
 <?php
 
 namespace TransLangs\Rendering\Infrastructure;
+use TransLangs\Rendering\Infrastructure\Html\HtmlRenderer;
+use TransLangs\Localization\Infrastructure\PublicLinkRewriter;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Source\Domain\HtmlSource;

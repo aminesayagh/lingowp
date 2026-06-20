@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Rendering\Infrastructure;
+namespace TransLangs\Rendering\Infrastructure\Html;
 
 use Masterminds\HTML5;
 use TransLangs\Source\Domain\HtmlSource;
