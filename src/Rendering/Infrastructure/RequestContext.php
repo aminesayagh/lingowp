@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\PublicSite\Infrastructure;
+namespace TransLangs\Rendering\Infrastructure;
 
 /**
  * Answers questions about the current request.

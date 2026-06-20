@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\PublicSite\Infrastructure;
+namespace TransLangs\Rendering\Infrastructure;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Source\Domain\IdentityKey;

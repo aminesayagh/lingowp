@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\PublicSite\Infrastructure;
+namespace TransLangs\Rendering\Infrastructure;
 
 /**
  * Tier-1 ownership gate (v5 §5): the set of original hashes this request already
