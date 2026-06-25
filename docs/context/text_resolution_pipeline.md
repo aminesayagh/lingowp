@@ -10,7 +10,7 @@ Companion to `database_structure.md` (what's stored) and
 
 ## 1. Overview
 
-Resolution mirrors extraction: the same five kinds, the same two lookup models, the
+Resolution mirrors extraction: the same source families, the same two lookup models, the
 same normalizer. Each render channel hooks WordPress where the text appears, looks
 up a translation for the **current request language**, and substitutes it — falling
 back to the original text on a miss.
@@ -22,6 +22,7 @@ back to the original text on a miss.
 | Structured: meta | `get_post_metadata` | `tl_meta_translation` | parent-id |
 | gettext | `gettext` / `gettext_with_context` | `tl_staticText_translation` | parent-id (by reference) |
 | html | output buffer (preview) | `tl_html_translation` | hash-link |
+| option | `bloginfo`, final HTML buffer | `tl_option_translation` | hash-link |
 
 Three invariants:
 - **Per-request, batched.** Maps are preloaded in batches (one query per WP_Query /
@@ -120,7 +121,8 @@ rendered as structured content (see extraction doc, Path C).
 
 ## 4. gettext resolution — staticText
 
-`GettextResolver` on the `gettext` / `gettext_with_context` filters, only on a
+`GettextResolver` on the `gettext` / `gettext_with_context` filters, and the
+`ngettext` / `ngettext_with_context` filters for plural forms, only on a
 translated request:
 
 - Build the same lookup discovery used:
@@ -128,10 +130,12 @@ translated request:
   currentHash(text))`.
 - `ensureLoaded` → `fetchParentTranslations('tl_staticText', …)`, key by
   `IdentityKey`, return the translation or the incoming string.
+- For plurals, `resolvePlural()` loads `fetchPluralForms(...)` and returns the
+  stored form for the active plural index, falling back to the incoming plural
+  string when no form exists.
 
-Singular only (`ngettext` passes through). Resolution and the separate capture pass
-(Path C) share the exact lookup shape, so a captured string later resolves by the
-same key.
+Resolution and the separate capture pass (Path C) share the exact lookup shape,
+so a captured string later resolves by the same key.
 
 ---
 
@@ -140,17 +144,16 @@ same key.
 `PublicRenderPipeline` opens an output buffer on a translated request. At
 `finish()`:
 
-1. **html REPLACE pass — preview only.** The DOM parse is expensive, so it runs only
-   for a logged-in editor with `?translangs_preview`. `htmlTranslations($lang)`
-   loads the whole per-language map via `fetchAllHashTranslations('tl_html', $lang)`
-   (object-cached 300s; empty array is a valid "nothing to do" cached value).
-   `HtmlRenderer::render` walks the body block units and replaces each whose
-   `currentHash(unit)` is in the map.
+1. **Final HTML REPLACE pass.** The DOM parse is expensive, so it only runs when
+   the merged `tl_html` + `tl_option` map is non-empty. `pageOutputTranslations()`
+   loads `fetchAllHashTranslations('tl_html', $lang)` and
+   `fetchAllHashTranslations('tl_option', $lang)`, caches the merged map for 300s,
+   and `HtmlRenderer::render` replaces any matching block unit in the page body.
 2. **Link rewriting — everyone.** `PublicLinkRewriter` rewrites internal URLs to
    their localized form for all visitors, translated or preview.
 
 Public visitors thus get structured translations (applied by the §3/§4 hooks during
-render) + link rewriting, but never pay for the html DOM parse.
+render), option-branding translations where applicable, and link rewriting.
 
 ---
 
@@ -161,6 +164,7 @@ render) + link rewriting, but never pay for the html DOM parse.
 | `fetchHashTranslations($tableKey, $hashes, $lang)` | post, term render | `WHERE original_hash IN (…) AND lang_code = ?` → `hex(hash) => text` |
 | `fetchAllHashTranslations($tableKey, $lang)` | html page map | all rows for a language → `hex(hash) => text` |
 | `fetchParentTranslations($tableKey, $lookups, $lang)` | meta, gettext | join parent on identity tuples (`WHERE p.status = 0`) → `IdentityKey => text` |
+| `fetchPluralForms($lookups, $lang)` | gettext plurals | `IdentityKey => [form_index => text]` |
 
 All three filter by `lang_code` and **not** by child status, so every translation
 state renders. `fetchParentTranslations` requires the parent to be discovered
@@ -173,7 +177,7 @@ lingered.
 
 - **Per-request maps** (`hashMap` / `metaMap` / gettext map) with negative-cache
   "loaded" sets — each key hits the DB at most once per request.
-- **html map** is object-cached per language for 300s (`tl:html:{lang}`).
+- **html / option map** is object-cached per language for 300s (`tl:html:{lang}`).
 - **Miss = original.** No map entry ⇒ original text renders. This covers
   untranslated, ignored (child deleted), and source-language requests alike — the
   page is always renderable.
@@ -187,5 +191,5 @@ the_content ─► split units ─► hash each ─► hashMap ─► rebuilt bl
 get_term(s) ─► hash name/desc ─► hashMap ─► mutate WP_Term in place
 get_post_metadata ─► location lookup ─► metaMap ─► [translation] | $value
 gettext ─► (domain|context, text) lookup ─► staticText map ─► translation | original
-output buffer ─► [preview] html map ─► replace units ─► link rewrite (all)
+output buffer ─► html+option map ─► replace units ─► link rewrite (all)
 ```

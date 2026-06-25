@@ -51,7 +51,7 @@ if (file_exists(TRANSLANGS_DIR . 'vendor/autoload.php')) {
 }
 
 // Load the bundled queue library before plugins_loaded, so Action Scheduler can register its version.
-\TransLangs\Shared\Infrastructure\ActionSchedulerLoader::loadBundled(TRANSLANGS_DIR);
+\TransLangs\Shared\ActionSchedulerLoader::loadBundled(TRANSLANGS_DIR);
 
 /*
     * Lifecycle hooks. These run only on activation/deactivation, never per request.

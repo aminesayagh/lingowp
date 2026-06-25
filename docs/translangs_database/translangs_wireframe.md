@@ -1,9 +1,13 @@
 # TransLangs — Admin Experience Plan (Wireframes + Use Cases) — v2
 
 Audience for the UI: **business owners and marketers**, not developers. Labels
-use plain content language (Pages, Products, "Theme & button text", "Check for
-new text", "Don't translate"). Architecture terms appear only in parentheses
+ use plain content language (Pages, Products, "Menus & Branding", "Check for
+ new text", "Don't translate"). Architecture terms appear only in parentheses
 for the implementer.
+
+This wireframe tracks the current admin board implementation. When the live UI
+changes, update this file to match the shipped screen rather than the earlier
+design intent.
 
 ### What changed from v1 (read first)
 - **The list IS the editor.** No per-row "Translate" button that opens a
@@ -18,6 +22,8 @@ for the implementer.
   exist only for genuinely cross-cutting actions (all-languages,
   apply-everywhere, import) — never for normal translating.
 - **Sizing is specified** on every component (see Layout Rules).
+- **Current header actions.** The top header contains the scan action and a
+  compact settings icon. There is no repeated per-list scan button anymore.
 
 ### Global layout rules (apply to every screen)
 ```
@@ -48,7 +54,7 @@ Four product defaults remain assumed (Part C); flagged where they appear.
 
 ```
 ┌─ 240px ───────────┬────────────────────────────────────────────────────────┐
-│ TransLangs        │                                          [Settings][Help]│
+│ TransLangs        │                                    [ Check for new text ][⚙]│
 │                   │   (main panel — changes per section)                     │
 │ CONTENT           │                                                          │
 │  ▸ Pages          │                                                          │
@@ -56,8 +62,7 @@ Four product defaults remain assumed (Part C); flagged where they appear.
 │  ▸ Products       │                                                          │
 │  ▸ Categories     │                                                          │
 │  ▸ Media          │                                                          │
-│  ▸ Theme &        │                                                          │
-│    button text    │                                                          │
+│  ▸ Static text    │                                                          │
 │  ▸ Templates      │                                                          │
 │                   │                                                          │
 │ SITE              │                                                          │
@@ -75,7 +80,7 @@ Four product defaults remain assumed (Part C); flagged where they appear.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ Pages                                                  [ Check for new text ] │
+│ Pages                                                                      │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ Translate to:[French▼]   Search original[________]   Search translated[_____] │
 │ Origin:[All▼]  Sort:[Recently changed▼]                                       │
@@ -140,7 +145,7 @@ Four product defaults remain assumed (Part C); flagged where they appear.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ Products                                               [ Check for new text ] │
+│ Products                                                                   │
 ├────────────────────────────────────────────────────────────────────────────┤
 │            We haven't found any text in Products yet.                         │
 │                       [  Check for new text  ]                                │
@@ -298,14 +303,14 @@ Architecture mapping in (parentheses).
 
 ### B1. Choosing what to work on
 - UC-AD1 **[CORE]** Choose a content area: Pages, Posts, Products, Categories
-  & groupings, Media, Theme & button text, Templates. (types 1–5 + media)
+  & groupings, Media, Static text, Templates. (types 1–5 + media + staticText)
 - UC-AD2 **[CORE]** Open a specific item/group within an area.
 - UC-AD3 **[CORE]** Records grouped by the item they belong to — one block per
   page/product, title + all its fields together. (group by owner_id; media by
   attachment_id)
 - UC-AD4 **[CORE]** Three tabs per area, paginated, each with a count: To
   translate / To review / Done. (To translate = no translation row; To review
-  = needs_review OR original-changed; Done = machine/reviewed and not changed)
+  = needs_review; Done = machine/reviewed.)
 - UC-AD5 **[CORE]** Menus & Branding is a separate page (site name, tagline,
   menu labels) — same inline editor pattern, not mixed with content.
 - UC-AD6 **[CORE]** Don't-translate items live on their own page.
@@ -315,10 +320,10 @@ Architecture mapping in (parentheses).
 ### B2. Finding text
 - UC-AD8 **[CORE]** Persistent filter bar: target language (always set),
   search original, search translated. (LIKE on the two text columns)
-- UC-AD9 **[CORE]** "Check for new text" runs a fresh scan for text not yet
-  listed. (on-demand discovery; pipeline Path A/B + marking-mode parse)
+- UC-AD9 **[CORE]** "Check for new text" runs a fresh full-site scan for text
+  not yet listed. (on-demand discovery; structured + gettext + options)
 - UC-AD10 **[CORE]** Filter To review by reason: ⚠ original changed vs flagged
-  by a person. (current_hash≠translated_against_hash vs status=needs_review)
+  by a person. (state derived from current source vs saved translation metadata)
 - UC-AD11 **[CORE]** Filter machine vs human; sort by recently changed.
   (provider_id, status, updated_at)
 
@@ -341,16 +346,14 @@ Architecture mapping in (parentheses).
 ### B4. Actions on a piece of text
 - UC-AD17 **[DEFAULT — confirm Q1]** "Apply a translation everywhere": reuse
   one translation across records with the **same exact original words + same
-  content area**; modal shows count and keep-vs-overwrite. (match by
-  current_hash + type)
+  content area**; modal shows count and keep-vs-overwrite.
 - UC-AD18 **[CORE]** "Preview on site" (from [⋯]): open the live page where the
   text appears; type-5 highlights by selector. (permalink / source_url+selector)
 - UC-AD19 **[CORE]** "Don't translate": text stays original in all languages.
   (source status=ignored; deletes its translation rows)
 - UC-AD20 **[DEFAULT — confirm Q2b]** "Keep & approve" on a ⚠ changed row:
   accept the current translation for the new wording in one click; live site
-  keeps showing it meanwhile. (set translated_against_hash=current_hash,
-  status→reviewed)
+  keeps showing it meanwhile.
 - UC-AD21 **[CORE]** "Send to review": flag a finished translation. (status→
   needs_review)
 - UC-AD22 **[CORE]** "Clear translation": remove it; back to untranslated.
@@ -399,8 +402,8 @@ the schema stores no previous text, by design.)
 | Long-text rows | Adaptive paired box, both sides grow equally (Layout Rules, A2) | Expand-on-demand only |
 | [Valid] button | Save **and** mark done/reviewed in one click | Save, leave as machine until separate review |
 | Q1 — Apply-everywhere scope | Same words **+ same content area** (UC-AD17, A6) | Same words across ALL areas |
-| Q2a — modal/bulk/import save status | **To review** (A5, A10, A11, UC-AD16/24/28) | Mark **Done** directly |
-| Q2b — ⚠ changed on live site | **Keep showing** old translation until approved (UC-AD20, A3) | Show original until approved |
+  | Q2a — modal/bulk/import save status | **To review** (A5, A10, A11, UC-AD16/24/28) | Mark **Done** directly |
+  | Q2b — ⚠ changed on live site | **Keep showing** old translation until approved (UC-AD20, A3) | Show original until approved |
 | Q3 — Excel | **Export + Import** round trip (B6, A10) | Export only |
 
 Confirm or flip and the plan is final.

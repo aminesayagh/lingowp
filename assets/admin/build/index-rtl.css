@@ -2,11 +2,13 @@
   !*** css ./node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[2].use[1]!./node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[2].use[2]!./admin-ui/board.css ***!
   \************************************************************************************************************************************************************************/
 .tl-shell { background: #fff; border: 1px solid #dcdcde; border-radius: 6px; overflow: hidden; }
-.tl-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #dcdcde; }
+.tl-header { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #dcdcde; }
+.tl-header-top { display: flex; align-items: center; justify-content: space-between; }
+.tl-header-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .tl-brand { font-size: 15px; }
-.tl-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.tl-header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .tl-lang select { margin-right: 4px; }
-.tl-header-filters { display: flex; align-items: stretch; gap: 8px; flex: 1; margin: 0 16px; flex-wrap: wrap; }
+.tl-header-filters { display: flex; align-items: stretch; gap: 8px; flex: 1; flex-wrap: wrap; }
 .tl-header-filters input, .tl-header-filters select { min-width: 140px; box-sizing: border-box; }
 .tl-header-filters select { min-width: 0; }
 .tl-body { display: flex; min-height: 60vh; }
@@ -101,4 +103,17 @@
 .tl-loading, .tl-empty { padding: 24px; color: #50575e; text-align: center; }
 .tl-error { background: #fcf0f1; border: 1px solid #f0c0c4; color: #8a1f24; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
 .tl-notice { background: #edfaef; border: 1px solid #b8e6c2; color: #00622e; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
+/* Gettext plural editor: two-original header + one labelled box per CLDR form. */
+.tl-plural-originals { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 6px; }
+.tl-plural-tag {
+	display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px;
+	background: #e7e9ec; color: #50575e; font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+}
+.tl-plural-forms { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.tl-plural-form { display: flex; align-items: flex-start; gap: 8px; }
+.tl-plural-label {
+	flex: 0 0 92px; padding-top: 4px; color: #1d2327; font-weight: 600; text-transform: capitalize;
+}
+.tl-plural-eg { display: block; color: #787c82; font-weight: 400; font-size: 11px; text-transform: none; }
+.tl-plural .tl-textarea { flex: 1; }
 

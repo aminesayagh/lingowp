@@ -4,7 +4,7 @@ import { confirmDiscard } from '../unsavedGuard';
 const settingsUrl = () =>
 	( typeof window !== 'undefined' && window.TranslangsBoard && window.TranslangsBoard.settingsUrl ) || '#';
 
-export default function Shell( { config, area, onArea, lang, onLang, filters, onFilters, areaCounts, children } ) {
+export default function Shell( { config, area, onArea, lang, onLang, filters, onFilters, areaCounts, onScan, scanning, children } ) {
 	const [ draft, setDraft ] = useState( filters );
 	const set = ( patch ) => setDraft( ( d ) => ( { ...d, ...patch } ) );
 	const changed =
@@ -28,34 +28,42 @@ export default function Shell( { config, area, onArea, lang, onLang, filters, on
 	return (
 		<div className="tl-shell">
 			<header className="tl-header">
-				<strong className="tl-brand">TransLangs</strong>
-				<form className="tl-header-filters" onSubmit={ apply }>
-					<input
-						className="tl-search"
-						placeholder="Search original"
-						value={ draft.q_original }
-						onChange={ ( e ) => set( { q_original: e.target.value } ) }
-					/>
-					<input
-						className="tl-search"
-						placeholder="Search translated"
-						value={ draft.q_translated }
-						onChange={ ( e ) => set( { q_translated: e.target.value } ) }
-					/>
-					<select value={ draft.origin } onChange={ ( e ) => set( { origin: e.target.value } ) }>
-						<option value="all">All</option>
-						<option value="human">Manually edited</option>
-						<option value="machine">Auto-translated</option>
-					</select>
-					<select value={ filters.sort } onChange={ ( e ) => setSort( e.target.value ) } aria-label="Sort">
-						<option value="default">Default order</option>
-						<option value="recent">Recently changed</option>
-					</select>
-					<button type="submit" className="button" disabled={ ! changed }>
-						Filter
-					</button>
-				</form>
-				<div className="tl-header-right">
+				<div className="tl-header-top">
+					<strong className="tl-brand">TransLangs</strong>
+					<div className="tl-header-actions">
+						<button type="button" className="button" disabled={ scanning } onClick={ onScan }>
+							{ scanning ? 'Checking…' : 'Check for new text' }
+						</button>
+						<a className="button" href={ settingsUrl() }>Settings</a>
+					</div>
+				</div>
+				<div className="tl-header-bottom">
+					<form className="tl-header-filters" onSubmit={ apply }>
+						<input
+							className="tl-search"
+							placeholder="Search original"
+							value={ draft.q_original }
+							onChange={ ( e ) => set( { q_original: e.target.value } ) }
+						/>
+						<input
+							className="tl-search"
+							placeholder="Search translated"
+							value={ draft.q_translated }
+							onChange={ ( e ) => set( { q_translated: e.target.value } ) }
+						/>
+						<select value={ draft.origin } onChange={ ( e ) => set( { origin: e.target.value } ) }>
+							<option value="all">All</option>
+							<option value="human">Manually edited</option>
+							<option value="machine">Auto-translated</option>
+						</select>
+						<select value={ filters.sort } onChange={ ( e ) => setSort( e.target.value ) } aria-label="Sort">
+							<option value="default">Default order</option>
+							<option value="recent">Recently changed</option>
+						</select>
+						<button type="submit" className="button" disabled={ ! changed }>
+							Filter
+						</button>
+					</form>
 					<label className="tl-lang">
 						Translate to:{ ' ' }
 						<select value={ lang } onChange={ ( e ) => goLang( e.target.value ) }>
@@ -66,9 +74,6 @@ export default function Shell( { config, area, onArea, lang, onLang, filters, on
 							) ) }
 						</select>
 					</label>
-					<a className="button" href={ settingsUrl() }>
-						Settings
-					</a>
 				</div>
 			</header>
 

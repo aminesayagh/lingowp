@@ -1,9 +1,9 @@
 # TransLangs — Database Structure (v5)
 
 Reference for the translation-memory schema. Source of truth is
-`src/TranslationMemory/Infrastructure/Schema/TableDefinitions.php` (DDL) and
-`src/TranslationMemory/Infrastructure/TranslationMemorySchema.php` (install /
-versioning). If they disagree with this doc, the code wins — update the doc.
+`src/Database/TableDefinitions.php` (DDL) and
+`src/Database/TranslationMemorySchema.php` (install / versioning). If they
+disagree with this doc, the code wins — update the doc.
 
 ---
 
@@ -13,8 +13,8 @@ Every translatable string in the site is stored **once** as a *source* (a PARENT
 row), independent of language. Each translation of that source, per target
 language, is a *translation* (a CHILD row). One parent → zero-or-more children.
 
-There are five **kinds** of source, each with its own parent table and its own
-child table — ten tables total:
+There are six **kinds** of source, each with its own parent table and its own
+child table, plus one plural anchor table:
 
 | Kind        | Parent table        | Child table                     | What it holds |
 |-------------|---------------------|---------------------------------|---------------|
@@ -23,6 +23,11 @@ child table — ten tables total:
 | term        | `wp_tl_term`        | `wp_tl_term_translation`        | taxonomy term name / description |
 | staticText  | `wp_tl_staticText`  | `wp_tl_staticText_translation`  | gettext (`__()`) strings |
 | html        | `wp_tl_html`        | `wp_tl_html_translation`        | hardcoded theme/template HTML block units |
+| option      | `wp_tl_option`      | `wp_tl_option_translation`      | branding and allow-listed `wp_options` text |
+
+Plural gettext messages use `wp_tl_staticPluralText` as a source anchor table and
+still store their translated forms on `wp_tl_staticText_translation` via
+`form_index`.
 
 (`wp_` is the site's `$wpdb->prefix`.) There is **no** numeric "type" column — the
 identity of a string is its table. An opaque `SourceRef` of the form `{kind}:{id}`
@@ -38,15 +43,15 @@ Languages live in WordPress **options**, not a table. `lang_code` (e.g. `fr`,
 This is the single most important design decision. Children link to their source
 in one of two ways:
 
-### a) Hash-link children — `post`, `term`, `html`
+### a) Hash-link children — `post`, `term`, `html`, `option`
 
 Child keyed by **`(original_hash, lang_code)`**. No `parent_id`, no FK.
 
 The translation is owned by the *text*, not the position. Identical source text
-appearing in many places (the same paragraph in 10 posts, the same heading in two
-templates) shares **one** translation row — translate it once, it applies
-everywhere. The parent's `original_hash` is the link; `idx_hash` on the parent
-makes the lookup fast.
+appearing in many places (the same paragraph in 10 posts, the same heading in
+two templates, the same branding string in multiple option paths) shares **one**
+translation row — translate it once, it applies everywhere. The parent's
+`original_hash` is the link; `idx_hash` on the parent makes the lookup fast.
 
 > Because there is no FK, deleting a parent can leave an orphan child. Orphans are
 > harmless (nothing references them) and reclaimed by a background sweep.
@@ -63,7 +68,7 @@ children away — no orphans possible.
 
 | | Hash-link | Parent-id |
 |---|---|---|
-| Tables | post, term, html | meta, staticText |
+| Tables | post, term, html, option | meta, staticText |
 | Child key | `(original_hash, lang_code)` | `(parent_id, lang_code)` |
 | FK to parent | none | yes, `ON DELETE CASCADE` |
 | Shared by | identical text, everywhere | the specific position only |
@@ -88,6 +93,7 @@ The `UNIQUE KEY uniq_source` per table defines what makes a source distinct (its
 | `tl_term` | `term_taxonomy_id`, `field` varchar(32) | `(term_taxonomy_id, field, original_hash)` | `fk_term_owner` → `wp_term_taxonomy(term_taxonomy_id)` |
 | `tl_staticText` | `source` varchar(20), `reference` varchar(191), `reference_hash` | `(source, reference_hash, original_hash)` | none |
 | `tl_html` | `selector` varchar(255), `selector_hash`, `source_url` text | `(selector_hash, original_hash)` | none |
+| `tl_option` | `option_id`, `option_name`, `option_path`, `option_path_hash` | `(option_id, option_path_hash, original_hash)` | `fk_option_owner` → `wp_options(option_id)` |
 | `tl_staticPluralText` | `static_text_id` (the singular anchor) | `(static_text_id)` | `fk_plural_owner` → `tl_staticText(id)` |
 
 Notes:
@@ -99,6 +105,9 @@ Notes:
 - `html.selector` is a structural CSS-ish path for admin display only. It is **not**
   part of the translation key — html is hash-link, so two positions with the same
   text share one translation even with different selectors.
+- `tl_option` stores allow-listed `wp_options` text discovered from `blogname`,
+  `blogdescription`, theme mods, and legacy widget option trees. The readable
+  `option_name` / `option_path` are kept alongside the hashed unique key.
 - `tl_staticPluralText` holds the *plural* original (`msgid_plural`) of a gettext
   `_n()` message; the singular `tl_staticText` row stays the message anchor. Its
   translated forms live on the anchor in `tl_staticText_translation`, distinguished
@@ -119,7 +128,7 @@ engine name, or NULL for human), `created_at` / `updated_at`. Index
 
 | Table | Key column | `uniq_translation` | FK |
 |-------|------------|--------------------|----|
-| `tl_post_translation` / `tl_term_translation` / `tl_html_translation` | `original_hash` binary(32) | `(original_hash, lang_code)` | none |
+| `tl_post_translation` / `tl_term_translation` / `tl_html_translation` / `tl_option_translation` | `original_hash` binary(32) | `(original_hash, lang_code)` | none |
 | `tl_meta_translation` | `parent_id` | `(parent_id, lang_code)` | `fk_meta_tr_parent` → `tl_meta(id)` CASCADE |
 | `tl_staticText_translation` | `parent_id` | `(parent_id, lang_code)` | `fk_static_tr_parent` → `tl_staticText(id)` CASCADE |
 
@@ -198,7 +207,7 @@ clauses):
 6. Only after verification passes, write `DB_VERSION` to the
    `translangs_db_version` option.
 
-- `DB_VERSION` is currently **`15`**. `maybeUpgrade()` runs a full install when the
+- `DB_VERSION` is currently **`19`**. `maybeUpgrade()` runs a full install when the
   stored version is lower. There is **no data migration** path — pre-existing
   tables are assumed dropped out of band; `CREATE TABLE IF NOT EXISTS` is
   idempotent.
@@ -225,13 +234,15 @@ gate keeps structured sources (post/meta/term/html) authoritative over staticTex
 
 ```
 PARENTS (sources, language-independent)         CHILDREN (translations, per lang)
-  tl_post  ──fk──> wp_posts.ID                    tl_post_translation        (orig_hash, lang)
-  tl_meta  ──fk──> wp_posts.ID                    tl_meta_translation        (parent_id, lang) ─fk→ tl_meta.id
-  tl_term  ──fk──> wp_term_taxonomy.tt_id         tl_term_translation        (orig_hash, lang)
+  tl_post    ──fk──> wp_posts.ID                  tl_post_translation        (orig_hash, lang)
+  tl_meta    ──fk──> wp_posts.ID                  tl_meta_translation        (parent_id, lang) ─fk→ tl_meta.id
+  tl_term    ──fk──> wp_term_taxonomy.term_taxonomy_id  tl_term_translation   (orig_hash, lang)
   tl_staticText                                   tl_staticText_translation  (parent_id, lang) ─fk→ tl_staticText.id
   tl_html                                         tl_html_translation        (orig_hash, lang)
+  tl_option ──fk──> wp_options.option_id          tl_option_translation      (orig_hash, lang)
+  tl_staticPluralText ──fk──> tl_staticText.id
 
 status (signed tinyint):  parent 0=discovered  -1=ignored
                           child  1=machine  2=reviewed  -1=needs_review     done = status > 0
-SourceRef: {kind}:{id}    kinds: post|meta|term|staticText|html   id = parent row id
+SourceRef: {kind}:{id}    kinds: post|meta|term|staticText|html|option   id = parent row id
 ```

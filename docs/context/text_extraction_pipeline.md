@@ -1,14 +1,15 @@
 # TransLangs — Text Extraction Pipeline (v5)
 
-How source strings get **into** the five parent tables. Companion to
+How source strings get **into** the source tables. Companion to
 `database_structure.md` (which describes what the tables hold). Source of truth:
 `StructuredSourceScanner`, `SourceLifecycleRefresher`, `InitialDiscoveryScan`,
-`GettextResolver` + `GettextCaptureWorker`, `PublicRenderPipeline` + `HtmlRenderer`,
-and the repository's `reconcile*` / `upsertSources`.
+`GettextResolver` + `GettextCaptureWorker`, `OptionSourceScanner`,
+`PublicRenderPipeline` + `HtmlRenderer`, and the repository's `reconcile*` /
+`upsertSources`.
 
 ---
 
-## 1. Overview — four discovery paths, five tables
+## 1. Overview — five discovery paths, six source families
 
 Each kind of source is discovered by a different channel, but they all converge on
 the same writer (`SourceTranslationRepository`) and the same dedupe rule
@@ -18,8 +19,9 @@ the same writer (`SourceTranslationRepository`) and the same dedupe rule
 |------|---------|-------|------|--------------|
 | **A** | WordPress save hooks | `tl_post`, `tl_meta`, `tl_term` | on content save | synchronous |
 | **B** | Initial / bulk scan | `tl_post`, `tl_meta`, `tl_term` | once after activation (+ admin "rescan") | async batches |
-| **C** | gettext filters | `tl_staticText` | any frontend render | async (off-request) |
+| **C** | gettext filters | `tl_staticText`, `tl_staticPluralText` | any frontend render | async (off-request) |
 | **D** | HTML marking mode | `tl_html` | editor loads `?translangs_mark` | synchronous (editor-only) |
+| **E** | wp_options scan / render | `tl_option` | activation / admin rescan / frontend display | synchronous discovery, request render |
 
 Two invariants across every path:
 - **Language-independent.** Discovery writes *sources* only. No child/translation
@@ -120,7 +122,7 @@ deduped in-memory by identity then bulk-upserted per route.
 
 ---
 
-## 4. Path C — gettext (staticText), render-time capture
+## 4. Path C — gettext (staticText + plurals), render-time capture
 
 `GettextResolver` hooks the `gettext` / `gettext_with_context` filters. On a real
 frontend render it does two things:
@@ -131,8 +133,10 @@ frontend render it does two things:
   string as a discovery candidate.
 
 Capture rules:
-- `reference = domain|context` (truncated to 191), `source = gettext`. Singular only
-  — `ngettext` passes through (plurals are deferred).
+- `reference = domain|context` (truncated to 191), `source = gettext`. Singular
+  strings resolve through `tl_staticText_translation`; `_n()` / `ngettext`
+  messages also capture a plural anchor in `tl_staticPluralText` and store their
+  translated forms on the same `tl_staticText` anchor via `form_index`.
 - Gated to real visitor views (not admin/ajax/rest/cron, and only after `wp`).
   Widget-sidebar strings are paused out.
 - **Ownership gate, Tier-1**: a candidate whose hash a structured source already
@@ -175,7 +179,24 @@ callback (before flush) and is editor-only/low-frequency, so it's host-safe.
 
 ---
 
-## 6. Cross-cutting rules
+## 6. Path E — wp_options discovery and rendering (`tl_option`)
+
+Some visitor-facing text lives in `wp_options`, not posts or templates. The code
+handles it in two parts:
+
+- **Discovery**: `OptionSourceScanner` allow-lists `blogname`, `blogdescription`,
+  theme mods, and legacy widget option trees, then extracts leaf strings from
+  serialized structures into `tl_option`.
+- **Render**: `OptionResolver` translates the `bloginfo` display layer for site
+  name and tagline, and `PublicRenderPipeline` merges `tl_option` with `tl_html`
+  during the final HTML rewrite pass.
+
+`tl_option` is hash-link like post/term/html: the text is the key, and the same
+branding string can be reused across multiple option paths.
+
+---
+
+## 7. Cross-cutting rules
 
 - **Dedup is the unique key.** Every path ends in `INSERT IGNORE` against the
   parent's `uniq_source`. Re-discovering the same string is always a no-op.
@@ -184,6 +205,9 @@ callback (before flush) and is editor-only/low-frequency, so it's host-safe.
 - **Ownership precedence.** Structured (post/meta/term/html) > staticText. The
   two-tier gate (Tier-1 request memory, Tier-2 DB index) keeps a visible string in
   exactly one table.
+- **Options are separate.** `tl_option` discovery is allow-listed from `wp_options`
+  and its translations are hash-linked, so the same branding string can be reused
+  across multiple option paths while still rendering from the stored source text.
 - **No translations created.** Discovery only writes parents. Children appear later
   via the admin board or MT, seeded as machine/needs_review.
 - **Frozen normalizer.** There is no hash-version column; a normalizer change
@@ -192,15 +216,16 @@ callback (before flush) and is editor-only/low-frequency, so it's host-safe.
 
 ---
 
-## 7. Per-table extraction cheat-sheet
+## 8. Per-table extraction cheat-sheet
 
 | Table | Trigger(s) | Extractor | Unit of a source | Identity (`uniq_source`) |
 |-------|-----------|-----------|------------------|--------------------------|
 | `tl_post` | `wp_after_insert_post`, bulk scan | `candidatesForPost` (+ `HtmlUnitExtractor::units` for `post_content`) | whole title/excerpt; one block per `post_content` unit | `(post_id, field, original_hash)` |
 | `tl_meta` | post save, `added/updated/deleted_post_meta`, bulk | `PostMetaValuePaths::extract` | one leaf string per value path | `(post_id, meta_key_hash, context_hash, original_hash)` |
 | `tl_term` | `created_term`/`edited_term`, bulk | `candidatesForTerm` | whole name / description | `(term_taxonomy_id, field, original_hash)` |
-| `tl_staticText` | `gettext` filter → async worker | `GettextResolver` capture | one gettext string | `(source, reference_hash, original_hash)` |
+| `tl_staticText` | `gettext` / `gettext_with_context` filter → async worker | `GettextResolver` capture | one gettext string | `(source, reference_hash, original_hash)` |
 | `tl_html` | editor `?translangs_mark` | `HtmlRenderer` walk | one block-level page unit | `(selector_hash, original_hash)` |
+| `tl_option` | `OptionSourceScanner`, `bloginfo`, final HTML pass | `OptionSourceScanner` / `OptionResolver` | allow-listed option text | `(option_id, option_path_hash, original_hash)` |
 
 ```
 save_post / meta / term ─┐
@@ -208,4 +233,6 @@ initial + bulk scan ─────┼─► StructuredSourceScanner ─► reco
                           │
 gettext filters ─► capture buffer ─► (shutdown) AS job ─► OwnedStringIndex gate ─► upsert tl_staticText
 ?translangs_mark ─► output buffer ─► block units ─► OwnedStringIndex gate ─► upsert tl_html
+wp_options scan ─► OptionSourceScanner ─► upsert tl_option
+bloginfo / final HTML ─► tl_option translations ─► visitor-facing option text
 ```

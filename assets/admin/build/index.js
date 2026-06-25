@@ -66,6 +66,7 @@ function App() {
   const [lang, setLang] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('');
   const [filters, setFilters] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(initial.filters);
   const [areaCounts, setAreaCounts] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)({});
+  const [scanning, setScanning] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     (0,_api__WEBPACK_IMPORTED_MODULE_1__.getConfig)().then(cfg => {
       setConfig(cfg);
@@ -83,6 +84,13 @@ function App() {
       lang
     }).then(setAreaCounts).catch(() => {});
   }, [lang]);
+  const checkForNewText = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useCallback)(() => {
+    setScanning(true);
+    (0,_api__WEBPACK_IMPORTED_MODULE_1__.runScan)().then(() => {
+      setScanning(false);
+      refreshAreaCounts();
+    }).catch(() => setScanning(false));
+  }, [refreshAreaCounts]);
 
   // Refresh sidebar badges whenever the language changes.
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
@@ -115,6 +123,8 @@ function App() {
     filters: filters,
     onFilters: setFilters,
     areaCounts: areaCounts,
+    onScan: checkForNewText,
+    scanning: scanning,
     children: [area === 'dont-translate' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_components_DontTranslate__WEBPACK_IMPORTED_MODULE_4__["default"], {
       onCountsChanged: refreshAreaCounts
     }), area === 'menus-branding' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_components_MenusBranding__WEBPACK_IMPORTED_MODULE_5__["default"], {
@@ -128,7 +138,9 @@ function App() {
       area: area,
       lang: lang,
       filters: filters,
-      onCountsChanged: refreshAreaCounts
+      onCountsChanged: refreshAreaCounts,
+      onScan: checkForNewText,
+      scanning: scanning
     })]
   });
 }
@@ -153,6 +165,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getDuplicates: () => (/* binding */ getDuplicates),
 /* harmony export */   getIgnored: () => (/* binding */ getIgnored),
 /* harmony export */   getItems: () => (/* binding */ getItems),
+/* harmony export */   getPlural: () => (/* binding */ getPlural),
 /* harmony export */   getPreview: () => (/* binding */ getPreview),
 /* harmony export */   getString: () => (/* binding */ getString),
 /* harmony export */   ignoreSource: () => (/* binding */ ignoreSource),
@@ -160,6 +173,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   restoreSources: () => (/* binding */ restoreSources),
 /* harmony export */   runScan: () => (/* binding */ runScan),
 /* harmony export */   saveAllTranslations: () => (/* binding */ saveAllTranslations),
+/* harmony export */   savePlural: () => (/* binding */ savePlural),
 /* harmony export */   saveTranslation: () => (/* binding */ saveTranslation)
 /* harmony export */ });
 /* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/api-fetch */ "@wordpress/api-fetch");
@@ -201,13 +215,9 @@ const deleteTranslation = (key, lang) => _wordpress_api_fetch__WEBPACK_IMPORTED_
   })}`,
   method: 'DELETE'
 });
-const runScan = area => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+const runScan = () => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
   path: `${NS}/scan`,
-  method: 'POST',
-  data: {
-    area,
-    scope: 'all'
-  }
+  method: 'POST'
 });
 
 /** Bulk-save several languages at once; each lands as "needs review". */
@@ -236,6 +246,24 @@ const getPreview = (key, lang) => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_
   path: `${NS}/string/${key}/preview${qs({
     lang
   })}`
+});
+
+/** Read a gettext plural message's per-form inputs (labels/examples + saved text). */
+const getPlural = (key, lang) => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+  path: `${NS}/string/${key}/plural${qs({
+    lang
+  })}`
+});
+
+/** Save a gettext plural message's forms ({ formIndex: text }) for one language. */
+const savePlural = (key, lang, forms, mark = 'reviewed') => _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+  path: `${NS}/string/${key}/plural`,
+  method: 'PUT',
+  data: {
+    lang,
+    forms,
+    mark
+  }
 });
 
 /** Mark a source as "don't translate" (its translations are kept, just hidden). */
@@ -731,7 +759,6 @@ function ContentList({
   const [data, setData] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [loading, setLoading] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
-  const [scanning, setScanning] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [cursor, setCursor] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [stack, setStack] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [modal, setModal] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
@@ -829,13 +856,6 @@ function ContentList({
     setCursor(p);
     load(p);
   };
-  const check = () => {
-    setScanning(true);
-    (0,_api__WEBPACK_IMPORTED_MODULE_1__.runScan)(area).then(() => {
-      setScanning(false);
-      load(cursor);
-    }).catch(() => setScanning(false));
-  };
   const counts = data && data.counts || {
     to_translate: 0,
     to_review: 0,
@@ -845,17 +865,11 @@ function ContentList({
   const areaLabel = title || (config.content_areas.find(a => a.key === area) || {}).label || area;
   return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
     className: "tl-list",
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("div", {
       className: "tl-list-head",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("h2", {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("h2", {
         children: areaLabel
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("button", {
-        type: "button",
-        className: "button",
-        disabled: scanning,
-        onClick: check,
-        children: scanning ? 'Checking…' : 'Check for new text'
-      })]
+      })
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("div", {
       className: "tl-tabs",
       children: TABS.map(([k, label]) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("button", {
@@ -940,7 +954,16 @@ function ContentList({
     })]
   });
 }
-function InlineRow({
+
+// A gettext plural message edits N forms; everything else is a single textarea.
+function InlineRow(props) {
+  return props.item.plural ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(PluralRow, {
+    ...props
+  }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(SingleRow, {
+    ...props
+  });
+}
+function SingleRow({
   item,
   lang,
   dir,
@@ -1148,6 +1171,174 @@ function InlineRow({
         setText(t);
         setCopyOpen(false);
       }
+    })]
+  });
+}
+
+// Editor for a gettext plural message: one labelled box per CLDR form (e.g.
+// French shows 2, Arabic 6). Forms + labels/examples come from the API per lang.
+function PluralRow({
+  item,
+  lang,
+  dir,
+  onSaved,
+  onRemoved
+}) {
+  const [forms, setForms] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [loaded, setLoaded] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)('');
+  const [busy, setBusy] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const [rowError, setRowError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    let alive = true;
+    setForms(null);
+    (0,_api__WEBPACK_IMPORTED_MODULE_1__.getPlural)(item.key, lang).then(res => {
+      if (!alive) {
+        return;
+      }
+      const f = res.forms || [];
+      setForms(f);
+      setLoaded(JSON.stringify(f.map(x => x.text)));
+    }).catch(e => alive && setRowError((0,_api__WEBPACK_IMPORTED_MODULE_1__.errorMessage)(e)));
+    return () => {
+      alive = false;
+    };
+  }, [item.key, lang]);
+  const setFormText = (idx, val) => setForms(fs => fs.map(f => f.index === idx ? {
+    ...f,
+    text: val
+  } : f));
+  const anyText = !!forms && forms.some(f => f.text.trim() !== '');
+  const dirty = !!forms && JSON.stringify(forms.map(f => f.text)) !== loaded;
+  const chip = STATE_CHIP[item.state];
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    (0,_unsavedGuard__WEBPACK_IMPORTED_MODULE_7__.setDirty)(item.key, dirty && !busy);
+    return () => (0,_unsavedGuard__WEBPACK_IMPORTED_MODULE_7__.setDirty)(item.key, false);
+  }, [dirty, busy, item.key]);
+  const save = () => {
+    setBusy(true);
+    setRowError(null);
+    // Send every form, empty included: the server deletes the empty ones
+    // (per-form clear) and saves the rest.
+    const map = {};
+    forms.forEach(f => {
+      map[f.index] = f.text;
+    });
+    (0,_api__WEBPACK_IMPORTED_MODULE_1__.savePlural)(item.key, lang, map).then(() => {
+      setBusy(false);
+      setLoaded(JSON.stringify(forms.map(f => f.text)));
+      // The board row tracks the base form (0), matching childOn.
+      const base = forms.find(f => f.index === 0);
+      const hasBase = !!base && base.text.trim() !== '';
+      onSaved({
+        translation: hasBase ? base.text : '',
+        state: hasBase ? 'done' : 'to_translate',
+        updated_at: null,
+        origin: hasBase ? 'human' : null
+      });
+    }).catch(e => {
+      setBusy(false);
+      setRowError((0,_api__WEBPACK_IMPORTED_MODULE_1__.errorMessage)(e));
+    });
+  };
+  const clear = () => {
+    setBusy(true);
+    setRowError(null);
+    (0,_api__WEBPACK_IMPORTED_MODULE_1__.deleteTranslation)(item.key, lang).then(() => {
+      setBusy(false);
+      setForms(fs => fs.map(f => ({
+        ...f,
+        text: ''
+      })));
+      setLoaded(JSON.stringify((forms || []).map(() => '')));
+      onSaved({
+        translation: '',
+        state: 'to_translate',
+        updated_at: null,
+        origin: null
+      });
+    }).catch(e => {
+      setBusy(false);
+      setRowError((0,_api__WEBPACK_IMPORTED_MODULE_1__.errorMessage)(e));
+    });
+  };
+  const dontTranslate = () => {
+    setBusy(true);
+    (0,_api__WEBPACK_IMPORTED_MODULE_1__.ignoreSource)(item.key).then(() => onRemoved()).catch(e => {
+      setBusy(false);
+      setRowError((0,_api__WEBPACK_IMPORTED_MODULE_1__.errorMessage)(e));
+    });
+  };
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+    className: "tl-pair tl-pair-nofield tl-plural",
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+      className: "tl-plural-originals",
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+        className: "tl-col tl-col-original",
+        title: item.original,
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("span", {
+          className: "tl-plural-tag",
+          children: "singular"
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_Placeholders__WEBPACK_IMPORTED_MODULE_2__["default"], {
+          text: item.original
+        })]
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+        className: "tl-col tl-col-original",
+        title: item.plural,
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("span", {
+          className: "tl-plural-tag",
+          children: "plural"
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_Placeholders__WEBPACK_IMPORTED_MODULE_2__["default"], {
+          text: item.plural
+        })]
+      })]
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+      className: "tl-pair-row",
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+        className: "tl-plural-forms",
+        children: [!forms && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("div", {
+          className: "tl-loading",
+          children: "Loading\u2026"
+        }), forms && forms.map(f => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+          className: "tl-plural-form",
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("label", {
+            className: "tl-plural-label",
+            children: [f.label, " ", /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("span", {
+              className: "tl-plural-eg",
+              children: ["e.g. ", f.example]
+            })]
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_AutoTextarea__WEBPACK_IMPORTED_MODULE_3__["default"], {
+            className: "tl-textarea",
+            rows: 1,
+            dir: dir,
+            value: f.text,
+            disabled: busy,
+            placeholder: "Add translation\u2026",
+            onChange: e => setFormText(f.index, e.target.value)
+          })]
+        }, f.index))]
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)("div", {
+        className: "tl-pair-actions",
+        children: [chip && chip.cls !== 'new' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("span", {
+          className: 'tl-state tl-state-' + chip.cls,
+          children: chip.label
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("button", {
+          type: "button",
+          className: "button button-primary",
+          disabled: busy || !dirty || !anyText,
+          onClick: save,
+          children: "Valid"
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(RowMenu, {
+          canAllLanguages: false,
+          canCopy: false,
+          canPreview: false,
+          onClear: clear,
+          onDontTranslate: dontTranslate,
+          hasTranslation: anyText
+        })]
+      })]
+    }), rowError && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("div", {
+      className: "tl-error tl-row-error",
+      children: rowError
     })]
   });
 }
@@ -1732,6 +1923,8 @@ function Shell({
   filters,
   onFilters,
   areaCounts,
+  onScan,
+  scanning,
   children
 }) {
   const [draft, setDraft] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(filters);
@@ -1761,61 +1954,77 @@ function Shell({
     className: "tl-shell",
     children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("header", {
       className: "tl-header",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("strong", {
-        className: "tl-brand",
-        children: "TransLangs"
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("form", {
-        className: "tl-header-filters",
-        onSubmit: apply,
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("input", {
-          className: "tl-search",
-          placeholder: "Search original",
-          value: draft.q_original,
-          onChange: e => set({
-            q_original: e.target.value
-          })
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("input", {
-          className: "tl-search",
-          placeholder: "Search translated",
-          value: draft.q_translated,
-          onChange: e => set({
-            q_translated: e.target.value
-          })
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("select", {
-          value: draft.origin,
-          onChange: e => set({
-            origin: e.target.value
-          }),
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
-            value: "all",
-            children: "All"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
-            value: "human",
-            children: "Manually edited"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
-            value: "machine",
-            children: "Auto-translated"
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("div", {
+        className: "tl-header-top",
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("strong", {
+          className: "tl-brand",
+          children: "TransLangs"
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("div", {
+          className: "tl-header-actions",
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("button", {
+            type: "button",
+            className: "button",
+            disabled: scanning,
+            onClick: onScan,
+            children: scanning ? 'Checking…' : 'Check for new text'
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("a", {
+            className: "button",
+            href: settingsUrl(),
+            children: "Settings"
           })]
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("select", {
-          value: filters.sort,
-          onChange: e => setSort(e.target.value),
-          "aria-label": "Sort",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
-            value: "default",
-            children: "Default order"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
-            value: "recent",
-            children: "Recently changed"
-          })]
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("button", {
-          type: "submit",
-          className: "button",
-          disabled: !changed,
-          children: "Filter"
         })]
       }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("div", {
-        className: "tl-header-right",
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("label", {
+        className: "tl-header-bottom",
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("form", {
+          className: "tl-header-filters",
+          onSubmit: apply,
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("input", {
+            className: "tl-search",
+            placeholder: "Search original",
+            value: draft.q_original,
+            onChange: e => set({
+              q_original: e.target.value
+            })
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("input", {
+            className: "tl-search",
+            placeholder: "Search translated",
+            value: draft.q_translated,
+            onChange: e => set({
+              q_translated: e.target.value
+            })
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("select", {
+            value: draft.origin,
+            onChange: e => set({
+              origin: e.target.value
+            }),
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
+              value: "all",
+              children: "All"
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
+              value: "human",
+              children: "Manually edited"
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
+              value: "machine",
+              children: "Auto-translated"
+            })]
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("select", {
+            value: filters.sort,
+            onChange: e => setSort(e.target.value),
+            "aria-label": "Sort",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
+              value: "default",
+              children: "Default order"
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("option", {
+              value: "recent",
+              children: "Recently changed"
+            })]
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("button", {
+            type: "submit",
+            className: "button",
+            disabled: !changed,
+            children: "Filter"
+          })]
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("label", {
           className: "tl-lang",
           children: ["Translate to:", ' ', /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("select", {
             value: lang,
@@ -1825,10 +2034,6 @@ function Shell({
               children: l.native || l.name
             }, l.code))
           })]
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("a", {
-          className: "button",
-          href: settingsUrl(),
-          children: "Settings"
         })]
       })]
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("div", {

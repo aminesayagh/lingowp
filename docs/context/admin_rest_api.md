@@ -1,7 +1,7 @@
 # TransLangs — Admin REST API (v5)
 
 The admin board SPA talks to one namespace: **`translangs/v1`**. Source of truth:
-`src/BackOffice/Infrastructure/Rest/AdminRestController.php`.
+`src/Admin/Rest/AdminRestController.php`.
 
 ---
 
@@ -12,7 +12,7 @@ The admin board SPA talks to one namespace: **`translangs/v1`**. Source of truth
   cookie nonce as the `X-WP-Nonce` header (`wp_rest`). No token/keys.
 - **SourceRef (`{key}`):** a source is addressed as `{kind}:{id}` — `kind` is
   `[a-zA-Z]+`, `id` is the parent row id, e.g. `post:123`, `staticText:9`,
-  `html:4`. Kinds: `post`, `meta`, `term`, `staticText`, `html`. A malformed ref →
+  `html:4`. Kinds: `post`, `meta`, `term`, `staticText`, `html`, `option`. A malformed ref →
   `400 invalid_key`.
 - **Language (`lang`):**
   - On writes and list/counts it must be an **active target** language, else
@@ -41,6 +41,8 @@ The admin board SPA talks to one namespace: **`translangs/v1`**. Source of truth
 | GET | `/ignored` | paginated ignored sources across all tables |
 | POST | `/ignored/restore` | un-ignore a set of sources |
 | POST | `/scan` | re-run discovery (whole site, or one owner) |
+| GET | `/export` | export board rows to CSV |
+| POST | `/import` | import translations from CSV |
 | GET | `/string/{key}` | one source + its per-language siblings |
 | PUT | `/string/{key}/translation` | save one translation |
 | DELETE | `/string/{key}/translation` | delete one translation |
@@ -49,6 +51,8 @@ The admin board SPA talks to one namespace: **`translangs/v1`**. Source of truth
 | GET | `/string/{key}/duplicates` | other sources with identical text |
 | POST | `/string/{key}/apply-everywhere` | copy a translation to chosen duplicates |
 | GET | `/string/{key}/preview` | front-end preview URL for the source |
+| GET | `/string/{key}/plural` | read gettext plural forms for one language |
+| PUT | `/string/{key}/plural` | save gettext plural forms for one language |
 
 ---
 
@@ -64,7 +68,8 @@ Bootstraps the SPA. No params.
     { "key": "page", "label": "Pages" }, { "key": "post", "label": "Posts" },
     { "key": "product", "label": "Products" }, { "key": "term", "label": "Categories" },
     { "key": "media", "label": "Media" }, { "key": "staticText", "label": "Static text" },
-    { "key": "html", "label": "Templates" }
+    { "key": "html", "label": "Templates" }, { "key": "branding", "label": "Branding" },
+    { "key": "menus", "label": "Menus" }
   ],
   "providers": []
 }
@@ -129,6 +134,7 @@ Builds a front-end URL that opens the source highlighted in the target language.
 - html → `{ "url": "<source_url>?translangs_preview=<lang>&translangs_focus=<ref>", "selector": "<css>" }`
 - term → term link; post/meta → permalink; both with the same preview query args →
   `{ "url": "…", "selector": null }`
+- option / staticText → `{ "url": "", "selector": null }`
 - `404 not_found` if the source is gone; `url` may be `""` if no link exists.
 
 ---
@@ -172,7 +178,7 @@ confirmation, so they aren't parked in "to review".
 → `{ "applied": int }`
 
 ### `POST /scan`
-Re-run discovery (Path A/B).
+Re-run discovery (Path A/B plus options).
 **Params (optional):** `scope: { owner_id: <postId> }` to re-scan a single post.
 - with `owner_id` → `{ "ok": true, "scope": "owner" }`
 - otherwise full site scan → `{ "ok": true, "sources": int, "inserted": int, "skipped": int }`

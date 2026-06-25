@@ -9,7 +9,6 @@ import {
 	getPreview,
 	getPlural,
 	savePlural,
-	runScan,
 	errorMessage,
 } from '../api';
 import Placeholders from './Placeholders';
@@ -61,8 +60,6 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 	const [ data, setData ] = useState( null );
 	const [ error, setError ] = useState( null );
 	const [ loading, setLoading ] = useState( false );
-	const [ scanning, setScanning ] = useState( false );
-
 	const [ cursor, setCursor ] = useState( null );
 	const [ stack, setStack ] = useState( [] );
 
@@ -159,16 +156,6 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 		load( p );
 	};
 
-	const check = () => {
-		setScanning( true );
-		runScan( area )
-			.then( () => {
-				setScanning( false );
-				load( cursor );
-			} )
-			.catch( () => setScanning( false ) );
-	};
-
 	const counts = ( data && data.counts ) || { to_translate: 0, to_review: 0, done: 0, total: 0 };
 	const areaLabel = title || ( config.content_areas.find( ( a ) => a.key === area ) || {} ).label || area;
 
@@ -176,9 +163,6 @@ export default function ContentList( { config, area, lang, filters, onCountsChan
 		<div className="tl-list">
 			<div className="tl-list-head">
 				<h2>{ areaLabel }</h2>
-				<button type="button" className="button" disabled={ scanning } onClick={ check }>
-					{ scanning ? 'Checking…' : 'Check for new text' }
-				</button>
 			</div>
 
 			<div className="tl-tabs">

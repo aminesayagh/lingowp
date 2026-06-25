@@ -1,9 +1,11 @@
 .tl-shell { background: #fff; border: 1px solid #dcdcde; border-radius: 6px; overflow: hidden; }
-.tl-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #dcdcde; }
+.tl-header { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #dcdcde; }
+.tl-header-top { display: flex; align-items: center; justify-content: space-between; }
+.tl-header-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .tl-brand { font-size: 15px; }
-.tl-header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.tl-header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .tl-lang select { margin-left: 4px; }
-.tl-header-filters { display: flex; align-items: stretch; gap: 8px; flex: 1; margin: 0 16px; flex-wrap: wrap; }
+.tl-header-filters { display: flex; align-items: stretch; gap: 8px; flex: 1; flex-wrap: wrap; }
 .tl-header-filters input, .tl-header-filters select { min-width: 140px; box-sizing: border-box; }
 .tl-header-filters select { min-width: 0; }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from '@wordpress/element';
-import { getConfig, getAllCounts, errorMessage } from './api';
+import { getConfig, getAllCounts, runScan, errorMessage } from './api';
 import Shell from './components/Shell';
 import ContentList from './components/ContentList';
 import DontTranslate from './components/DontTranslate';
@@ -43,6 +43,7 @@ export default function App() {
 	const [ lang, setLang ] = useState( '' );
 	const [ filters, setFilters ] = useState( initial.filters );
 	const [ areaCounts, setAreaCounts ] = useState( {} );
+	const [ scanning, setScanning ] = useState( false );
 
 	useEffect( () => {
 		getConfig()
@@ -65,6 +66,16 @@ export default function App() {
 			.then( setAreaCounts )
 			.catch( () => {} );
 	}, [ lang ] );
+
+	const checkForNewText = useCallback( () => {
+		setScanning( true );
+		runScan()
+			.then( () => {
+				setScanning( false );
+				refreshAreaCounts();
+			} )
+			.catch( () => setScanning( false ) );
+	}, [ refreshAreaCounts ] );
 
 	// Refresh sidebar badges whenever the language changes.
 	useEffect( () => {
@@ -95,6 +106,8 @@ export default function App() {
 			filters={ filters }
 			onFilters={ setFilters }
 			areaCounts={ areaCounts }
+			onScan={ checkForNewText }
+			scanning={ scanning }
 		>
 			{ area === 'dont-translate' && (
 				<DontTranslate onCountsChanged={ refreshAreaCounts } />
@@ -110,6 +123,8 @@ export default function App() {
 					lang={ lang }
 					filters={ filters }
 					onCountsChanged={ refreshAreaCounts }
+					onScan={ checkForNewText }
+					scanning={ scanning }
 				/>
 			) }
 		</Shell>

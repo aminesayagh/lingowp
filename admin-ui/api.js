@@ -33,8 +33,8 @@ export const deleteTranslation = ( key, lang ) =>
 		method: 'DELETE',
 	} );
 
-export const runScan = ( area ) =>
-	apiFetch( { path: `${ NS }/scan`, method: 'POST', data: { area, scope: 'all' } } );
+export const runScan = () =>
+	apiFetch( { path: `${ NS }/scan`, method: 'POST' } );
 
 /** Bulk-save several languages at once; each lands as "needs review". */
 export const saveAllTranslations = ( key, translations ) =>

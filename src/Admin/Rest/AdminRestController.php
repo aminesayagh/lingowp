@@ -515,12 +515,6 @@ final class AdminRestController
 
     public function scan(\WP_REST_Request $request): \WP_REST_Response
     {
-        $scope = $request->get_param('scope');
-        if (is_array($scope) && isset($scope['owner_id']) && (int) $scope['owner_id'] > 0) {
-            $this->scanner->refreshPost((int) $scope['owner_id']);
-            return rest_ensure_response(['ok' => true, 'scope' => 'owner']);
-        }
-
         $result        = $this->scanner->scan();
         $optionInserted = $this->optionScanner->scan();
 
