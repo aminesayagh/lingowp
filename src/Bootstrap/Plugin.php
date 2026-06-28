@@ -3,8 +3,6 @@
 namespace TransLangs\Bootstrap;
 
 use TransLangs\Admin\AdminAssets;
-use TransLangs\Admin\BoardPageController;
-use TransLangs\Admin\Rest\AdminRestController;
 use TransLangs\Admin\SettingsPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
@@ -14,7 +12,6 @@ use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
 use TransLangs\Rendering\Option\OptionResolver;
 use TransLangs\Rendering\PageOwnedHashes;
-use TransLangs\Admin\PreviewHighlighter;
 use TransLangs\Core\Repository\OwnedStringIndex;
 use TransLangs\Localization\LanguageRouteRegistrar;
 use TransLangs\Localization\LanguageSwitcherShortcode;
@@ -27,7 +24,6 @@ use TransLangs\Core\Parsing\TranslationUnitCodec;
 use TransLangs\Discovery\StaticText\GettextCaptureWorker;
 use TransLangs\Discovery\InitialDiscoveryScan;
 use TransLangs\Discovery\Option\OptionSourceScanner;
-use TransLangs\Admin\AdminBoardQuery;
 use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
 use TransLangs\Admin\DatabaseHealthReport;
 use TransLangs\Discovery\SourceLifecycleRefresher;
@@ -63,15 +59,6 @@ class Plugin
         // Options discovery (Path E): allowlisted wp_options text → tl_option.
         $optionScanner = new OptionSourceScanner($sourceRepository, $wpdb);
 
-        // Admin board REST API (translangs/v1) — backs the React admin SPA.
-        (new AdminRestController(
-            new AdminBoardQuery($wpdb),
-            $sourceRepository,
-            $languageRegistry,
-            $structuredScanner,
-            $optionScanner
-        ))->register();
-
         (new LanguageRouteRegistrar($languageResolver))->register();
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
@@ -101,15 +88,10 @@ class Plugin
             $ownedStringIndex
         ))->register();
 
-        // Front-end highlight for the admin "Preview on site" action (self-gates
-        // to preview mode + logged-in editors).
-        (new PreviewHighlighter(new AdminBoardQuery($wpdb)))->register();
-
         if (is_admin()) {
             (new DatabaseHealthReport($wpdb))->register();
             (new AdminAssets())->register();
             (new SettingsPageController($languageRegistry))->register();
-            (new BoardPageController())->register();
         }
     }
 }
