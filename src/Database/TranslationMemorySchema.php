@@ -249,6 +249,13 @@ class TranslationMemorySchema
         add_option('translangs_cookie_preference', true);
         add_option('translangs_browser_detection', false);
         add_option('translangs_auto_redirect', false);
+
+        // Onboarding: not yet completed. Credentials (token/site_id) are written on
+        // connect with autoload=false and are deliberately not seeded here.
+        add_option(\TransLangs\Api\ConnectionRepository::OPTION_COMPLETED, false);
+        add_option(\TransLangs\Api\SiteMetadataProvider::OPTION_CATEGORIES, []);
+        add_option(\TransLangs\Language\Infrastructure\LanguageMetadataStore::OPTION, []);
+
         add_option(
             \TransLangs\Language\Infrastructure\OptionLanguageRegistry::OPTION_SOURCE_LOCALE,
             \TransLangs\Language\Domain\LocaleNormalizer::current()

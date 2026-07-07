@@ -16,7 +16,8 @@ use TransLangs\Shared\PhpTemplateRenderer;
 class SettingsPageController
 {
     public const CAPABILITY = 'manage_options';
-    public const SLUG       = 'translangs';
+    public const SLUG       = 'translangs-settings';
+    private const PARENT    = 'translangs';
 
     public function __construct(
         private LanguageRegistry $registry
@@ -24,25 +25,17 @@ class SettingsPageController
 
     public function register(): void
     {
-        add_action('admin_menu', [$this, 'addMenu']);
+        // Priority 11: after OnboardingPageController (default 10) registers the
+        // top-level "translangs" menu, so this submenu attaches to an existing parent.
+        add_action('admin_menu', [$this, 'addMenu'], 11);
     }
 
     public function addMenu(): void
     {
-        // Register the top-level TransLangs menu.
-        add_menu_page(
-            __('TransLangs', 'translangs'),
-            __('TransLangs', 'translangs'),
-            self::CAPABILITY,
-            self::SLUG,
-            [$this, 'renderPage'],
-            'dashicons-translation',
-            30
-        );
-
-        // Rename the auto-created first submenu entry to "Settings".
+        // The onboarding SPA owns the top-level page; the legacy settings form is a
+        // submenu (kept for language management until the SPA settings drawer covers it).
         add_submenu_page(
-            self::SLUG,
+            self::PARENT,
             __('TransLangs Settings', 'translangs'),
             __('Settings', 'translangs'),
             self::CAPABILITY,

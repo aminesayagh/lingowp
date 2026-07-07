@@ -53,8 +53,19 @@ $options = [
     'translangs_rewrite_rules_version',
     'translangs_age_out_last_run',
     'translangs_needs_initial_scan',
+    // Onboarding / backend connection.
+    'translangs_languages',
+    'translangs_categories',
+    'translangs_onboarding_completed',
+    'translangs_api_token',
+    'translangs_site_id',
+    'translangs_api_origin',
 ];
 
 foreach ($options as $option) {
     delete_option($option);
 }
+
+// Onboarding transients (if present).
+delete_transient('translangs_last_site_sync_error');
+delete_transient('translangs_backend_status');

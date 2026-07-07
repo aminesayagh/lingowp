@@ -34,16 +34,15 @@ if (!defined('ABSPATH')) {
                         </span>
                     </label>
                     <div class="translangs-form__field">
-                        <select name="default_language" id="tl-default-language">
-                            <?php foreach ($languages as $code => $meta) : ?>
-                                <option
-                                    value="<?php echo esc_attr($code); ?>"
-                                    <?php selected($settings['default_language'], $code); ?>
-                                >
-                                    <?php echo esc_html($meta['name'] . ' (' . $code . ')'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <?php
+                        // Read-only: the source language is frozen at setup (translangs_source_locale)
+                        // and inherited from WordPress; it is not editable here (see onboarding arch).
+                        $tlDefault = $settings['default_language'];
+                        $tlName    = $languages[$tlDefault]['name'] ?? strtoupper((string) $tlDefault);
+                        ?>
+                        <p id="tl-default-language">
+                            <strong><?php echo esc_html($tlName . ' (' . $tlDefault . ')'); ?></strong>
+                        </p>
                     </div>
                 </div>
 
