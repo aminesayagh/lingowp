@@ -124,4 +124,19 @@ if (!defined('ABSPATH')) {
             </button>
         </p>
     </form>
+
+    <div class="translangs-card">
+        <h2 class="translangs-card__title"><?php esc_html_e('Restart onboarding', 'translangs'); ?></h2>
+        <p class="translangs-card__desc">
+            <?php esc_html_e('Reset the setup experience and go through onboarding again from the start. This disconnects Translangs and clears your categories and language list; your saved translations are kept.', 'translangs'); ?>
+        </p>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
+            onsubmit="return confirm('<?php echo esc_js(__('Restart onboarding? This disconnects Translangs and clears your categories and languages.', 'translangs')); ?>');">
+            <input type="hidden" name="action" value="translangs_restart">
+            <?php wp_nonce_field('translangs_restart', 'translangs_restart_nonce'); ?>
+            <button type="submit" class="button button-link-delete">
+                <?php esc_html_e('Restart onboarding', 'translangs'); ?>
+            </button>
+        </form>
+    </div>
 </div>

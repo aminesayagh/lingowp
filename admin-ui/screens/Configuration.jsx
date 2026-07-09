@@ -67,11 +67,12 @@ export default function Configuration( { onDone } ) {
 	}
 
 	return (
-		<Page title="Configure Translangs">
+		<Page
+			narrowWidth
+			title="Configure Translangs"
+			subtitle="Tell us about your site and how visitors should reach translated pages."
+		>
 			<BlockStack gap="400">
-				<Text as="p" variant="bodyMd">
-					Tell us about your site and how visitors should reach translated pages.
-				</Text>
 
 				{ error && <Banner tone="critical">{ errorMessage( error ) }</Banner> }
 
@@ -126,7 +127,7 @@ export default function Configuration( { onDone } ) {
 					</BlockStack>
 				</Card>
 
-				<Button variant="primary" loading={ submitting } onClick={ submit }>
+				<Button variant="primary" size="large" loading={ submitting } onClick={ submit }>
 					Continue
 				</Button>
 			</BlockStack>

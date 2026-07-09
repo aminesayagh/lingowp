@@ -81,16 +81,9 @@ export default function Dashboard( { view, defaultLanguage, onLanguageCreated } 
 			title="Translangs"
 			primaryAction={ languages.length ? { content: 'Add language', onAction: () => setAddOpen( true ) } : undefined }
 			secondaryActions={ secondaryActions }
+			fullWidth
 		>
-			{ ! ai.ai_available && (
-				<Banner
-					tone="warning"
-					title="AI features are unavailable"
-					action={ { content: retrying ? 'Retrying…' : 'Retry', onAction: retryConnection } }
-				>
-					<p>{ errorMessage( ai.ai_error ) } The rest of Translangs works normally.</p>
-				</Banner>
-			) }
+			<BlockStack gap="400">
 
 			{ view === 'dashboard_empty_language' && languages.length === 0 ? (
 				<Card>
@@ -137,6 +130,7 @@ export default function Dashboard( { view, defaultLanguage, onLanguageCreated } 
 				defaultLanguage={ defaultCode }
 				onClose={ () => setSettingsOpen( false ) }
 			/>
+			</BlockStack>
 		</Page>
 	);
 }

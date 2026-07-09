@@ -2,7 +2,13 @@
 
 namespace TransLangs\Admin;
 
+use TransLangs\Api\ConnectionRepository;
+use TransLangs\Api\ConnectionStatus;
+use TransLangs\Api\SiteMetadataProvider;
+use TransLangs\Discovery\InitialDiscoveryScan;
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\Language\Infrastructure\LanguageMetadataStore;
+use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Language\Infrastructure\SupportedLanguages;
 use TransLangs\Shared\PhpTemplateRenderer;
 
@@ -28,6 +34,47 @@ class SettingsPageController
         // Priority 11: after OnboardingPageController (default 10) registers the
         // top-level "translangs" menu, so this submenu attaches to an existing parent.
         add_action('admin_menu', [$this, 'addMenu'], 11);
+
+        // Restart posts to admin-post.php so it can redirect before any output.
+        add_action('admin_post_translangs_restart', [$this, 'handleRestart']);
+    }
+
+    /**
+     * Full onboarding restart (config only): re-enter onboarding at Step 1.
+     * Marks onboarding incomplete, re-requests the initial scan, disconnects the
+     * backend, and clears categories + the language roster/metadata. Does NOT drop
+     * translation-memory tables — that is reserved for uninstall.
+     */
+    public function handleRestart(): void
+    {
+        if (
+            !current_user_can(self::CAPABILITY)
+            || !isset($_POST['translangs_restart_nonce'])
+            || !wp_verify_nonce(sanitize_key($_POST['translangs_restart_nonce']), 'translangs_restart')
+        ) {
+            wp_die(esc_html__('Security check failed. Please try again.', 'translangs'));
+        }
+
+        // Onboarding + scan.
+        update_option(ConnectionRepository::OPTION_COMPLETED, false);
+        update_option(InitialDiscoveryScan::OPTION_FLAG, 1);
+
+        // Disconnect: clear credentials, drop cached status, stop the health check.
+        delete_option(ConnectionRepository::OPTION_TOKEN);
+        delete_option(ConnectionRepository::OPTION_SITE_ID);
+        delete_transient('translangs_backend_status');
+        if (function_exists('as_unschedule_all_actions')) {
+            as_unschedule_all_actions(ConnectionStatus::HOOK, [], ConnectionStatus::GROUP);
+        }
+
+        // Clear config: categories + language roster/metadata (translations survive).
+        update_option(SiteMetadataProvider::OPTION_CATEGORIES, []);
+        update_option(LanguageMetadataStore::OPTION, []);
+        update_option(OptionLanguageRegistry::OPTION_ACTIVE, '');
+        update_option(OptionLanguageRegistry::OPTION_EXISTING, '');
+
+        wp_safe_redirect(admin_url('admin.php?page=' . self::PARENT));
+        exit;
     }
 
     public function addMenu(): void

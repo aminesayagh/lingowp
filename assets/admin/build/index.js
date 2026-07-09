@@ -12402,14 +12402,12 @@ function Configuration({
     }
   }
   return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Page, {
+    narrowWidth: true,
     title: "Configure Translangs",
+    subtitle: "Tell us about your site and how visitors should reach translated pages.",
     children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.BlockStack, {
       gap: "400",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Text, {
-        as: "p",
-        variant: "bodyMd",
-        children: "Tell us about your site and how visitors should reach translated pages."
-      }), error && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Banner, {
+      children: [error && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Banner, {
         tone: "critical",
         children: (0,_errors__WEBPACK_IMPORTED_MODULE_10__.errorMessage)(error)
       }), categoryChoices.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Card, {
@@ -12453,6 +12451,7 @@ function Configuration({
         })
       }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Button, {
         variant: "primary",
+        size: "large",
         loading: submitting,
         onClick: submit,
         children: "Continue"
@@ -12474,24 +12473,23 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ Dashboard)
 /* harmony export */ });
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Banner/Banner.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Card/Card.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/EmptyState/EmptyState.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/InlineStack/InlineStack.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Modal/Modal.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Select/Select.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/TextField/TextField.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_11___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_11__);
-/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
-/* harmony import */ var _errors__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ../errors */ "./admin-ui/errors.js");
-/* harmony import */ var _SettingsModal__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./SettingsModal */ "./admin-ui/screens/SettingsModal.jsx");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__);
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Card/Card.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/EmptyState/EmptyState.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/InlineStack/InlineStack.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Modal/Modal.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Select/Select.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/TextField/TextField.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_10__);
+/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
+/* harmony import */ var _errors__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ../errors */ "./admin-ui/errors.js");
+/* harmony import */ var _SettingsModal__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./SettingsModal */ "./admin-ui/screens/SettingsModal.jsx");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__);
 
 
 
@@ -12535,31 +12533,31 @@ function Dashboard({
   defaultLanguage,
   onLanguageCreated
 }) {
-  const [languages, setLanguages] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)([]);
-  const [addOpen, setAddOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)(false);
-  const [settingsOpen, setSettingsOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)(false);
+  const [languages, setLanguages] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)([]);
+  const [addOpen, setAddOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)(false);
+  const [settingsOpen, setSettingsOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)(false);
   // AI availability: the plugin works offline; only AI actions depend on this.
-  const [ai, setAi] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)({
+  const [ai, setAi] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)({
     connected: true,
     ai_available: true,
     ai_error: ''
   });
-  const [retrying, setRetrying] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)(false);
+  const [retrying, setRetrying] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)(false);
   function refresh() {
-    _api__WEBPACK_IMPORTED_MODULE_12__.api.get('/languages').then(res => {
+    _api__WEBPACK_IMPORTED_MODULE_11__.api.get('/languages').then(res => {
       if (res.ok) {
         setLanguages(res.languages || []);
       }
     });
   }
   function refreshStatus() {
-    _api__WEBPACK_IMPORTED_MODULE_12__.api.get('/connection/status').then(res => {
+    _api__WEBPACK_IMPORTED_MODULE_11__.api.get('/connection/status').then(res => {
       if (res.ok) {
         setAi(res);
       }
     });
   }
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useEffect)(() => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useEffect)(() => {
     refresh();
     refreshStatus();
   }, []);
@@ -12567,7 +12565,7 @@ function Dashboard({
   // Retry: connect if we never connected, otherwise re-validate the token.
   async function retryConnection() {
     setRetrying(true);
-    const res = ai.connected ? await _api__WEBPACK_IMPORTED_MODULE_12__.api.post('/connection/check') : await _api__WEBPACK_IMPORTED_MODULE_12__.api.post('/connection/connect');
+    const res = ai.connected ? await _api__WEBPACK_IMPORTED_MODULE_11__.api.post('/connection/check') : await _api__WEBPACK_IMPORTED_MODULE_11__.api.post('/connection/connect');
     setRetrying(false);
     setAi({
       connected: !!res.connected,
@@ -12580,72 +12578,66 @@ function Dashboard({
     content: 'Settings',
     onAction: () => setSettingsOpen(true)
   }];
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Page, {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Page, {
     title: "Translangs",
     primaryAction: languages.length ? {
       content: 'Add language',
       onAction: () => setAddOpen(true)
     } : undefined,
     secondaryActions: secondaryActions,
-    children: [!ai.ai_available && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Banner, {
-      tone: "warning",
-      title: "AI features are unavailable",
-      action: {
-        content: retrying ? 'Retrying…' : 'Retry',
-        onAction: retryConnection
-      },
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)("p", {
-        children: [(0,_errors__WEBPACK_IMPORTED_MODULE_13__.errorMessage)(ai.ai_error), " The rest of Translangs works normally."]
-      })
-    }), view === 'dashboard_empty_language' && languages.length === 0 ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Card, {
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.EmptyState, {
-        heading: "Add your first language",
-        action: {
-          content: 'Create a language',
-          onAction: () => setAddOpen(true)
-        },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)("p", {
-          children: "Your site is ready. Create a language to start translating your content."
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)("p", {
-          children: "Need more later? Add them from the sidebar anytime."
-        })]
-      })
-    }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Card, {
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_10__.BlockStack, {
-        gap: "300",
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Text, {
-          as: "h2",
-          variant: "headingMd",
-          children: "Languages"
-        }), languages.map(lang => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.InlineStack, {
-          align: "space-between",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Text, {
-            as: "span",
-            variant: "bodyMd",
-            children: lang.display_name || lang.name || lang.code
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Text, {
-            as: "span",
-            tone: "subdued",
-            variant: "bodySm",
-            children: [lang.enabled ? 'Active' : 'Draft', " \xB7 /", lang.slug]
+    fullWidth: true,
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.BlockStack, {
+      gap: "400",
+      children: [view === 'dashboard_empty_language' && languages.length === 0 ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Card, {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.EmptyState, {
+          heading: "Add your first language",
+          action: {
+            content: 'Create a language',
+            onAction: () => setAddOpen(true)
+          },
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)("p", {
+            children: "Your site is ready. Create a language to start translating your content."
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)("p", {
+            children: "Need more later? Add them from the sidebar anytime."
           })]
-        }, lang.code))]
-      })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(AddLanguageModal, {
-      open: addOpen,
-      defaultCode: defaultCode,
-      existing: languages.map(l => l.code),
-      onClose: () => setAddOpen(false),
-      onCreated: () => {
-        setAddOpen(false);
-        refresh();
-        onLanguageCreated();
-      }
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_SettingsModal__WEBPACK_IMPORTED_MODULE_14__["default"], {
-      open: settingsOpen,
-      defaultLanguage: defaultCode,
-      onClose: () => setSettingsOpen(false)
-    })]
+        })
+      }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Card, {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.BlockStack, {
+          gap: "300",
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Text, {
+            as: "h2",
+            variant: "headingMd",
+            children: "Languages"
+          }), languages.map(lang => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.InlineStack, {
+            align: "space-between",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Text, {
+              as: "span",
+              variant: "bodyMd",
+              children: lang.display_name || lang.name || lang.code
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Text, {
+              as: "span",
+              tone: "subdued",
+              variant: "bodySm",
+              children: [lang.enabled ? 'Active' : 'Draft', " \xB7 /", lang.slug]
+            })]
+          }, lang.code))]
+        })
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(AddLanguageModal, {
+        open: addOpen,
+        defaultCode: defaultCode,
+        existing: languages.map(l => l.code),
+        onClose: () => setAddOpen(false),
+        onCreated: () => {
+          setAddOpen(false);
+          refresh();
+          onLanguageCreated();
+        }
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_SettingsModal__WEBPACK_IMPORTED_MODULE_13__["default"], {
+        open: settingsOpen,
+        defaultLanguage: defaultCode,
+        onClose: () => setSettingsOpen(false)
+      })]
+    })
   });
 }
 function AddLanguageModal({
@@ -12656,19 +12648,19 @@ function AddLanguageModal({
   onCreated
 }) {
   const available = LANGUAGE_CHOICES.filter(c => c.value !== defaultCode && !existing.includes(c.value));
-  const [code, setCode] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('');
-  const [region, setRegion] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('');
-  const [locale, setLocale] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('');
-  const [slug, setSlug] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('');
-  const [displayName, setDisplayName] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('');
-  const [fallback, setFallback] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('');
-  const [status, setStatus] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('active');
-  const [aiStyle, setAiStyle] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('');
-  const [direction, setDirection] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)('ltr');
-  const [saving, setSaving] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useState)(false);
+  const [code, setCode] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('');
+  const [region, setRegion] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('');
+  const [locale, setLocale] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('');
+  const [slug, setSlug] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('');
+  const [displayName, setDisplayName] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('');
+  const [fallback, setFallback] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('');
+  const [status, setStatus] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('active');
+  const [aiStyle, setAiStyle] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('');
+  const [direction, setDirection] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)('ltr');
+  const [saving, setSaving] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useState)(false);
 
   // Default the code/direction once choices load.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_11__.useEffect)(() => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_10__.useEffect)(() => {
     if (open && !code && available.length) {
       setCode(available[0].value);
       setDirection(available[0].rtl ? 'rtl' : 'ltr');
@@ -12685,7 +12677,7 @@ function AddLanguageModal({
   }
   async function submit() {
     setSaving(true);
-    const res = await _api__WEBPACK_IMPORTED_MODULE_12__.api.post('/languages', {
+    const res = await _api__WEBPACK_IMPORTED_MODULE_11__.api.post('/languages', {
       code,
       region,
       locale,
@@ -12701,7 +12693,7 @@ function AddLanguageModal({
       onCreated();
     }
   }
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Modal, {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Modal, {
     open: open,
     onClose: onClose,
     title: "Add language",
@@ -12715,9 +12707,9 @@ function AddLanguageModal({
       content: 'Cancel',
       onAction: onClose
     }],
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Modal.Section, {
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.FormLayout, {
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Select, {
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Modal.Section, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.FormLayout, {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Select, {
           label: "Language",
           options: available.map(c => ({
             label: c.label,
@@ -12725,30 +12717,30 @@ function AddLanguageModal({
           })),
           value: code,
           onChange: pickLanguage
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.FormLayout.Group, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.TextField, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.FormLayout.Group, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.TextField, {
             label: "Region",
             value: region,
             onChange: setRegion,
             autoComplete: "off"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.TextField, {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.TextField, {
             label: "Locale",
             value: locale,
             onChange: setLocale,
             autoComplete: "off",
             placeholder: "fr-CA"
           })]
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.TextField, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.TextField, {
           label: "URL slug",
           value: slug,
           onChange: setSlug,
           autoComplete: "off"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.TextField, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.TextField, {
           label: "Display name",
           value: displayName,
           onChange: setDisplayName,
           autoComplete: "off"
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Select, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Select, {
           label: "Fallback language",
           options: [{
             label: 'None',
@@ -12759,7 +12751,7 @@ function AddLanguageModal({
           }))],
           value: fallback,
           onChange: setFallback
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Select, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Select, {
           label: "AI Style",
           helpText: "Guide the tone and wording used for this language.",
           options: [{
@@ -12774,8 +12766,8 @@ function AddLanguageModal({
           }],
           value: aiStyle,
           onChange: setAiStyle
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.FormLayout.Group, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Select, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.FormLayout.Group, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Select, {
             label: "Status",
             options: [{
               label: 'Active',
@@ -12786,7 +12778,7 @@ function AddLanguageModal({
             }],
             value: status,
             onChange: setStatus
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_15__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Select, {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_14__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Select, {
             label: "Text direction",
             options: [{
               label: 'Left to right',
@@ -12817,44 +12809,37 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ SettingUp)
 /* harmony export */ });
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Button/Button.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Card/Card.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Spinner/Spinner.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_6__);
-/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__);
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Card/Card.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Spinner/Spinner.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__);
 
 
 
 
-// Step 2 of 2. The initial scan runs in the background; the user can leave for the
-// dashboard at any time. No counts/percentages are shown (arch: not actionable).
+// Step 2 of 2. Nothing to configure here — the initial scan runs automatically and
+// the screen redirects to the dashboard once it finishes. No counts/percentages
+// (arch: not actionable), and no manual controls.
 
 function SettingUp({
   onDone
 }) {
-  const [status, setStatus] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_6__.useState)('running');
-  const [finishing, setFinishing] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_6__.useState)(false);
-  async function finish() {
-    setFinishing(true);
-    const res = await _api__WEBPACK_IMPORTED_MODULE_7__.api.post('/onboarding/complete');
-    onDone(res.next || 'dashboard_empty_language');
-  }
+  const [status, setStatus] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useState)('running');
 
   // Light polling of scan status.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_6__.useEffect)(() => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useEffect)(() => {
     let active = true;
     const tick = () => {
-      _api__WEBPACK_IMPORTED_MODULE_7__.api.get('/scan/status').then(res => {
-        if (!active) {
-          return;
+      _api__WEBPACK_IMPORTED_MODULE_6__.api.get('/scan/status').then(res => {
+        if (active) {
+          setStatus(res.status || 'running');
         }
-        setStatus(res.status || 'running');
       });
     };
     tick();
@@ -12865,75 +12850,62 @@ function SettingUp({
     };
   }, []);
 
-  // When the scan reports completed, move on automatically after a short beat.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_6__.useEffect)(() => {
-    if (status === 'completed') {
-      const id = setTimeout(finish, 1500);
-      return () => clearTimeout(id);
+  // When the scan is done (completed or failed), finish onboarding and redirect.
+  // A short beat lets the user read the result first.
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useEffect)(() => {
+    if (status === 'running') {
+      return;
     }
+    const delay = status === 'failed' ? 2500 : 1200;
+    const id = setTimeout(() => {
+      _api__WEBPACK_IMPORTED_MODULE_6__.api.post('/onboarding/complete').then(res => {
+        onDone(res.next || 'dashboard_empty_language');
+      });
+    }, delay);
+    return () => clearTimeout(id);
   }, [status]);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Page, {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Page, {
     title: "Setting up your site",
-    subtitle: "Step 2 of 2",
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Card, {
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.BlockStack, {
-        gap: "400",
+    narrowWidth: true,
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Card, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.BlockStack, {
+        gap: "300",
         inlineAlign: "start",
-        children: [status === 'running' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.Fragment, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.BlockStack, {
-            gap: "200",
-            inlineAlign: "start",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Spinner, {
-              accessibilityLabel: "Scanning",
-              size: "small"
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Text, {
-              as: "p",
-              variant: "bodyMd",
-              children: "We're automatically scanning your site for translatable content."
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Text, {
-              as: "p",
-              tone: "subdued",
-              variant: "bodySm",
-              children: "Scanning in the background\u2026 No need to wait. You can go to the dashboard while setup continues."
-            })]
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Button, {
-            variant: "primary",
-            loading: finishing,
-            onClick: finish,
-            children: "Go to dashboard"
+        children: [status === 'running' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Spinner, {
+            accessibilityLabel: "Scanning",
+            size: "small"
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+            as: "p",
+            variant: "bodyMd",
+            children: "We're automatically scanning your site for translatable content."
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+            as: "p",
+            tone: "subdued",
+            variant: "bodySm",
+            children: "Scanning in the background\u2026 this only takes a moment."
           })]
-        }), status === 'completed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.BlockStack, {
-          gap: "200",
-          inlineAlign: "start",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Text, {
+        }), status === 'completed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
             as: "h2",
             variant: "headingMd",
             children: "Setup is ready"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Text, {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
             as: "p",
             tone: "subdued",
             variant: "bodyMd",
             children: "Opening your dashboard\u2026"
           })]
-        }), status === 'failed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.Fragment, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.BlockStack, {
-            gap: "200",
-            inlineAlign: "start",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Text, {
-              as: "h2",
-              variant: "headingMd",
-              children: "Setup could not finish"
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Text, {
-              as: "p",
-              tone: "subdued",
-              variant: "bodyMd",
-              children: "We could not complete the automatic scan. Your setup may need support review."
-            })]
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Button, {
-            variant: "primary",
-            loading: finishing,
-            onClick: finish,
-            children: "Go to dashboard"
+        }), status === 'failed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+            as: "h2",
+            variant: "headingMd",
+            children: "Setup could not finish"
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+            as: "p",
+            tone: "subdued",
+            variant: "bodyMd",
+            children: "We could not complete the automatic scan. Opening your dashboard \u2014 your setup may need support review."
           })]
         })]
       })
@@ -13012,6 +12984,7 @@ function SettingsModal({
     open: open,
     onClose: onClose,
     title: "Settings",
+    narrowWidth: true,
     primaryAction: {
       content: 'Save settings',
       onAction: save,
@@ -13297,6 +13270,19 @@ function removeClass(element, className) {
     element.setAttribute('class', replaceClassName(element.className && element.className.baseVal || '', className));
   }
 }
+
+/***/ },
+
+/***/ "./admin-ui/wp-admin-reset.css"
+/*!*************************************!*\
+  !*** ./admin-ui/wp-admin-reset.css ***!
+  \*************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+// extracted by mini-css-extract-plugin
+
 
 /***/ },
 
@@ -21648,16 +21634,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _shopify_polaris_build_esm_styles_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris/build/esm/styles.css */ "./node_modules/@shopify/polaris/build/esm/styles.css");
-/* harmony import */ var _App__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./App */ "./admin-ui/App.jsx");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _wp_admin_reset_css__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./wp-admin-reset.css */ "./admin-ui/wp-admin-reset.css");
+/* harmony import */ var _App__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./App */ "./admin-ui/App.jsx");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__);
 
 
+ // strip wp-admin form-style bleed from Polaris inputs
 
 
 const mount = document.getElementById('translangs-app');
 if (mount) {
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.createRoot)(mount).render(/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_3__.jsx)(_App__WEBPACK_IMPORTED_MODULE_2__["default"], {}));
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.createRoot)(mount).render(/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_App__WEBPACK_IMPORTED_MODULE_3__["default"], {}));
 }
 })();
 

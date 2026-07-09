@@ -1,28 +1,21 @@
-import { BlockStack, Button, Card, Page, Spinner, Text } from '@shopify/polaris';
+import { BlockStack, Card, Page, Spinner, Text } from '@shopify/polaris';
 import { useEffect, useState } from '@wordpress/element';
 import { api } from '../api';
 
-// Step 2 of 2. The initial scan runs in the background; the user can leave for the
-// dashboard at any time. No counts/percentages are shown (arch: not actionable).
+// Step 2 of 2. Nothing to configure here — the initial scan runs automatically and
+// the screen redirects to the dashboard once it finishes. No counts/percentages
+// (arch: not actionable), and no manual controls.
 export default function SettingUp( { onDone } ) {
 	const [ status, setStatus ] = useState( 'running' );
-	const [ finishing, setFinishing ] = useState( false );
-
-	async function finish() {
-		setFinishing( true );
-		const res = await api.post( '/onboarding/complete' );
-		onDone( res.next || 'dashboard_empty_language' );
-	}
 
 	// Light polling of scan status.
 	useEffect( () => {
 		let active = true;
 		const tick = () => {
 			api.get( '/scan/status' ).then( ( res ) => {
-				if ( ! active ) {
-					return;
+				if ( active ) {
+					setStatus( res.status || 'running' );
 				}
-				setStatus( res.status || 'running' );
 			} );
 		};
 		tick();
@@ -33,53 +26,50 @@ export default function SettingUp( { onDone } ) {
 		};
 	}, [] );
 
-	// When the scan reports completed, move on automatically after a short beat.
+	// When the scan is done (completed or failed), finish onboarding and redirect.
+	// A short beat lets the user read the result first.
 	useEffect( () => {
-		if ( status === 'completed' ) {
-			const id = setTimeout( finish, 1500 );
-			return () => clearTimeout( id );
+		if ( status === 'running' ) {
+			return;
 		}
+		const delay = status === 'failed' ? 2500 : 1200;
+		const id = setTimeout( () => {
+			api.post( '/onboarding/complete' ).then( ( res ) => {
+				onDone( res.next || 'dashboard_empty_language' );
+			} );
+		}, delay );
+		return () => clearTimeout( id );
 	}, [ status ] );
 
 	return (
-		<Page title="Setting up your site" subtitle="Step 2 of 2">
+		<Page title="Setting up your site" narrowWidth>
 			<Card>
-				<BlockStack gap="400" inlineAlign="start">
+				<BlockStack gap="300" inlineAlign="start">
 					{ status === 'running' && (
 						<>
-							<BlockStack gap="200" inlineAlign="start">
-								<Spinner accessibilityLabel="Scanning" size="small" />
-								<Text as="p" variant="bodyMd">
-									We&#39;re automatically scanning your site for translatable content.
-								</Text>
-								<Text as="p" tone="subdued" variant="bodySm">
-									Scanning in the background… No need to wait. You can go to the dashboard while setup continues.
-								</Text>
-							</BlockStack>
-							<Button variant="primary" loading={ finishing } onClick={ finish }>
-								Go to dashboard
-							</Button>
+							<Spinner accessibilityLabel="Scanning" size="small" />
+							<Text as="p" variant="bodyMd">
+								We&#39;re automatically scanning your site for translatable content.
+							</Text>
+							<Text as="p" tone="subdued" variant="bodySm">
+								Scanning in the background… this only takes a moment.
+							</Text>
 						</>
 					) }
 
 					{ status === 'completed' && (
-						<BlockStack gap="200" inlineAlign="start">
+						<>
 							<Text as="h2" variant="headingMd">Setup is ready</Text>
 							<Text as="p" tone="subdued" variant="bodyMd">Opening your dashboard…</Text>
-						</BlockStack>
+						</>
 					) }
 
 					{ status === 'failed' && (
 						<>
-							<BlockStack gap="200" inlineAlign="start">
-								<Text as="h2" variant="headingMd">Setup could not finish</Text>
-								<Text as="p" tone="subdued" variant="bodyMd">
-									We could not complete the automatic scan. Your setup may need support review.
-								</Text>
-							</BlockStack>
-							<Button variant="primary" loading={ finishing } onClick={ finish }>
-								Go to dashboard
-							</Button>
+							<Text as="h2" variant="headingMd">Setup could not finish</Text>
+							<Text as="p" tone="subdued" variant="bodyMd">
+								We could not complete the automatic scan. Opening your dashboard — your setup may need support review.
+							</Text>
 						</>
 					) }
 				</BlockStack>

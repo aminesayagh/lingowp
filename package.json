@@ -5,7 +5,8 @@
   "description": "TransLangs admin board (React, @wordpress/scripts).",
   "scripts": {
     "build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build",
-    "start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build"
+    "start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build",
+    "watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch"
   },
   "devDependencies": {
     "@wordpress/scripts": "^30.0.0"

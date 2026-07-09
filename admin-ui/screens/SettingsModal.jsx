@@ -47,6 +47,7 @@ export default function SettingsModal( { open, defaultLanguage, onClose } ) {
 			open={ open }
 			onClose={ onClose }
 			title="Settings"
+			narrowWidth
 			primaryAction={ { content: 'Save settings', onAction: save, loading: saving } }
 			secondaryActions={ [ { content: 'Cancel', onAction: onClose } ] }
 		>

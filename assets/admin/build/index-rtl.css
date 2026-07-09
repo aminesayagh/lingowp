@@ -16211,3 +16211,40 @@ body{
   white-space: nowrap !important;
 }
 
+/*!*********************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[2].use[1]!./node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[2].use[2]!./admin-ui/wp-admin-reset.css ***!
+  \*********************************************************************************************************************************************************************************/
+/*
+ * Neutralize WordPress admin's global form styles where they bleed into Polaris.
+ *
+ * wp-admin's forms.css styles every input/select/textarea with its own border,
+ * box-shadow, min-height and background. Those override Polaris, which keeps the
+ * inner <input> bare and draws the visible border/background on a separate
+ * Backdrop element — so without this reset the TextField/Select shows a double
+ * border, wrong height, and a stray focus glow.
+ *
+ * Targets Polaris input classes only (not the mount) so it also covers fields in
+ * Modals, which render in a portal at <body>. This stylesheet is enqueued only on
+ * the Translangs SPA screen, so the legacy settings form and the rest of wp-admin
+ * are unaffected. !important is needed to beat wp-admin's `input[type=text]`.
+ */
+.Polaris-TextField__Input,
+.Polaris-Select__Input {
+	min-height: 0 !important;
+	margin: 0 !important;
+	border: none !important;
+	border-radius: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	line-height: inherit !important;
+	padding: var(--p-space-150) var(--p-space-300) !important;
+}
+.Polaris-TextField__Input:focus,
+.Polaris-Select__Input:focus,
+.Polaris-TextField__Input:focus-visible,
+.Polaris-Select__Input:focus-visible {
+	border: none !important;
+	box-shadow: none !important;
+	outline: none !important;
+}
+
