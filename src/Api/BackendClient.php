@@ -65,6 +65,22 @@ final class BackendClient
         return $this->request('POST', '/auth/revoke-token', null, $this->bearerHeaders());
     }
 
+    /**
+     * POST /translate — batch translate (bearer). Payload:
+     *   { source_language, target_language, ai_style, categories[], texts:[{id,text}] }
+     * Success data: { translations:[{id,text}], words_used }.
+     */
+    public function translate(array $payload): array
+    {
+        return $this->request('POST', '/translate', $payload, $this->bearerHeaders());
+    }
+
+    /** GET /usage — AI word quota snapshot (bearer). */
+    public function usage(): array
+    {
+        return $this->request('GET', '/usage', null, $this->bearerHeaders());
+    }
+
     private function request(string $method, string $path, ?array $body = null, array $headers = []): array
     {
         $base = $this->resolver->baseUrl();

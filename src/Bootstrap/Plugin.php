@@ -41,6 +41,9 @@ use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Admin\Rest\OnboardingRestController;
 use TransLangs\Admin\Rest\ConnectionRestController;
 use TransLangs\Admin\Rest\LanguageRestController;
+use TransLangs\Admin\Rest\CollectionRestController;
+use TransLangs\Admin\Rest\TranslationRestController;
+use TransLangs\Admin\Rest\AiTranslationController;
 use TransLangs\Admin\Rest\ScanRestController;
 
 class Plugin
@@ -118,7 +121,10 @@ class Plugin
             // REST API for the onboarding SPA (registers on rest_api_init).
             (new OnboardingRestController($backendClient, $connection, $siteMetadata, $languageRegistry, $connectionStatus))->register();
             (new ConnectionRestController($backendClient, $connection, $siteMetadata, $connectionStatus))->register();
-            (new LanguageRestController($languageMetadata, $languageRegistry))->register();
+            (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
+            (new CollectionRestController($sourceRepository, $languageRegistry))->register();
+            (new TranslationRestController($sourceRepository, $languageRegistry))->register();
+            (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata))->register();
             (new ScanRestController())->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).

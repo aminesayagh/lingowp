@@ -309,6 +309,381 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return $out;
     }
 
+    // ── board reads (admin dashboard) ────────────────────────────────────────────
+
+    public function listPostCollections(string $langCode): array
+    {
+        $parent = $this->parent('tl_post');
+        $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
+
+        // hash-link child is unique per (original_hash, lang_code), so the LEFT JOIN
+        // yields at most one translation per source position — no COUNT fan-out.
+        $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
+                       COUNT(*)              AS total,
+                       SUM(t.status > 0)     AS translated,
+                       SUM(t.status = %d)    AS needs_review,
+                       SUM(t.id IS NULL)     AS missing
+                FROM {$parent} p
+                JOIN {$posts} wp ON wp.ID = p.post_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d
+                GROUP BY p.post_id, wp.post_type, wp.post_title
+                ORDER BY wp.post_type, wp.post_title";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map(static fn (array $r): array => [
+            'post_id'      => (int) $r['post_id'],
+            'post_type'    => (string) $r['post_type'],
+            'post_title'   => (string) $r['post_title'],
+            'total'        => (int) $r['total'],
+            'translated'   => (int) $r['translated'],
+            'needs_review' => (int) $r['needs_review'],
+            'missing'      => (int) $r['missing'],
+        ], (array) $rows);
+    }
+
+    public function listPostTexts(int $postId, string $langCode): array
+    {
+        $parent = $this->parent('tl_post');
+        $child  = $parent . '_translation';
+
+        $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.post_id = %d AND p.status = %d
+                ORDER BY p.field, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $postId,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map([$this, 'textUnitRow'], (array) $rows);
+    }
+
+    public function optionCollectionSummary(string $langCode): array
+    {
+        $parent = $this->parent('tl_option');
+        $child  = $parent . '_translation';
+
+        $sql = "SELECT COUNT(*)           AS total,
+                       SUM(t.status > 0)  AS translated,
+                       SUM(t.status = %d) AS needs_review,
+                       SUM(t.id IS NULL)  AS missing
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $row = $this->wpdb->get_row($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A) ?: [];
+
+        return [
+            'total'        => (int) ($row['total'] ?? 0),
+            'translated'   => (int) ($row['translated'] ?? 0),
+            'needs_review' => (int) ($row['needs_review'] ?? 0),
+            'missing'      => (int) ($row['missing'] ?? 0),
+        ];
+    }
+
+    public function listOptionTexts(string $langCode): array
+    {
+        $parent = $this->parent('tl_option');
+        $child  = $parent . '_translation';
+
+        $sql = "SELECT p.id AS id, p.option_name AS option_name, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d
+                ORDER BY p.option_name, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit               = $this->textUnitRow($r);
+            $unit['option_name'] = (string) $r['option_name'];
+            return $unit;
+        }, (array) $rows);
+    }
+
+
+    public function listTermCollections(string $langCode): array
+    {
+        $parent = $this->parent('tl_term');
+        $child  = $parent . '_translation';
+        $tt     = $this->wpdb->term_taxonomy;
+        $terms  = $this->wpdb->terms;
+
+        $sql = "SELECT p.term_taxonomy_id AS term_taxonomy_id, tx.taxonomy AS taxonomy, tm.name AS name,
+                       COUNT(*)              AS total,
+                       SUM(t.status > 0)     AS translated,
+                       SUM(t.status = %d)    AS needs_review,
+                       SUM(t.id IS NULL)     AS missing
+                FROM {$parent} p
+                JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
+                JOIN {$terms} tm ON tm.term_id = tx.term_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d
+                GROUP BY p.term_taxonomy_id, tx.taxonomy, tm.name
+                ORDER BY tx.taxonomy, tm.name";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map(static fn (array $r): array => [
+            'term_taxonomy_id' => (int) $r['term_taxonomy_id'],
+            'taxonomy'         => (string) $r['taxonomy'],
+            'name'             => (string) $r['name'],
+            'total'            => (int) $r['total'],
+            'translated'       => (int) $r['translated'],
+            'needs_review'     => (int) $r['needs_review'],
+            'missing'          => (int) $r['missing'],
+        ], (array) $rows);
+    }
+
+    public function listTermTexts(int $termTaxonomyId, string $langCode): array
+    {
+        $parent = $this->parent('tl_term');
+        $child  = $parent . '_translation';
+
+        $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.term_taxonomy_id = %d AND p.status = %d
+                ORDER BY p.field, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $termTaxonomyId,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map([$this, 'textUnitRow'], (array) $rows);
+    }
+
+    public function postMetaCounts(string $langCode): array
+    {
+        $parent = $this->parent('tl_meta');
+        $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
+
+        // meta is a parent_id child: join on parent_id, not original_hash.
+        $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
+                       COUNT(*)              AS total,
+                       SUM(t.status > 0)     AS translated,
+                       SUM(t.status = %d)    AS needs_review,
+                       SUM(t.id IS NULL)     AS missing
+                FROM {$parent} p
+                JOIN {$posts} wp ON wp.ID = p.post_id
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                WHERE p.status = %d
+                GROUP BY p.post_id, wp.post_type, wp.post_title
+                ORDER BY wp.post_type, wp.post_title";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map(static fn (array $r): array => [
+            'post_id'      => (int) $r['post_id'],
+            'post_type'    => (string) $r['post_type'],
+            'post_title'   => (string) $r['post_title'],
+            'total'        => (int) $r['total'],
+            'translated'   => (int) $r['translated'],
+            'needs_review' => (int) $r['needs_review'],
+            'missing'      => (int) $r['missing'],
+        ], (array) $rows);
+    }
+
+    public function listMetaTexts(int $postId, string $langCode): array
+    {
+        $parent = $this->parent('tl_meta');
+        $child  = $parent . '_translation';
+
+        $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                WHERE p.post_id = %d AND p.status = %d
+                ORDER BY p.meta_key, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $postId,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit          = $this->textUnitRow($r);
+            $unit['field'] = (string) $r['meta_key'];
+            return $unit;
+        }, (array) $rows);
+    }
+
+
+    public function htmlCollectionSummary(string $langCode): array
+    {
+        $parent = $this->parent('tl_html');
+        $child  = $parent . '_translation';
+
+        $sql = "SELECT COUNT(*)           AS total,
+                       SUM(t.status > 0)  AS translated,
+                       SUM(t.status = %d) AS needs_review,
+                       SUM(t.id IS NULL)  AS missing
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $row = $this->wpdb->get_row($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A) ?: [];
+
+        return [
+            'total'        => (int) ($row['total'] ?? 0),
+            'translated'   => (int) ($row['translated'] ?? 0),
+            'needs_review' => (int) ($row['needs_review'] ?? 0),
+            'missing'      => (int) ($row['missing'] ?? 0),
+        ];
+    }
+
+    public function listHtmlTexts(string $langCode): array
+    {
+        $parent = $this->parent('tl_html');
+        $child  = $parent . '_translation';
+
+        $sql = "SELECT p.id AS id, p.selector AS selector, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d
+                ORDER BY p.selector, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit          = $this->textUnitRow($r);
+            $unit['field'] = (string) $r['selector'];
+            return $unit;
+        }, (array) $rows);
+    }
+
+
+    public function loadSourceText(SourceRef $ref): ?string
+    {
+        $parent = $this->parent($ref->parentTableKey());
+
+        $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "SELECT original_text FROM {$parent} WHERE id = %d AND status = %d",
+                $ref->id,
+                TranslationStatus::SOURCE_DISCOVERED
+            )
+        );
+
+        return is_string($value) ? $value : null;
+    }
+
+
+    public function languageProgress(string $langCode): array
+    {
+        $total = 0;
+        $done  = 0;
+
+        // hash-link tables join on original_hash; meta joins on parent_id.
+        foreach (['tl_post', 'tl_term', 'tl_html', 'tl_option'] as $key) {
+            [$t, $d] = $this->countTable($key, false, $langCode);
+            $total  += $t;
+            $done   += $d;
+        }
+        [$t, $d] = $this->countTable('tl_meta', true, $langCode);
+        $total  += $t;
+        $done   += $d;
+
+        return ['total' => $total, 'translated' => $done];
+    }
+
+    /** @return array{0:int, 1:int} [total sources, done translations] for one table + language. */
+    private function countTable(string $tableKey, bool $parentId, string $langCode): array
+    {
+        $parent = $this->parent($tableKey);
+        $child  = $parent . '_translation';
+        $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
+
+        $sql = "SELECT COUNT(*) AS total, SUM(t.status > 0) AS done
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
+                WHERE p.status = %d";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $row = $this->wpdb->get_row($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A) ?: [];
+
+        return [(int) ($row['total'] ?? 0), (int) ($row['done'] ?? 0)];
+    }
+
+    /** Normalize a board text-unit row: null translation when untranslated. */
+    private function textUnitRow(array $r): array
+    {
+        $translated = $r['translated_text'];
+
+        return [
+            'id'              => (int) $r['id'],
+            'field'           => (string) ($r['field'] ?? ''),
+            'original_text'   => (string) $r['original_text'],
+            'translated_text' => $translated === null ? null : (string) $translated,
+            'status'          => $r['status'] === null ? null : (int) $r['status'],
+            'provider'        => $r['provider'] === null ? null : (string) $r['provider'],
+        ];
+    }
+
     // ── translation writes ─────────────────────────────────────────────────────
 
     public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): void
@@ -385,6 +760,42 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
 
         $this->wpdb->query( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare("DELETE FROM {$child} WHERE parent_id = %d AND lang_code = %s", $ref->id, $langCode)
+        );
+    }
+
+
+    public function setTranslationStatus(SourceRef $ref, string $langCode, int $status): void
+    {
+        $tableKey = $ref->parentTableKey();
+        $child    = $this->parent($tableKey) . '_translation';
+        $now      = current_time('mysql');
+
+        if ($this->isHashLink($tableKey)) {
+            $hashHex = $this->parentHashHex($ref);
+            if ($hashHex === null) {
+                return;
+            }
+            $this->wpdb->query( // phpcs:ignore WordPress.DB
+                $this->wpdb->prepare(
+                    "UPDATE {$child} SET status = %d, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    $status,
+                    $now,
+                    $hashHex,
+                    $langCode
+                )
+            );
+            $this->flushHtmlCache($ref, $langCode);
+            return;
+        }
+
+        $this->wpdb->query( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "UPDATE {$child} SET status = %d, updated_at = %s WHERE parent_id = %d AND lang_code = %s",
+                $status,
+                $now,
+                $ref->id,
+                $langCode
+            )
         );
     }
 

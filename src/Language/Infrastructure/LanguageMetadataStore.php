@@ -76,4 +76,17 @@ final class LanguageMetadataStore
 
         update_option(self::OPTION, $map);
     }
+
+
+    /** Remove one language's metadata entry. No-op if absent. */
+    public function remove(string $code): void
+    {
+        $code = sanitize_key($code);
+        $map  = $this->all();
+
+        if (isset($map[$code])) {
+            unset($map[$code]);
+            update_option(self::OPTION, $map);
+        }
+    }
 }

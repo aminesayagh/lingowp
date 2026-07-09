@@ -12,6 +12,7 @@
     "@wordpress/scripts": "^30.0.0"
   },
   "dependencies": {
-    "@shopify/polaris": "^13.9.5"
+    "@shopify/polaris": "^13.9.5",
+    "motion": "^12.0.0"
   }
 }
