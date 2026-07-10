@@ -83,15 +83,18 @@ final class LanguageRestController
 
         $status = $request->get_param('status') === 'draft' ? 'draft' : 'active';
 
+        // v1 add form: no region/locale/status inputs. Locale defaults to the code;
+        // direction is auto-derived client-side; status defaults to active.
         $this->store->save([
             'code'              => $code,
-            'locale'            => (string) $request->get_param('locale'),
+            'locale'            => (string) ($request->get_param('locale') ?: $code),
             'region'            => (string) $request->get_param('region'),
             'name'              => SupportedLanguages::label($code),
             'display_name'      => (string) $request->get_param('display_name'),
             'slug'              => sanitize_title((string) ($request->get_param('slug') ?: $code)),
             'fallback_language' => sanitize_key((string) $request->get_param('fallback_language')),
             'ai_style'          => (string) $request->get_param('ai_style'),
+            'ai_model'          => (string) ($request->get_param('ai_model') ?: 'auto'),
             'direction'         => $request->get_param('direction') === 'rtl' ? 'rtl' : 'ltr',
         ]);
 
@@ -126,7 +129,7 @@ final class LanguageRestController
         }
 
         // Merge only the fields the request actually sent (PATCH semantics).
-        $editable = ['display_name', 'region', 'locale', 'fallback_language', 'ai_style', 'direction'];
+        $editable = ['display_name', 'region', 'locale', 'fallback_language', 'ai_style', 'ai_model', 'direction'];
         $entry    = $current;
         $entry['code'] = $code;
         foreach ($editable as $field) {

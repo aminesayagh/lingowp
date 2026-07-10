@@ -91,6 +91,7 @@ final class OnboardingPageController
         wp_localize_script(self::HANDLE, 'Translangs', [
             'rest'  => esc_url_raw(rest_url('translangs/v1')),
             'nonce' => wp_create_nonce('wp_rest'),
+            'logo'  => esc_url_raw(TRANSLANGS_URL . 'assets/images/Logo-blue.svg'),
         ]);
     }
 }

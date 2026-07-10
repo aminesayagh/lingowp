@@ -1,7 +1,9 @@
 import {
+	BlockStack,
 	FormLayout,
 	Modal,
 	Select,
+	Text,
 	TextField,
 } from '@shopify/polaris';
 import { useEffect, useState } from '@wordpress/element';
@@ -19,23 +21,28 @@ export const LANGUAGE_CHOICES = [
 	{ label: 'Arabic', value: 'ar', rtl: true },
 ];
 
+// Single "Auto" for now; a real list arrives when the backend exposes models.
+export const AI_MODELS = [ { label: 'Auto', value: 'auto' } ];
+
+export const AI_STYLE_MAX = 500;
+export const AI_STYLE_PLACEHOLDER =
+	'e.g. Warm but professional. Use formal “vous”, keep product names in English, and prefer short, clear sentences.';
+
 export default function AddLanguageModal( { open, defaultCode, existing, onClose, onCreated } ) {
 	const available = LANGUAGE_CHOICES.filter(
 		( c ) => c.value !== defaultCode && ! existing.includes( c.value )
 	);
 
 	const [ code, setCode ] = useState( '' );
-	const [ region, setRegion ] = useState( '' );
-	const [ locale, setLocale ] = useState( '' );
 	const [ slug, setSlug ] = useState( '' );
 	const [ displayName, setDisplayName ] = useState( '' );
 	const [ fallback, setFallback ] = useState( '' );
-	const [ status, setStatus ] = useState( 'active' );
-	const [ aiStyle, setAiStyle ] = useState( '' );
+	const [ aiModel, setAiModel ] = useState( 'auto' );
+	const [ style, setStyle ] = useState( '' );
 	const [ direction, setDirection ] = useState( 'ltr' );
 	const [ saving, setSaving ] = useState( false );
 
-	// Default the code/direction once choices load.
+	// Default the language/slug/direction once choices load.
 	useEffect( () => {
 		if ( open && ! code && available.length ) {
 			setCode( available[ 0 ].value );
@@ -55,16 +62,16 @@ export default function AddLanguageModal( { open, defaultCode, existing, onClose
 
 	async function submit() {
 		setSaving( true );
+		// Region/locale/status dropped from v1; direction is auto-derived, status
+		// defaults to active server-side.
 		const res = await api.post( '/languages', {
 			code,
-			region,
-			locale,
 			slug,
 			display_name: displayName,
 			fallback_language: fallback,
-			status,
-			ai_style: aiStyle,
 			direction,
+			ai_model: aiModel,
+			ai_style: style,
 		} );
 		setSaving( false );
 		if ( res.ok ) {
@@ -82,50 +89,42 @@ export default function AddLanguageModal( { open, defaultCode, existing, onClose
 		>
 			<Modal.Section>
 				<FormLayout>
-					<Select
-						label="Language"
-						options={ available.map( ( c ) => ( { label: c.label, value: c.value } ) ) }
-						value={ code }
-						onChange={ pickLanguage }
-					/>
-					<FormLayout.Group>
-						<TextField label="Region / Locale" value={ region } onChange={ setRegion } autoComplete="off" />
-						<TextField label="Locale" value={ locale } onChange={ setLocale } autoComplete="off" placeholder="fr-CA" />
-					</FormLayout.Group>
-					<TextField label="URL slug" value={ slug } onChange={ setSlug } autoComplete="off" />
-					<TextField label="Display name" value={ displayName } onChange={ setDisplayName } autoComplete="off" />
-					<Select
-						label="Fallback language"
-						options={ [ { label: 'None', value: '' }, ...LANGUAGE_CHOICES.map( ( c ) => ( { label: c.label, value: c.value } ) ) ] }
-						value={ fallback }
-						onChange={ setFallback }
-					/>
-					<Select
-						label="AI Style"
-						helpText="Guide the tone and wording used for this language."
-						options={ [
-							{ label: 'Default', value: '' },
-							{ label: 'Formal', value: 'formal' },
-							{ label: 'Casual', value: 'casual' },
-						] }
-						value={ aiStyle }
-						onChange={ setAiStyle }
-					/>
-					<FormLayout.Group>
+					<BlockStack gap="100">
 						<Select
-							label="Status"
-							options={ [ { label: 'Active', value: 'active' }, { label: 'Draft', value: 'draft' } ] }
-							value={ status }
-							onChange={ setStatus }
+							label="Language"
+							options={ available.map( ( c ) => ( { label: c.label, value: c.value } ) ) }
+							value={ code }
+							onChange={ pickLanguage }
 						/>
+						<TextField label="Name" value={ displayName } onChange={ setDisplayName } autoComplete="off" />
+						<TextField label="URL slug" value={ slug } onChange={ setSlug } autoComplete="off" />
 						<Select
-							label="Text direction"
-							options={ [ { label: 'Left to right', value: 'ltr' }, { label: 'Right to left', value: 'rtl' } ] }
-							value={ direction }
-							onChange={ setDirection }
+							label="Fallback language"
+							options={ [ { label: 'None', value: '' }, ...LANGUAGE_CHOICES.map( ( c ) => ( { label: c.label, value: c.value } ) ) ] }
+							value={ fallback }
+							onChange={ setFallback }
 						/>
-					</FormLayout.Group>
+					</BlockStack>
 				</FormLayout>
+			</Modal.Section>
+			<Modal.Section>
+				<BlockStack gap="300">
+					<Text as="h3" variant="headingSm">AI settings</Text>
+					<BlockStack gap="100">
+						<Select label="AI model" options={ AI_MODELS } value={ aiModel } onChange={ setAiModel } />
+						<TextField
+							label="Style"
+							multiline={ 2 }
+							maxLength={ AI_STYLE_MAX }
+							showCharacterCount
+							value={ style }
+							onChange={ setStyle }
+							autoComplete="off"
+							placeholder={ AI_STYLE_PLACEHOLDER }
+							helpText="Guide the tone and wording used for this language."
+						/>
+					</BlockStack>
+				</BlockStack>
 			</Modal.Section>
 		</Modal>
 	);

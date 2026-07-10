@@ -32,3 +32,26 @@
 	box-shadow: none !important;
 	outline: none !important;
 }
+
+/*
+ * Full-width Translangs screen: strip wp-admin's .wrap left/right margin and
+ * Polaris Page's inline padding + max-width so the dashboard spans the whole
+ * content area. Scoped to our screen (only .wrap that holds #translangs-app).
+ */
+.wrap:has(> #translangs-app) {
+	margin: 0 !important;
+}
+#translangs-app .Polaris-Page {
+	padding-inline: 0 !important;
+	max-width: none !important;
+}
+
+/*
+ * Widen the language-manager (Configuration) modal beyond Polaris "large".
+ * Scoped via :has() to the dialog that contains our .tl-wide-modal marker, so
+ * other large modals keep their default width.
+ */
+.Polaris-Modal-Dialog__Modal.Polaris-Modal-Dialog--sizeLarge:has(.tl-wide-modal) {
+	max-width: min(1100px, 92vw);
+	width: min(1100px, 92vw);
+}
