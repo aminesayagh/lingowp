@@ -1,4 +1,4 @@
-import { AppProvider, Page, Spinner } from '@shopify/polaris';
+import { AppProvider, Page, PortalsManager, Spinner } from '@shopify/polaris';
 import enTranslations from '@shopify/polaris/locales/en.json';
 import { useCallback, useEffect, useState } from '@wordpress/element';
 import { api } from './api';
@@ -33,6 +33,22 @@ export default function App() {
 	const [ state, setState ] = useState( null );
 	const [ view, setViewState ] = useState( null );
 
+	// Polaris renders popovers/tooltips/modals into a portal container that, by
+	// default, lives inside the React tree — which in wp-admin sits under the
+	// positioned #wpwrap, offsetting every overlay by the admin-bar height. Give
+	// Polaris a portal root on <body> instead so overlays anchor to the document
+	// and position exactly against their activator.
+	const [ portalRoot ] = useState( () => {
+		const existing = document.getElementById( 'translangs-portals' );
+		if ( existing ) {
+			return existing;
+		}
+		const el = document.createElement( 'div' );
+		el.id = 'translangs-portals';
+		document.body.appendChild( el );
+		return el;
+	} );
+
 	const setView = useCallback( ( next ) => {
 		setViewState( next );
 		pushView( next );
@@ -57,19 +73,21 @@ export default function App() {
 
 	return (
 		<AppProvider i18n={ enTranslations }>
-			{ view === 'onboarding_configuration' && (
-				<Configuration onDone={ () => setView( 'onboarding_setting_up' ) } />
-			) }
-			{ view === 'onboarding_setting_up' && (
-				<SettingUp onDone={ ( next ) => setView( next ) } />
-			) }
-			{ ( view === 'dashboard_empty_language' || view === 'dashboard_workspace' ) && (
-				<Dashboard
-					view={ view }
-					defaultLanguage={ state.default_language }
-					onLanguageCreated={ () => setView( 'dashboard_workspace' ) }
-				/>
-			) }
+			<PortalsManager container={ portalRoot }>
+				{ view === 'onboarding_configuration' && (
+					<Configuration onDone={ () => setView( 'onboarding_setting_up' ) } />
+				) }
+				{ view === 'onboarding_setting_up' && (
+					<SettingUp onDone={ ( next ) => setView( next ) } />
+				) }
+				{ ( view === 'dashboard_empty_language' || view === 'dashboard_workspace' ) && (
+					<Dashboard
+						view={ view }
+						defaultLanguage={ state.default_language }
+						onLanguageCreated={ () => setView( 'dashboard_workspace' ) }
+					/>
+				) }
+			</PortalsManager>
 		</AppProvider>
 	);
 }

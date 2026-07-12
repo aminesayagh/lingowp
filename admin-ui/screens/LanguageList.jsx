@@ -175,7 +175,7 @@ export default function LanguageList( {
 	addLabel = '+ Add language',
 } ) {
 	return (
-		<BlockStack gap="050">
+		<BlockStack gap="300">
 			<div>
 				{ languages.map( ( lang ) => (
 					<LanguageRow
@@ -193,7 +193,7 @@ export default function LanguageList( {
 				) ) }
 			</div>
 			{ onAdd && (
-				<Button variant="plain" onClick={ onAdd }>{ addLabel }</Button>
+				<Button variant="plain" textAlign="left" onClick={ onAdd }>{ addLabel }</Button>
 			) }
 		</BlockStack>
 	);

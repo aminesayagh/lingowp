@@ -6,9 +6,11 @@ import {
   Box,
   Button,
   Card,
+  ChoiceList,
   Collapsible,
   Divider,
   EmptyState,
+  Filters,
   InlineStack,
   Modal,
   Page,
@@ -17,13 +19,18 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { useEffect, useState } from "@wordpress/element";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "@wordpress/element";
 import {
   MagicIcon,
   SettingsIcon,
-  FilterIcon,
   SearchIcon,
   LanguageIcon,
+  PageIcon
 } from "@shopify/polaris-icons";
 import { api } from "../api";
 import SettingsModal from "./SettingsModal";
@@ -32,15 +39,14 @@ import LanguageList from "./LanguageList";
 import CompareOverlay from "./CompareOverlay";
 import QuotaCard from "./QuotaCard";
 
-const StartIcon = ({
-	color = "currentColor",
-}) => (
+const StartIcon = ({ color = "currentColor", ...props }) => (
   <svg
     width="24"
     height="24"
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
+    {...props}
   >
     <path
       d="M10.6618 4.89303C11.1085 3.70232 12.8915 3.70232 13.3382 4.89303L14.8693 8.97405C15.0123 9.3552 15.3298 9.65504 15.7334 9.79009L20.0544 11.2361C21.3152 11.658 21.3152 13.342 20.0544 13.7639L15.7334 15.2099C15.3298 15.345 15.0123 15.6448 14.8693 16.0259L13.3382 20.107C12.8915 21.2977 11.1085 21.2977 10.6618 20.107L9.13068 16.0259C8.98769 15.6448 8.67021 15.345 8.26665 15.2099L3.94556 13.7639C2.68481 13.342 2.68481 11.658 3.94556 11.2361L8.26665 9.79009C8.67021 9.65504 8.98769 9.3552 9.13068 8.97405L10.6618 4.89303Z"
@@ -54,10 +60,22 @@ const StartIcon = ({
 // Schema status → workspace pill (per design-ux-data-mapping.md §2). Translated
 // rows carry no pill.
 const STATUS_BADGE = {
-  missing: { tone: "attention", label: "New" },
+  missing: null,
   needs_review: { tone: "warning", label: "Needs review" },
-  reviewed: { tone: "success", label: "Reviewed" },
+  reviewed: null,
   translated: null,
+};
+
+// Truncate a cell to a single line with an ellipsis; the whole cell is a
+// clickable button that opens the overlay to read/edit the full text.
+const oneLineStyle = {
+  all: "unset",
+  cursor: "pointer",
+  display: "block",
+  width: "100%",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
 // Collection type → group heading prefix. Site settings has no prefix.
@@ -101,7 +119,6 @@ export default function Dashboard({
   const [quota, setQuota] = useState(null);
   const [notice, setNotice] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
 
   const defaultCode = defaultLanguage?.code || defaultLanguage;
@@ -324,6 +341,36 @@ export default function Dashboard({
   const totalTexts = (collections || []).reduce((n, c) => n + c.total, 0);
   const totalDone = (collections || []).reduce((n, c) => n + c.translated, 0);
 
+  // Standard Polaris Filters config (status only, single-select).
+  const filters = [
+    {
+      key: "status",
+      label: "Status",
+      filter: (
+        <ChoiceList
+          title="Status"
+          titleHidden
+          choices={FILTERS.map((f) => ({ label: f.label, value: f.key }))}
+          selected={statusFilter === "all" ? [] : [statusFilter]}
+          onChange={(vals) => setStatusFilter(vals[0] || "all")}
+        />
+      ),
+      shortcut: true,
+    },
+  ];
+  const appliedFilters =
+    statusFilter === "all"
+      ? []
+      : [
+          {
+            key: "status",
+            label: `Status: ${
+              FILTERS.find((f) => f.key === statusFilter)?.label
+            }`,
+            onRemove: () => setStatusFilter("all"),
+          },
+        ];
+
   return (
     <Page fullWidth>
       {notice && (
@@ -356,7 +403,7 @@ export default function Dashboard({
               paddingRight: 4,
             }}
           >
-            <BlockStack gap="200">
+            <BlockStack gap="400">
               {/* Brand header — name + logo live here, not in the page header. */}
               <InlineStack
                 align="space-between"
@@ -383,44 +430,49 @@ export default function Dashboard({
                   </Text>
                 </InlineStack>
               </InlineStack>
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingSm">
-                    Target language
-                  </Text>
-                  <LanguageList
-                    languages={languages}
-                    selectedCode={selectedLang}
-                    aiAvailable={ai.available}
-                    onSelect={(lang) => setSelectedLang(lang.code)}
-                    onEdit={(lang) => openManager(lang.code)}
-                    onToggleStatus={(lang) =>
-                      patchLangStatus(lang.code, lang.enabled ? "draft" : "active")
-                    }
-                    onTranslateAll={(lang) => translateLanguageAll(lang)}
-                    onDelete={(lang) => confirmDeleteLang(lang)}
-                    onAdd={() => openManager(null)}
-                  />
-                </BlockStack>
-              </Card>
+              <BlockStack gap="200">
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="h2" variant="headingSm">
+                      Target language
+                    </Text>
+                    <LanguageList
+                      languages={languages}
+                      selectedCode={selectedLang}
+                      aiAvailable={ai.available}
+                      onSelect={(lang) => setSelectedLang(lang.code)}
+                      onEdit={(lang) => openManager(lang.code)}
+                      onToggleStatus={(lang) =>
+                        patchLangStatus(
+                          lang.code,
+                          lang.enabled ? "draft" : "active",
+                        )
+                      }
+                      onTranslateAll={(lang) => translateLanguageAll(lang)}
+                      onDelete={(lang) => confirmDeleteLang(lang)}
+                      onAdd={() => openManager(null)}
+                    />
+                  </BlockStack>
+                </Card>
 
-              <Card>
-                <BlockStack gap="100">
-                  <Text as="h2" variant="headingSm">
-                    Sources
-                  </Text>
-                  {/* ponytail: v1 has post + option only; per-source-type
+                <Card>
+                  <BlockStack gap="100">
+                    <Text as="h2" variant="headingSm">
+                      Sources
+                    </Text>
+                    {/* ponytail: v1 has post + option only; per-source-type
 								     totals land when the other 4 types are wired. */}
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodySm">
-                      Content
-                    </Text>
-                    <Text as="span" tone="subdued" variant="bodySm">
-                      {totalTexts}
-                    </Text>
-                  </InlineStack>
-                </BlockStack>
-              </Card>
+                    <InlineStack align="space-between">
+                      <Text as="span" variant="bodySm">
+                        Content
+                      </Text>
+                      <Text as="span" tone="subdued" variant="bodySm">
+                        {totalTexts}
+                      </Text>
+                    </InlineStack>
+                  </BlockStack>
+                </Card>
+              </BlockStack>
             </BlockStack>
           </div>
           <div style={{ paddingTop: 16 }}>
@@ -434,8 +486,7 @@ export default function Dashboard({
             flex: 1,
             minWidth: 0,
             marginBlockStart: 8,
-            height: "calc(100vh - 100px)",
-            overflowY: "auto",
+            minHeight: "calc(100vh - 100px)",
           }}
         >
           <div
@@ -449,30 +500,25 @@ export default function Dashboard({
             <div
               style={{
                 position: "sticky",
-                top: 0,
+                top: 32,
                 zIndex: 2,
                 background: "var(--p-color-bg-surface, #fff)",
+                borderTopLeftRadius: "var(--p-border-radius-300, 12px)",
+                borderTopRightRadius: "var(--p-border-radius-300, 12px)",
               }}
             >
               <Box padding="300">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    height: 32,
-                  }}
-                >
-                  {/* Search on the left */}
-                  <Button
-                    icon={SearchIcon}
-                    variant="tertiary"
-                    pressed={showSearch}
-                    accessibilityLabel="Search"
-                    onClick={() => setShowSearch((s) => !s)}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {showSearch && (
+                <BlockStack gap="200">
+                  {/* Line 1: search (left) + AI · Configure (right) */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      minHeight: 32,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <TextField
                         label="Search text"
                         labelHidden
@@ -484,40 +530,44 @@ export default function Dashboard({
                         clearButton
                         onClearButtonClick={() => setSearch("")}
                       />
-                    )}
+                    </div>
+                    <Button
+                      icon={(props) => <StartIcon {...props} />}
+                      variant="tertiary"
+                      disabled={!ai.available}
+                      accessibilityLabel="AI translate all"
+                      size="medium"
+                      onClick={() =>
+                        setConfirm({
+                          title: "AI translate all missing text?",
+                          body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
+                          actionLabel: "Translate all",
+                          onConfirm: () => translateScope("language"),
+                        })
+                      }
+                    />
+                    <Button
+                      icon={SettingsIcon}
+                      variant="tertiary"
+                      accessibilityLabel="Configure"
+                      size="medium"
+                      onClick={() => openManager(null)}
+                    />
                   </div>
-                  {/* Right: AI · Filter · Configure */}
-                  <Button
-                    icon={(props) => <StartIcon {...props} />}
-                    variant="tertiary"
-                    disabled={!ai.available}
-                    accessibilityLabel="AI translate all"
-                    onClick={() =>
-                      setConfirm({
-                        title: "AI translate all missing text?",
-                        body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
-                        actionLabel: "Translate all",
-                        onConfirm: () => translateScope("language"),
-                      })
-                    }
-                  />
-                  <Button
-                    icon={FilterIcon}
-                    variant="tertiary"
-                    pressed={statusFilter !== "all"}
-                    accessibilityLabel="Filter"
-                    onClick={() => setFilterOpen(true)}
-                  />
-                  <Button
-                    icon={LanguageIcon}
-                    variant="tertiary"
-                    accessibilityLabel="Configure"
-                    onClick={() => openManager(null)}
-                  />
-                </div>
+                  {/* Line 2: standard Polaris Filters (status) */}
+                  <div className="tl-filters">
+                    <Filters
+                      hideQueryField
+                      filters={filters}
+                      appliedFilters={appliedFilters}
+                      onQueryChange={() => {}}
+                      onQueryClear={() => {}}
+                      onClearAll={() => setStatusFilter("all")}
+                    />
+                  </div>
+                </BlockStack>
               </Box>
             </div>
-            <Divider />
             {collections === null ? (
               <Box padding="500">
                 <Spinner accessibilityLabel="Loading content" size="small" />
@@ -592,44 +642,15 @@ export default function Dashboard({
         unit={overlay?.unit}
         fieldLabel={overlay?.fieldLabel}
         language={selectedLang}
+        targetDir={
+          languages.find((l) => l.code === selectedLang)?.direction || "ltr"
+        }
         aiAvailable={ai.available}
         onAiTranslate={translateScope}
         onClose={() => setOverlay(null)}
         onSaved={() => overlay && afterMutate(overlay.cid)}
       />
       <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
-      <Modal
-        open={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        title="Filter"
-        size="small"
-      >
-        <Modal.Section>
-          <InlineStack gap="200" blockAlign="center" wrap={false}>
-            <Button
-              pressed={statusFilter === "all"}
-              onClick={() => {
-                setStatusFilter("all");
-                setFilterOpen(false);
-              }}
-            >
-              All
-            </Button>
-            {FILTERS.map((f) => (
-              <Button
-                key={f.key}
-                pressed={statusFilter === f.key}
-                onClick={() => {
-                  setStatusFilter(f.key);
-                  setFilterOpen(false);
-                }}
-              >
-                {f.label}
-              </Button>
-            ))}
-          </InlineStack>
-        </Modal.Section>
-      </Modal>
     </Page>
   );
 }
@@ -675,6 +696,7 @@ function CollectionGroup({
 }) {
   const c = collection;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   function confirmAiGroup() {
     onConfirm({
@@ -700,7 +722,7 @@ function CollectionGroup({
       title: "Ignore all texts in this group?",
       body: "Every text in this group will be excluded from translation and moved to the Ignored view.",
       actionLabel: "Ignore all",
-      destructive: true,
+      // destructive: true,
       onConfirm: () => bulk("ignore"),
     });
   }
@@ -710,34 +732,65 @@ function CollectionGroup({
       title: "Clear all translations in this group?",
       body: "Every translation in this group for the selected language will be removed.",
       actionLabel: "Clear all",
-      destructive: true,
+      // destructive: true,
       onConfirm: () => bulk("clear"),
     });
   }
 
   return (
     <Box>
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
       <Box padding="300" background={open ? "bg-surface-secondary" : undefined}>
         <InlineStack align="space-between" blockAlign="center" wrap={false}>
           <button
             type="button"
             onClick={onToggle}
-            style={{ all: "unset", cursor: "pointer", flex: 1 }}
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
           >
             <Text as="span" variant="bodyMd" fontWeight="medium">
-              {(open ? "▾ " : "▸ ") + groupHeading(c)}
+              {open ? "▾" : "▸"}
+            </Text>
+            <span
+              style={{
+                display: "inline-flex",
+                flexShrink: 0,
+                width: 16,
+                height: 16,
+                color: "var(--p-color-icon-subdued)",
+              }}
+            >
+              <PageIcon fill="currentColor" width={16} height={16} />
+            </span>
+            <Text as="span" variant="bodyMd" fontWeight="medium">
+              {groupHeading(c)}
             </Text>
           </button>
-          <InlineStack gap="200" blockAlign="center" wrap={false}>
-            <Text as="span" tone="subdued" variant="bodySm">
-              {c.total} texts · {c.translated} translated
-            </Text>
+          <div
+            style={{
+              opacity: hovered || menuOpen ? 1 : 0,
+              visibility: hovered || menuOpen ? "visible" : "hidden",
+              transition: "opacity 120ms ease",
+            }}
+          >
+          <InlineStack gap="100" blockAlign="center" wrap={false}>
             <Button
+              variant="tertiary"
               size="micro"
               disabled={!aiAvailable}
+              icon={(props) => <StartIcon {...props} />}
               onClick={confirmAiGroup}
             >
-              ⚡ Translate all
+              Translate all
             </Button>
             <Popover
               active={menuOpen}
@@ -768,10 +821,12 @@ function CollectionGroup({
               />
             </Popover>
           </InlineStack>
+          </div>
         </InlineStack>
       </Box>
+      </div>
       <Collapsible open={open} id={`col-${c.id}`}>
-        <Box paddingBlockEnd="200">
+        <Box paddingBlockEnd="200" paddingInlineStart="1000">
           {loading || texts === null ? (
             <Box padding="300">
               <Spinner accessibilityLabel="Loading texts" size="small" />
@@ -806,32 +861,52 @@ function TextUnitRow({
   aiAvailable,
   onAiTranslate,
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState(unit.translated ?? "");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [copyOpen, setCopyOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   const badge = STATUS_BADGE[unit.status];
   const shown = unit.translated ?? unit.fallback;
   const hasTranslation =
     unit.translated !== null && unit.translated !== undefined;
 
-  function startEdit() {
-    setDraft(unit.translated ?? "");
-    setEditing(true);
-  }
+  // "Long" = the original doesn't fit on one line in its cell at the current
+  // width. Measured, so it adapts to screen/column size instead of a fixed
+  // character count. Long text edits in the overlay; short text edits inline.
+  // A composed unit carries codec markers ({1}…{/1}); it must edit in the
+  // overlay's chip editor, never the plain inline input.
+  const isComposed = /\{\/?\d+\/?\}/.test(unit.original || "");
+  const originalRef = useRef(null);
+  const [isLong, setIsLong] = useState(false);
+  useLayoutEffect(() => {
+    const el = originalRef.current;
+    if (!el) {
+      return;
+    }
+    const check = () => setIsLong(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [unit.original]);
 
-  async function save() {
-    setSaving(true);
+  // Keep the inline draft in sync when the translation changes elsewhere
+  // (AI translate, overlay save).
+  useEffect(() => {
+    setDraft(unit.translated ?? "");
+  }, [unit.translated]);
+
+  // Autosave the inline field on blur — only when the value actually changed.
+  async function saveTranslation() {
+    if ((unit.translated ?? "") === draft) {
+      return;
+    }
     const res = await api.post("/translations", {
       text_unit_id: unit.id,
       language,
       text: draft,
     });
-    setSaving(false);
     if (res.ok) {
-      setEditing(false);
       onMutate();
     }
   }
@@ -865,13 +940,6 @@ function TextUnitRow({
       destructive: true,
       onConfirm: () => doStatus("ignore"),
     });
-  }
-
-  function copyOriginal() {
-    setCopyOpen(false);
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(unit.original);
-    }
   }
 
   const menuItems = [
@@ -912,68 +980,36 @@ function TextUnitRow({
   ].filter(Boolean);
 
   return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
     <Box paddingInline="300" paddingBlock="200">
       <InlineStack
         gap="300"
         align="space-between"
-        blockAlign="start"
+        blockAlign="center"
         wrap={false}
       >
-        <Box width="42%">
-          <Popover
-            active={copyOpen}
-            onClose={() => setCopyOpen(false)}
-            activator={
-              <button
-                type="button"
-                onClick={() => setCopyOpen(true)}
-                style={{ all: "unset", cursor: "pointer", display: "block" }}
-              >
-                <Text as="span" variant="bodySm">
-                  {unit.original}
-                </Text>
-              </button>
-            }
+        <Box width="42%" minWidth="0">
+          <button
+            ref={originalRef}
+            type="button"
+            onClick={() => onOpenOverlay(unit)}
+            style={oneLineStyle}
           >
-            <ActionList items={[{ content: "Copy", onAction: copyOriginal }]} />
-          </Popover>
+            <Text as="span" variant="bodySm">
+              {unit.original}
+            </Text>
+          </button>
         </Box>
 
-        <Box width="42%">
-          {editing ? (
-            <BlockStack gap="100">
-              <TextField
-                label="Translation"
-                labelHidden
-                multiline={2}
-                value={draft}
-                onChange={setDraft}
-                autoComplete="off"
-              />
-              <InlineStack gap="100">
-                <Button
-                  size="micro"
-                  variant="primary"
-                  loading={saving}
-                  onClick={save}
-                >
-                  Save
-                </Button>
-                <Button size="micro" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-              </InlineStack>
-            </BlockStack>
-          ) : (
+        <Box width="42%" minWidth="0">
+          {isLong || isComposed ? (
             <button
               type="button"
-              onClick={startEdit}
-              style={{
-                all: "unset",
-                cursor: "text",
-                display: "block",
-                width: "100%",
-              }}
+              onClick={() => onOpenOverlay(unit)}
+              style={oneLineStyle}
             >
               <Text
                 as="span"
@@ -983,6 +1019,27 @@ function TextUnitRow({
                 {shown}
               </Text>
             </button>
+          ) : (
+            <input
+              type="text"
+              aria-label="Translation"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={saveTranslation}
+              placeholder={unit.fallback || ""}
+              style={{
+                all: "unset",
+                display: "block",
+                width: "100%",
+                minWidth: 0,
+                cursor: "text",
+                fontSize: "var(--p-font-size-300, 0.75rem)",
+                lineHeight: "var(--p-font-line-height-300, 1rem)",
+                color: hasTranslation
+                  ? "var(--p-color-text)"
+                  : "var(--p-color-text-subdued)",
+              }}
+            />
           )}
         </Box>
 
@@ -994,24 +1051,33 @@ function TextUnitRow({
                 {badge.label}
               </Badge>
             )}
-            <Popover
-              active={menuOpen}
-              onClose={() => setMenuOpen(false)}
-              activator={
-                <Button
-                  variant="tertiary"
-                  size="micro"
-                  onClick={() => setMenuOpen((o) => !o)}
-                >
-                  ⋯
-                </Button>
-              }
+            <div
+              style={{
+                opacity: hovered || menuOpen ? 1 : 0,
+                visibility: hovered || menuOpen ? "visible" : "hidden",
+                transition: "opacity 120ms ease",
+              }}
             >
-              <ActionList items={menuItems} />
-            </Popover>
+              <Popover
+                active={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                activator={
+                  <Button
+                    variant="tertiary"
+                    size="micro"
+                    onClick={() => setMenuOpen((o) => !o)}
+                  >
+                    ⋯
+                  </Button>
+                }
+              >
+                <ActionList items={menuItems} />
+              </Popover>
+            </div>
           </InlineStack>
         </Box>
       </InlineStack>
     </Box>
+    </div>
   );
 }

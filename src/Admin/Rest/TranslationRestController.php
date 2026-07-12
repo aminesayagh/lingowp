@@ -2,6 +2,7 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Core\Parsing\UnitStructureGuard;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Source\Value\TranslationStatus;
@@ -58,6 +59,14 @@ final class TranslationRestController
 
         if ($ref === null || $lang === '') {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        $errors = UnitStructureGuard::validate($this->repo->loadSourceText($ref) ?? '', $text);
+        if ($errors !== []) {
+            return new WP_REST_Response(
+                ['ok' => false, 'error' => 'ERR_TAG_STRUCTURE', 'errors' => $errors],
+                422
+            );
         }
 
         $this->repo->saveTranslation($ref, $lang, $text, TranslationStatus::REVIEWED, null);
