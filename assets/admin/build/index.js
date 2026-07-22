@@ -13462,14 +13462,7 @@ __webpack_require__.r(__webpack_exports__);
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 const PANE_HEIGHT = "min(62vh, 620px)";
-const paneStyle = {
-  flex: 1,
-  minWidth: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-  padding: "12px 16px"
-};
+const PANE_CLASS = "flex-1 min-w-0 flex flex-col gap-2 px-4 py-3";
 const textareaStyle = muted => ({
   all: "unset",
   boxSizing: "border-box",
@@ -13654,17 +13647,14 @@ function CompareOverlay({
         alignItems: "stretch"
       },
       children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)("div", {
-        style: paneStyle,
+        className: PANE_CLASS,
         children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(PaneHeader, {
           left: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.InlineStack, {
             gap: "150",
             blockAlign: "center",
             wrap: false,
             children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)("span", {
-              style: {
-                fontSize: 16,
-                lineHeight: 1
-              },
+              className: "text-base leading-none",
               children: sourceFlag
             }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Text, {
               as: "span",
@@ -13705,7 +13695,7 @@ function CompareOverlay({
           background: "var(--p-color-border)"
         }
       }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)("div", {
-        style: paneStyle,
+        className: PANE_CLASS,
         children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(PaneHeader, {
           left: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Popover, {
             active: langOpen,
@@ -13726,10 +13716,7 @@ function CompareOverlay({
                 tone: "subdued",
                 children: targetLabel
               }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)("span", {
-                style: {
-                  width: 14,
-                  height: 14
-                },
+                className: "w-3.5 h-3.5",
                 children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Icon, {
                   source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_8__.S,
                   tone: "subdued"
@@ -14014,6 +14001,8 @@ const STATUS_BADGE = {
 
 // Truncate a cell to a single line with an ellipsis; the whole cell is a
 // clickable button that opens the overlay to read/edit the full text.
+// ponytail: stays inline — `all: unset` must sit in the same declaration as the
+// properties it resets, otherwise inline precedence wipes out equivalent utilities.
 const oneLineStyle = {
   all: "unset",
   cursor: "pointer",
@@ -14394,9 +14383,7 @@ function Dashboard({
                   alt: "",
                   width: "24",
                   height: "24",
-                  style: {
-                    display: "block"
-                  }
+                  className: "block"
                 }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
                   as: "span",
                   variant: "headingMd",
@@ -14449,9 +14436,7 @@ function Dashboard({
             })]
           })
         }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
-          style: {
-            paddingTop: 16
-          },
+          className: "pt-4",
           children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_QuotaCard__WEBPACK_IMPORTED_MODULE_28__["default"], {
             quota: quota,
             aiAvailable: ai.available
@@ -14492,10 +14477,7 @@ function Dashboard({
                     minHeight: 32
                   },
                   children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
-                    style: {
-                      flex: 1,
-                      minWidth: 0
-                    },
+                    className: "flex-1 min-w-0",
                     children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_17__.TextField, {
                       label: "Search text",
                       labelHidden: true,
@@ -16300,10 +16282,8 @@ function Chip({
       outlineOffset: selected ? "1px" : 0
     },
     children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
+      className: "w-1.5 h-1.5 rounded-full",
       style: {
-        width: "6px",
-        height: "6px",
-        borderRadius: "50%",
         background: hue.border
       }
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
@@ -16313,11 +16293,7 @@ function Chip({
         e.stopPropagation();
         onRemove();
       },
-      style: {
-        marginInlineStart: "2px",
-        opacity: 0.6,
-        fontWeight: 700
-      },
+      className: "ms-0.5 opacity-60 font-bold",
       title: "Remove tag",
       children: "\xD7"
     })]
@@ -16532,10 +16508,7 @@ function ChipField({
           gap: "100",
           blockAlign: "center",
           children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-            style: {
-              width: 16,
-              height: 16
-            },
+            className: "w-4 h-4",
             children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
               source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_5__.S,
               tone: "success"
@@ -16550,10 +16523,7 @@ function ChipField({
           gap: "100",
           blockAlign: "center",
           children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-            style: {
-              width: 16,
-              height: 16
-            },
+            className: "w-4 h-4",
             children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
               source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_7__.S,
               tone: "critical"
@@ -16589,10 +16559,7 @@ function ChipField({
                 borderStyle: "dashed"
               },
               children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-                style: {
-                  width: 10,
-                  height: 10
-                },
+                className: "w-2.5 h-2.5",
                 children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
                   source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_6__.S
                 })
@@ -16603,10 +16570,7 @@ function ChipField({
           gap: "100",
           blockAlign: "center",
           children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-            style: {
-              width: 14,
-              height: 14
-            },
+            className: "w-3.5 h-3.5",
             children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
               source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_4__.S,
               tone: "caution"
@@ -16855,6 +16819,19 @@ function removeClass(element, className) {
     element.setAttribute('class', replaceClassName(element.className && element.className.baseVal || '', className));
   }
 }
+
+/***/ },
+
+/***/ "./admin-ui/tailwind.css"
+/*!*******************************!*\
+  !*** ./admin-ui/tailwind.css ***!
+  \*******************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+// extracted by mini-css-extract-plugin
+
 
 /***/ },
 
@@ -53251,17 +53228,19 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _shopify_polaris_build_esm_styles_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris/build/esm/styles.css */ "./node_modules/@shopify/polaris/build/esm/styles.css");
 /* harmony import */ var _wp_admin_reset_css__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./wp-admin-reset.css */ "./admin-ui/wp-admin-reset.css");
-/* harmony import */ var _App__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./App */ "./admin-ui/App.jsx");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var _tailwind_css__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./tailwind.css */ "./admin-ui/tailwind.css");
+/* harmony import */ var _App__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./App */ "./admin-ui/App.jsx");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__);
 
 
  // strip wp-admin form-style bleed from Polaris inputs
 
 
+
 const mount = document.getElementById('translangs-app');
 if (mount) {
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.createRoot)(mount).render(/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(_App__WEBPACK_IMPORTED_MODULE_3__["default"], {}));
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.createRoot)(mount).render(/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_5__.jsx)(_App__WEBPACK_IMPORTED_MODULE_4__["default"], {}));
 }
 })();
 

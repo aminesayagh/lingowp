@@ -9,7 +9,9 @@
     "watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch"
   },
   "devDependencies": {
-    "@wordpress/scripts": "^30.0.0"
+    "@tailwindcss/postcss": "^4.3.3",
+    "@wordpress/scripts": "^30.0.0",
+    "tailwindcss": "^4.3.3"
   },
   "dependencies": {
     "@shopify/polaris": "^13.9.5",

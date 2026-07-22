@@ -38,14 +38,7 @@ import { ChipField, SourceChips, hasMarkers } from "./TranslationUnitEditor";
 const AUTOSAVE_DEBOUNCE_MS = 800;
 const PANE_HEIGHT = "min(62vh, 620px)";
 
-const paneStyle = {
-  flex: 1,
-  minWidth: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-  padding: "12px 16px",
-};
+const PANE_CLASS = "flex-1 min-w-0 flex flex-col gap-2 px-4 py-3";
 
 const textareaStyle = (muted) => ({
   all: "unset",
@@ -254,11 +247,11 @@ export default function CompareOverlay({
         }}
       >
         {/* ---- original (read only) ---- */}
-        <div style={paneStyle}>
+        <div className={PANE_CLASS}>
           <PaneHeader
             left={
               <InlineStack gap="150" blockAlign="center" wrap={false}>
-                <span style={{ fontSize: 16, lineHeight: 1 }}>{sourceFlag}</span>
+                <span className="text-base leading-none">{sourceFlag}</span>
                 <Text as="span" variant="headingXs" tone="subdued">
                   {sourceLabel}
                 </Text>
@@ -295,7 +288,7 @@ export default function CompareOverlay({
         <div style={{ width: 1, background: "var(--p-color-border)" }} />
 
         {/* ---- translation (editable) ---- */}
-        <div style={paneStyle}>
+        <div className={PANE_CLASS}>
           <PaneHeader
             left={
               <Popover
@@ -316,7 +309,7 @@ export default function CompareOverlay({
                     <Text as="span" variant="headingXs" tone="subdued">
                       {targetLabel}
                     </Text>
-                    <span style={{ width: 14, height: 14 }}>
+                    <span className="w-3.5 h-3.5">
                       <Icon source={ChevronDownIcon} tone="subdued" />
                     </span>
                   </button>

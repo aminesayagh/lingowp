@@ -204,12 +204,8 @@ function Chip({ seg, tags, readOnly, selected, onSelect, onKeyDown, onRemove }) 
       }}
     >
       <span
-        style={{
-          width: "6px",
-          height: "6px",
-          borderRadius: "50%",
-          background: hue.border,
-        }}
+        className="w-1.5 h-1.5 rounded-full"
+        style={{ background: hue.border }}
       />
       <span>{chipText(seg, tags)}</span>
       {!readOnly && selected && (
@@ -218,7 +214,7 @@ function Chip({ seg, tags, readOnly, selected, onSelect, onKeyDown, onRemove }) 
             e.stopPropagation();
             onRemove();
           }}
-          style={{ marginInlineStart: "2px", opacity: 0.6, fontWeight: 700 }}
+          className="ms-0.5 opacity-60 font-bold"
           title="Remove tag"
         >
           ×
@@ -444,7 +440,7 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
         <InlineStack gap="300" blockAlign="center" align="start">
           {validation.ok ? (
             <InlineStack gap="100" blockAlign="center">
-              <span style={{ width: 16, height: 16 }}>
+              <span className="w-4 h-4">
                 <Icon source={CheckIcon} tone="success" />
               </span>
               <Text as="span" variant="bodySm" tone="success">
@@ -453,7 +449,7 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
             </InlineStack>
           ) : (
             <InlineStack gap="100" blockAlign="center">
-              <span style={{ width: 16, height: 16 }}>
+              <span className="w-4 h-4">
                 <Icon source={XCircleIcon} tone="critical" />
               </span>
               <Text as="span" variant="bodySm" tone="critical">
@@ -483,7 +479,7 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
                       borderStyle: "dashed",
                     }}
                   >
-                    <span style={{ width: 10, height: 10 }}>
+                    <span className="w-2.5 h-2.5">
                       <Icon source={ReturnIcon} />
                     </span>
                     {chipText(seg, tags)}
@@ -495,7 +491,7 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
 
           {validation.ok && validation.emptyPairs.length > 0 && (
             <InlineStack gap="100" blockAlign="center">
-              <span style={{ width: 14, height: 14 }}>
+              <span className="w-3.5 h-3.5">
                 <Icon source={AlertTriangleIcon} tone="caution" />
               </span>
               <Text as="span" variant="bodyXs" tone="caution">

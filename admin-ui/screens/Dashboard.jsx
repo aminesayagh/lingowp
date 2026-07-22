@@ -70,6 +70,8 @@ const STATUS_BADGE = {
 
 // Truncate a cell to a single line with an ellipsis; the whole cell is a
 // clickable button that opens the overlay to read/edit the full text.
+// ponytail: stays inline — `all: unset` must sit in the same declaration as the
+// properties it resets, otherwise inline precedence wipes out equivalent utilities.
 const oneLineStyle = {
   all: "unset",
   cursor: "pointer",
@@ -465,7 +467,7 @@ export default function Dashboard({
                       alt=""
                       width="24"
                       height="24"
-                      style={{ display: "block" }}
+                      className="block"
                     />
                   )}
                   <Text as="span" variant="headingMd">
@@ -518,7 +520,7 @@ export default function Dashboard({
               </BlockStack>
             </BlockStack>
           </div>
-          <div style={{ paddingTop: 16 }}>
+          <div className="pt-4">
             <QuotaCard quota={quota} aiAvailable={ai.available} />
           </div>
         </div>
@@ -561,7 +563,7 @@ export default function Dashboard({
                       minHeight: 32,
                     }}
                   >
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="flex-1 min-w-0">
                       <TextField
                         label="Search text"
                         labelHidden
