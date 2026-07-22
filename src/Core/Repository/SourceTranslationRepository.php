@@ -141,6 +141,15 @@ interface SourceTranslationRepository
     public function listTermTexts(int $termTaxonomyId, string $langCode): array;
 
     /**
+     * The discovered tl_term text units of every term in one taxonomy for one
+     * language, ordered by term name then field.
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listTaxonomyTexts(string $taxonomy, string $langCode): array;
+
+    /**
      * Post-meta per-status counts grouped by WP post (joined to wp_posts) for one
      * language. Merged into each post's content collection alongside tl_post.
      *

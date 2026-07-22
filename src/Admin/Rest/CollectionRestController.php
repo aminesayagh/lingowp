@@ -115,16 +115,25 @@ final class CollectionRestController
             ];
         }
 
+        // Terms group by their taxonomy: one collection per taxonomy (all post
+        // categories together, all product categories together, …), not one per
+        // term. Counts are summed across the taxonomy's terms.
+        $byTax = [];
         foreach ($this->repo->listTermCollections($lang) as $t) {
+            $tax = $t['taxonomy'];
+            if (! isset($byTax[$tax])) {
+                $byTax[$tax] = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
+            }
+            foreach (['total', 'translated', 'needs_review', 'missing'] as $k) {
+                $byTax[$tax][$k] += $t[$k];
+            }
+        }
+        foreach ($byTax as $tax => $c) {
             $collections[] = [
-                'id'           => 'term:' . $t['term_taxonomy_id'],
-                'label'        => $t['name'] !== '' ? $t['name'] : __('(no name)', 'translangs'),
-                'type'         => 'taxonomy',
-                'total'        => $t['total'],
-                'translated'   => $t['translated'],
-                'needs_review' => $t['needs_review'],
-                'missing'      => $t['missing'],
-            ];
+                'id'    => 'taxonomy:' . $tax,
+                'label' => $this->taxonomyLabel($tax),
+                'type'  => 'taxonomy',
+            ] + $c;
         }
 
         return rest_ensure_response([
@@ -161,10 +170,10 @@ final class CollectionRestController
                 $this->repo->listMetaTexts($postId, $lang)
             );
             $texts = array_merge($posts, $metas);
-        } elseif (preg_match('/^term:([0-9]+)$/', $id, $m)) {
+        } elseif (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
             $texts = array_map(
                 fn (array $r): array => $this->presentText('term', $r, (string) $r['field']),
-                $this->repo->listTermTexts((int) $m[1], $lang)
+                $this->repo->listTaxonomyTexts($m[1], $lang)
             );
         } else {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
@@ -242,10 +251,10 @@ final class CollectionRestController
             );
             return array_merge($posts, $metas);
         }
-        if (preg_match('/^term:([0-9]+)$/', $id, $m)) {
+        if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
             return array_map(
                 static fn (array $u): SourceRef => SourceRef::make('term', (int) $u['id']),
-                $this->repo->listTermTexts((int) $m[1], $lang)
+                $this->repo->listTaxonomyTexts($m[1], $lang)
             );
         }
 
@@ -296,6 +305,17 @@ final class CollectionRestController
         }
 
         return $this->registry->getTargetLanguages()[0] ?? '';
+    }
+
+    /** Human-readable taxonomy name (plural label), falling back to the slug. */
+    private function taxonomyLabel(string $taxonomy): string
+    {
+        $obj = get_taxonomy($taxonomy);
+        if ($obj && ! empty($obj->labels->name)) {
+            return (string) $obj->labels->name;
+        }
+
+        return $taxonomy;
     }
 
     /** Map a WordPress post_type to the workspace source group. */

@@ -491,6 +491,33 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return array_map([$this, 'textUnitRow'], (array) $rows);
     }
 
+    public function listTaxonomyTexts(string $taxonomy, string $langCode): array
+    {
+        $parent = $this->parent('tl_term');
+        $child  = $parent . '_translation';
+        $tt     = $this->wpdb->term_taxonomy;
+        $terms  = $this->wpdb->terms;
+
+        $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
+                JOIN {$terms} tm ON tm.term_id = tx.term_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE tx.taxonomy = %s AND p.status = %d
+                ORDER BY tm.name, p.field, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $taxonomy,
+            TranslationStatus::SOURCE_DISCOVERED
+        ), ARRAY_A);
+
+        return array_map([$this, 'textUnitRow'], (array) $rows);
+    }
+
     public function postMetaCounts(string $langCode): array
     {
         $parent = $this->parent('tl_meta');

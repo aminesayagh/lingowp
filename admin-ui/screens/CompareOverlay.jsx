@@ -1,136 +1,374 @@
 import {
-	Badge,
-	BlockStack,
-	Box,
-	InlineStack,
-	Modal,
-	Text,
-	TextField,
-} from '@shopify/polaris';
-import { useEffect, useMemo, useState } from '@wordpress/element';
-import { api } from '../api';
-import TranslationUnitEditor from './TranslationUnitEditor';
+  ActionList,
+  Button,
+  ButtonGroup,
+  Icon,
+  InlineStack,
+  Modal,
+  Popover,
+  Text,
+} from "@shopify/polaris";
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClipboardIcon,
+  MagicIcon,
+  MenuHorizontalIcon,
+} from "@shopify/polaris-icons";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "@wordpress/element";
+import { api } from "../api";
+import { ChipField, SourceChips, hasMarkers } from "./TranslationUnitEditor";
 
-// A composed (inline-tag) unit carries codec markers like {1}…{/1} in its source;
-// those edit in the chip editor, never a plain textarea.
-const MARKER_RE = /\{\/?\d+\/?\}/;
+/*
+ * Text-editor overlay (DSL: overlay#text_editor) — one shell for both variants:
+ * long_text and composed_text. Left column is the read-only original, right
+ * column is the editable translation.
+ *
+ * There is no footer: the translation autosaves. A composed unit only ever
+ * edits through the chip field, never a plain textarea, so codec markers can't
+ * be typed or mangled.
+ */
 
-// Full side-by-side compare + edit for one text unit (wireframe 2.3). A manual
-// save is REVIEWED (status 2) server-side; ⚡ AI translate is Phase D.
-export default function CompareOverlay( { open, unit, fieldLabel, language, targetDir = 'ltr', aiAvailable, onAiTranslate, onClose, onSaved } ) {
-	const [ text, setText ] = useState( '' );
-	const [ valid, setValid ] = useState( true );
-	const [ saving, setSaving ] = useState( false );
-	const [ error, setError ] = useState( '' );
+const AUTOSAVE_DEBOUNCE_MS = 800;
+const PANE_HEIGHT = "min(62vh, 620px)";
 
-	const composed = useMemo(
-		() => !! unit && MARKER_RE.test( unit.original || '' ),
-		[ unit ]
-	);
+const paneStyle = {
+  flex: 1,
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+  padding: "12px 16px",
+};
 
-	useEffect( () => {
-		if ( open && unit ) {
-			setText( unit.translated ?? '' );
-			setValid( true );
-			setError( '' );
-		}
-	}, [ open, unit ] );
+const textareaStyle = (muted) => ({
+  all: "unset",
+  boxSizing: "border-box",
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  whiteSpace: "pre-wrap",
+  padding: "8px 4px",
+  fontSize: "13px",
+  lineHeight: "22px",
+  color: muted ? "var(--p-color-text-subdued)" : "var(--p-color-text)",
+});
 
-	if ( ! unit ) {
-		return null;
-	}
+function PaneHeader({ left, right }) {
+  return (
+    <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
+      {left}
+      {right}
+    </InlineStack>
+  );
+}
 
-	async function save() {
-		setSaving( true );
-		const res = await api.post( '/translations', { text_unit_id: unit.id, language, text } );
-		setSaving( false );
-		if ( res.ok ) {
-			onSaved();
-			onClose();
-			return;
-		}
-		setError(
-			res.error === 'ERR_TAG_STRUCTURE'
-				? 'Tag structure is invalid — fix the highlighted tags before saving.'
-				: 'Could not save. Please try again.'
-		);
-	}
+export default function CompareOverlay({
+  open,
+  unit,
+  fieldLabel,
+  language,
+  languages = [],
+  sourceLabel = "Original",
+  sourceFlag = "",
+  targetDir = "ltr",
+  aiAvailable,
+  onAiTranslate,
+  onPickLanguage,
+  onClose,
+  onSaved,
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
+}) {
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedTick, setSavedTick] = useState(0);
+  const [error, setError] = useState("");
+  const [translating, setTranslating] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
 
-	return (
-		<Modal
-			open={ open }
-			onClose={ onClose }
-			title={ fieldLabel || 'Compare translation' }
-			large
-			primaryAction={ {
-				content: 'Save',
-				onAction: save,
-				loading: saving,
-				disabled: composed && ! valid,
-			} }
-			secondaryActions={ [
-				{ content: 'Cancel', onAction: onClose },
-				{
-					content: '⚡ AI translate',
-					disabled: ! aiAvailable,
-					onAction: async () => {
-						await onAiTranslate( 'text', { ref: unit.id } );
-						onClose();
-					},
-				},
-			] }
-		>
-			<Modal.Section>
-				{ composed ? (
-					<BlockStack gap="200">
-						<TranslationUnitEditor
-							key={ unit.id }
-							sourceUnit={ unit.original }
-							initialTranslation={ unit.translated ?? '' }
-							tags={ unit.tags }
-							dir={ targetDir }
-							onChange={ ( serialized, isValid ) => {
-								setText( serialized );
-								setValid( isValid );
-							} }
-						/>
-						{ error && (
-							<Text as="p" tone="critical" variant="bodySm">{ error }</Text>
-						) }
-					</BlockStack>
-				) : (
-					<InlineStack gap="500" align="start" blockAlign="start" wrap={ false }>
-						<Box width="50%">
-							<BlockStack gap="200">
-								<Text as="h3" variant="headingSm">Original</Text>
-								<Text as="p" variant="bodyMd">{ unit.original }</Text>
-								<Text as="p" tone="subdued" variant="bodySm">
-									{ unit.char_count } characters · { unit.word_count } words
-								</Text>
-							</BlockStack>
-						</Box>
-						<Box width="50%">
-							<BlockStack gap="200">
-								<InlineStack gap="100" blockAlign="center">
-									<Text as="h3" variant="headingSm">Translation</Text>
-									{ unit.is_ai && <Badge size="small">AI</Badge> }
-								</InlineStack>
-								<TextField
-									label="Translation"
-									labelHidden
-									multiline={ 4 }
-									value={ text }
-									onChange={ setText }
-									autoComplete="off"
-								/>
-								{ error && (
-									<Text as="p" tone="critical" variant="bodySm">{ error }</Text>
-								) }
-							</BlockStack>
-						</Box>
-					</InlineStack>
-				) }
-			</Modal.Section>
-		</Modal>
-	);
+  const savedRef = useRef(""); // last value known to be persisted
+  const validRef = useRef(true); // chip-structure validity (composed only)
+  const pendingRef = useRef(null); // value waiting on the debounce
+  const timerRef = useRef(null);
+
+  const composed = !!unit && hasMarkers(unit.original || "");
+  const unitId = unit?.id;
+  const incoming = unit?.translated ?? "";
+
+  const save = useCallback(
+    async (value) => {
+      if (!unitId || value === savedRef.current) {
+        return;
+      }
+      if (composed && !validRef.current) {
+        return; // broken tag structure never reaches the server
+      }
+      setSaving(true);
+      const res = await api.post("/translations", {
+        text_unit_id: unitId,
+        language,
+        text: value,
+      });
+      setSaving(false);
+      if (res.ok) {
+        savedRef.current = value;
+        setError("");
+        setSavedTick((t) => t + 1);
+        onSaved();
+        return;
+      }
+      setError(
+        res.error === "ERR_TAG_STRUCTURE"
+          ? "Tag structure is invalid — fix the highlighted tags."
+          : "Could not save. Please try again."
+      );
+    },
+    [unitId, language, composed, onSaved]
+  );
+
+  const flush = useCallback(() => {
+    clearTimeout(timerRef.current);
+    const value = pendingRef.current;
+    pendingRef.current = null;
+    return value === null ? Promise.resolve() : save(value);
+  }, [save]);
+
+  const schedule = useCallback(
+    (value) => {
+      pendingRef.current = value;
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(flush, AUTOSAVE_DEBOUNCE_MS);
+    },
+    [flush]
+  );
+
+  // Switching unit or language starts a clean draft — never carry one over.
+  useEffect(() => {
+    if (!open || !unitId) {
+      return;
+    }
+    clearTimeout(timerRef.current);
+    pendingRef.current = null;
+    savedRef.current = incoming;
+    validRef.current = true;
+    setText(incoming);
+    setError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, unitId, language]);
+
+  // Adopt a value that changed server-side (AI translate, a refetch elsewhere).
+  useEffect(() => {
+    if (open && incoming !== savedRef.current) {
+      savedRef.current = incoming;
+      setText(incoming);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming]);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  if (!unit) {
+    return null;
+  }
+
+  const setDraft = (value, isValid = true) => {
+    validRef.current = isValid;
+    setText(value);
+    schedule(value);
+  };
+
+  async function withFlush(fn) {
+    await flush();
+    fn();
+  }
+
+  async function translate() {
+    setTranslating(true);
+    await flush();
+    await onAiTranslate("text", { ref: unit.id });
+    setTranslating(false);
+  }
+
+  const targetLang = languages.find((l) => l.code === language);
+  const targetLabel =
+    targetLang?.display_name || targetLang?.name || language || "Translation";
+
+  const header = (
+    <InlineStack gap="300" blockAlign="center" wrap={false}>
+      <ButtonGroup variant="segmented">
+        <Button
+          icon={ChevronLeftIcon}
+          disabled={!hasPrev}
+          onClick={() => withFlush(onPrev)}
+          accessibilityLabel="Before text"
+        />
+        <Button
+          icon={ChevronRightIcon}
+          disabled={!hasNext}
+          onClick={() => withFlush(onNext)}
+          accessibilityLabel="Next text"
+        />
+      </ButtonGroup>
+      <Popover
+        active={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        activator={
+          <Button
+            variant="tertiary"
+            icon={MenuHorizontalIcon}
+            onClick={() => setMenuOpen((o) => !o)}
+            accessibilityLabel="More actions"
+          />
+        }
+      >
+        <ActionList
+          items={[{ content: "View on Canvas", disabled: true }]}
+        />
+      </Popover>
+    </InlineStack>
+  );
+
+  return (
+    <Modal
+      open={open}
+      onClose={() => withFlush(onClose)}
+      title={header}
+      size="large"
+      noScroll
+    >
+      <div
+        style={{
+          display: "flex",
+          height: PANE_HEIGHT,
+          alignItems: "stretch",
+        }}
+      >
+        {/* ---- original (read only) ---- */}
+        <div style={paneStyle}>
+          <PaneHeader
+            left={
+              <InlineStack gap="150" blockAlign="center" wrap={false}>
+                <span style={{ fontSize: 16, lineHeight: 1 }}>{sourceFlag}</span>
+                <Text as="span" variant="headingXs" tone="subdued">
+                  {sourceLabel}
+                </Text>
+              </InlineStack>
+            }
+            right={
+              <InlineStack gap="100" blockAlign="center" wrap={false}>
+                <Button
+                  size="micro"
+                  icon={MagicIcon}
+                  disabled={!aiAvailable}
+                  loading={translating}
+                  onClick={translate}
+                >
+                  Translate
+                </Button>
+                <Button
+                  size="micro"
+                  variant="tertiary"
+                  icon={ClipboardIcon}
+                  accessibilityLabel="Copy the original into the translation"
+                  onClick={() => setDraft(unit.original ?? "")}
+                />
+              </InlineStack>
+            }
+          />
+          {composed ? (
+            <SourceChips unit={unit.original} tags={unit.tags} />
+          ) : (
+            <div style={textareaStyle(false)}>{unit.original}</div>
+          )}
+        </div>
+
+        <div style={{ width: 1, background: "var(--p-color-border)" }} />
+
+        {/* ---- translation (editable) ---- */}
+        <div style={paneStyle}>
+          <PaneHeader
+            left={
+              <Popover
+                active={langOpen}
+                onClose={() => setLangOpen(false)}
+                activator={
+                  <button
+                    type="button"
+                    onClick={() => setLangOpen((o) => !o)}
+                    style={{
+                      all: "unset",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <Text as="span" variant="headingXs" tone="subdued">
+                      {targetLabel}
+                    </Text>
+                    <span style={{ width: 14, height: 14 }}>
+                      <Icon source={ChevronDownIcon} tone="subdued" />
+                    </span>
+                  </button>
+                }
+              >
+                <ActionList
+                  items={languages.map((l) => ({
+                    content: l.display_name || l.name || l.code,
+                    active: l.code === language,
+                    onAction: () =>
+                      withFlush(() => {
+                        setLangOpen(false);
+                        onPickLanguage(l.code);
+                      }),
+                  }))}
+                />
+              </Popover>
+            }
+            right={
+              <Text as="span" variant="bodyXs" tone="subdued">
+                {saving ? "Saving…" : savedTick > 0 ? "Saved" : ""}
+              </Text>
+            }
+          />
+
+          {composed ? (
+            <ChipField
+              sourceUnit={unit.original}
+              value={text}
+              tags={unit.tags}
+              dir={targetDir}
+              onChange={setDraft}
+            />
+          ) : (
+            <textarea
+              dir={targetDir}
+              value={text}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={flush}
+              placeholder={unit.fallback || unit.original || ""}
+              aria-label="Translation"
+              style={{ ...textareaStyle(false), resize: "none" }}
+            />
+          )}
+
+          {error && (
+            <Text as="p" tone="critical" variant="bodySm">
+              {error}
+            </Text>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
 }

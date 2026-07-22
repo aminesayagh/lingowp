@@ -1,21 +1,21 @@
-import { BlockStack, Box, Icon, InlineStack, Text } from "@shopify/polaris";
+import { Box, Icon, InlineStack, Text } from "@shopify/polaris";
 import {
   AlertTriangleIcon,
   CheckIcon,
-  InfoIcon,
-  ResetIcon,
   ReturnIcon,
   XCircleIcon,
 } from "@shopify/polaris-icons";
 import { useEffect, useMemo, useRef, useState } from "@wordpress/element";
 
 /*
- * TranslationUnitEditor — inline-tag token-chip editor (Option A, v1).
+ * Inline-tag token-chip editor (Option A, v1), split into the two pieces the
+ * text-editor overlay composes: SourceChips (read-only, left column) and
+ * ChipField (editable, right column).
  *
  * The stored format is untouched: this parses the codec's unit string
  * ("See {1}this {2}word{/2}{/1} now") into segments, renders {n} markers as
  * atomic chips, and re-serializes to the exact same string. onChange fires with
- * (serialized, isValid) so the host modal can gate its Save button.
+ * (serialized, isValid) so the host can gate autosave.
  *
  * The pure functions below (parseUnit / normalize / serialize /
  * validateStructure) are the exact mirror of the PHP UnitStructureGuard — keep
@@ -228,11 +228,31 @@ function Chip({ seg, tags, readOnly, selected, onSelect, onKeyDown, onRemove }) 
   );
 }
 
-// ---------- read-only source line ----------
+// ---------- shared marker helpers (single source of truth) ----------
 
-function SourceLine({ segs, tags, dir }) {
+/** True when a unit string carries codec markers, i.e. it is a composed unit. */
+export const hasMarkers = (s) => /\{\/?\d+\/?\}/.test(s || "");
+
+/** Drop markers for plain-text display (table cells, placeholders). */
+export const stripMarkers = (s) =>
+  (s || "").replace(/\{\/?\d+\/?\}/g, "").replace(/\s+/g, " ").trim();
+
+// ---------- read-only source (left overlay column) ----------
+
+export function SourceChips({ unit, tags, dir = "ltr" }) {
+  const segs = useMemo(() => parseUnit(unit ?? ""), [unit]);
   return (
-    <div dir={dir} style={{ fontSize: "13px", lineHeight: "26px", color: "var(--p-color-text)" }}>
+    <div
+      dir={dir}
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "8px 4px",
+        fontSize: "13px",
+        lineHeight: "26px",
+        color: "var(--p-color-text)",
+      }}
+    >
       {segs.map((s, i) =>
         s.type === "text" ? (
           <span key={i}>{s.value}</span>
@@ -244,18 +264,11 @@ function SourceLine({ segs, tags, dir }) {
   );
 }
 
-// ---------- editor ----------
+// ---------- editable field (right overlay column) ----------
 
-export default function TranslationUnitEditor({
-  sourceUnit,
-  initialTranslation,
-  tags,
-  dir = "ltr",
-  sourceDir = "ltr",
-  onChange,
-}) {
+export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
   const sourceSegs = useMemo(() => parseUnit(sourceUnit ?? ""), [sourceUnit]);
-  const [segs, setSegs] = useState(() => parseUnit(initialTranslation ?? ""));
+  const [segs, setSegs] = useState(() => parseUnit(value ?? ""));
   const [selectedChip, setSelectedChip] = useState(null);
   const [flash, setFlash] = useState(null);
   const caretRef = useRef(null); // { segIdx, pos }
@@ -276,6 +289,14 @@ export default function TranslationUnitEditor({
     lastSent.current = sig;
     onChange?.(serialized, validation.ok);
   }, [serialized, validation.ok, onChange]);
+
+  // Adopt a value that changed outside the field (AI translate, copy source,
+  // a refetch after autosave). Deliberately keyed on `value` only: while the
+  // user types, the host's value lags our serialization and must not reparse.
+  useEffect(() => {
+    if ((value ?? "") !== serialize(segs)) setSegs(parseUnit(value ?? ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   const showFlash = (msg) => {
     setFlash(msg);
@@ -338,12 +359,6 @@ export default function TranslationUnitEditor({
     update(next);
   };
 
-  const resetToSource = () => {
-    setSegs(sourceSegs.map((s) => ({ ...s })));
-    setSelectedChip(null);
-    showFlash("Source copied — translate the text, keep the chips.");
-  };
-
   const problem =
     validation.nestError !== null
       ? `Tags are crossed: "${labelFor(tags, validation.nestError)}" closes outside the tag it opened in — the rendered HTML would be invalid.`
@@ -357,67 +372,37 @@ export default function TranslationUnitEditor({
       : null;
 
   return (
-    <BlockStack gap="300">
-      {/* source pane */}
-      <Box
-        padding="300"
-        background="bg-surface-secondary"
-        borderRadius="200"
-        borderWidth="025"
-        borderColor="border"
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px",
+      }}
+    >
+      <div
+        dir={dir}
+        onClick={() => setSelectedChip(null)}
+        style={{
+          flex: 1,
+          minHeight: "120px",
+          overflowY: "auto",
+          display: "flex",
+          flexWrap: "wrap",
+          alignContent: "flex-start",
+          padding: "4px 8px",
+          borderRadius: "8px",
+          border: `1px solid ${
+            validation.ok ? "var(--p-color-border)" : "var(--p-color-border-critical)"
+          }`,
+          background: validation.ok
+            ? "var(--p-color-bg-surface)"
+            : "var(--p-color-bg-surface-critical)",
+          fontSize: "13px",
+          lineHeight: "26px",
+        }}
       >
-        <BlockStack gap="150">
-          <Text as="span" variant="headingXs" tone="subdued">
-            Source
-          </Text>
-          <SourceLine segs={sourceSegs} tags={tags} dir={sourceDir} />
-        </BlockStack>
-      </Box>
-
-      {/* editable pane */}
-      <BlockStack gap="150">
-        <InlineStack align="space-between" blockAlign="center">
-          <Text as="span" variant="headingXs" tone="subdued">
-            Translation
-          </Text>
-          <button
-            type="button"
-            onClick={resetToSource}
-            style={{
-              all: "unset",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              color: "var(--p-color-text-subdued)",
-            }}
-          >
-            <span style={{ width: 14, height: 14 }}>
-              <Icon source={ResetIcon} tone="subdued" />
-            </span>
-            Copy source
-          </button>
-        </InlineStack>
-
-        <div
-          dir={dir}
-          onClick={() => setSelectedChip(null)}
-          style={{
-            minHeight: "44px",
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            padding: "4px 8px",
-            borderRadius: "8px",
-            border: `1px solid ${
-              validation.ok ? "var(--p-color-border)" : "var(--p-color-border-critical)"
-            }`,
-            background: validation.ok ? "var(--p-color-bg-surface)" : "var(--p-color-bg-surface-critical)",
-            fontSize: "13px",
-            lineHeight: "26px",
-          }}
-        >
           {segs.map((s, i) =>
             s.type === "text" ? (
               <input
@@ -452,17 +437,7 @@ export default function TranslationUnitEditor({
               </span>
             )
           )}
-        </div>
-
-        <InlineStack gap="100" blockAlign="center">
-          <span style={{ width: 14, height: 14 }}>
-            <Icon source={InfoIcon} tone="subdued" />
-          </span>
-          <Text as="span" variant="bodyXs" tone="subdued">
-            Chips are formatting — keep them, never retype them. Click a chip to select, then Backspace to remove.
-          </Text>
-        </InlineStack>
-      </BlockStack>
+      </div>
 
       {/* validation + repair */}
       <Box padding="200" background="bg-surface-secondary" borderRadius="200">
@@ -536,6 +511,6 @@ export default function TranslationUnitEditor({
           )}
         </InlineStack>
       </Box>
-    </BlockStack>
+    </div>
   );
 }

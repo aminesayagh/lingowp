@@ -240,8 +240,8 @@ final class AiTranslationController
                 $this->unitsFromRows('meta', $this->repo->listMetaTexts($pid, $lang))
             );
         }
-        if (preg_match('/^term:([0-9]+)$/', $id, $m)) {
-            return $this->unitsFromRows('term', $this->repo->listTermTexts((int) $m[1], $lang));
+        if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
+            return $this->unitsFromRows('term', $this->repo->listTaxonomyTexts($m[1], $lang));
         }
 
         return null;

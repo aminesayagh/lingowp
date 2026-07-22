@@ -18,6 +18,7 @@ import {
   Spinner,
   Text,
   TextField,
+  Tooltip,
 } from "@shopify/polaris";
 import {
   useEffect,
@@ -35,9 +36,10 @@ import {
 import { api } from "../api";
 import SettingsModal from "./SettingsModal";
 import LanguageManagerModal from "./LanguageManagerModal";
-import LanguageList from "./LanguageList";
+import LanguageList, { flagEmoji } from "./LanguageList";
 import CompareOverlay from "./CompareOverlay";
 import QuotaCard from "./QuotaCard";
+import { hasMarkers, stripMarkers } from "./TranslationUnitEditor";
 
 const StartIcon = ({ color = "currentColor", ...props }) => (
   <svg
@@ -120,6 +122,10 @@ export default function Dashboard({
   const [notice, setNotice] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Mirrors `expanded` so effects can read it without re-subscribing.
+  const expandedRef = useRef({});
+  expandedRef.current = expanded;
 
   const defaultCode = defaultLanguage?.code || defaultLanguage;
 
@@ -251,14 +257,15 @@ export default function Dashboard({
     });
   }
 
-  // Reload collections + reset expansion whenever the working language changes.
+  // Reload for the new working language, keeping open groups open — the overlay
+  // switches language in place and would otherwise lose the row it is editing.
   useEffect(() => {
     if (!selectedLang) {
       return;
     }
     setCollections(null);
-    setExpanded({});
     loadCollections();
+    Object.keys(expandedRef.current).forEach(loadTexts);
   }, [selectedLang]);
 
   function loadTexts(id) {
@@ -338,8 +345,44 @@ export default function Dashboard({
     }
     return true;
   });
+
+  // Every row currently rendered, in table order — this is what the overlay's
+  // prev/next arrows walk, so they cross group boundaries.
+  const loadedRows = filtered.flatMap((c) =>
+    Array.isArray(expanded[c.id])
+      ? expanded[c.id].map((u) => ({
+          unit: u,
+          cid: c.id,
+          fieldLabel: `${groupHeading(c)} — ${u.field}`,
+        }))
+      : []
+  );
+  // Resolve by id, not a stored index: a refetch replaces the unit objects.
+  const overlayIndex = overlay
+    ? loadedRows.findIndex((r) => r.unit.id === overlay.id)
+    : -1;
+  const overlayRow = overlayIndex >= 0 ? loadedRows[overlayIndex] : null;
+
   const totalTexts = (collections || []).reduce((n, c) => n + c.total, 0);
   const totalDone = (collections || []).reduce((n, c) => n + c.translated, 0);
+
+  // Column headers show the actual language names: source (default) on the left,
+  // the selected target on the right. Prefer an explicit display name; otherwise
+  // turn the code into a readable name (en → English) so raw codes never show.
+  const codeName = (code) => {
+    if (!code) return null;
+    try {
+      return new Intl.DisplayNames(undefined, { type: "language" }).of(code);
+    } catch {
+      return code;
+    }
+  };
+  const langLabel = (l) =>
+    l && (l.display_name || l.name || codeName(l.code || l));
+  const originalLabel =
+    langLabel(defaultLanguage) || codeName(defaultCode) || "Original";
+  const translationLabel =
+    langLabel(languages.find((l) => l.code === selectedLang)) || "Translation";
 
   // Standard Polaris Filters config (status only, single-select).
   const filters = [
@@ -580,6 +623,29 @@ export default function Dashboard({
               </Box>
             ) : (
               <BlockStack gap="0">
+                <Box paddingInlineStart="1000">
+                  <Box paddingInline="300" paddingBlock="200">
+                    <InlineStack
+                      gap="300"
+                      align="space-between"
+                      blockAlign="center"
+                      wrap={false}
+                    >
+                      <Box width="42%" minWidth="0">
+                        <Text as="span" variant="bodySm" tone="subdued" fontWeight="medium">
+                          {originalLabel}
+                        </Text>
+                      </Box>
+                      <Box width="42%" minWidth="0">
+                        <Text as="span" variant="bodySm" tone="subdued" fontWeight="medium">
+                          {translationLabel}
+                        </Text>
+                      </Box>
+                      <Box width="16%" />
+                    </InlineStack>
+                  </Box>
+                </Box>
+                <Divider />
                 {filtered.map((c) => (
                   <CollectionGroup
                     key={c.id}
@@ -595,13 +661,7 @@ export default function Dashboard({
                     onConfirm={setConfirm}
                     aiAvailable={ai.available}
                     onAiTranslate={translateScope}
-                    onOpenOverlay={(unit) =>
-                      setOverlay({
-                        unit,
-                        cid: c.id,
-                        fieldLabel: `${groupHeading(c)} — ${unit.field}`,
-                      })
-                    }
+                    onOpenOverlay={(unit) => setOverlay({ id: unit.id })}
                   />
                 ))}
               </BlockStack>
@@ -638,17 +698,29 @@ export default function Dashboard({
         onClose={() => setSettingsOpen(false)}
       />
       <CompareOverlay
-        open={!!overlay}
-        unit={overlay?.unit}
-        fieldLabel={overlay?.fieldLabel}
+        open={!!overlayRow}
+        unit={overlayRow?.unit}
+        fieldLabel={overlayRow?.fieldLabel}
         language={selectedLang}
+        languages={languages}
+        sourceLabel={originalLabel}
+        sourceFlag={flagEmoji(
+          typeof defaultLanguage === "object" && defaultLanguage
+            ? defaultLanguage
+            : { code: defaultCode }
+        )}
         targetDir={
           languages.find((l) => l.code === selectedLang)?.direction || "ltr"
         }
         aiAvailable={ai.available}
         onAiTranslate={translateScope}
+        onPickLanguage={setSelectedLang}
         onClose={() => setOverlay(null)}
-        onSaved={() => overlay && afterMutate(overlay.cid)}
+        onSaved={() => overlayRow && afterMutate(overlayRow.cid)}
+        hasPrev={overlayIndex > 0}
+        hasNext={overlayIndex >= 0 && overlayIndex < loadedRows.length - 1}
+        onPrev={() => setOverlay({ id: loadedRows[overlayIndex - 1].unit.id })}
+        onNext={() => setOverlay({ id: loadedRows[overlayIndex + 1].unit.id })}
       />
       <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
     </Page>
@@ -875,7 +947,9 @@ function TextUnitRow({
   // character count. Long text edits in the overlay; short text edits inline.
   // A composed unit carries codec markers ({1}…{/1}); it must edit in the
   // overlay's chip editor, never the plain inline input.
-  const isComposed = /\{\/?\d+\/?\}/.test(unit.original || "");
+  const isComposed = hasMarkers(unit.original || "");
+  const originalText = isComposed ? stripMarkers(unit.original) : unit.original;
+  const shownText = isComposed ? stripMarkers(shown) : shown;
   const originalRef = useRef(null);
   const [isLong, setIsLong] = useState(false);
   useLayoutEffect(() => {
@@ -889,6 +963,10 @@ function TextUnitRow({
     ro.observe(el);
     return () => ro.disconnect();
   }, [unit.original]);
+
+  // Only long or structured (rich-text) source opens the overlay; short plain
+  // text is fully visible and edits inline, so its cell stays non-clickable.
+  const clickable = isLong || isComposed;
 
   // Keep the inline draft in sync when the translation changes elsewhere
   // (AI translate, overlay save).
@@ -995,17 +1073,18 @@ function TextUnitRow({
           <button
             ref={originalRef}
             type="button"
-            onClick={() => onOpenOverlay(unit)}
-            style={oneLineStyle}
+            onClick={clickable ? () => onOpenOverlay(unit) : undefined}
+            disabled={!clickable}
+            style={{ ...oneLineStyle, cursor: clickable ? "pointer" : "default" }}
           >
             <Text as="span" variant="bodySm">
-              {unit.original}
+              {originalText}
             </Text>
           </button>
         </Box>
 
         <Box width="42%" minWidth="0">
-          {isLong || isComposed ? (
+          {clickable ? (
             <button
               type="button"
               onClick={() => onOpenOverlay(unit)}
@@ -1016,7 +1095,7 @@ function TextUnitRow({
                 variant="bodySm"
                 tone={hasTranslation ? undefined : "subdued"}
               >
-                {shown}
+                {shownText}
               </Text>
             </button>
           ) : (
@@ -1045,6 +1124,13 @@ function TextUnitRow({
 
         <Box width="16%">
           <InlineStack gap="100" align="end" blockAlign="center" wrap={false}>
+            {isComposed && (hovered || menuOpen) && (
+              <Tooltip content="This text contains inline formatting (links, bold, etc.). Open it to edit — the formatting is kept for you.">
+                <Badge tone="info" size="small">
+                  Rich text
+                </Badge>
+              </Tooltip>
+            )}
             {unit.is_ai && <Badge size="small">AI</Badge>}
             {badge && (
               <Badge tone={badge.tone} size="small">
