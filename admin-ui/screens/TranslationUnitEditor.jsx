@@ -5,7 +5,26 @@ import {
   ReturnIcon,
   XCircleIcon,
 } from "@shopify/polaris-icons";
-import { useEffect, useMemo, useRef, useState } from "@wordpress/element";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "@wordpress/element";
+import {
+  parseUnit,
+  normalize,
+  serialize,
+  validateStructure,
+  groupCoincident,
+  hasMarkers,
+  stripMarkers,
+} from "./inlineTagCodec.mjs";
+
+// Re-exported so existing importers (CompareOverlay.jsx, Dashboard.jsx) keep
+// resolving these from "./TranslationUnitEditor".
+export { hasMarkers, stripMarkers };
 
 /*
  * Inline-tag token-chip editor (Option A, v1), split into the two pieces the
@@ -22,113 +41,6 @@ import { useEffect, useMemo, useRef, useState } from "@wordpress/element";
  * them in lockstep. v1 cuts: arrow-move, named-chip descriptors (falls back to
  * #n), backend stack-merge.
  */
-
-// ---------- codec-side helpers (pure, mirror of UnitStructureGuard) ----------
-
-const MARKER_RE = /\{(\/?)(\d+)(\/?)\}/g;
-
-/** Parse a unit string into a normalized segment list. Normalized = always
- *  starts/ends with a text segment, and every chip has a text segment on both
- *  sides (possibly empty), so a caret position always exists around any chip. */
-function parseUnit(str) {
-  const raw = [];
-  let last = 0;
-  MARKER_RE.lastIndex = 0;
-  let m;
-  while ((m = MARKER_RE.exec(str))) {
-    if (m.index > last) raw.push({ type: "text", value: str.slice(last, m.index) });
-    const kind = m[1] === "/" ? "close" : m[3] === "/" ? "void" : "open";
-    raw.push({ type: kind, n: Number(m[2]) });
-    last = m.index + m[0].length;
-  }
-  if (last < str.length) raw.push({ type: "text", value: str.slice(last) });
-  return normalize(raw);
-}
-
-function normalize(segs) {
-  const out = [{ type: "text", value: "" }];
-  for (const s of segs) {
-    if (s.type === "text") out[out.length - 1].value += s.value;
-    else {
-      out.push({ ...s });
-      out.push({ type: "text", value: "" });
-    }
-  }
-  return out;
-}
-
-function serialize(segs) {
-  return segs
-    .map((s) =>
-      s.type === "text"
-        ? s.value
-        : s.type === "open"
-        ? `{${s.n}}`
-        : s.type === "close"
-        ? `{/${s.n}}`
-        : `{${s.n}/}`
-    )
-    .join("");
-}
-
-const markerKey = (s) => `${s.type}:${s.n}`;
-
-/** Front-end mirror of the server-side guard: multiset equality + nesting. */
-function validateStructure(segs, sourceSegs) {
-  const cur = segs.filter((s) => s.type !== "text");
-  const src = sourceSegs.filter((s) => s.type !== "text");
-
-  const countBy = (list) => {
-    const c = {};
-    for (const s of list) c[markerKey(s)] = (c[markerKey(s)] || 0) + 1;
-    return c;
-  };
-  const cm = countBy(cur);
-  const sm = countBy(src);
-
-  const missing = [];
-  const extra = [];
-  for (const k of Object.keys(sm))
-    for (let i = 0; i < sm[k] - (cm[k] || 0); i++) missing.push(k);
-  for (const k of Object.keys(cm))
-    for (let i = 0; i < cm[k] - (sm[k] || 0); i++) extra.push(k);
-
-  // Nesting: reordering whole pairs is allowed, interleaving is not.
-  let nestError = null;
-  const stack = [];
-  for (const s of cur) {
-    if (s.type === "open") stack.push(s.n);
-    else if (s.type === "close") {
-      if (stack.length && stack[stack.length - 1] === s.n) stack.pop();
-      else {
-        nestError = s.n;
-        break;
-      }
-    }
-  }
-  if (nestError === null && stack.length) nestError = stack[stack.length - 1];
-
-  // Empty pairs → warning only (renders e.g. an empty <a></a>).
-  const emptyPairs = [];
-  for (let i = 0; i + 2 < segs.length; i++) {
-    if (
-      segs[i].type === "open" &&
-      segs[i + 1].type === "text" &&
-      segs[i + 1].value.trim() === "" &&
-      segs[i + 2].type === "close" &&
-      segs[i + 2].n === segs[i].n
-    )
-      emptyPairs.push(segs[i].n);
-  }
-
-  return {
-    missing,
-    extra,
-    nestError,
-    emptyPairs,
-    ok: missing.length === 0 && extra.length === 0 && nestError === null,
-  };
-}
 
 // ---------- presentation helpers ----------
 
@@ -159,6 +71,56 @@ const chipText = (seg, tags) => {
   return base;
 };
 
+// Label for a collapsed coincident stack. Descriptor-aware, but tag names are
+// not wired to the editor yet (see plan) — so it falls back to a neutral
+// "formatting" / "formatting +N" and upgrades automatically if `tags` lands.
+const groupLabel = (group, tags) => {
+  const names = group.ids.map((n) =>
+    tags?.[n]?.tag ? TAG_LABELS[tags[n].tag] || tags[n].tag : null
+  );
+  if (names.length && names.every(Boolean)) {
+    return names.length <= 2 ? names.join("+") : `${names[0]} (+${names.length - 1})`;
+  }
+  return group.ids.length > 1 ? `formatting +${group.ids.length - 1}` : "formatting";
+};
+const groupTitle = (group, tags) => {
+  const path = group.ids
+    .map((n) => (tags?.[n]?.tag ? TAG_LABELS[tags[n].tag] || tags[n].tag : `#${n}`))
+    .join(" › ");
+  return `${path} — formatting stack, keep it wrapping this text`;
+};
+
+const endsSpace = (s) => /\s$/.test(s || "");
+const startsSpace = (s) => /^\s/.test(s || "");
+
+const ordinalSuffix = (n) => {
+  const t = n % 100;
+  if (t >= 11 && t <= 13) return "th";
+  return { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th";
+};
+const truncate = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+// A faint dot marking that the source had a space on this side of a chip, so the
+// translator can see whether the space belongs inside or outside the formatting.
+function SpaceDot() {
+  return (
+    <span
+      aria-hidden="true"
+      title="the source has a space here"
+      style={{
+        display: "inline-block",
+        width: "3px",
+        height: "3px",
+        margin: "0 1px",
+        borderRadius: "50%",
+        background: "var(--p-color-text-subdued)",
+        opacity: 0.45,
+        verticalAlign: "middle",
+      }}
+    />
+  );
+}
+
 const chipBaseStyle = (hue) => ({
   all: "unset",
   boxSizing: "border-box",
@@ -181,19 +143,36 @@ const chipBaseStyle = (hue) => ({
 
 // ---------- Chip ----------
 
-function Chip({ seg, tags, readOnly, selected, onSelect, onKeyDown, onRemove }) {
-  const hue = hueFor(seg.n);
+function Chip({
+  seg,
+  tags,
+  readOnly,
+  selected,
+  onSelect,
+  onKeyDown,
+  onRemove,
+  onDragStart,
+  onDragEnd,
+  label,
+  hueN,
+  title,
+}) {
+  const hue = hueFor(hueN ?? seg.n);
+  const text = label ?? chipText(seg, tags);
   return (
     <button
       type="button"
-      draggable={false}
+      draggable={!readOnly && !!onDragStart}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       tabIndex={readOnly ? -1 : 0}
       onClick={readOnly ? undefined : onSelect}
       onKeyDown={readOnly ? undefined : onKeyDown}
       title={
-        readOnly
+        title ??
+        (readOnly
           ? `Formatting tag ${seg.n}`
-          : `Formatting tag ${seg.n} — keep it, don't retype it. Backspace removes it.`
+          : `Formatting tag ${seg.n} — keep it, don't retype it. Backspace removes it.`)
       }
       style={{
         ...chipBaseStyle(hue),
@@ -207,7 +186,7 @@ function Chip({ seg, tags, readOnly, selected, onSelect, onKeyDown, onRemove }) 
         className="w-1.5 h-1.5 rounded-full"
         style={{ background: hue.border }}
       />
-      <span>{chipText(seg, tags)}</span>
+      <span>{text}</span>
       {!readOnly && selected && (
         <span
           onClick={(e) => {
@@ -224,19 +203,11 @@ function Chip({ seg, tags, readOnly, selected, onSelect, onKeyDown, onRemove }) 
   );
 }
 
-// ---------- shared marker helpers (single source of truth) ----------
-
-/** True when a unit string carries codec markers, i.e. it is a composed unit. */
-export const hasMarkers = (s) => /\{\/?\d+\/?\}/.test(s || "");
-
-/** Drop markers for plain-text display (table cells, placeholders). */
-export const stripMarkers = (s) =>
-  (s || "").replace(/\{\/?\d+\/?\}/g, "").replace(/\s+/g, " ").trim();
-
 // ---------- read-only source (left overlay column) ----------
 
 export function SourceChips({ unit, tags, dir = "ltr" }) {
   const segs = useMemo(() => parseUnit(unit ?? ""), [unit]);
+  const tree = useMemo(() => groupCoincident(segs), [segs]);
   return (
     <div
       dir={dir}
@@ -249,11 +220,22 @@ export function SourceChips({ unit, tags, dir = "ltr" }) {
         color: "var(--p-color-text)",
       }}
     >
-      {segs.map((s, i) =>
-        s.type === "text" ? (
-          <span key={i}>{s.value}</span>
+      {tree.map((node, i) =>
+        node.type === "text" ? (
+          <span key={i}>{node.value}</span>
+        ) : node.type === "group" ? (
+          <Fragment key={i}>
+            <Chip
+              tags={tags}
+              readOnly
+              label={groupLabel(node, tags)}
+              hueN={node.ids[0]}
+              title={groupTitle(node, tags)}
+            />
+            <span>{node.inner.value}</span>
+          </Fragment>
         ) : (
-          <Chip key={i} seg={s} tags={tags} readOnly />
+          <Chip key={i} seg={node} tags={tags} readOnly />
         )
       )}
     </div>
@@ -270,6 +252,7 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
   const caretRef = useRef(null); // { segIdx, pos }
   const flashTimer = useRef(null);
   const lastSent = useRef(null);
+  const dragRef = useRef(null); // indices of the stack being dragged
 
   const validation = useMemo(
     () => validateStructure(segs, sourceSegs),
@@ -303,6 +286,11 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
 
   const update = (next) => setSegs(normalize(next));
 
+  // Render from the collapsed tree; edits still resolve to true-segment indices.
+  const tree = useMemo(() => groupCoincident(segs), [segs]);
+  const idxOf = useMemo(() => new Map(segs.map((s, i) => [s, i])), [segs]);
+  const sourceTree = useMemo(() => groupCoincident(sourceSegs), [sourceSegs]);
+
   // -- text editing (markers can never be typed: paste guard) --
   const onTextChange = (idx, raw) => {
     const cleaned = raw.replace(/\{\/?\d+\/?\}/g, "");
@@ -314,27 +302,73 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
   const rememberCaret = (idx, e) =>
     (caretRef.current = { segIdx: idx, pos: e.target.selectionStart ?? 0 });
 
-  const removeChip = (idx) => {
-    const next = [...segs];
-    next[idx - 1] = { type: "text", value: next[idx - 1].value + next[idx + 1].value };
-    next.splice(idx, 2);
+  // Remove one or more chip segments as a unit, keeping surrounding text; a
+  // collapsed group passes all its member+closer indices so a stack is atomic.
+  const removeStack = (indices) => {
+    const drop = new Set(indices);
     setSelectedChip(null);
+    update(segs.filter((_, i) => !drop.has(i)));
+  };
+  const removeChip = (idx) => removeStack([idx]);
+
+  // Move a stack over one adjacent word by shifting that word across the block:
+  // only the two bracketing text segments change value, so the block (and every
+  // marker's relative order) is untouched — the move can't break structure.
+  // ponytail: word-hop only; hopping an adjacent chip when the between-text is
+  // empty is left out — arrow-repeat or drag covers that. Arrow keys are logical
+  // (not RTL-mirrored) in v1.
+  const moveStack = (indices, dir, jump) => {
+    const lo = Math.min(...indices);
+    const hi = Math.max(...indices);
+    const bi = lo - 1;
+    const ai = hi + 1;
+    if (bi < 0 || ai >= segs.length) return;
+    const next = segs.map((s) => ({ ...s }));
+    const B = next[bi].value;
+    const A = next[ai].value;
+    if (dir === "right") {
+      if (jump) {
+        next[bi].value = B + A;
+        next[ai].value = "";
+      } else {
+        const m = A.match(/^(\s*\S+)([\s\S]*)$/);
+        if (!m) return;
+        next[bi].value = B + m[1];
+        next[ai].value = m[2];
+      }
+    } else {
+      if (jump) {
+        next[ai].value = B + A;
+        next[bi].value = "";
+      } else {
+        const m = B.match(/^([\s\S]*?)(\S+\s*)$/);
+        if (!m) return;
+        next[bi].value = m[1];
+        next[ai].value = m[2] + A;
+      }
+    }
     update(next);
   };
 
-  const onChipKeyDown = (idx) => (e) => {
-    if (e.key === "Backspace" || e.key === "Delete") {
+  const onChipKeyDown = (sel) => (e) => {
+    const k = e.key;
+    if (k === "Backspace" || k === "Delete") {
       e.preventDefault();
-      removeChip(idx);
-    } else if (e.key === "Escape") {
+      // Two-press delete: first press selects, second removes.
+      if (selectedChip === sel.anchor) removeStack(sel.indices);
+      else setSelectedChip(sel.anchor);
+    } else if (k === "ArrowLeft" || k === "ArrowRight") {
+      e.preventDefault();
+      setSelectedChip(sel.anchor);
+      moveStack(sel.indices, k === "ArrowRight" ? "right" : "left", e.ctrlKey || e.metaKey);
+    } else if (k === "Escape") {
       setSelectedChip(null);
     }
   };
 
-  /** Insert a missing chip at the last caret position (or at the end). */
-  const insertMissing = (key) => {
-    const [type, nStr] = key.split(":");
-    const chip = { type, n: Number(nStr) };
+  // Insert chips at the last caret position (or at the end). A re-inserted stack
+  // passes all its markers so it lands atomically.
+  const insertChipsAtCaret = (chips) => {
     const next = segs.map((s) => ({ ...s }));
     let { segIdx, pos } = caretRef.current ?? {
       segIdx: next.length - 1,
@@ -349,11 +383,129 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
       segIdx,
       1,
       { type: "text", value: t.value.slice(0, pos) },
-      chip,
+      ...chips.map((c) => ({ ...c })),
       { type: "text", value: t.value.slice(pos) }
     );
     update(next);
   };
+  const insertMissing = (key) => {
+    const [type, nStr] = key.split(":");
+    insertChipsAtCaret([{ type, n: Number(nStr) }]);
+  };
+  // Re-insert a whole coincident stack (members then closers) from the source.
+  const insertStack = (group) =>
+    insertChipsAtCaret([
+      ...group.members.map((m) => ({ type: "open", n: m.n })),
+      ...group.closers.map((c) => ({ type: "close", n: c.n })),
+    ]);
+
+  // Drag a stack to a caret slot in any text segment; markers reorder but the
+  // block stays intact (self-drop is a no-op).
+  const dropStackAt = (targetNode, pos) => {
+    const indices = dragRef.current;
+    dragRef.current = null;
+    if (!indices) return;
+    const lo = Math.min(...indices);
+    const hi = Math.max(...indices);
+    const block = segs.slice(lo, hi + 1).map((s) => ({ ...s }));
+    const rest = [...segs.slice(0, lo), ...segs.slice(hi + 1)];
+    const ti = rest.indexOf(targetNode); // -1 if the target was inside the block
+    if (ti < 0) return;
+    const t = rest[ti];
+    const at = Math.max(0, Math.min(pos ?? t.value.length, t.value.length));
+    rest.splice(
+      ti,
+      1,
+      { type: "text", value: t.value.slice(0, at) },
+      ...block,
+      { type: "text", value: t.value.slice(at) }
+    );
+    setSelectedChip(null);
+    update(rest);
+  };
+
+  const textInput = (node) => {
+    const i = idxOf.get(node);
+    return (
+      <input
+        key={`t${i}`}
+        type="text"
+        value={node.value}
+        onChange={(e) => onTextChange(i, e.target.value)}
+        onSelect={(e) => rememberCaret(i, e)}
+        onFocus={(e) => rememberCaret(i, e)}
+        onClick={(e) => e.stopPropagation()}
+        onDragOver={(e) => dragRef.current && e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          dropStackAt(node, e.target.selectionStart);
+        }}
+        placeholder={segs.length === 1 ? "Type the translation…" : undefined}
+        spellCheck={false}
+        aria-label="Translation text"
+        style={{
+          all: "unset",
+          minWidth: "8px",
+          padding: "2px 0",
+          color: "var(--p-color-text)",
+          width: `${Math.max(node.value.length + 1, segs.length === 1 ? 22 : 1)}ch`,
+        }}
+      />
+    );
+  };
+
+  // Which source stacks are absent now — the missing-formatting dock. Neutral
+  // labels alone are ambiguous, so each entry carries an ordinal + a source-text
+  // preview of the phrase it wrapped.
+  const currentOpenIds = useMemo(
+    () => new Set(segs.filter((s) => s.type === "open").map((s) => s.n)),
+    [segs]
+  );
+  const dock = useMemo(() => {
+    const groups = sourceTree.filter((n) => n.type === "group");
+    const seen = {};
+    return groups
+      .map((g) => {
+        const label = groupLabel(g, tags);
+        seen[label] = (seen[label] || 0) + 1;
+        return { g, label, ordinal: seen[label], preview: g.inner.value.trim() };
+      })
+      .filter(({ g }) => g.ids.some((n) => !currentOpenIds.has(n)));
+  }, [sourceTree, currentOpenIds, tags]);
+  // Missing markers not covered by a docked stack (voids, non-collapsed chips).
+  const looseMissing = useMemo(() => {
+    const docked = new Set(dock.flatMap(({ g }) => g.ids));
+    return validation.missing.filter((k) => !docked.has(Number(k.split(":")[1])));
+  }, [validation.missing, dock]);
+
+  // Source boundary spaces per stack (keyed by outermost id): shows the dot and
+  // drives the "space ran together" warning — never rewrites whitespace (§7.2).
+  const srcSpaces = useMemo(() => {
+    const sIdx = new Map(sourceSegs.map((s, i) => [s, i]));
+    const map = new Map();
+    for (const g of sourceTree.filter((n) => n.type === "group")) {
+      const sLo = sIdx.get(g.members[0]);
+      const sHi = sIdx.get(g.closers[g.closers.length - 1]);
+      map.set(g.ids[0], {
+        left: sLo - 1 < 0 || endsSpace(sourceSegs[sLo - 1]?.value),
+        right: sHi + 1 >= sourceSegs.length || startsSpace(sourceSegs[sHi + 1]?.value),
+      });
+    }
+    return map;
+  }, [sourceTree, sourceSegs]);
+  const spaceWarn = useMemo(() => {
+    for (const cg of tree.filter((n) => n.type === "group")) {
+      const src = srcSpaces.get(cg.ids[0]);
+      if (!src) continue;
+      const cLo = idxOf.get(cg.members[0]);
+      const cHi = idxOf.get(cg.closers[cg.closers.length - 1]);
+      const before = segs[cLo - 1]?.value ?? "";
+      const after = segs[cHi + 1]?.value ?? "";
+      if (src.left && before !== "" && !endsSpace(before)) return true;
+      if (src.right && after !== "" && !startsSpace(after)) return true;
+    }
+    return false;
+  }, [tree, srcSpaces, idxOf, segs]);
 
   const problem =
     validation.nestError !== null
@@ -399,77 +551,156 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
           lineHeight: "26px",
         }}
       >
-          {segs.map((s, i) =>
-            s.type === "text" ? (
-              <input
-                key={i}
-                type="text"
-                value={s.value}
-                onChange={(e) => onTextChange(i, e.target.value)}
-                onSelect={(e) => rememberCaret(i, e)}
-                onFocus={(e) => rememberCaret(i, e)}
-                onClick={(e) => e.stopPropagation()}
-                placeholder={segs.length === 1 ? "Type the translation…" : undefined}
-                spellCheck={false}
-                aria-label="Translation text"
-                style={{
-                  all: "unset",
-                  minWidth: "8px",
-                  padding: "2px 0",
-                  color: "var(--p-color-text)",
-                  width: `${Math.max(s.value.length + 1, segs.length === 1 ? 22 : 1)}ch`,
-                }}
-              />
-            ) : (
-              <span key={i} onClick={(e) => e.stopPropagation()}>
+          {tree.map((node) => {
+            if (node.type === "text") return textInput(node);
+            if (node.type === "group") {
+              const i = idxOf.get(node.members[0]);
+              const indices = [...node.members, ...node.closers].map((o) =>
+                idxOf.get(o)
+              );
+              const sel = { anchor: i, indices };
+              const sp = srcSpaces.get(node.ids[0]);
+              return (
+                <Fragment key={`g${i}`}>
+                  <span onClick={(e) => e.stopPropagation()}>
+                    {sp?.left && <SpaceDot />}
+                    <Chip
+                      tags={tags}
+                      label={groupLabel(node, tags)}
+                      hueN={node.ids[0]}
+                      title={groupTitle(node, tags)}
+                      selected={selectedChip === i}
+                      onSelect={() => setSelectedChip(i)}
+                      onKeyDown={onChipKeyDown(sel)}
+                      onRemove={() => removeStack(indices)}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", "");
+                        dragRef.current = indices;
+                      }}
+                      onDragEnd={() => (dragRef.current = null)}
+                    />
+                  </span>
+                  {textInput(node.inner)}
+                  {sp?.right && <SpaceDot />}
+                </Fragment>
+              );
+            }
+            const i = idxOf.get(node);
+            const sel = { anchor: i, indices: [i] };
+            return (
+              <span key={`c${i}`} onClick={(e) => e.stopPropagation()}>
                 <Chip
-                  seg={s}
+                  seg={node}
                   tags={tags}
                   selected={selectedChip === i}
                   onSelect={() => setSelectedChip(i)}
-                  onKeyDown={onChipKeyDown(i)}
+                  onKeyDown={onChipKeyDown(sel)}
                   onRemove={() => removeChip(i)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", "");
+                    dragRef.current = [i];
+                  }}
+                  onDragEnd={() => (dragRef.current = null)}
                 />
               </span>
-            )
-          )}
+            );
+          })}
       </div>
 
-      {/* validation + repair */}
+      {/* status + missing-formatting dock */}
       <Box padding="200" background="bg-surface-secondary" borderRadius="200">
-        <InlineStack gap="300" blockAlign="center" align="start">
-          {validation.ok ? (
-            <InlineStack gap="100" blockAlign="center">
-              <span className="w-4 h-4">
-                <Icon source={CheckIcon} tone="success" />
-              </span>
-              <Text as="span" variant="bodySm" tone="success">
-                Structure OK
-              </Text>
-            </InlineStack>
-          ) : (
-            <InlineStack gap="100" blockAlign="center">
-              <span className="w-4 h-4">
-                <Icon source={XCircleIcon} tone="critical" />
-              </span>
-              <Text as="span" variant="bodySm" tone="critical">
-                {problem}
-              </Text>
-            </InlineStack>
-          )}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <InlineStack gap="300" blockAlign="center" align="start">
+            {validation.ok ? (
+              <InlineStack gap="100" blockAlign="center">
+                <span className="w-4 h-4">
+                  <Icon source={CheckIcon} tone="success" />
+                </span>
+                <Text as="span" variant="bodySm" tone="success">
+                  Structure OK
+                </Text>
+              </InlineStack>
+            ) : (
+              <InlineStack gap="100" blockAlign="center">
+                <span className="w-4 h-4">
+                  <Icon source={XCircleIcon} tone="critical" />
+                </span>
+                <Text as="span" variant="bodySm" tone="critical">
+                  {problem}
+                </Text>
+              </InlineStack>
+            )}
 
-          {validation.missing.length > 0 && (
-            <InlineStack gap="100" blockAlign="center">
-              <Text as="span" variant="bodyXs" tone="subdued">
-                insert:
+            {validation.ok && validation.emptyPairs.length > 0 && (
+              <InlineStack gap="100" blockAlign="center">
+                <span className="w-3.5 h-3.5">
+                  <Icon source={AlertTriangleIcon} tone="caution" />
+                </span>
+                <Text as="span" variant="bodyXs" tone="caution">
+                  "{labelFor(tags, validation.emptyPairs[0])}" tag is empty — it will render with no text.
+                </Text>
+              </InlineStack>
+            )}
+
+            {spaceWarn && (
+              <InlineStack gap="100" blockAlign="center">
+                <span className="w-3.5 h-3.5">
+                  <Icon source={AlertTriangleIcon} tone="caution" />
+                </span>
+                <Text as="span" variant="bodyXs" tone="caution">
+                  Missing space around formatting — text may run together.
+                </Text>
+              </InlineStack>
+            )}
+
+            {flash && (
+              <Text as="span" variant="bodyXs" tone="caution">
+                {flash}
               </Text>
-              {validation.missing.map((k, i) => {
+            )}
+          </InlineStack>
+
+          {(dock.length > 0 || looseMissing.length > 0) && (
+            <InlineStack gap="200" blockAlign="center" align="start">
+              <Text as="span" variant="bodyXs" tone="subdued">
+                {dock.length + looseMissing.length} formatting missing — put back:
+              </Text>
+              {dock.map(({ g, label, ordinal, preview }) => {
+                const hue = hueFor(g.ids[0]);
+                return (
+                  <button
+                    key={`d${g.ids[0]}`}
+                    type="button"
+                    onClick={() => insertStack(g)}
+                    title="Insert this formatting stack at the cursor"
+                    style={{
+                      ...chipBaseStyle(hue),
+                      cursor: "pointer",
+                      borderStyle: "dashed",
+                      height: "auto",
+                      padding: "1px 6px",
+                    }}
+                  >
+                    <span className="w-2.5 h-2.5">
+                      <Icon source={ReturnIcon} />
+                    </span>
+                    <span>
+                      {label} — {ordinal}
+                      {ordinalSuffix(ordinal)}
+                    </span>
+                    {preview && (
+                      <span style={{ opacity: 0.7 }}>· “{truncate(preview, 24)}”</span>
+                    )}
+                  </button>
+                );
+              })}
+              {looseMissing.map((k) => {
                 const [type, nStr] = k.split(":");
                 const seg = { type, n: Number(nStr) };
                 const hue = hueFor(seg.n);
                 return (
                   <button
-                    key={i}
+                    key={`l${k}`}
                     type="button"
                     onClick={() => insertMissing(k)}
                     title="Insert at cursor position"
@@ -488,24 +719,7 @@ export function ChipField({ sourceUnit, value, tags, dir = "ltr", onChange }) {
               })}
             </InlineStack>
           )}
-
-          {validation.ok && validation.emptyPairs.length > 0 && (
-            <InlineStack gap="100" blockAlign="center">
-              <span className="w-3.5 h-3.5">
-                <Icon source={AlertTriangleIcon} tone="caution" />
-              </span>
-              <Text as="span" variant="bodyXs" tone="caution">
-                "{labelFor(tags, validation.emptyPairs[0])}" tag is empty — it will render with no text.
-              </Text>
-            </InlineStack>
-          )}
-
-          {flash && (
-            <Text as="span" variant="bodyXs" tone="caution">
-              {flash}
-            </Text>
-          )}
-        </InlineStack>
+        </div>
       </Box>
     </div>
   );

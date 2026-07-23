@@ -16048,8 +16048,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   ChipField: () => (/* binding */ ChipField),
 /* harmony export */   SourceChips: () => (/* binding */ SourceChips),
-/* harmony export */   hasMarkers: () => (/* binding */ hasMarkers),
-/* harmony export */   stripMarkers: () => (/* binding */ stripMarkers)
+/* harmony export */   hasMarkers: () => (/* reexport safe */ _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.hasMarkers),
+/* harmony export */   stripMarkers: () => (/* reexport safe */ _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.stripMarkers)
 /* harmony export */ });
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Box/Box.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Icon/Icon.js");
@@ -16061,9 +16061,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/XCircleIcon.svg.mjs");
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__);
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__);
+/* harmony import */ var _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./inlineTagCodec.mjs */ "./admin-ui/screens/inlineTagCodec.mjs");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__);
 
+
+
+
+
+// Re-exported so existing importers (CompareOverlay.jsx, Dashboard.jsx) keep
+// resolving these from "./TranslationUnitEditor".
 
 
 
@@ -16082,102 +16089,6 @@ __webpack_require__.r(__webpack_exports__);
  * them in lockstep. v1 cuts: arrow-move, named-chip descriptors (falls back to
  * #n), backend stack-merge.
  */
-
-// ---------- codec-side helpers (pure, mirror of UnitStructureGuard) ----------
-
-const MARKER_RE = /\{(\/?)(\d+)(\/?)\}/g;
-
-/** Parse a unit string into a normalized segment list. Normalized = always
- *  starts/ends with a text segment, and every chip has a text segment on both
- *  sides (possibly empty), so a caret position always exists around any chip. */
-function parseUnit(str) {
-  const raw = [];
-  let last = 0;
-  MARKER_RE.lastIndex = 0;
-  let m;
-  while (m = MARKER_RE.exec(str)) {
-    if (m.index > last) raw.push({
-      type: "text",
-      value: str.slice(last, m.index)
-    });
-    const kind = m[1] === "/" ? "close" : m[3] === "/" ? "void" : "open";
-    raw.push({
-      type: kind,
-      n: Number(m[2])
-    });
-    last = m.index + m[0].length;
-  }
-  if (last < str.length) raw.push({
-    type: "text",
-    value: str.slice(last)
-  });
-  return normalize(raw);
-}
-function normalize(segs) {
-  const out = [{
-    type: "text",
-    value: ""
-  }];
-  for (const s of segs) {
-    if (s.type === "text") out[out.length - 1].value += s.value;else {
-      out.push({
-        ...s
-      });
-      out.push({
-        type: "text",
-        value: ""
-      });
-    }
-  }
-  return out;
-}
-function serialize(segs) {
-  return segs.map(s => s.type === "text" ? s.value : s.type === "open" ? `{${s.n}}` : s.type === "close" ? `{/${s.n}}` : `{${s.n}/}`).join("");
-}
-const markerKey = s => `${s.type}:${s.n}`;
-
-/** Front-end mirror of the server-side guard: multiset equality + nesting. */
-function validateStructure(segs, sourceSegs) {
-  const cur = segs.filter(s => s.type !== "text");
-  const src = sourceSegs.filter(s => s.type !== "text");
-  const countBy = list => {
-    const c = {};
-    for (const s of list) c[markerKey(s)] = (c[markerKey(s)] || 0) + 1;
-    return c;
-  };
-  const cm = countBy(cur);
-  const sm = countBy(src);
-  const missing = [];
-  const extra = [];
-  for (const k of Object.keys(sm)) for (let i = 0; i < sm[k] - (cm[k] || 0); i++) missing.push(k);
-  for (const k of Object.keys(cm)) for (let i = 0; i < cm[k] - (sm[k] || 0); i++) extra.push(k);
-
-  // Nesting: reordering whole pairs is allowed, interleaving is not.
-  let nestError = null;
-  const stack = [];
-  for (const s of cur) {
-    if (s.type === "open") stack.push(s.n);else if (s.type === "close") {
-      if (stack.length && stack[stack.length - 1] === s.n) stack.pop();else {
-        nestError = s.n;
-        break;
-      }
-    }
-  }
-  if (nestError === null && stack.length) nestError = stack[stack.length - 1];
-
-  // Empty pairs → warning only (renders e.g. an empty <a></a>).
-  const emptyPairs = [];
-  for (let i = 0; i + 2 < segs.length; i++) {
-    if (segs[i].type === "open" && segs[i + 1].type === "text" && segs[i + 1].value.trim() === "" && segs[i + 2].type === "close" && segs[i + 2].n === segs[i].n) emptyPairs.push(segs[i].n);
-  }
-  return {
-    missing,
-    extra,
-    nestError,
-    emptyPairs,
-    ok: missing.length === 0 && extra.length === 0 && nestError === null
-  };
-}
 
 // ---------- presentation helpers ----------
 
@@ -16235,6 +16146,52 @@ const chipText = (seg, tags) => {
   if (seg.type === "close") return `/${base}`;
   return base;
 };
+
+// Label for a collapsed coincident stack. Descriptor-aware, but tag names are
+// not wired to the editor yet (see plan) — so it falls back to a neutral
+// "formatting" / "formatting +N" and upgrades automatically if `tags` lands.
+const groupLabel = (group, tags) => {
+  const names = group.ids.map(n => tags?.[n]?.tag ? TAG_LABELS[tags[n].tag] || tags[n].tag : null);
+  if (names.length && names.every(Boolean)) {
+    return names.length <= 2 ? names.join("+") : `${names[0]} (+${names.length - 1})`;
+  }
+  return group.ids.length > 1 ? `formatting +${group.ids.length - 1}` : "formatting";
+};
+const groupTitle = (group, tags) => {
+  const path = group.ids.map(n => tags?.[n]?.tag ? TAG_LABELS[tags[n].tag] || tags[n].tag : `#${n}`).join(" › ");
+  return `${path} — formatting stack, keep it wrapping this text`;
+};
+const endsSpace = s => /\s$/.test(s || "");
+const startsSpace = s => /^\s/.test(s || "");
+const ordinalSuffix = n => {
+  const t = n % 100;
+  if (t >= 11 && t <= 13) return "th";
+  return {
+    1: "st",
+    2: "nd",
+    3: "rd"
+  }[n % 10] || "th";
+};
+const truncate = (s, n) => s.length > n ? `${s.slice(0, n - 1)}…` : s;
+
+// A faint dot marking that the source had a space on this side of a chip, so the
+// translator can see whether the space belongs inside or outside the formatting.
+function SpaceDot() {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+    "aria-hidden": "true",
+    title: "the source has a space here",
+    style: {
+      display: "inline-block",
+      width: "3px",
+      height: "3px",
+      margin: "0 1px",
+      borderRadius: "50%",
+      background: "var(--p-color-text-subdued)",
+      opacity: 0.45,
+      verticalAlign: "middle"
+    }
+  });
+}
 const chipBaseStyle = hue => ({
   all: "unset",
   boxSizing: "border-box",
@@ -16264,16 +16221,24 @@ function Chip({
   selected,
   onSelect,
   onKeyDown,
-  onRemove
+  onRemove,
+  onDragStart,
+  onDragEnd,
+  label,
+  hueN,
+  title
 }) {
-  const hue = hueFor(seg.n);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)("button", {
+  const hue = hueFor(hueN ?? seg.n);
+  const text = label ?? chipText(seg, tags);
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("button", {
     type: "button",
-    draggable: false,
+    draggable: !readOnly && !!onDragStart,
+    onDragStart: onDragStart,
+    onDragEnd: onDragEnd,
     tabIndex: readOnly ? -1 : 0,
     onClick: readOnly ? undefined : onSelect,
     onKeyDown: readOnly ? undefined : onKeyDown,
-    title: readOnly ? `Formatting tag ${seg.n}` : `Formatting tag ${seg.n} — keep it, don't retype it. Backspace removes it.`,
+    title: title ?? (readOnly ? `Formatting tag ${seg.n}` : `Formatting tag ${seg.n} — keep it, don't retype it. Backspace removes it.`),
     style: {
       ...chipBaseStyle(hue),
       cursor: readOnly ? "default" : "pointer",
@@ -16281,14 +16246,14 @@ function Chip({
       outline: selected ? `2px solid ${hue.text}` : "none",
       outlineOffset: selected ? "1px" : 0
     },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
       className: "w-1.5 h-1.5 rounded-full",
       style: {
         background: hue.border
       }
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-      children: chipText(seg, tags)
-    }), !readOnly && selected && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+      children: text
+    }), !readOnly && selected && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
       onClick: e => {
         e.stopPropagation();
         onRemove();
@@ -16300,14 +16265,6 @@ function Chip({
   });
 }
 
-// ---------- shared marker helpers (single source of truth) ----------
-
-/** True when a unit string carries codec markers, i.e. it is a composed unit. */
-const hasMarkers = s => /\{\/?\d+\/?\}/.test(s || "");
-
-/** Drop markers for plain-text display (table cells, placeholders). */
-const stripMarkers = s => (s || "").replace(/\{\/?\d+\/?\}/g, "").replace(/\s+/g, " ").trim();
-
 // ---------- read-only source (left overlay column) ----------
 
 function SourceChips({
@@ -16315,8 +16272,9 @@ function SourceChips({
   tags,
   dir = "ltr"
 }) {
-  const segs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => parseUnit(unit ?? ""), [unit]);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("div", {
+  const segs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(unit ?? ""), [unit]);
+  const tree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.groupCoincident)(segs), [segs]);
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("div", {
     dir: dir,
     style: {
       flex: 1,
@@ -16326,10 +16284,20 @@ function SourceChips({
       lineHeight: "26px",
       color: "var(--p-color-text)"
     },
-    children: segs.map((s, i) => s.type === "text" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-      children: s.value
-    }, i) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(Chip, {
-      seg: s,
+    children: tree.map((node, i) => node.type === "text" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+      children: node.value
+    }, i) : node.type === "group" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.Fragment, {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
+        tags: tags,
+        readOnly: true,
+        label: groupLabel(node, tags),
+        hueN: node.ids[0],
+        title: groupTitle(node, tags)
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+        children: node.inner.value
+      })]
+    }, i) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
+      seg: node,
       tags: tags,
       readOnly: true
     }, i))
@@ -16345,18 +16313,20 @@ function ChipField({
   dir = "ltr",
   onChange
 }) {
-  const sourceSegs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => parseUnit(sourceUnit ?? ""), [sourceUnit]);
-  const [segs, setSegs] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(() => parseUnit(value ?? ""));
+  const sourceSegs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(sourceUnit ?? ""), [sourceUnit]);
+  const [segs, setSegs] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(value ?? ""));
   const [selectedChip, setSelectedChip] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(null);
   const [flash, setFlash] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(null);
   const caretRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null); // { segIdx, pos }
   const flashTimer = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null);
   const lastSent = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null);
-  const validation = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => validateStructure(segs, sourceSegs), [segs, sourceSegs]);
+  const dragRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null); // indices of the stack being dragged
+
+  const validation = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.validateStructure)(segs, sourceSegs), [segs, sourceSegs]);
 
   // Keep the host in sync (serialized value + validity) on real changes + mount.
   // Guarded by a ref so an inline host onChange can't drive a render loop.
-  const serialized = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => serialize(segs), [segs]);
+  const serialized = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.serialize)(segs), [segs]);
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => {
     const sig = `${validation.ok ? 1 : 0}|${serialized}`;
     if (sig === lastSent.current) return;
@@ -16368,7 +16338,7 @@ function ChipField({
   // a refetch after autosave). Deliberately keyed on `value` only: while the
   // user types, the host's value lags our serialization and must not reparse.
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => {
-    if ((value ?? "") !== serialize(segs)) setSegs(parseUnit(value ?? ""));
+    if ((value ?? "") !== (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.serialize)(segs)) setSegs((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(value ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   const showFlash = msg => {
@@ -16377,7 +16347,12 @@ function ChipField({
     flashTimer.current = setTimeout(() => setFlash(null), 3200);
   };
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => () => clearTimeout(flashTimer.current), []);
-  const update = next => setSegs(normalize(next));
+  const update = next => setSegs((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.normalize)(next));
+
+  // Render from the collapsed tree; edits still resolve to true-segment indices.
+  const tree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.groupCoincident)(segs), [segs]);
+  const idxOf = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => new Map(segs.map((s, i) => [s, i])), [segs]);
+  const sourceTree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.groupCoincident)(sourceSegs), [sourceSegs]);
 
   // -- text editing (markers can never be typed: paste guard) --
   const onTextChange = (idx, raw) => {
@@ -16392,32 +16367,74 @@ function ChipField({
     segIdx: idx,
     pos: e.target.selectionStart ?? 0
   };
-  const removeChip = idx => {
-    const next = [...segs];
-    next[idx - 1] = {
-      type: "text",
-      value: next[idx - 1].value + next[idx + 1].value
-    };
-    next.splice(idx, 2);
+
+  // Remove one or more chip segments as a unit, keeping surrounding text; a
+  // collapsed group passes all its member+closer indices so a stack is atomic.
+  const removeStack = indices => {
+    const drop = new Set(indices);
     setSelectedChip(null);
+    update(segs.filter((_, i) => !drop.has(i)));
+  };
+  const removeChip = idx => removeStack([idx]);
+
+  // Move a stack over one adjacent word by shifting that word across the block:
+  // only the two bracketing text segments change value, so the block (and every
+  // marker's relative order) is untouched — the move can't break structure.
+  // ponytail: word-hop only; hopping an adjacent chip when the between-text is
+  // empty is left out — arrow-repeat or drag covers that. Arrow keys are logical
+  // (not RTL-mirrored) in v1.
+  const moveStack = (indices, dir, jump) => {
+    const lo = Math.min(...indices);
+    const hi = Math.max(...indices);
+    const bi = lo - 1;
+    const ai = hi + 1;
+    if (bi < 0 || ai >= segs.length) return;
+    const next = segs.map(s => ({
+      ...s
+    }));
+    const B = next[bi].value;
+    const A = next[ai].value;
+    if (dir === "right") {
+      if (jump) {
+        next[bi].value = B + A;
+        next[ai].value = "";
+      } else {
+        const m = A.match(/^(\s*\S+)([\s\S]*)$/);
+        if (!m) return;
+        next[bi].value = B + m[1];
+        next[ai].value = m[2];
+      }
+    } else {
+      if (jump) {
+        next[ai].value = B + A;
+        next[bi].value = "";
+      } else {
+        const m = B.match(/^([\s\S]*?)(\S+\s*)$/);
+        if (!m) return;
+        next[bi].value = m[1];
+        next[ai].value = m[2] + A;
+      }
+    }
     update(next);
   };
-  const onChipKeyDown = idx => e => {
-    if (e.key === "Backspace" || e.key === "Delete") {
+  const onChipKeyDown = sel => e => {
+    const k = e.key;
+    if (k === "Backspace" || k === "Delete") {
       e.preventDefault();
-      removeChip(idx);
-    } else if (e.key === "Escape") {
+      // Two-press delete: first press selects, second removes.
+      if (selectedChip === sel.anchor) removeStack(sel.indices);else setSelectedChip(sel.anchor);
+    } else if (k === "ArrowLeft" || k === "ArrowRight") {
+      e.preventDefault();
+      setSelectedChip(sel.anchor);
+      moveStack(sel.indices, k === "ArrowRight" ? "right" : "left", e.ctrlKey || e.metaKey);
+    } else if (k === "Escape") {
       setSelectedChip(null);
     }
   };
 
-  /** Insert a missing chip at the last caret position (or at the end). */
-  const insertMissing = key => {
-    const [type, nStr] = key.split(":");
-    const chip = {
-      type,
-      n: Number(nStr)
-    };
+  // Insert chips at the last caret position (or at the end). A re-inserted stack
+  // passes all its markers so it lands atomically.
+  const insertChipsAtCaret = chips => {
     const next = segs.map(s => ({
       ...s
     }));
@@ -16436,14 +16453,141 @@ function ChipField({
     next.splice(segIdx, 1, {
       type: "text",
       value: t.value.slice(0, pos)
-    }, chip, {
+    }, ...chips.map(c => ({
+      ...c
+    })), {
       type: "text",
       value: t.value.slice(pos)
     });
     update(next);
   };
+  const insertMissing = key => {
+    const [type, nStr] = key.split(":");
+    insertChipsAtCaret([{
+      type,
+      n: Number(nStr)
+    }]);
+  };
+  // Re-insert a whole coincident stack (members then closers) from the source.
+  const insertStack = group => insertChipsAtCaret([...group.members.map(m => ({
+    type: "open",
+    n: m.n
+  })), ...group.closers.map(c => ({
+    type: "close",
+    n: c.n
+  }))]);
+
+  // Drag a stack to a caret slot in any text segment; markers reorder but the
+  // block stays intact (self-drop is a no-op).
+  const dropStackAt = (targetNode, pos) => {
+    const indices = dragRef.current;
+    dragRef.current = null;
+    if (!indices) return;
+    const lo = Math.min(...indices);
+    const hi = Math.max(...indices);
+    const block = segs.slice(lo, hi + 1).map(s => ({
+      ...s
+    }));
+    const rest = [...segs.slice(0, lo), ...segs.slice(hi + 1)];
+    const ti = rest.indexOf(targetNode); // -1 if the target was inside the block
+    if (ti < 0) return;
+    const t = rest[ti];
+    const at = Math.max(0, Math.min(pos ?? t.value.length, t.value.length));
+    rest.splice(ti, 1, {
+      type: "text",
+      value: t.value.slice(0, at)
+    }, ...block, {
+      type: "text",
+      value: t.value.slice(at)
+    });
+    setSelectedChip(null);
+    update(rest);
+  };
+  const textInput = node => {
+    const i = idxOf.get(node);
+    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("input", {
+      type: "text",
+      value: node.value,
+      onChange: e => onTextChange(i, e.target.value),
+      onSelect: e => rememberCaret(i, e),
+      onFocus: e => rememberCaret(i, e),
+      onClick: e => e.stopPropagation(),
+      onDragOver: e => dragRef.current && e.preventDefault(),
+      onDrop: e => {
+        e.preventDefault();
+        dropStackAt(node, e.target.selectionStart);
+      },
+      placeholder: segs.length === 1 ? "Type the translation…" : undefined,
+      spellCheck: false,
+      "aria-label": "Translation text",
+      style: {
+        all: "unset",
+        minWidth: "8px",
+        padding: "2px 0",
+        color: "var(--p-color-text)",
+        width: `${Math.max(node.value.length + 1, segs.length === 1 ? 22 : 1)}ch`
+      }
+    }, `t${i}`);
+  };
+
+  // Which source stacks are absent now — the missing-formatting dock. Neutral
+  // labels alone are ambiguous, so each entry carries an ordinal + a source-text
+  // preview of the phrase it wrapped.
+  const currentOpenIds = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => new Set(segs.filter(s => s.type === "open").map(s => s.n)), [segs]);
+  const dock = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+    const groups = sourceTree.filter(n => n.type === "group");
+    const seen = {};
+    return groups.map(g => {
+      const label = groupLabel(g, tags);
+      seen[label] = (seen[label] || 0) + 1;
+      return {
+        g,
+        label,
+        ordinal: seen[label],
+        preview: g.inner.value.trim()
+      };
+    }).filter(({
+      g
+    }) => g.ids.some(n => !currentOpenIds.has(n)));
+  }, [sourceTree, currentOpenIds, tags]);
+  // Missing markers not covered by a docked stack (voids, non-collapsed chips).
+  const looseMissing = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+    const docked = new Set(dock.flatMap(({
+      g
+    }) => g.ids));
+    return validation.missing.filter(k => !docked.has(Number(k.split(":")[1])));
+  }, [validation.missing, dock]);
+
+  // Source boundary spaces per stack (keyed by outermost id): shows the dot and
+  // drives the "space ran together" warning — never rewrites whitespace (§7.2).
+  const srcSpaces = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+    const sIdx = new Map(sourceSegs.map((s, i) => [s, i]));
+    const map = new Map();
+    for (const g of sourceTree.filter(n => n.type === "group")) {
+      const sLo = sIdx.get(g.members[0]);
+      const sHi = sIdx.get(g.closers[g.closers.length - 1]);
+      map.set(g.ids[0], {
+        left: sLo - 1 < 0 || endsSpace(sourceSegs[sLo - 1]?.value),
+        right: sHi + 1 >= sourceSegs.length || startsSpace(sourceSegs[sHi + 1]?.value)
+      });
+    }
+    return map;
+  }, [sourceTree, sourceSegs]);
+  const spaceWarn = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+    for (const cg of tree.filter(n => n.type === "group")) {
+      const src = srcSpaces.get(cg.ids[0]);
+      if (!src) continue;
+      const cLo = idxOf.get(cg.members[0]);
+      const cHi = idxOf.get(cg.closers[cg.closers.length - 1]);
+      const before = segs[cLo - 1]?.value ?? "";
+      const after = segs[cHi + 1]?.value ?? "";
+      if (src.left && before !== "" && !endsSpace(before)) return true;
+      if (src.right && after !== "" && !startsSpace(after)) return true;
+    }
+    return false;
+  }, [tree, srcSpaces, idxOf, segs]);
   const problem = validation.nestError !== null ? `Tags are crossed: "${labelFor(tags, validation.nestError)}" closes outside the tag it opened in — the rendered HTML would be invalid.` : validation.missing.length || validation.extra.length ? [validation.missing.length ? `${validation.missing.length} tag(s) missing` : "", validation.extra.length ? `${validation.extra.length} extra tag(s)` : ""].filter(Boolean).join(" · ") : null;
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)("div", {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("div", {
     style: {
       flex: 1,
       minHeight: 0,
@@ -16451,7 +16595,7 @@ function ChipField({
       flexDirection: "column",
       gap: "8px"
     },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("div", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("div", {
       dir: dir,
       onClick: () => setSelectedChip(null),
       style: {
@@ -16468,88 +16612,188 @@ function ChipField({
         fontSize: "13px",
         lineHeight: "26px"
       },
-      children: segs.map((s, i) => s.type === "text" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("input", {
-        type: "text",
-        value: s.value,
-        onChange: e => onTextChange(i, e.target.value),
-        onSelect: e => rememberCaret(i, e),
-        onFocus: e => rememberCaret(i, e),
-        onClick: e => e.stopPropagation(),
-        placeholder: segs.length === 1 ? "Type the translation…" : undefined,
-        spellCheck: false,
-        "aria-label": "Translation text",
-        style: {
-          all: "unset",
-          minWidth: "8px",
-          padding: "2px 0",
-          color: "var(--p-color-text)",
-          width: `${Math.max(s.value.length + 1, segs.length === 1 ? 22 : 1)}ch`
+      children: tree.map(node => {
+        if (node.type === "text") return textInput(node);
+        if (node.type === "group") {
+          const i = idxOf.get(node.members[0]);
+          const indices = [...node.members, ...node.closers].map(o => idxOf.get(o));
+          const sel = {
+            anchor: i,
+            indices
+          };
+          const sp = srcSpaces.get(node.ids[0]);
+          return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("span", {
+              onClick: e => e.stopPropagation(),
+              children: [sp?.left && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(SpaceDot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
+                tags: tags,
+                label: groupLabel(node, tags),
+                hueN: node.ids[0],
+                title: groupTitle(node, tags),
+                selected: selectedChip === i,
+                onSelect: () => setSelectedChip(i),
+                onKeyDown: onChipKeyDown(sel),
+                onRemove: () => removeStack(indices),
+                onDragStart: e => {
+                  e.dataTransfer.setData("text/plain", "");
+                  dragRef.current = indices;
+                },
+                onDragEnd: () => dragRef.current = null
+              })]
+            }), textInput(node.inner), sp?.right && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(SpaceDot, {})]
+          }, `g${i}`);
         }
-      }, i) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-        onClick: e => e.stopPropagation(),
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(Chip, {
-          seg: s,
-          tags: tags,
-          selected: selectedChip === i,
-          onSelect: () => setSelectedChip(i),
-          onKeyDown: onChipKeyDown(i),
-          onRemove: () => removeChip(i)
-        })
-      }, i))
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Box, {
+        const i = idxOf.get(node);
+        const sel = {
+          anchor: i,
+          indices: [i]
+        };
+        return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+          onClick: e => e.stopPropagation(),
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
+            seg: node,
+            tags: tags,
+            selected: selectedChip === i,
+            onSelect: () => setSelectedChip(i),
+            onKeyDown: onChipKeyDown(sel),
+            onRemove: () => removeChip(i),
+            onDragStart: e => {
+              e.dataTransfer.setData("text/plain", "");
+              dragRef.current = [i];
+            },
+            onDragEnd: () => dragRef.current = null
+          })
+        }, `c${i}`);
+      })
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Box, {
       padding: "200",
       background: "bg-surface-secondary",
       borderRadius: "200",
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-        gap: "300",
-        blockAlign: "center",
-        align: "start",
-        children: [validation.ok ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-          gap: "100",
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("div", {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px"
+        },
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+          gap: "300",
           blockAlign: "center",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-            className: "w-4 h-4",
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-              source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_5__.S,
-              tone: "success"
-            })
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+          align: "start",
+          children: [validation.ok ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+            gap: "100",
+            blockAlign: "center",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+              className: "w-4 h-4",
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
+                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_5__.S,
+                tone: "success"
+              })
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+              as: "span",
+              variant: "bodySm",
+              tone: "success",
+              children: "Structure OK"
+            })]
+          }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+            gap: "100",
+            blockAlign: "center",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+              className: "w-4 h-4",
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
+                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_7__.S,
+                tone: "critical"
+              })
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+              as: "span",
+              variant: "bodySm",
+              tone: "critical",
+              children: problem
+            })]
+          }), validation.ok && validation.emptyPairs.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+            gap: "100",
+            blockAlign: "center",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+              className: "w-3.5 h-3.5",
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
+                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_4__.S,
+                tone: "caution"
+              })
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+              as: "span",
+              variant: "bodyXs",
+              tone: "caution",
+              children: ["\"", labelFor(tags, validation.emptyPairs[0]), "\" tag is empty \u2014 it will render with no text."]
+            })]
+          }), spaceWarn && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+            gap: "100",
+            blockAlign: "center",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+              className: "w-3.5 h-3.5",
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
+                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_4__.S,
+                tone: "caution"
+              })
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+              as: "span",
+              variant: "bodyXs",
+              tone: "caution",
+              children: "Missing space around formatting \u2014 text may run together."
+            })]
+          }), flash && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
             as: "span",
-            variant: "bodySm",
-            tone: "success",
-            children: "Structure OK"
+            variant: "bodyXs",
+            tone: "caution",
+            children: flash
           })]
-        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-          gap: "100",
+        }), (dock.length > 0 || looseMissing.length > 0) && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+          gap: "200",
           blockAlign: "center",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-            className: "w-4 h-4",
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-              source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_7__.S,
-              tone: "critical"
-            })
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "span",
-            variant: "bodySm",
-            tone: "critical",
-            children: problem
-          })]
-        }), validation.missing.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-          gap: "100",
-          blockAlign: "center",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
+          align: "start",
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
             as: "span",
             variant: "bodyXs",
             tone: "subdued",
-            children: "insert:"
-          }), validation.missing.map((k, i) => {
+            children: [dock.length + looseMissing.length, " formatting missing \u2014 put back:"]
+          }), dock.map(({
+            g,
+            label,
+            ordinal,
+            preview
+          }) => {
+            const hue = hueFor(g.ids[0]);
+            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("button", {
+              type: "button",
+              onClick: () => insertStack(g),
+              title: "Insert this formatting stack at the cursor",
+              style: {
+                ...chipBaseStyle(hue),
+                cursor: "pointer",
+                borderStyle: "dashed",
+                height: "auto",
+                padding: "1px 6px"
+              },
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+                className: "w-2.5 h-2.5",
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
+                  source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_6__.S
+                })
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("span", {
+                children: [label, " \u2014 ", ordinal, ordinalSuffix(ordinal)]
+              }), preview && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("span", {
+                style: {
+                  opacity: 0.7
+                },
+                children: ["\xB7 \u201C", truncate(preview, 24), "\u201D"]
+              })]
+            }, `d${g.ids[0]}`);
+          }), looseMissing.map(k => {
             const [type, nStr] = k.split(":");
             const seg = {
               type,
               n: Number(nStr)
             };
             const hue = hueFor(seg.n);
-            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)("button", {
+            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("button", {
               type: "button",
               onClick: () => insertMissing(k),
               title: "Insert at cursor position",
@@ -16558,34 +16802,14 @@ function ChipField({
                 cursor: "pointer",
                 borderStyle: "dashed"
               },
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
                 className: "w-2.5 h-2.5",
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
                   source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_6__.S
                 })
               }), chipText(seg, tags)]
-            }, i);
+            }, `l${k}`);
           })]
-        }), validation.ok && validation.emptyPairs.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-          gap: "100",
-          blockAlign: "center",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)("span", {
-            className: "w-3.5 h-3.5",
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-              source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_4__.S,
-              tone: "caution"
-            })
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "span",
-            variant: "bodyXs",
-            tone: "caution",
-            children: ["\"", labelFor(tags, validation.emptyPairs[0]), "\" tag is empty \u2014 it will render with no text."]
-          })]
-        }), flash && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-          as: "span",
-          variant: "bodyXs",
-          tone: "caution",
-          children: flash
         })]
       })
     })]
@@ -25302,6 +25526,259 @@ function createMetaThemeBase(metaTheme) {
 
 
 
+
+/***/ },
+
+/***/ "./admin-ui/screens/inlineTagCodec.mjs"
+/*!*********************************************!*\
+  !*** ./admin-ui/screens/inlineTagCodec.mjs ***!
+  \*********************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MARKER_RE: () => (/* binding */ MARKER_RE),
+/* harmony export */   groupCoincident: () => (/* binding */ groupCoincident),
+/* harmony export */   hasMarkers: () => (/* binding */ hasMarkers),
+/* harmony export */   markerKey: () => (/* binding */ markerKey),
+/* harmony export */   normalize: () => (/* binding */ normalize),
+/* harmony export */   parseUnit: () => (/* binding */ parseUnit),
+/* harmony export */   serialize: () => (/* binding */ serialize),
+/* harmony export */   serializeGrouped: () => (/* binding */ serializeGrouped),
+/* harmony export */   stripMarkers: () => (/* binding */ stripMarkers),
+/* harmony export */   validateStructure: () => (/* binding */ validateStructure)
+/* harmony export */ });
+/*
+ * Pure, JSX-free inline-tag segment logic. Shared by the chip editor
+ * (TranslationUnitEditor.jsx) and the standalone node test. Kept as .mjs (ESM)
+ * because package.json has no "type":"module" — node would otherwise read a .js
+ * here as CommonJS. wp-scripts/webpack resolves the explicit ./…​.mjs import.
+ *
+ * parseUnit / normalize / serialize / validateStructure are the exact mirror of
+ * the PHP UnitStructureGuard — keep them in lockstep.
+ */
+
+// ---------- codec-side helpers (pure, mirror of UnitStructureGuard) ----------
+
+const MARKER_RE = /\{(\/?)(\d+)(\/?)\}/g;
+
+/** Parse a unit string into a normalized segment list. Normalized = always
+ *  starts/ends with a text segment, and every chip has a text segment on both
+ *  sides (possibly empty), so a caret position always exists around any chip. */
+function parseUnit(str) {
+  const raw = [];
+  let last = 0;
+  MARKER_RE.lastIndex = 0;
+  let m;
+  while (m = MARKER_RE.exec(str)) {
+    if (m.index > last) raw.push({
+      type: "text",
+      value: str.slice(last, m.index)
+    });
+    const kind = m[1] === "/" ? "close" : m[3] === "/" ? "void" : "open";
+    raw.push({
+      type: kind,
+      n: Number(m[2])
+    });
+    last = m.index + m[0].length;
+  }
+  if (last < str.length) raw.push({
+    type: "text",
+    value: str.slice(last)
+  });
+  return normalize(raw);
+}
+function normalize(segs) {
+  const out = [{
+    type: "text",
+    value: ""
+  }];
+  for (const s of segs) {
+    if (s.type === "text") out[out.length - 1].value += s.value;else {
+      out.push({
+        ...s
+      });
+      out.push({
+        type: "text",
+        value: ""
+      });
+    }
+  }
+  return out;
+}
+function serialize(segs) {
+  return segs.map(s => s.type === "text" ? s.value : s.type === "open" ? `{${s.n}}` : s.type === "close" ? `{/${s.n}}` : `{${s.n}/}`).join("");
+}
+const markerKey = s => `${s.type}:${s.n}`;
+
+/** Front-end mirror of the server-side guard: multiset equality + nesting. */
+function validateStructure(segs, sourceSegs) {
+  const cur = segs.filter(s => s.type !== "text");
+  const src = sourceSegs.filter(s => s.type !== "text");
+  const countBy = list => {
+    const c = {};
+    for (const s of list) c[markerKey(s)] = (c[markerKey(s)] || 0) + 1;
+    return c;
+  };
+  const cm = countBy(cur);
+  const sm = countBy(src);
+  const missing = [];
+  const extra = [];
+  for (const k of Object.keys(sm)) for (let i = 0; i < sm[k] - (cm[k] || 0); i++) missing.push(k);
+  for (const k of Object.keys(cm)) for (let i = 0; i < cm[k] - (sm[k] || 0); i++) extra.push(k);
+
+  // Nesting: reordering whole pairs is allowed, interleaving is not.
+  let nestError = null;
+  const stack = [];
+  for (const s of cur) {
+    if (s.type === "open") stack.push(s.n);else if (s.type === "close") {
+      if (stack.length && stack[stack.length - 1] === s.n) stack.pop();else {
+        nestError = s.n;
+        break;
+      }
+    }
+  }
+  if (nestError === null && stack.length) nestError = stack[stack.length - 1];
+
+  // Empty pairs → warning only (renders e.g. an empty <a></a>).
+  const emptyPairs = [];
+  for (let i = 0; i + 2 < segs.length; i++) {
+    if (segs[i].type === "open" && segs[i + 1].type === "text" && segs[i + 1].value.trim() === "" && segs[i + 2].type === "close" && segs[i + 2].n === segs[i].n) emptyPairs.push(segs[i].n);
+  }
+  return {
+    missing,
+    extra,
+    nestError,
+    emptyPairs,
+    ok: missing.length === 0 && extra.length === 0 && nestError === null
+  };
+}
+
+// ---------- shared marker helpers (single source of truth) ----------
+
+/** True when a unit string carries codec markers, i.e. it is a composed unit. */
+const hasMarkers = s => /\{\/?\d+\/?\}/.test(s || "");
+
+/** Drop markers for plain-text display (table cells, placeholders). */
+const stripMarkers = s => (s || "").replace(/\{\/?\d+\/?\}/g, "").replace(/\s+/g, " ").trim();
+
+// ---------- display-only coincident-stack collapse ----------
+
+/*
+ * groupCoincident wraps a coincident open/close stack into ONE render-only
+ * 'group' node while the true segment list (state) is untouched. serializeGrouped
+ * rebuilds the exact original string from the group's structured fields — it is
+ * the round-trip proof used by the test; runtime save always uses serialize() on
+ * the true segments, so collapse can never drift the stored string.
+ *
+ * A stack collapses only when (strict, §3): consecutive open markers (separated
+ * only by whitespace-only text), a single plain-text inner payload, and the
+ * mirror-reverse closes. Note: because consecutive opens across whitespace-only
+ * text are always merged into one flat member list, the spec's "nested sub-run
+ * inner" reduces to this same case — any non-whitespace text or extra chip
+ * between the last open and first close is a branch and is NOT collapsed.
+ */
+
+const isWsText = s => s && s.type === "text" && s.value.trim() === "";
+
+/** Try to match a full coincident stack starting at an open marker at index i.
+ *  Returns { node, end } (end = index of the last close) or null. */
+function tryStack(segs, i) {
+  if (segs[i] && segs[i].type === "open") {
+    // ok
+  } else {
+    return null;
+  }
+  const members = [];
+  const openJoiners = [];
+  let j = i;
+  while (segs[j] && segs[j].type === "open") {
+    members.push(segs[j]);
+    if (isWsText(segs[j + 1]) && segs[j + 2] && segs[j + 2].type === "open") {
+      openJoiners.push(segs[j + 1]);
+      j += 2;
+    } else {
+      break;
+    }
+  }
+  const last = j; // innermost open
+
+  // Inner must be exactly the single text at last+1, immediately closed.
+  const innerText = segs[last + 1];
+  if (!innerText || innerText.type !== "text") return null;
+  if (!segs[last + 2] || segs[last + 2].type !== "close") return null;
+
+  // Match mirror-reverse closes.
+  const closers = [];
+  const closeJoiners = [];
+  let c = last + 2;
+  let end = -1;
+  for (let k = 0; k < members.length; k++) {
+    const expectN = members[members.length - 1 - k].n;
+    if (!segs[c] || segs[c].type !== "close" || segs[c].n !== expectN) return null;
+    closers.push(segs[c]);
+    if (k < members.length - 1) {
+      if (!isWsText(segs[c + 1])) return null;
+      closeJoiners.push(segs[c + 1]);
+      c += 2;
+    } else {
+      end = c;
+    }
+  }
+
+  // ponytail: §3 — a lone empty pair {n}{/n} is left as raw chips (nothing gained
+  // by collapsing, and the empty-pair warning reads it naturally on true segs).
+  if (members.length === 1 && innerText.value.trim() === "") return null;
+  return {
+    node: {
+      type: "group",
+      members,
+      openJoiners,
+      inner: innerText,
+      closers,
+      closeJoiners,
+      ids: members.map(s => s.n)
+    },
+    end
+  };
+}
+function groupCoincident(segs) {
+  const out = [];
+  let i = 0;
+  while (i < segs.length) {
+    const s = segs[i];
+    if (s.type === "open") {
+      const st = tryStack(segs, i);
+      if (st) {
+        out.push(st.node);
+        i = st.end + 1;
+        continue;
+      }
+    }
+    out.push(s);
+    i += 1;
+  }
+  return out;
+}
+function serializeGroup(g) {
+  let s = "";
+  for (let k = 0; k < g.members.length; k++) {
+    s += serialize([g.members[k]]);
+    if (k < g.members.length - 1) s += g.openJoiners[k].value;
+  }
+  s += serialize([g.inner]);
+  for (let k = 0; k < g.closers.length; k++) {
+    s += serialize([g.closers[k]]);
+    if (k < g.closers.length - 1) s += g.closeJoiners[k].value;
+  }
+  return s;
+}
+
+/** Rebuild the original string from a grouped tree (test-only round-trip proof). */
+function serializeGrouped(tree) {
+  return tree.map(node => node.type === "group" ? serializeGroup(node) : serialize([node])).join("");
+}
 
 /***/ },
 
