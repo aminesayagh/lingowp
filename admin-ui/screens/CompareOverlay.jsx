@@ -96,7 +96,11 @@ export default function CompareOverlay({
 
   const composed = !!unit && hasMarkers(unit.original || "");
   const unitId = unit?.id;
-  const incoming = unit?.translated ?? "";
+  // A composed unit with no translation yet starts from the original so every
+  // formatting chip is present; the translator edits the words in place. This is
+  // only a starting draft — autosave still fires only once the value changes.
+  const incoming =
+    unit?.translated ?? (composed ? unit?.original ?? "" : "");
 
   const save = useCallback(
     async (value) => {

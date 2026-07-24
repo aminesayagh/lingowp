@@ -226,6 +226,41 @@ export function groupCoincident(segs) {
   return out;
 }
 
+/*
+ * Fold maximal runs of pure structural markers (lone open/close/void chips and
+ * whitespace-only text, i.e. no words and no text-wrapping group) into a single
+ * 'hidden' node. These wrap no translatable text — table/div scaffolding — so the
+ * editor renders them as a quiet separator instead of a wall of numbered chips.
+ * Display-only: the nodes are carried verbatim and serialize to the exact string.
+ * A run of only whitespace (no marker) is left as plain text — nothing to hide.
+ */
+export function hideStructure(tree) {
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    if (run.some((n) => n.type !== "text")) out.push({ type: "hidden", nodes: run });
+    else out.push(...run);
+    run = [];
+  };
+  for (const node of tree) {
+    const structural =
+      node.type === "open" ||
+      node.type === "close" ||
+      node.type === "void" ||
+      (node.type === "text" && node.value.trim() === "") ||
+      // A merged stack wrapping no words (empty or whitespace-only) is noise too.
+      (node.type === "group" && node.inner.value.trim() === "");
+    if (structural) run.push(node);
+    else {
+      flush();
+      out.push(node);
+    }
+  }
+  flush();
+  return out;
+}
+
 function serializeGroup(g) {
   let s = "";
   for (let k = 0; k < g.members.length; k++) {
@@ -240,9 +275,16 @@ function serializeGroup(g) {
   return s;
 }
 
-/** Rebuild the original string from a grouped tree (test-only round-trip proof). */
+/** Rebuild the original string from a grouped (and optionally structure-hidden)
+ *  tree — the test-only round-trip proof. */
 export function serializeGrouped(tree) {
   return tree
-    .map((node) => (node.type === "group" ? serializeGroup(node) : serialize([node])))
+    .map((node) =>
+      node.type === "group"
+        ? serializeGroup(node)
+        : node.type === "hidden"
+        ? serializeGrouped(node.nodes)
+        : serialize([node])
+    )
     .join("");
 }

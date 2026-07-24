@@ -13519,7 +13519,10 @@ function CompareOverlay({
   const timerRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_14__.useRef)(null);
   const composed = !!unit && (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_16__.hasMarkers)(unit.original || "");
   const unitId = unit?.id;
-  const incoming = unit?.translated ?? "";
+  // A composed unit with no translation yet starts from the original so every
+  // formatting chip is present; the translator edits the words in place. This is
+  // only a starting draft — autosave still fires only once the value changes.
+  const incoming = unit?.translated ?? (composed ? unit?.original ?? "" : "");
   const save = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_14__.useCallback)(async value => {
     if (!unitId || value === savedRef.current) {
       return;
@@ -14949,6 +14952,14 @@ function TextUnitRow({
       setMenuOpen(false);
       onOpenOverlay(unit);
     }
+  }, unit.preview_url && {
+    content: unit.preview_highlight ? "Preview on website" : "Edit in WordPress",
+    onAction: () => {
+      setMenuOpen(false);
+      const snippet = (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__.stripMarkers)(unit.translated ?? unit.original ?? "");
+      const url = unit.preview_highlight && snippet ? `${unit.preview_url}#:~:text=${encodeURIComponent(snippet)}` : unit.preview_url;
+      window.open(url, "_blank", "noopener");
+    }
   }, hasTranslation && {
     content: "To review",
     onAction: () => doStatus("review")
@@ -16048,22 +16059,14 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   ChipField: () => (/* binding */ ChipField),
 /* harmony export */   SourceChips: () => (/* binding */ SourceChips),
-/* harmony export */   hasMarkers: () => (/* reexport safe */ _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.hasMarkers),
-/* harmony export */   stripMarkers: () => (/* reexport safe */ _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.stripMarkers)
+/* harmony export */   hasMarkers: () => (/* reexport safe */ _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.hasMarkers),
+/* harmony export */   stripMarkers: () => (/* reexport safe */ _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.stripMarkers)
 /* harmony export */ });
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Box/Box.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Icon/Icon.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/InlineStack/InlineStack.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
-/* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/AlertTriangleIcon.svg.mjs");
-/* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/CheckIcon.svg.mjs");
-/* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/ReturnIcon.svg.mjs");
-/* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/XCircleIcon.svg.mjs");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__);
-/* harmony import */ var _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./inlineTagCodec.mjs */ "./admin-ui/screens/inlineTagCodec.mjs");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__);
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./inlineTagCodec.mjs */ "./admin-ui/screens/inlineTagCodec.mjs");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__);
 
 
 
@@ -16148,14 +16151,14 @@ const chipText = (seg, tags) => {
 };
 
 // Label for a collapsed coincident stack. Descriptor-aware, but tag names are
-// not wired to the editor yet (see plan) — so it falls back to a neutral
-// "formatting" / "formatting +N" and upgrades automatically if `tags` lands.
+// not wired to the editor yet (see plan) — so it falls back to a short neutral
+// "tag" and upgrades automatically if `tags` lands. No count suffix.
 const groupLabel = (group, tags) => {
   const names = group.ids.map(n => tags?.[n]?.tag ? TAG_LABELS[tags[n].tag] || tags[n].tag : null);
   if (names.length && names.every(Boolean)) {
-    return names.length <= 2 ? names.join("+") : `${names[0]} (+${names.length - 1})`;
+    return names.length <= 2 ? names.join("+") : names[0];
   }
-  return group.ids.length > 1 ? `formatting +${group.ids.length - 1}` : "formatting";
+  return "tag";
 };
 const groupTitle = (group, tags) => {
   const path = group.ids.map(n => tags?.[n]?.tag ? TAG_LABELS[tags[n].tag] || tags[n].tag : `#${n}`).join(" › ");
@@ -16174,22 +16177,26 @@ const ordinalSuffix = n => {
 };
 const truncate = (s, n) => s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
-// A faint dot marking that the source had a space on this side of a chip, so the
-// translator can see whether the space belongs inside or outside the formatting.
-function SpaceDot() {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+// Count the real markers in a hidden run (a folded empty group carries several).
+const markerCount = nodes => nodes.reduce((a, n) => a + (n.type === "group" ? n.members.length + n.closers.length : n.type !== "text" ? 1 : 0), 0);
+
+// A quiet separator standing in for a run of pure layout markers (table/div
+// scaffolding that wraps no words). The markers are kept in state and serialized
+// verbatim — just not shown, so the translator sees the words, not the wall.
+function HiddenStructure({
+  count
+}) {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
     "aria-hidden": "true",
-    title: "the source has a space here",
+    title: `${count} layout tag${count === 1 ? "" : "s"} here — kept, not shown`,
     style: {
       display: "inline-block",
-      width: "3px",
-      height: "3px",
       margin: "0 1px",
-      borderRadius: "50%",
-      background: "var(--p-color-text-subdued)",
-      opacity: 0.45,
-      verticalAlign: "middle"
-    }
+      color: "var(--p-color-text-subdued)",
+      opacity: 0.5,
+      userSelect: "none"
+    },
+    children: "\xB7"
   });
 }
 const chipBaseStyle = hue => ({
@@ -16212,6 +16219,86 @@ const chipBaseStyle = hue => ({
   verticalAlign: "middle"
 });
 
+// ---------- editable text segment (inline, wrapping) ----------
+
+const getCaretOffset = el => {
+  const sel = window.getSelection();
+  if (!el || !sel || !sel.rangeCount || !el.contains(sel.anchorNode)) {
+    return el ? el.textContent.length : 0;
+  }
+  return sel.getRangeAt(0).startOffset;
+};
+const caretFromPoint = (el, x, y) => {
+  let container;
+  let offset;
+  if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) ({
+      startContainer: container,
+      startOffset: offset
+    } = r);
+  } else if (document.caretPositionFromPoint) {
+    const p = document.caretPositionFromPoint(x, y);
+    if (p) ({
+      offsetNode: container,
+      offset
+    } = p);
+  }
+  return container && el.contains(container) ? offset : el.textContent.length;
+};
+
+// A text segment as an inline, wrapping contentEditable span (an <input> can't
+// wrap, which overflowed long text). The DOM text is written only when it
+// differs from `value`, so typing never resets the caret.
+function EditableText({
+  value,
+  placeholder,
+  dir,
+  onInput,
+  onCaret,
+  onDrop,
+  dragActive,
+  pad
+}) {
+  const ref = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useRef)(null);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    if (ref.current && ref.current.textContent !== value) {
+      ref.current.textContent = value;
+    }
+  }, [value]);
+  const track = () => onCaret(getCaretOffset(ref.current));
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
+    ref: ref,
+    contentEditable: true,
+    suppressContentEditableWarning: true,
+    role: "textbox",
+    dir: dir,
+    spellCheck: false,
+    className: "tl-seg",
+    "data-ph": placeholder || "",
+    "aria-label": "Translation text",
+    onInput: () => onInput(ref.current.textContent),
+    onKeyUp: track,
+    onMouseUp: track,
+    onFocus: track,
+    onClick: e => e.stopPropagation(),
+    onDragOver: e => dragActive() && e.preventDefault(),
+    onDrop: e => {
+      e.preventDefault();
+      onDrop(caretFromPoint(ref.current, e.clientX, e.clientY));
+    },
+    style: {
+      outline: "none",
+      minWidth: "4px",
+      whiteSpace: "pre-wrap",
+      overflowWrap: "anywhere",
+      color: "var(--p-color-text)",
+      // A little breathing room between the wrapping chips and their content.
+      padding: pad ? "0 3px" : undefined
+    }
+  });
+}
+
 // ---------- Chip ----------
 
 function Chip({
@@ -16230,7 +16317,7 @@ function Chip({
 }) {
   const hue = hueFor(hueN ?? seg.n);
   const text = label ?? chipText(seg, tags);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("button", {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("button", {
     type: "button",
     draggable: !readOnly && !!onDragStart,
     onDragStart: onDragStart,
@@ -16246,14 +16333,14 @@ function Chip({
       outline: selected ? `2px solid ${hue.text}` : "none",
       outlineOffset: selected ? "1px" : 0
     },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
       className: "w-1.5 h-1.5 rounded-full",
       style: {
         background: hue.border
       }
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
       children: text
-    }), !readOnly && selected && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+    }), !readOnly && selected && onRemove && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
       onClick: e => {
         e.stopPropagation();
         onRemove();
@@ -16272,9 +16359,9 @@ function SourceChips({
   tags,
   dir = "ltr"
 }) {
-  const segs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(unit ?? ""), [unit]);
-  const tree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.groupCoincident)(segs), [segs]);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("div", {
+  const segs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.parseUnit)(unit ?? ""), [unit]);
+  const tree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.hideStructure)((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.groupCoincident)(segs)), [segs]);
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("div", {
     dir: dir,
     style: {
       flex: 1,
@@ -16284,19 +16371,30 @@ function SourceChips({
       lineHeight: "26px",
       color: "var(--p-color-text)"
     },
-    children: tree.map((node, i) => node.type === "text" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+    children: tree.map((node, i) => node.type === "text" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
       children: node.value
-    }, i) : node.type === "group" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.Fragment, {
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
+    }, i) : node.type === "hidden" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(HiddenStructure, {
+      count: markerCount(node.nodes)
+    }, i) : node.type === "group" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)(_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.Fragment, {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(Chip, {
         tags: tags,
         readOnly: true,
         label: groupLabel(node, tags),
         hueN: node.ids[0],
         title: groupTitle(node, tags)
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
-        children: node.inner.value
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
+        style: {
+          padding: "0 3px"
+        },
+        children: node.inner.value.trim()
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(Chip, {
+        tags: tags,
+        readOnly: true,
+        label: `/${groupLabel(node, tags)}`,
+        hueN: node.ids[0],
+        title: groupTitle(node, tags)
       })]
-    }, i) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
+    }, i) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(Chip, {
       seg: node,
       tags: tags,
       readOnly: true
@@ -16313,21 +16411,21 @@ function ChipField({
   dir = "ltr",
   onChange
 }) {
-  const sourceSegs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(sourceUnit ?? ""), [sourceUnit]);
-  const [segs, setSegs] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(value ?? ""));
-  const [selectedChip, setSelectedChip] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(null);
-  const [flash, setFlash] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(null);
-  const caretRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null); // { segIdx, pos }
-  const flashTimer = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null);
-  const lastSent = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null);
-  const dragRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useRef)(null); // indices of the stack being dragged
+  const sourceSegs = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.parseUnit)(sourceUnit ?? ""), [sourceUnit]);
+  const [segs, setSegs] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.parseUnit)(value ?? ""));
+  const [selectedChip, setSelectedChip] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [flash, setFlash] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const caretRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useRef)(null); // { segIdx, pos }
+  const flashTimer = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useRef)(null);
+  const lastSent = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useRef)(null);
+  const dragRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useRef)(null); // indices of the stack being dragged
 
-  const validation = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.validateStructure)(segs, sourceSegs), [segs, sourceSegs]);
+  const validation = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.validateStructure)(segs, sourceSegs), [segs, sourceSegs]);
 
   // Keep the host in sync (serialized value + validity) on real changes + mount.
   // Guarded by a ref so an inline host onChange can't drive a render loop.
-  const serialized = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.serialize)(segs), [segs]);
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => {
+  const serialized = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.serialize)(segs), [segs]);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     const sig = `${validation.ok ? 1 : 0}|${serialized}`;
     if (sig === lastSent.current) return;
     lastSent.current = sig;
@@ -16337,8 +16435,8 @@ function ChipField({
   // Adopt a value that changed outside the field (AI translate, copy source,
   // a refetch after autosave). Deliberately keyed on `value` only: while the
   // user types, the host's value lags our serialization and must not reparse.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => {
-    if ((value ?? "") !== (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.serialize)(segs)) setSegs((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.parseUnit)(value ?? ""));
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    if ((value ?? "") !== (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.serialize)(segs)) setSegs((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.parseUnit)(value ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   const showFlash = msg => {
@@ -16346,13 +16444,14 @@ function ChipField({
     clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(null), 3200);
   };
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => () => clearTimeout(flashTimer.current), []);
-  const update = next => setSegs((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.normalize)(next));
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => () => clearTimeout(flashTimer.current), []);
+  const update = next => setSegs((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.normalize)(next));
 
-  // Render from the collapsed tree; edits still resolve to true-segment indices.
-  const tree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.groupCoincident)(segs), [segs]);
-  const idxOf = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => new Map(segs.map((s, i) => [s, i])), [segs]);
-  const sourceTree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_9__.groupCoincident)(sourceSegs), [sourceSegs]);
+  // Render from the collapsed + structure-hidden tree; edits still resolve to
+  // true-segment indices via idxOf.
+  const tree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.hideStructure)((0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.groupCoincident)(segs)), [segs]);
+  const idxOf = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => new Map(segs.map((s, i) => [s, i])), [segs]);
+  const sourceTree = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => (0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.groupCoincident)(sourceSegs), [sourceSegs]);
 
   // -- text editing (markers can never be typed: paste guard) --
   const onTextChange = (idx, raw) => {
@@ -16363,9 +16462,9 @@ function ChipField({
       value: cleaned
     } : s));
   };
-  const rememberCaret = (idx, e) => caretRef.current = {
+  const rememberCaret = (idx, pos) => caretRef.current = {
     segIdx: idx,
-    pos: e.target.selectionStart ?? 0
+    pos: pos ?? 0
   };
 
   // Remove one or more chip segments as a unit, keeping surrounding text; a
@@ -16505,36 +16604,50 @@ function ChipField({
   };
   const textInput = node => {
     const i = idxOf.get(node);
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("input", {
-      type: "text",
+    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(EditableText, {
       value: node.value,
-      onChange: e => onTextChange(i, e.target.value),
-      onSelect: e => rememberCaret(i, e),
-      onFocus: e => rememberCaret(i, e),
-      onClick: e => e.stopPropagation(),
-      onDragOver: e => dragRef.current && e.preventDefault(),
-      onDrop: e => {
-        e.preventDefault();
-        dropStackAt(node, e.target.selectionStart);
+      dir: dir,
+      placeholder: segs.length === 1 ? "Type the translation…" : "",
+      onInput: text => onTextChange(i, text),
+      onCaret: pos => rememberCaret(i, pos),
+      onDrop: pos => dropStackAt(node, pos),
+      dragActive: () => !!dragRef.current
+    }, `t${i}`);
+  };
+
+  // A group's inner text hides the whitespace that pads the chip boundary
+  // (`{2} Products {/2}`) — noise for the translator, but the backend needs it,
+  // so it is re-attached on every edit and serialize() stays byte-identical.
+  const innerInput = node => {
+    const i = idxOf.get(node);
+    const v = node.value;
+    const trimmed = v.trim();
+    const lead = trimmed === "" ? v : v.slice(0, v.length - v.trimStart().length);
+    const trail = trimmed === "" ? "" : v.slice(v.trimEnd().length);
+    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(EditableText, {
+      value: trimmed,
+      dir: dir,
+      placeholder: "",
+      pad: true,
+      onInput: text => {
+        const cleaned = text.replace(/\{\/?\d+\/?\}/g, "").trim();
+        if (cleaned !== text.trim()) showFlash("Tag markers can't be typed or pasted — use the chips.");
+        update(segs.map((s, idx) => idx === i ? {
+          ...s,
+          value: lead + cleaned + trail
+        } : s));
       },
-      placeholder: segs.length === 1 ? "Type the translation…" : undefined,
-      spellCheck: false,
-      "aria-label": "Translation text",
-      style: {
-        all: "unset",
-        minWidth: "8px",
-        padding: "2px 0",
-        color: "var(--p-color-text)",
-        width: `${Math.max(node.value.length + 1, segs.length === 1 ? 22 : 1)}ch`
-      }
+      onCaret: pos => rememberCaret(i, lead.length + pos),
+      onDrop: pos => dropStackAt(node, lead.length + pos),
+      dragActive: () => !!dragRef.current
     }, `t${i}`);
   };
 
   // Which source stacks are absent now — the missing-formatting dock. Neutral
   // labels alone are ambiguous, so each entry carries an ordinal + a source-text
   // preview of the phrase it wrapped.
-  const currentOpenIds = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => new Set(segs.filter(s => s.type === "open").map(s => s.n)), [segs]);
-  const dock = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+  const currentOpenIds = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => new Set(segs.filter(s => s.type === "open").map(s => s.n)), [segs]);
+  const dock = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => {
     const groups = sourceTree.filter(n => n.type === "group");
     const seen = {};
     return groups.map(g => {
@@ -16551,16 +16664,21 @@ function ChipField({
     }) => g.ids.some(n => !currentOpenIds.has(n)));
   }, [sourceTree, currentOpenIds, tags]);
   // Missing markers not covered by a docked stack (voids, non-collapsed chips).
-  const looseMissing = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+  const looseMissing = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => {
     const docked = new Set(dock.flatMap(({
       g
     }) => g.ids));
     return validation.missing.filter(k => !docked.has(Number(k.split(":")[1])));
   }, [validation.missing, dock]);
 
+  // Pristine: a composed source but the field carries no markers yet (empty or
+  // plain). "Everything's missing" is noise here — guide to Copy original, and
+  // keep the dock quiet until the translator has actually brought structure in.
+  const pristine = !(0,_inlineTagCodec_mjs__WEBPACK_IMPORTED_MODULE_1__.hasMarkers)(serialized) && sourceSegs.some(s => s.type !== "text");
+
   // Source boundary spaces per stack (keyed by outermost id): shows the dot and
   // drives the "space ran together" warning — never rewrites whitespace (§7.2).
-  const srcSpaces = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+  const srcSpaces = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => {
     const sIdx = new Map(sourceSegs.map((s, i) => [s, i]));
     const map = new Map();
     for (const g of sourceTree.filter(n => n.type === "group")) {
@@ -16573,7 +16691,7 @@ function ChipField({
     }
     return map;
   }, [sourceTree, sourceSegs]);
-  const spaceWarn = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useMemo)(() => {
+  const spaceWarn = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => {
     for (const cg of tree.filter(n => n.type === "group")) {
       const src = srcSpaces.get(cg.ids[0]);
       if (!src) continue;
@@ -16587,7 +16705,11 @@ function ChipField({
     return false;
   }, [tree, srcSpaces, idxOf, segs]);
   const problem = validation.nestError !== null ? `Tags are crossed: "${labelFor(tags, validation.nestError)}" closes outside the tag it opened in — the rendered HTML would be invalid.` : validation.missing.length || validation.extra.length ? [validation.missing.length ? `${validation.missing.length} tag(s) missing` : "", validation.extra.length ? `${validation.extra.length} extra tag(s)` : ""].filter(Boolean).join(" · ") : null;
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("div", {
+
+  // Only show the bottom panel when it has something to say — no "all good" bar.
+  const showDock = !pristine && (dock.length > 0 || looseMissing.length > 0);
+  const showPanel = pristine || !validation.ok || validation.emptyPairs.length > 0 || spaceWarn || !!flash || showDock;
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)("div", {
     style: {
       flex: 1,
       minHeight: 0,
@@ -16595,16 +16717,16 @@ function ChipField({
       flexDirection: "column",
       gap: "8px"
     },
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("div", {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("style", {
+      children: `.tl-seg:empty:before{content:attr(data-ph);color:var(--p-color-text-subdued);opacity:.6;pointer-events:none;}`
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("div", {
       dir: dir,
       onClick: () => setSelectedChip(null),
       style: {
         flex: 1,
         minHeight: "120px",
         overflowY: "auto",
-        display: "flex",
-        flexWrap: "wrap",
-        alignContent: "flex-start",
+        overflowWrap: "anywhere",
         padding: "4px 8px",
         borderRadius: "8px",
         border: `1px solid ${validation.ok ? "var(--p-color-border)" : "var(--p-color-border-critical)"}`,
@@ -16612,8 +16734,11 @@ function ChipField({
         fontSize: "13px",
         lineHeight: "26px"
       },
-      children: tree.map(node => {
+      children: tree.map((node, ni) => {
         if (node.type === "text") return textInput(node);
+        if (node.type === "hidden") return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(HiddenStructure, {
+          count: markerCount(node.nodes)
+        }, `h${ni}`);
         if (node.type === "group") {
           const i = idxOf.get(node.members[0]);
           const indices = [...node.members, ...node.closers].map(o => idxOf.get(o));
@@ -16621,26 +16746,38 @@ function ChipField({
             anchor: i,
             indices
           };
-          const sp = srcSpaces.get(node.ids[0]);
-          return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.Fragment, {
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("span", {
+          const label = groupLabel(node, tags);
+          const title = groupTitle(node, tags);
+          // Shared props so the opening and closing chip act as one atom:
+          // selecting/removing/moving/dragging either affects the whole stack.
+          const shared = {
+            tags,
+            hueN: node.ids[0],
+            title,
+            selected: selectedChip === i,
+            onSelect: () => setSelectedChip(i),
+            onKeyDown: onChipKeyDown(sel),
+            onDragStart: e => {
+              e.dataTransfer.setData("text/plain", "");
+              dragRef.current = indices;
+            },
+            onDragEnd: () => dragRef.current = null
+          };
+          return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsxs)(_wordpress_element__WEBPACK_IMPORTED_MODULE_0__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
               onClick: e => e.stopPropagation(),
-              children: [sp?.left && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(SpaceDot, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
-                tags: tags,
-                label: groupLabel(node, tags),
-                hueN: node.ids[0],
-                title: groupTitle(node, tags),
-                selected: selectedChip === i,
-                onSelect: () => setSelectedChip(i),
-                onKeyDown: onChipKeyDown(sel),
-                onRemove: () => removeStack(indices),
-                onDragStart: e => {
-                  e.dataTransfer.setData("text/plain", "");
-                  dragRef.current = indices;
-                },
-                onDragEnd: () => dragRef.current = null
-              })]
-            }), textInput(node.inner), sp?.right && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(SpaceDot, {})]
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(Chip, {
+                ...shared,
+                label: label,
+                onRemove: () => removeStack(indices)
+              })
+            }), innerInput(node.inner), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
+              onClick: e => e.stopPropagation(),
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(Chip, {
+                ...shared,
+                label: `/${label}`
+              })
+            })]
           }, `g${i}`);
         }
         const i = idxOf.get(node);
@@ -16648,9 +16785,9 @@ function ChipField({
           anchor: i,
           indices: [i]
         };
-        return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
+        return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("span", {
           onClick: e => e.stopPropagation(),
-          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(Chip, {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(Chip, {
             seg: node,
             tags: tags,
             selected: selectedChip === i,
@@ -16664,153 +16801,6 @@ function ChipField({
             onDragEnd: () => dragRef.current = null
           })
         }, `c${i}`);
-      })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Box, {
-      padding: "200",
-      background: "bg-surface-secondary",
-      borderRadius: "200",
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("div", {
-        style: {
-          display: "flex",
-          flexDirection: "column",
-          gap: "6px"
-        },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-          gap: "300",
-          blockAlign: "center",
-          align: "start",
-          children: [validation.ok ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-            gap: "100",
-            blockAlign: "center",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
-              className: "w-4 h-4",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_5__.S,
-                tone: "success"
-              })
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-              as: "span",
-              variant: "bodySm",
-              tone: "success",
-              children: "Structure OK"
-            })]
-          }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-            gap: "100",
-            blockAlign: "center",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
-              className: "w-4 h-4",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_7__.S,
-                tone: "critical"
-              })
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-              as: "span",
-              variant: "bodySm",
-              tone: "critical",
-              children: problem
-            })]
-          }), validation.ok && validation.emptyPairs.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-            gap: "100",
-            blockAlign: "center",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
-              className: "w-3.5 h-3.5",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_4__.S,
-                tone: "caution"
-              })
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-              as: "span",
-              variant: "bodyXs",
-              tone: "caution",
-              children: ["\"", labelFor(tags, validation.emptyPairs[0]), "\" tag is empty \u2014 it will render with no text."]
-            })]
-          }), spaceWarn && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-            gap: "100",
-            blockAlign: "center",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
-              className: "w-3.5 h-3.5",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-                source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_4__.S,
-                tone: "caution"
-              })
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-              as: "span",
-              variant: "bodyXs",
-              tone: "caution",
-              children: "Missing space around formatting \u2014 text may run together."
-            })]
-          }), flash && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "span",
-            variant: "bodyXs",
-            tone: "caution",
-            children: flash
-          })]
-        }), (dock.length > 0 || looseMissing.length > 0) && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
-          gap: "200",
-          blockAlign: "center",
-          align: "start",
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "span",
-            variant: "bodyXs",
-            tone: "subdued",
-            children: [dock.length + looseMissing.length, " formatting missing \u2014 put back:"]
-          }), dock.map(({
-            g,
-            label,
-            ordinal,
-            preview
-          }) => {
-            const hue = hueFor(g.ids[0]);
-            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("button", {
-              type: "button",
-              onClick: () => insertStack(g),
-              title: "Insert this formatting stack at the cursor",
-              style: {
-                ...chipBaseStyle(hue),
-                cursor: "pointer",
-                borderStyle: "dashed",
-                height: "auto",
-                padding: "1px 6px"
-              },
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
-                className: "w-2.5 h-2.5",
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-                  source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_6__.S
-                })
-              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("span", {
-                children: [label, " \u2014 ", ordinal, ordinalSuffix(ordinal)]
-              }), preview && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("span", {
-                style: {
-                  opacity: 0.7
-                },
-                children: ["\xB7 \u201C", truncate(preview, 24), "\u201D"]
-              })]
-            }, `d${g.ids[0]}`);
-          }), looseMissing.map(k => {
-            const [type, nStr] = k.split(":");
-            const seg = {
-              type,
-              n: Number(nStr)
-            };
-            const hue = hueFor(seg.n);
-            return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)("button", {
-              type: "button",
-              onClick: () => insertMissing(k),
-              title: "Insert at cursor position",
-              style: {
-                ...chipBaseStyle(hue),
-                cursor: "pointer",
-                borderStyle: "dashed"
-              },
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)("span", {
-                className: "w-2.5 h-2.5",
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Icon, {
-                  source: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_6__.S
-                })
-              }), chipText(seg, tags)]
-            }, `l${k}`);
-          })]
-        })]
       })
     })]
   });
@@ -20372,34 +20362,6 @@ var SvgPlusIcon = function SvgPlusIcon(props) {
   }));
 };
 SvgPlusIcon.displayName = "PlusIcon";
-
-
-
-
-/***/ },
-
-/***/ "./node_modules/@shopify/polaris-icons/dist/icons/ReturnIcon.svg.mjs"
-/*!***************************************************************************!*\
-  !*** ./node_modules/@shopify/polaris-icons/dist/icons/ReturnIcon.svg.mjs ***!
-  \***************************************************************************/
-(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   S: () => (/* binding */ SvgReturnIcon)
-/* harmony export */ });
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
-
-
-var SvgReturnIcon = function SvgReturnIcon(props) {
-  return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement("svg", Object.assign({
-    viewBox: "0 0 20 20"
-  }, props), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement("path", {
-    d: "M10.75 12c.241 0 .334 0 .41-.004a3.25 3.25 0 0 0 3.086-3.087c.004-.075.004-.168.004-.409 0-.241 0-.334-.004-.41a3.25 3.25 0 0 0-3.087-3.086 9.616 9.616 0 0 0-.409-.004h-1.5a.75.75 0 0 1 0-1.5h1.524c.21 0 .342 0 .46.006a4.75 4.75 0 0 1 4.51 4.51c.006.118.006.25.006.46v.048c0 .21 0 .342-.006.46a4.75 4.75 0 0 1-4.51 4.51c-.118.006-.25.006-.46.006h-3.963l1.72 1.72a.75.75 0 1 1-1.061 1.06l-3-3a.75.75 0 0 1 0-1.06l3-3a.75.75 0 0 1 1.06 1.06l-1.72 1.72h3.94Z"
-  }));
-};
-SvgReturnIcon.displayName = "ReturnIcon";
 
 
 
@@ -25541,6 +25503,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   MARKER_RE: () => (/* binding */ MARKER_RE),
 /* harmony export */   groupCoincident: () => (/* binding */ groupCoincident),
 /* harmony export */   hasMarkers: () => (/* binding */ hasMarkers),
+/* harmony export */   hideStructure: () => (/* binding */ hideStructure),
 /* harmony export */   markerKey: () => (/* binding */ markerKey),
 /* harmony export */   normalize: () => (/* binding */ normalize),
 /* harmony export */   parseUnit: () => (/* binding */ parseUnit),
@@ -25761,6 +25724,38 @@ function groupCoincident(segs) {
   }
   return out;
 }
+
+/*
+ * Fold maximal runs of pure structural markers (lone open/close/void chips and
+ * whitespace-only text, i.e. no words and no text-wrapping group) into a single
+ * 'hidden' node. These wrap no translatable text — table/div scaffolding — so the
+ * editor renders them as a quiet separator instead of a wall of numbered chips.
+ * Display-only: the nodes are carried verbatim and serialize to the exact string.
+ * A run of only whitespace (no marker) is left as plain text — nothing to hide.
+ */
+function hideStructure(tree) {
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    if (run.some(n => n.type !== "text")) out.push({
+      type: "hidden",
+      nodes: run
+    });else out.push(...run);
+    run = [];
+  };
+  for (const node of tree) {
+    const structural = node.type === "open" || node.type === "close" || node.type === "void" || node.type === "text" && node.value.trim() === "" ||
+    // A merged stack wrapping no words (empty or whitespace-only) is noise too.
+    node.type === "group" && node.inner.value.trim() === "";
+    if (structural) run.push(node);else {
+      flush();
+      out.push(node);
+    }
+  }
+  flush();
+  return out;
+}
 function serializeGroup(g) {
   let s = "";
   for (let k = 0; k < g.members.length; k++) {
@@ -25775,9 +25770,10 @@ function serializeGroup(g) {
   return s;
 }
 
-/** Rebuild the original string from a grouped tree (test-only round-trip proof). */
+/** Rebuild the original string from a grouped (and optionally structure-hidden)
+ *  tree — the test-only round-trip proof. */
 function serializeGrouped(tree) {
-  return tree.map(node => node.type === "group" ? serializeGroup(node) : serialize([node])).join("");
+  return tree.map(node => node.type === "group" ? serializeGroup(node) : node.type === "hidden" ? serializeGrouped(node.nodes) : serialize([node])).join("");
 }
 
 /***/ },

@@ -1037,6 +1037,18 @@ function TextUnitRow({
         onOpenOverlay(unit);
       },
     },
+    unit.preview_url && {
+      content: unit.preview_highlight ? "Preview on website" : "Edit in WordPress",
+      onAction: () => {
+        setMenuOpen(false);
+        const snippet = stripMarkers(unit.translated ?? unit.original ?? "");
+        const url =
+          unit.preview_highlight && snippet
+            ? `${unit.preview_url}#:~:text=${encodeURIComponent(snippet)}`
+            : unit.preview_url;
+        window.open(url, "_blank", "noopener");
+      },
+    },
     hasTranslation && {
       content: "To review",
       onAction: () => doStatus("review"),
