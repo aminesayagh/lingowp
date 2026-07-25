@@ -18,7 +18,7 @@ use TransLangs\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '19';
+    public const DB_VERSION        = '20';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
@@ -145,9 +145,9 @@ class TranslationMemorySchema
     }
 
     /**
-     * Abort before creating tables if wp_posts or wp_term_taxonomy is not
-     * InnoDB — the FK chain that makes translation orphans impossible cannot be
-     * built otherwise (§10). Throws a specific, human-readable SchemaFailure.
+     * Abort before creating tables if wp_posts, wp_term_taxonomy or wp_options
+     * is not InnoDB — the FK chain that makes translation orphans impossible
+     * cannot be built otherwise (§10). Throws a human-readable SchemaFailure.
      */
     private static function assertParentTablesAreInnoDB(): void
     {
@@ -189,6 +189,8 @@ class TranslationMemorySchema
         }
     }
 
+    
+
     /**
      * Add form_index to an existing tl_staticText_translation (pre-v18). Guarded by
      * an information_schema column check so it never re-runs or touches a freshly
@@ -199,7 +201,8 @@ class TranslationMemorySchema
     {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'tl_staticText_translation';
+        // Derived, not hardcoded, so it follows any future table-name change.
+        $table = self::parentTables()['tl_staticText'] . '_translation';
 
         $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
             $wpdb->prepare(
@@ -274,7 +277,7 @@ class TranslationMemorySchema
             'tl_post'       => $wpdb->prefix . 'tl_post',
             'tl_meta'       => $wpdb->prefix . 'tl_meta',
             'tl_term'       => $wpdb->prefix . 'tl_term',
-            'tl_staticText' => $wpdb->prefix . 'tl_staticText',
+            'tl_staticText' => $wpdb->prefix . 'tl_static_text',
             'tl_html'       => $wpdb->prefix . 'tl_html',
             'tl_option'     => $wpdb->prefix . 'tl_option',
         ];
@@ -289,7 +292,7 @@ class TranslationMemorySchema
     {
         global $wpdb;
 
-        return $wpdb->prefix . 'tl_staticPluralText';
+        return $wpdb->prefix . 'tl_static_plural_text';
     }
 
     /** The five prefixed child (translation) table names, keyed by parent suffix. */

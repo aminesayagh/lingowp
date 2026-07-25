@@ -15,7 +15,10 @@
       "Bash(awk -F: '$1>385 && $1<400')",
       "Read(//mnt/c/Users/amine/Local Sites/translangs/app/public/**)",
       "Bash(php -r ' *)",
-      "Bash(grep -rn -e \"->scan\\(\\)\" --include=\"*.php\" src/)"
+      "Bash(grep -rn -e \"->scan\\(\\)\" --include=\"*.php\" src/)",
+      "Bash(php -m)",
+      "Bash(grep -iE \"^\\(mysqli|pdo_mysql\\)$\")",
+      "Read(//mnt/c/Users/amine/AppData/Roaming/Local/lightning-services/**)"
     ]
   },
   "enableAllProjectMcpServers": true,

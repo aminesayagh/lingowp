@@ -5,9 +5,10 @@ namespace TransLangs\Database;
 /**
  * Pure DDL definitions for the v5 TransLangs tables (parent_child_unique_review_v5).
  *
- * Ten content tables: five readable PARENT source tables and five CHILD
- * translation tables in TWO key variants:
- *   - hash-link children (post, term, html): keyed (original_hash, lang_code),
+ * Thirteen content tables: six readable PARENT source tables (post, meta, term,
+ * staticText, html, option), six CHILD translation tables in TWO key variants,
+ * plus tl_staticPluralText which extends its staticText anchor:
+ *   - hash-link children (post, term, html, option): keyed (original_hash, lang_code),
  *     no parent_id. original_hash is the SHA-256 of the normalized original text
  *     (the same value stored on the parent), so identical text shares one
  *     translation across every position that has it.
@@ -119,7 +120,7 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    /** wp_tl_staticText — identity (source, reference_hash, original_hash). No content FK. */
+    /** wp_tl_static_text — identity (source, reference_hash, original_hash). No content FK. */
     public static function staticText(string $table, string $charsetCollate): string
     {
         return "CREATE TABLE IF NOT EXISTS {$table} (
@@ -140,7 +141,7 @@ final class TableDefinitions
     }
 
     /**
-     * wp_tl_staticPluralText — the plural form (msgid_plural) of a gettext message,
+     * wp_tl_static_plural_text — the plural form (msgid_plural) of a gettext message,
      * 1:1 with its singular tl_staticText anchor. Holds only the plural ORIGINAL;
      * the translated forms live on the anchor in tl_staticText_translation, keyed
      * by form_index. Exists so the admin board can show the plural string and flag

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build",
     "start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build",
-    "watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch"
+    "watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch",
+    "test": "node tests/inline_chip_grouping_check.mjs"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

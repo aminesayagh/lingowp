@@ -11,8 +11,11 @@ use InvalidArgumentException;
  * (possibly serialized) option value, e.g. "header.button.text"; empty string
  * for a scalar option. The readable option_name is kept alongside for the board.
  *
- * Parent-id kind (like meta/staticText): the position owns its translation and
- * the owner FK to wp_options(option_id) cascades cleanup when the option is gone.
+ * Hash-link kind (like post/term/html): the translation is keyed by original_hash
+ * alone, so two options holding identical text SHARE one translation row —
+ * option_id and option_path_hash identify the parent only. The owner FK to
+ * wp_options(option_id) cascades the parent away when the option is gone; the
+ * hash-link child has no FK and is reclaimed by OrphanTranslationSweep.
  */
 final class OptionSource extends SourceRecord
 {

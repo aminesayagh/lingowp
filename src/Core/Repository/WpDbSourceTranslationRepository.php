@@ -1047,10 +1047,27 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     /**
      * Upsert $records, then for each still-discovered parent in scope that is
      * absent from $records (a position whose text changed): carry its translation
-     * forward to the matching current position as needs_review, then delete the
-     * stale parent (v5 §3). Carry-forward only fires when the location maps to
-     * exactly one current position; hash-link orphan children are reclaimed by the
-     * sweep, parent_id children cascade. Empty $records deletes all of the scope.
+     * forward to its replacement as needs_review, then delete the stale parent
+     * (v5 §3). Empty $records deletes all of the scope.
+     *
+     * Carry-forward fires when a LOCATION has exactly one removed hash and
+     * exactly one NEWLY INSERTED one — an unambiguous edit. Asking instead
+     * whether the location holds a single position (the pre-fix rule) was too
+     * coarse for split post_content, where every piece shares
+     * (post_id, 'post_content'): editing one paragraph of three left three
+     * candidates, so the guard failed and the translation was silently dropped.
+     *
+     * Requiring the target to be newly inserted also stops a deletion from
+     * grafting its translation onto an unrelated survivor: with pieces A and B,
+     * removing B used to leave A as the sole "target" and copy B's translation
+     * onto it.
+     *
+     * Two or more pieces edited in one save stays deliberately unpaired — there
+     * is nothing to say which old text became which new one, and a translation
+     * attached to the wrong paragraph is worse than none.
+     *
+     * hash-link orphan children are reclaimed by the sweep, parent_id children
+     * cascade.
      *
      * @param array<int, string|int> $scopeArgs
      * @param SourceRecord[]         $records
@@ -1058,7 +1075,6 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     private function reconcileScope(string $tableKey, string $scopeSql, array $scopeArgs, array $records): void
     {
         $parent = $this->parent($tableKey);
-        $this->insertParents($tableKey, $records);
 
         if ($records === []) {
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -1071,6 +1087,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
 
         $identityCols = array_keys($records[0]->identity());
         $locationCols = array_values(array_filter($identityCols, static fn(string $c): bool => $c !== 'original_hash'));
+
+        // Snapshot what is already here BEFORE inserting, so a row can be
+        // recognised as this pass's insertion rather than a pre-existing sibling.
+        $preExisting = $this->existingIdentityKeys($tableKey, $scopeSql, $scopeArgs, $identityCols);
+
+        $this->insertParents($tableKey, $records);
 
         $current = [];
         foreach ($records as $record) {
@@ -1090,29 +1112,36 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         );
 
         $currentByLocation = [];
-        $stale             = [];
+        $staleByLocation   = [];
+        $staleIds          = [];
+
         foreach ($rows as $row) {
             $row      = (array) $row;
             $identity = $this->decodeIdentity($identityCols, $row);
+            $idKey    = IdentityKey::of($identity);
             $locKey   = IdentityKey::of($this->only($identity, $locationCols));
             $entry    = ['id' => (int) $row['id'], 'hash' => strtolower((string) $row['original_hash'])];
 
-            if (isset($current[IdentityKey::of($identity)])) {
+            if (isset($current[$idKey])) {
+                $entry['isNew']               = !isset($preExisting[$idKey]);
                 $currentByLocation[$locKey][] = $entry;
             } else {
-                $entry['loc'] = $locKey;
-                $stale[]      = $entry;
+                $staleByLocation[$locKey][] = $entry;
+                $staleIds[]                 = $entry['id'];
             }
         }
 
         $hashLink = $this->isHashLink($tableKey);
-        $staleIds = [];
-        foreach ($stale as $s) {
-            $targets = $currentByLocation[$s['loc']] ?? [];
-            if (count($targets) === 1) {
-                $this->carryForward($tableKey, $hashLink, $s, $targets[0]);
+
+        foreach ($staleByLocation as $locKey => $staleAtLocation) {
+            $newAtLocation = array_values(array_filter(
+                $currentByLocation[$locKey] ?? [],
+                static fn(array $t): bool => $t['isNew']
+            ));
+
+            if (count($staleAtLocation) === 1 && count($newAtLocation) === 1) {
+                $this->carryForward($tableKey, $hashLink, $staleAtLocation[0], $newAtLocation[0]);
             }
-            $staleIds[] = $s['id'];
         }
 
         if ($staleIds !== []) {
@@ -1120,6 +1149,40 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
             $this->wpdb->query($this->wpdb->prepare("DELETE FROM {$parent} WHERE id IN ({$placeholders})", ...$staleIds));
         }
+    }
+
+    /**
+     * Identity keys already present in a scope. Captured before insertParents()
+     * so reconcileScope() can tell a row it just inserted from one that was
+     * already there — the difference between "this is the edit's replacement"
+     * and "this is an untouched sibling".
+     *
+     * @param array<int, string|int> $scopeArgs
+     * @param string[]               $identityCols
+     * @return array<string, true>
+     */
+    private function existingIdentityKeys(string $tableKey, string $scopeSql, array $scopeArgs, array $identityCols): array
+    {
+        $parent = $this->parent($tableKey);
+
+        $select = [];
+        foreach ($identityCols as $column) {
+            $select[] = $this->isBinaryColumn($column) ? "HEX({$column}) AS {$column}" : $column;
+        }
+        $sql = 'SELECT ' . implode(', ', $select) . " FROM {$parent} WHERE {$scopeSql} AND status = %d";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = (array) $this->wpdb->get_results(
+            $this->wpdb->prepare($sql, ...array_merge($scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])),
+            ARRAY_A
+        );
+
+        $keys = [];
+        foreach ($rows as $row) {
+            $keys[IdentityKey::of($this->decodeIdentity($identityCols, (array) $row))] = true;
+        }
+
+        return $keys;
     }
 
     /**

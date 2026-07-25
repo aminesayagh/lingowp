@@ -20,16 +20,16 @@ $tables = [
     $wpdb->prefix . 'tl_post_translation',
     $wpdb->prefix . 'tl_meta_translation',
     $wpdb->prefix . 'tl_term_translation',
-    $wpdb->prefix . 'tl_staticText_translation',
+    $wpdb->prefix . 'tl_static_text_translation',
     $wpdb->prefix . 'tl_html_translation',
     $wpdb->prefix . 'tl_option_translation',
-    // gettext plural (references tl_staticText, so drop before the parents)
-    $wpdb->prefix . 'tl_staticPluralText',
+    // gettext plural (references the static text parent, so drop before it)
+    $wpdb->prefix . 'tl_static_plural_text',
     // v5 parents
     $wpdb->prefix . 'tl_post',
     $wpdb->prefix . 'tl_meta',
     $wpdb->prefix . 'tl_term',
-    $wpdb->prefix . 'tl_staticText',
+    $wpdb->prefix . 'tl_static_text',
     $wpdb->prefix . 'tl_html',
     $wpdb->prefix . 'tl_option',
 ];

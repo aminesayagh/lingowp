@@ -55,16 +55,27 @@ const textareaStyle = (muted) => ({
 
 function PaneHeader({ left, right }) {
   return (
-    <InlineStack
-      align="space-between"
-      blockAlign="center"
-      gap="200"
-      wrap={false}
-      style={{ height: "24px" }}
+    <div
+      style={{
+        display: "grid",
+        alignItems: "center",
+        height: "24px",
+        minHeight: "24px",
+        flex: "0 0 24px",
+        "--p-height-700": "24px",
+        "--p-width-700": "24px",
+      }}
     >
-      {left}
-      {right}
-    </InlineStack>
+      <InlineStack
+        align="space-between"
+        blockAlign="center"
+        gap="200"
+        wrap={false}
+      >
+        {left}
+        {right}
+      </InlineStack>
+    </div>
   );
 }
 
@@ -208,36 +219,40 @@ export default function CompareOverlay({
 
   const header = (
     <InlineStack align="center" gap="300" blockAlign="center" wrap={false}>
-      <ButtonGroup variant="segmented">
-        <Button
-          icon={ChevronLeftIcon}
-          disabled={!hasPrev}
-          onClick={() => withFlush(onPrev)}
-          accessibilityLabel="Before text"
-        />
-        <Button
-          icon={ChevronRightIcon}
-          disabled={!hasNext}
-          onClick={() => withFlush(onNext)}
-          accessibilityLabel="Next text"
-        />
-      </ButtonGroup>
-      <Popover
-        active={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        activator={
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <ButtonGroup variant="segmented">
           <Button
-            variant="tertiary"
-            icon={MenuHorizontalIcon}
-            onClick={() => setMenuOpen((o) => !o)}
-            accessibilityLabel="More actions"
+            icon={ChevronLeftIcon}
+            disabled={!hasPrev}
+            onClick={() => withFlush(onPrev)}
+            accessibilityLabel="Before text"
           />
-        }
-      >
-        <ActionList
-          items={[{ content: "View on Canvas", disabled: true }]}
-        />
-      </Popover>
+          <Button
+            icon={ChevronRightIcon}
+            disabled={!hasNext}
+            onClick={() => withFlush(onNext)}
+            accessibilityLabel="Next text"
+          />
+        </ButtonGroup>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", marginTop: "2px" }}>
+        <Popover
+          active={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          activator={
+            <Button
+              variant="tertiary"
+              icon={MenuHorizontalIcon}
+              onClick={() => setMenuOpen((o) => !o)}
+              accessibilityLabel="More actions"
+            />
+          }
+        >
+          <ActionList
+            items={[{ content: "View on Canvas", disabled: true }]}
+          />
+        </Popover>
+      </div>
     </InlineStack>
   );
 

@@ -13479,15 +13479,23 @@ function PaneHeader({
   left,
   right
 }) {
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.InlineStack, {
-    align: "space-between",
-    blockAlign: "center",
-    gap: "200",
-    wrap: false,
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)("div", {
     style: {
-      height: "24px"
+      display: "grid",
+      alignItems: "center",
+      height: "24px",
+      minHeight: "24px",
+      flex: "0 0 24px",
+      "--p-height-700": "24px",
+      "--p-width-700": "24px"
     },
-    children: [left, right]
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.InlineStack, {
+      align: "space-between",
+      blockAlign: "center",
+      gap: "200",
+      wrap: false,
+      children: [left, right]
+    })
   });
 }
 function CompareOverlay({
@@ -13611,33 +13619,46 @@ function CompareOverlay({
     gap: "300",
     blockAlign: "center",
     wrap: false,
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.ButtonGroup, {
-      variant: "segmented",
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Button, {
-        icon: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_9__.S,
-        disabled: !hasPrev,
-        onClick: () => withFlush(onPrev),
-        accessibilityLabel: "Before text"
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Button, {
-        icon: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_10__.S,
-        disabled: !hasNext,
-        onClick: () => withFlush(onNext),
-        accessibilityLabel: "Next text"
-      })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Popover, {
-      active: menuOpen,
-      onClose: () => setMenuOpen(false),
-      activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Button, {
-        variant: "tertiary",
-        icon: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_13__.S,
-        onClick: () => setMenuOpen(o => !o),
-        accessibilityLabel: "More actions"
-      }),
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
-        items: [{
-          content: "View on Canvas",
-          disabled: true
-        }]
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)("div", {
+      style: {
+        display: "flex",
+        alignItems: "center"
+      },
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.ButtonGroup, {
+        variant: "segmented",
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Button, {
+          icon: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_9__.S,
+          disabled: !hasPrev,
+          onClick: () => withFlush(onPrev),
+          accessibilityLabel: "Before text"
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Button, {
+          icon: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_10__.S,
+          disabled: !hasNext,
+          onClick: () => withFlush(onNext),
+          accessibilityLabel: "Next text"
+        })]
+      })
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        marginTop: "2px"
+      },
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Popover, {
+        active: menuOpen,
+        onClose: () => setMenuOpen(false),
+        activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Button, {
+          variant: "tertiary",
+          icon: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_13__.S,
+          onClick: () => setMenuOpen(o => !o),
+          accessibilityLabel: "More actions"
+        }),
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
+          items: [{
+            content: "View on Canvas",
+            disabled: true
+          }]
+        })
       })
     })]
   });

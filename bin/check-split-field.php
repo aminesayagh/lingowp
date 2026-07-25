@@ -3,21 +3,42 @@
 /**
  * Standalone round-trip check for split-field extraction (split-field spec).
  * Run:  php bin/check-split-field.php   (needs composer vendor/ for Masterminds)
- * No WordPress, no DB.
+ * Exits non-zero if any case fails. No WordPress, no DB.
+ *
+ * Ported to v5: the old requires pointed at src/TranslationMemory/Domain and
+ * src/PublicSite/Infrastructure, which the v5 reorganisation removed, so this
+ * file had been unrunnable. The two key-shape assertions were dropped with it —
+ * TL_Key::make()/makeSplit()/TYPE_POST are gone; v5 keys a record by its
+ * identity() columns and hashes the text with currentHash(). The determinism
+ * those assertions protected is now covered by tests/normalizer_gate_check.php.
  */
 
 declare(strict_types=1);
 
 $base = dirname(__DIR__);
 require $base . '/vendor/autoload.php';
-require $base . '/src/TranslationMemory/Domain/StringNormalizer.php';
-require $base . '/src/TranslationMemory/Domain/TL_Key.php';
-require $base . '/src/PublicSite/Infrastructure/TranslationUnitCodec.php';
-require $base . '/src/PublicSite/Infrastructure/HtmlUnitExtractor.php';
 
-use TransLangs\PublicSite\Infrastructure\HtmlUnitExtractor;
-use TransLangs\PublicSite\Infrastructure\TranslationUnitCodec;
-use TransLangs\TranslationMemory\Domain\TL_Key;
+use TransLangs\Core\Parsing\HtmlUnitExtractor;
+use TransLangs\Core\Parsing\TranslationUnitCodec;
+use TransLangs\Core\Text\TL_Key;
+
+$failed = 0;
+$total  = 0;
+
+function ok(string $label, bool $cond, string $detail = ''): void
+{
+    global $failed, $total;
+    $total++;
+    if ($cond) {
+        echo "PASS  $label\n";
+        return;
+    }
+    $failed++;
+    echo "FAIL  $label\n";
+    if ($detail !== '') {
+        echo "        $detail\n";
+    }
+}
 
 $ex = new HtmlUnitExtractor(new TranslationUnitCodec());
 
@@ -25,24 +46,33 @@ $html =
     '<!-- wp:paragraph --><p>About Us</p><!-- /wp:paragraph -->'
     . '<!-- wp:paragraph --><p>Get in <a href="/x">touch</a></p><!-- /wp:paragraph -->';
 
-// 1. Discovery extracts each block-level piece; inline tag → {1}.
+// 1. Discovery extracts each block-level piece; inline tag becomes {1}.
 $units = $ex->units($html);
-assert($units === ['About Us', 'Get in {1}touch{/1}'], 'units: ' . json_encode($units));
+ok('units extracted with inline markers',
+    $units === ['About Us', 'Get in {1}touch{/1}'],
+    'got ' . json_encode($units));
 
-// 2. Render replaces only the translated piece; scaffolding/sibling untouched;
-//    no <html>/<body> wrapper injected into a content fragment.
+// 2. Render replaces only the translated piece; scaffolding and siblings
+//    untouched; no <html>/<body> wrapper injected into a content fragment.
 $out = $ex->render($html, fn(string $u): ?string => $u === 'About Us' ? 'À propos' : null);
-assert(str_contains($out, 'À propos'), 'render replaced: ' . $out);
-assert(str_contains($out, 'Get in'), 'render kept sibling: ' . $out);
-assert(!str_contains($out, '<html'), 'render injected wrapper: ' . $out);
+ok('render replaced the translated piece', str_contains($out, 'À propos'), $out);
+ok('render kept the untranslated sibling', str_contains($out, 'Get in'), $out);
+ok('render injected no html wrapper', !str_contains($out, '<html'), $out);
 
-// 3. Discovery key == render key for the same piece (text-tail determinism).
-$k1 = TL_Key::makeSplit(5, 'post_content', 'About Us');
-$k2 = TL_Key::makeSplit(5, 'post_content', 'About Us');
-assert($k1 === $k2 && strlen($k1) === 32, 'split key shape');
+// 3. Extraction is deterministic — the same piece hashes identically, which is
+//    what lets discovery and render agree on a row.
+ok('same piece hashes identically',
+    TL_Key::currentHash($units[0]) === TL_Key::currentHash('About Us'));
+ok('distinct pieces hash differently',
+    TL_Key::currentHash($units[0]) !== TL_Key::currentHash($units[1]));
 
-// 4. The split key shares the atomic post_content prefix (same [type][owner][H(ref1)]).
-$atomic = TL_Key::make(TL_Key::TYPE_POST, 5, 'post_content', null, '');
-assert(substr($k1, 0, 17) === substr($atomic, 0, 17), 'split/atomic prefix mismatch');
+// 4. A round-trip through render() with a no-op translator is lossless.
+$identity = $ex->render($html, static fn(string $u): ?string => null);
+ok('no-op render preserves both units', $ex->units($identity) === $units,
+    'got ' . json_encode($ex->units($identity)));
 
-echo "OK\n";
+echo $failed === 0
+    ? "\nAll $total assertions passed.\n"
+    : "\n$failed of $total assertion(s) failed.\n";
+
+exit($failed === 0 ? 0 : 1);
