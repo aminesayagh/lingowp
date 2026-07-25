@@ -1039,6 +1039,11 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         $this->reconcileScope('tl_term', 'term_taxonomy_id = %d', [$termTaxonomyId], $records);
     }
 
+    public function reconcileOption(int $optionId, array $records): void
+    {
+        $this->reconcileScope('tl_option', 'option_id = %d', [$optionId], $records);
+    }
+
     /**
      * Upsert $records, then for each still-discovered parent in scope that is
      * absent from $records (a position whose text changed): carry its translation

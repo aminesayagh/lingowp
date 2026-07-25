@@ -278,4 +278,13 @@ interface SourceTranslationRepository
      * @param SourceRecord[] $records
      */
     public function reconcileTerm(int $termTaxonomyId, array $records): void;
+
+    /**
+     * Reconcile one wp_options row's parents. Same delete-stale + carry-forward
+     * rule as posts/terms, scoped to a single option_id: an edited tagline keeps
+     * its translation, re-attached to the new text as needs_review.
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcileOption(int $optionId, array $records): void;
 }

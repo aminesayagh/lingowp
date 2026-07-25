@@ -33,18 +33,31 @@ final class OptionSourceScanner
         private \wpdb $wpdb
     ) {}
 
-    /** Discover allowlisted option text. Returns the number of new parent rows. */
-    public function scan(): int
+    /**
+     * Discover allowlisted option text, reconciling one wp_options row at a time
+     * so an edited value carries its translation forward as needs_review (the
+     * same rule posts and terms follow) instead of stranding it on the old text.
+     *
+     * Pass $onlyOption to re-discover a single option — what the branding save
+     * hooks do, so saving the tagline doesn't unserialize and walk every widget
+     * and theme mod. (The allowlist itself is still assembled either way; that
+     * costs one option_name query.)
+     */
+    public function scan(?string $onlyOption = null): void
     {
-        $records = [];
-
         foreach ($this->allowlist() as $optionName => $paths) {
-            $optionId = $this->optionId((string) $optionName);
-            if ($optionId === null) {
+            $optionName = (string) $optionName;
+            if ($onlyOption !== null && $optionName !== $onlyOption) {
                 continue;
             }
 
-            $value = maybe_unserialize(get_option($optionName));
+            $optionId = $this->optionId($optionName);
+            if ($optionId === null) {
+                continue; // no such option row; FK cascade already removed any sources
+            }
+
+            $value   = maybe_unserialize(get_option($optionName));
+            $records = [];
 
             foreach ((array) $paths as $path) {
                 $node = $this->valueAtPath($value, (string) $path);
@@ -52,12 +65,14 @@ final class OptionSourceScanner
                     if (!$this->looksTranslatable($text)) {
                         continue;
                     }
-                    $records[] = new OptionSource($optionId, (string) $optionName, $leafPath, $text);
+                    $records[] = new OptionSource($optionId, $optionName, $leafPath, $text);
                 }
             }
-        }
 
-        return $records === [] ? 0 : $this->repository->upsertSources($records);
+            // Reconcile even when $records is empty: text removed from the option
+            // must prune its sources, which is exactly what an empty scope does.
+            $this->repository->reconcileOption($optionId, $records);
+        }
     }
 
     /** @return array<string, string[]> */

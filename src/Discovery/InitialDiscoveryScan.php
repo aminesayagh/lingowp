@@ -2,6 +2,8 @@
 
 namespace TransLangs\Discovery;
 
+use TransLangs\Discovery\Option\OptionSourceScanner;
+
 /**
  * Initial / activation discovery scan (data pipeline §2, Path B1).
  *
@@ -25,7 +27,8 @@ final class InitialDiscoveryScan
 
     public function __construct(
         private \wpdb $wpdb,
-        private StructuredSourceScanner $scanner
+        private StructuredSourceScanner $scanner,
+        private OptionSourceScanner $optionScanner
     ) {}
 
     public function register(): void
@@ -72,6 +75,10 @@ final class InitialDiscoveryScan
 
         $terms = $this->nextTerms($after);
         if ($terms === []) {
+            // ponytail: options are one unbatched pass — the allowlist is branding
+            // plus widget/theme_mod rows, tens of rows not thousands. Batch it like
+            // posts if a site ever shows up with a pathological widget count.
+            $this->optionScanner->scan();
             return; // done
         }
         foreach ($terms as [$ttId, $taxonomy, $name, $description]) {

@@ -29,6 +29,7 @@ use TransLangs\Admin\DatabaseHealthReport;
 use TransLangs\Admin\OnboardingPageController;
 use TransLangs\Discovery\SourceLifecycleRefresher;
 use TransLangs\Discovery\StructuredSourceScanner;
+use TransLangs\Database\OrphanTranslationSweep;
 use TransLangs\Database\TranslationMemorySchema;
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\BackendEndpointResolver;
@@ -70,16 +71,22 @@ class Plugin
 
         // Shared block-unit extractor (type-5 + split fields): one walk, three callers.
         $unitExtractor     = new HtmlUnitExtractor(new TranslationUnitCodec());
-        $structuredScanner = new StructuredSourceScanner($languageRegistry, $sourceRepository, $unitExtractor);
+        $structuredScanner = new StructuredSourceScanner($sourceRepository, $unitExtractor);
 
         // Options discovery (Path E): allowlisted wp_options text → tl_option.
         $optionScanner = new OptionSourceScanner($sourceRepository, $wpdb);
+
+        // Path E's save-time trigger, mirroring SourceLifecycleRefresher for
+        // posts/terms: a branding edit re-discovers just that option, so the old
+        // translation moves to the new text as needs_review instead of stranding.
+        add_action('update_option_blogname', static fn() => $optionScanner->scan('blogname'));
+        add_action('update_option_blogdescription', static fn() => $optionScanner->scan('blogdescription'));
 
         (new LanguageRouteRegistrar($languageResolver))->register();
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         (new SourceLifecycleRefresher($structuredScanner))->register();
-        (new InitialDiscoveryScan($wpdb, $structuredScanner))->register();
+        (new InitialDiscoveryScan($wpdb, $structuredScanner, $optionScanner))->register();
 
         // v5 structured render: post/term by text hash, meta by location.
         (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes))->register();
@@ -109,6 +116,12 @@ class Plugin
         // API the SPA calls, and the cron/loopback request that runs the sync job.
         // (A bare is_admin() check would be wrong: REST and cron are not is_admin().)
         if ($this->isBackendContext()) {
+            // Hash-link children have no FK to their parents (many parents share one
+            // child), so a source edit or a deleted post leaves them behind. Reclaimed
+            // by a daily job. Here for the context gate — admin/REST/cron, never a
+            // visitor page view — not because it talks to the backend.
+            (new OrphanTranslationSweep($wpdb))->register();
+
             $connection       = new ConnectionRepository();
             $backendClient    = new BackendClient(new BackendEndpointResolver(), $connection);
             $siteMetadata     = new SiteMetadataProvider($languageRegistry);

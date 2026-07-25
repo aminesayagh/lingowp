@@ -877,15 +877,6 @@ function CollectionGroup({
             >
               Translate all
             </Button>
-            {c.preview_url && (
-              <Button
-                variant="tertiary"
-                size="micro"
-                onClick={() => openCanvas(c.preview_url, c.preview_target)}
-              >
-                {c.preview_target === "frontend" ? "Show in canvas" : "Edit in WordPress"}
-              </Button>
-            )}
             <Popover
               active={menuOpen}
               onClose={() => setMenuOpen(false)}
@@ -901,6 +892,20 @@ function CollectionGroup({
             >
               <ActionList
                 items={[
+                  ...(c.preview_url
+                    ? [
+                        {
+                          content:
+                            c.preview_target === "frontend"
+                              ? "Show in canvas"
+                              : "Edit in WordPress",
+                          onAction: () => {
+                            setMenuOpen(false);
+                            openCanvas(c.preview_url, c.preview_target);
+                          },
+                        },
+                      ]
+                    : []),
                   {
                     content: "Ignore all",
                     destructive: true,

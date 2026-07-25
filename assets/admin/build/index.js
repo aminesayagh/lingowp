@@ -13484,6 +13484,9 @@ function PaneHeader({
     blockAlign: "center",
     gap: "200",
     wrap: false,
+    style: {
+      height: "24px"
+    },
     children: [left, right]
   });
 }
@@ -13604,6 +13607,7 @@ function CompareOverlay({
   const targetLang = languages.find(l => l.code === language);
   const targetLabel = targetLang?.display_name || targetLang?.name || language || "Translation";
   const header = /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.InlineStack, {
+    align: "center",
     gap: "300",
     blockAlign: "center",
     wrap: false,
@@ -14031,6 +14035,16 @@ function groupHeading({
 }
 const enc = encodeURIComponent;
 const cfg = window.Translangs || {};
+
+// Open a text's destination in a new tab. Front-end pages get a scroll-to-text
+// fragment so the browser jumps to (and highlights) the string being verified;
+// admin editors (taxonomy/options) open as-is. Best-effort: a no-match snippet
+// just lands on the page.
+function openCanvas(url, target, snippet) {
+  if (!url) return;
+  const final = target === "frontend" && snippet ? `${url}#:~:text=${enc(snippet)}` : url;
+  window.open(final, "_blank", "noopener");
+}
 
 // Header status filters (client-side over collection counts).
 const FILTERS = [{
@@ -14808,7 +14822,13 @@ function CollectionGroup({
                   children: "\u22EF"
                 }),
                 children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
-                  items: [{
+                  items: [...(c.preview_url ? [{
+                    content: c.preview_target === "frontend" ? "Show in canvas" : "Edit in WordPress",
+                    onAction: () => {
+                      setMenuOpen(false);
+                      openCanvas(c.preview_url, c.preview_target);
+                    }
+                  }] : []), {
                     content: "Ignore all",
                     destructive: true,
                     onAction: confirmIgnoreAll
@@ -14953,12 +14973,10 @@ function TextUnitRow({
       onOpenOverlay(unit);
     }
   }, unit.preview_url && {
-    content: unit.preview_highlight ? "Preview on website" : "Edit in WordPress",
+    content: unit.preview_target === "frontend" ? "Preview on website" : "Edit in WordPress",
     onAction: () => {
       setMenuOpen(false);
-      const snippet = (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__.stripMarkers)(unit.translated ?? unit.original ?? "");
-      const url = unit.preview_highlight && snippet ? `${unit.preview_url}#:~:text=${encodeURIComponent(snippet)}` : unit.preview_url;
-      window.open(url, "_blank", "noopener");
+      openCanvas(unit.preview_url, unit.preview_target, (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__.stripMarkers)(unit.translated ?? unit.original ?? ""));
     }
   }, hasTranslation && {
     content: "To review",

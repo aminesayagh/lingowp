@@ -22,7 +22,8 @@ class TranslationMemorySchema
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
-    private const HASH_LINK_CHILDREN = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
+    /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
+    public const HASH_LINK_CHILDREN = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
 
     /** parent_id children (meta/staticText): FK constraint name => parent table key. */
     private const PARENT_ID_CHILD_FKS = [

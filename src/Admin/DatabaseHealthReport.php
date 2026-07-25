@@ -3,6 +3,7 @@
 namespace TransLangs\Admin;
 
 use TransLangs\Database\ConstraintVerifier;
+use TransLangs\Database\OrphanTranslationSweep;
 use TransLangs\Database\TranslationMemorySchema;
 
 /**
@@ -61,7 +62,7 @@ final class DatabaseHealthReport
             'missing_fks'                => $missing,
             'translation_rows'           => $rows,
             'deferred_indexes_suggested' => $rows > self::DEFERRED_INDEX_ROW_THRESHOLD,
-            'last_sweep'                 => (string) get_option('translangs_age_out_last_run', ''),
+            'last_sweep'                 => (string) get_option(OrphanTranslationSweep::OPTION_LAST_RUN, ''),
         ];
     }
 

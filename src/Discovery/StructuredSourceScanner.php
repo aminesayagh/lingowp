@@ -2,7 +2,6 @@
 
 namespace TransLangs\Discovery;
 
-use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
 use TransLangs\Core\Source\Type\PostMetaSource;
 use TransLangs\Core\Source\Type\PostMetaValuePaths;
@@ -36,51 +35,12 @@ final class StructuredSourceScanner
     /** Post statuses eligible for discovery (publish, plus inherit for attachments). */
     private const SCANNABLE_STATUSES = ['publish', 'inherit'];
 
-    private int $skipped = 0;
-
     public function __construct(
-        private LanguageRegistry $languageRegistry,
         private SourceTranslationRepository $repository,
         private HtmlUnitExtractor $unitExtractor
     ) {}
 
-    /**
-     * Bulk (re)discovery, triggered from the admin. Upserts every structured
-     * source string across posts and terms. Language-independent.
-     */
-    public function scan(): StructuredSourceScanResult
-    {
-        $this->skipped = 0;
-
-        $records = [];
-
-        foreach ($this->scannablePostTypes() as $postType => $statuses) {
-            foreach ($this->postsOfType($postType, $statuses) as $post) {
-                array_push($records, ...$this->candidatesForPost($post));
-            }
-        }
-
-        foreach ($this->allTerms() as [$termTaxonomyId, $name, $description]) {
-            array_push($records, ...$this->candidatesForTerm($termTaxonomyId, $name, $description));
-        }
-
-        $records = $this->dedupeByIdentity($records);
-
-        $sourceByRoute   = ['post' => 0, 'meta' => 0, 'term' => 0];
-        $insertedByRoute = $sourceByRoute;
-
-        foreach ($this->groupByRoute($records) as $route => $group) {
-            $sourceByRoute[$route]   = count($group);
-            $insertedByRoute[$route] = $this->repository->upsertSources($group);
-        }
-
-        return new StructuredSourceScanResult(
-            $sourceByRoute,
-            $insertedByRoute,
-            count($this->languageRegistry->getTargetLanguages()),
-            $this->skipped
-        );
-    }
+    
 
     /**
      * Save-time discovery for one post (types 1 + 2). Upserts current strings
@@ -144,7 +104,6 @@ final class StructuredSourceScanner
         foreach (self::POST_FIELDS as $field) {
             $text = (string) $post->{$field};
             if (TL_Key::normalize($text) === '') {
-                ++$this->skipped;
                 continue;
             }
             $records[] = new PostSource($post->ID, $field, $text);
@@ -193,7 +152,6 @@ final class StructuredSourceScanner
 
         foreach (['name' => $name, 'description' => $description] as $field => $text) {
             if (TL_Key::normalize($text) === '') {
-                ++$this->skipped;
                 continue;
             }
             $records[] = new TermSource($termTaxonomyId, $field, $text);
@@ -271,64 +229,9 @@ final class StructuredSourceScanner
         return $types;
     }
 
-    /**
-     * @param string[] $statuses
-     * @return \WP_Post[]
-     */
-    private function postsOfType(string $postType, array $statuses): array
-    {
-        if (!function_exists('post_type_exists') || !post_type_exists($postType) || !function_exists('get_posts')) {
-            return [];
-        }
+    
 
-        $posts = get_posts([
-            'post_type'              => $postType,
-            'post_status'            => $statuses,
-            'posts_per_page'         => -1,
-            'orderby'                => 'ID',
-            'order'                  => 'ASC',
-            'suppress_filters'       => true,
-            'update_post_meta_cache' => false,
-            'update_post_term_cache' => false,
-        ]);
-
-        return array_values(array_filter(
-            $posts,
-            static fn($post): bool => $post instanceof \WP_Post
-        ));
-    }
-
-    /**
-     * @return list<array{0:int,1:string,2:string}> [term_taxonomy_id, name, description]
-     */
-    private function allTerms(): array
-    {
-        if (!function_exists('get_terms')) {
-            return [];
-        }
-
-        $rows = [];
-
-        foreach ($this->translatableTaxonomies() as $taxonomy) {
-            $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => false]);
-            if (!is_array($terms)) {
-                continue;
-            }
-
-            foreach ($terms as $term) {
-                if (!isset($term->term_taxonomy_id)) {
-                    continue;
-                }
-                $rows[] = [
-                    (int) $term->term_taxonomy_id,
-                    (string) ($term->name ?? ''),
-                    (string) ($term->description ?? ''),
-                ];
-            }
-        }
-
-        return $rows;
-    }
+    
 
     /**
      * @return string[]
@@ -411,24 +314,5 @@ final class StructuredSourceScanner
         return $unique;
     }
 
-    /**
-     * @param SourceRecord[] $records
-     * @return array<string, SourceRecord[]> route slug => records
-     */
-    private function groupByRoute(array $records): array
-    {
-        $route  = [
-            'tl_post' => 'post',
-            'tl_meta' => 'meta',
-            'tl_term' => 'term',
-        ];
-        $groups = [];
-
-        foreach ($records as $record) {
-            $slug            = $route[$record->table()] ?? 'post';
-            $groups[$slug][] = $record;
-        }
-
-        return $groups;
-    }
+    
 }

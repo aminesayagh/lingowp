@@ -107,19 +107,44 @@ final class CollectionRestController
                 $byPost[$pid][$k] += $m[$k];
             }
         }
+        $contentRows = [];
         foreach ($byPost as $pid => $c) {
-            $permalink = get_permalink((int) $pid);
-            $collections[] = [
+            $pid       = (int) $pid;
+            $isFront   = $this->isFrontPage($pid, (string) $c['post_type'], (string) get_post_field('post_name', $pid));
+            $isMedia   = $c['post_type'] === 'attachment';
+            $permalink = get_permalink($pid);
+
+            if ($isFront) {
+                $previewUrl    = $this->frontendPreviewUrl(home_url('/'), $lang);
+                $previewTarget = 'frontend';
+            } elseif ($isMedia) {
+                $previewUrl    = admin_url('post.php?post=' . $pid . '&action=edit');
+                $previewTarget = 'admin';
+            } else {
+                $previewUrl    = $permalink === false ? null : $this->frontendPreviewUrl($permalink, $lang);
+                $previewTarget = 'frontend';
+            }
+
+            $row = [
                 'id'             => 'content:' . $pid,
                 'label'          => $c['post_title'] !== '' ? $c['post_title'] : __('(no title)', 'translangs'),
-                'type'           => $this->uxType($c['post_type']),
+                'type'           => $isFront ? 'page' : $this->uxType($c['post_type']),
                 'total'          => $c['total'],
                 'translated'     => $c['translated'],
                 'needs_review'   => $c['needs_review'],
                 'missing'        => $c['missing'],
-                'preview_url'    => $permalink === false ? null : $this->frontendPreviewUrl($permalink, $lang),
-                'preview_target' => 'frontend',
+                'preview_url'    => $previewUrl,
+                'preview_target' => $previewTarget,
             ];
+
+            if ($isFront) {
+                array_unshift($contentRows, $row);
+            } else {
+                $contentRows[] = $row;
+            }
+        }
+        foreach ($contentRows as $row) {
+            $collections[] = $row;
         }
 
         // Terms group by their taxonomy: one collection per taxonomy (all post
@@ -175,12 +200,25 @@ final class CollectionRestController
                 $this->repo->listHtmlTexts($lang)
             );
         } elseif (preg_match('/^content:([0-9]+)$/', $id, $m)) {
-            $postId    = (int) $m[1];
-            $permalink = get_permalink($postId);
-            $preview   = [
-                'preview_url'    => $permalink === false ? null : $this->frontendPreviewUrl($permalink, $lang),
-                'preview_target' => 'frontend',
-            ];
+            $postId = (int) $m[1];
+            $post   = get_post($postId);
+            if ($post && $this->isFrontPage($postId, $post->post_type, $post->post_name)) {
+                $preview = [
+                    'preview_url'    => $this->frontendPreviewUrl(home_url('/'), $lang),
+                    'preview_target' => 'frontend',
+                ];
+            } elseif (get_post_type($postId) === 'attachment') {
+                $preview = [
+                    'preview_url'    => admin_url('post.php?post=' . $postId . '&action=edit'),
+                    'preview_target' => 'admin',
+                ];
+            } else {
+                $permalink = get_permalink($postId);
+                $preview   = [
+                    'preview_url'    => $permalink === false ? null : $this->frontendPreviewUrl($permalink, $lang),
+                    'preview_target' => 'frontend',
+                ];
+            }
             $posts = array_map(
                 fn (array $r): array => $this->presentText('post', $r, (string) $r['field']) + $preview,
                 $this->repo->listPostTexts($postId, $lang)
@@ -366,5 +404,23 @@ final class CollectionRestController
         }
 
         return 'cpt';
+    }
+
+    /**
+     * Is this post the one WordPress renders at the site root (`/`)?
+     *
+     * Classic setup: a static page selected under Settings → Reading
+     * (`show_on_front = page`, `page_on_front = <id>`). Block (FSE) theme with the
+     * root showing posts (`show_on_front = posts`): the site root is rendered by the
+     * `front-page` template, or by `home` when no `front-page` template exists.
+     */
+    private function isFrontPage(int $postId, string $postType, string $postName): bool
+    {
+        if (get_option('show_on_front') === 'page') {
+            return $postId === (int) get_option('page_on_front');
+        }
+
+        return $postType === 'wp_template'
+            && in_array($postName, ['front-page', 'home'], true);
     }
 }

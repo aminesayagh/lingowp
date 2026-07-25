@@ -55,7 +55,13 @@ const textareaStyle = (muted) => ({
 
 function PaneHeader({ left, right }) {
   return (
-    <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
+    <InlineStack
+      align="space-between"
+      blockAlign="center"
+      gap="200"
+      wrap={false}
+      style={{ height: "24px" }}
+    >
       {left}
       {right}
     </InlineStack>
@@ -201,7 +207,7 @@ export default function CompareOverlay({
     targetLang?.display_name || targetLang?.name || language || "Translation";
 
   const header = (
-    <InlineStack gap="300" blockAlign="center" wrap={false}>
+    <InlineStack align="center" gap="300" blockAlign="center" wrap={false}>
       <ButtonGroup variant="segmented">
         <Button
           icon={ChevronLeftIcon}
