@@ -498,7 +498,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         $tt     = $this->wpdb->term_taxonomy;
         $terms  = $this->wpdb->terms;
 
-        $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
+        $sql = "SELECT p.id AS id, p.field AS field, tm.term_id AS term_id, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
@@ -515,7 +515,11 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             TranslationStatus::SOURCE_DISCOVERED
         ), ARRAY_A);
 
-        return array_map([$this, 'textUnitRow'], (array) $rows);
+        return array_map(function (array $r): array {
+            $unit            = $this->textUnitRow($r);
+            $unit['term_id'] = (int) $r['term_id'];
+            return $unit;
+        }, (array) $rows);
     }
 
     public function postMetaCounts(string $langCode): array
@@ -618,7 +622,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         $parent = $this->parent('tl_html');
         $child  = $parent . '_translation';
 
-        $sql = "SELECT p.id AS id, p.selector AS selector, p.original_text AS original_text,
+        $sql = "SELECT p.id AS id, p.selector AS selector, p.source_url AS source_url, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
@@ -633,8 +637,9 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ), ARRAY_A);
 
         return array_map(function (array $r): array {
-            $unit          = $this->textUnitRow($r);
-            $unit['field'] = (string) $r['selector'];
+            $unit               = $this->textUnitRow($r);
+            $unit['field']      = (string) $r['selector'];
+            $unit['source_url'] = $r['source_url'] === null ? null : (string) $r['source_url'];
             return $unit;
         }, (array) $rows);
     }

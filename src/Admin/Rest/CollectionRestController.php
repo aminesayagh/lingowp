@@ -72,18 +72,22 @@ final class CollectionRestController
         $option = $this->repo->optionCollectionSummary($lang);
         if ($option['total'] > 0) {
             $collections[] = [
-                'id'    => 'option:site',
-                'label' => __('Site settings', 'translangs'),
-                'type'  => 'site_settings',
+                'id'             => 'option:site',
+                'label'          => __('Site settings', 'translangs'),
+                'type'           => 'site_settings',
+                'preview_url'    => admin_url('options-general.php'),
+                'preview_target' => 'admin',
             ] + $option;
         }
 
         $html = $this->repo->htmlCollectionSummary($lang);
         if ($html['total'] > 0) {
             $collections[] = [
-                'id'    => 'html:all',
-                'label' => __('Template content', 'translangs'),
-                'type'  => 'html',
+                'id'             => 'html:all',
+                'label'          => __('Template content', 'translangs'),
+                'type'           => 'html',
+                'preview_url'    => null,
+                'preview_target' => 'frontend',
             ] + $html;
         }
 
@@ -104,14 +108,17 @@ final class CollectionRestController
             }
         }
         foreach ($byPost as $pid => $c) {
+            $permalink = get_permalink((int) $pid);
             $collections[] = [
-                'id'           => 'content:' . $pid,
-                'label'        => $c['post_title'] !== '' ? $c['post_title'] : __('(no title)', 'translangs'),
-                'type'         => $this->uxType($c['post_type']),
-                'total'        => $c['total'],
-                'translated'   => $c['translated'],
-                'needs_review' => $c['needs_review'],
-                'missing'      => $c['missing'],
+                'id'             => 'content:' . $pid,
+                'label'          => $c['post_title'] !== '' ? $c['post_title'] : __('(no title)', 'translangs'),
+                'type'           => $this->uxType($c['post_type']),
+                'total'          => $c['total'],
+                'translated'     => $c['translated'],
+                'needs_review'   => $c['needs_review'],
+                'missing'        => $c['missing'],
+                'preview_url'    => $permalink === false ? null : $this->frontendPreviewUrl($permalink, $lang),
+                'preview_target' => 'frontend',
             ];
         }
 
@@ -130,9 +137,11 @@ final class CollectionRestController
         }
         foreach ($byTax as $tax => $c) {
             $collections[] = [
-                'id'    => 'taxonomy:' . $tax,
-                'label' => $this->taxonomyLabel($tax),
-                'type'  => 'taxonomy',
+                'id'             => 'taxonomy:' . $tax,
+                'label'          => $this->taxonomyLabel($tax),
+                'type'           => 'taxonomy',
+                'preview_url'    => admin_url('edit-tags.php?taxonomy=' . urlencode($tax)),
+                'preview_target' => 'admin',
             ] + $c;
         }
 
@@ -150,30 +159,47 @@ final class CollectionRestController
         $id   = urldecode((string) $request->get_param('id'));
 
         if ($id === 'option:site') {
+            $optionPreview = ['preview_url' => admin_url('options-general.php'), 'preview_target' => 'admin'];
             $texts = array_map(
-                fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name']),
+                fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name']) + $optionPreview,
                 $this->repo->listOptionTexts($lang)
             );
         } elseif ($id === 'html:all') {
             $texts = array_map(
-                fn (array $r): array => $this->presentText('html', $r, (string) $r['field']),
+                fn (array $r): array => $this->presentText('html', $r, (string) $r['field']) + [
+                    'preview_url'    => empty($r['source_url'])
+                        ? null
+                        : $this->frontendPreviewUrl((string) $r['source_url'], $lang),
+                    'preview_target' => 'frontend',
+                ],
                 $this->repo->listHtmlTexts($lang)
             );
         } elseif (preg_match('/^content:([0-9]+)$/', $id, $m)) {
-            $postId = (int) $m[1];
-            $posts  = array_map(
-                fn (array $r): array => $this->presentText('post', $r, (string) $r['field']),
+            $postId    = (int) $m[1];
+            $permalink = get_permalink($postId);
+            $preview   = [
+                'preview_url'    => $permalink === false ? null : $this->frontendPreviewUrl($permalink, $lang),
+                'preview_target' => 'frontend',
+            ];
+            $posts = array_map(
+                fn (array $r): array => $this->presentText('post', $r, (string) $r['field']) + $preview,
                 $this->repo->listPostTexts($postId, $lang)
             );
             $metas = array_map(
-                fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']),
+                fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']) + $preview,
                 $this->repo->listMetaTexts($postId, $lang)
             );
             $texts = array_merge($posts, $metas);
         } elseif (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
+            $taxonomy = $m[1];
             $texts = array_map(
-                fn (array $r): array => $this->presentText('term', $r, (string) $r['field']),
-                $this->repo->listTaxonomyTexts($m[1], $lang)
+                fn (array $r): array => $this->presentText('term', $r, (string) $r['field']) + [
+                    'preview_url'    => admin_url(
+                        'term.php?taxonomy=' . urlencode($taxonomy) . '&tag_ID=' . (int) $r['term_id']
+                    ),
+                    'preview_target' => 'admin',
+                ],
+                $this->repo->listTaxonomyTexts($taxonomy, $lang)
             );
         } else {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
@@ -294,6 +320,17 @@ final class CollectionRestController
             'word_count' => str_word_count(wp_strip_all_tags($original)),
             'char_count' => mb_strlen($original),
         ];
+    }
+
+    /**
+     * Append the editor language-preview param to a front-end URL, so the page
+     * renders in the selected target language (ResolveRequestLanguage::resolveFromPreview).
+     */
+    private function frontendPreviewUrl(string $base, string $lang): string
+    {
+        $sep = str_contains($base, '?') ? '&' : '?';
+
+        return $base . $sep . 'translangs_preview=' . rawurlencode($lang);
     }
 
     /** Selected target language, defaulting to the first enabled target. */

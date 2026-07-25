@@ -96,6 +96,17 @@ function groupHeading({ type, label }) {
 const enc = encodeURIComponent;
 const cfg = window.Translangs || {};
 
+// Open a text's destination in a new tab. Front-end pages get a scroll-to-text
+// fragment so the browser jumps to (and highlights) the string being verified;
+// admin editors (taxonomy/options) open as-is. Best-effort: a no-match snippet
+// just lands on the page.
+function openCanvas(url, target, snippet) {
+  if (!url) return;
+  const final =
+    target === "frontend" && snippet ? `${url}#:~:text=${enc(snippet)}` : url;
+  window.open(final, "_blank", "noopener");
+}
+
 // Header status filters (client-side over collection counts).
 const FILTERS = [
   { key: "untranslated", label: "Untranslated" },
@@ -866,6 +877,15 @@ function CollectionGroup({
             >
               Translate all
             </Button>
+            {c.preview_url && (
+              <Button
+                variant="tertiary"
+                size="micro"
+                onClick={() => openCanvas(c.preview_url, c.preview_target)}
+              >
+                {c.preview_target === "frontend" ? "Show in canvas" : "Edit in WordPress"}
+              </Button>
+            )}
             <Popover
               active={menuOpen}
               onClose={() => setMenuOpen(false)}
@@ -1038,15 +1058,15 @@ function TextUnitRow({
       },
     },
     unit.preview_url && {
-      content: unit.preview_highlight ? "Preview on website" : "Edit in WordPress",
+      content:
+        unit.preview_target === "frontend" ? "Preview on website" : "Edit in WordPress",
       onAction: () => {
         setMenuOpen(false);
-        const snippet = stripMarkers(unit.translated ?? unit.original ?? "");
-        const url =
-          unit.preview_highlight && snippet
-            ? `${unit.preview_url}#:~:text=${encodeURIComponent(snippet)}`
-            : unit.preview_url;
-        window.open(url, "_blank", "noopener");
+        openCanvas(
+          unit.preview_url,
+          unit.preview_target,
+          stripMarkers(unit.translated ?? unit.original ?? ""),
+        );
       },
     },
     hasTranslation && {
