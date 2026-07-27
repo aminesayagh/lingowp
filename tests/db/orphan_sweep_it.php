@@ -125,14 +125,14 @@ $metaChild = $parents['tl_meta'] . '_translation';
 $statChild = $parents['tl_staticText'] . '_translation';
 
 $before = [
-    'meta' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$metaChild}"),
-    'stat' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$statChild}"),
+    'meta' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$metaChild}"), // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
+    'stat' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$statChild}"), // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
 ];
 $sweep->run();
 tl_ok('tl_meta_translation row count unchanged',
-    (int) $wpdb->get_var("SELECT COUNT(*) FROM {$metaChild}") === $before['meta']);
+    (int) $wpdb->get_var("SELECT COUNT(*) FROM {$metaChild}") === $before['meta']); // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
 tl_ok('tl_staticText_translation row count unchanged',
-    (int) $wpdb->get_var("SELECT COUNT(*) FROM {$statChild}") === $before['stat']);
+    (int) $wpdb->get_var("SELECT COUNT(*) FROM {$statChild}") === $before['stat']); // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
 
 // ── 6. All four hash-link tables are actually swept ──────────────────────────
 

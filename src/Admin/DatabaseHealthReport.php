@@ -53,7 +53,7 @@ final class DatabaseHealthReport
 
         $rows = 0;
         foreach (TranslationMemorySchema::childTables() as $table) {
-            $rows += (int) $this->wpdb->get_var('SELECT COUNT(*) FROM ' . $table); // phpcs:ignore WordPress.DB
+            $rows += (int) $this->wpdb->get_var('SELECT COUNT(*) FROM ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
         }
 
         return [

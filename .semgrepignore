@@ -1,0 +1,7 @@
+# Replaces Semgrep's built-in ignore list, which skips tests/ — this repo keeps
+# the rule fixtures there and needs them scannable by security:semgrep-selftest.
+vendor/
+node_modules/
+assets/
+security-reports/
+site/

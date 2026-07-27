@@ -105,12 +105,12 @@ class TranslationMemorySchema
         // 4. On any missing FK: drop v5 tables (children first), then fail.
         if ($missing !== []) {
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
-                $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // phpcs:ignore WordPress.DB
+                $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             }
             // tl_staticPluralText references tl_staticText — drop it before the parents.
             $wpdb->query('DROP TABLE IF EXISTS ' . self::pluralTable()); // phpcs:ignore WordPress.DB
             foreach ($p as $table) {
-                $wpdb->query('DROP TABLE IF EXISTS ' . $table); // phpcs:ignore WordPress.DB
+                $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             }
 
             throw SchemaFailure::missingForeignKeys($missing);
@@ -184,8 +184,8 @@ class TranslationMemorySchema
         );
 
         if ($hasParentId === 'parent_id') {
-            $wpdb->query('DROP TABLE IF EXISTS ' . $child);                       // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_option');  // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . $child);                       // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_option');  // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
         }
     }
 
@@ -216,7 +216,7 @@ class TranslationMemorySchema
             return;
         }
 
-        $wpdb->query( // phpcs:ignore WordPress.DB
+        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             "ALTER TABLE {$table}
                 ADD COLUMN form_index tinyint unsigned NOT NULL DEFAULT 0,
                 DROP INDEX uniq_translation,

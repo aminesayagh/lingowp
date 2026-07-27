@@ -311,11 +311,13 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
 
     // ── board reads (admin dashboard) ────────────────────────────────────────────
 
-    public function listPostCollections(string $langCode): array
+    public function listPostCollections(string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_post');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         // hash-link child is unique per (original_hash, lang_code), so the LEFT JOIN
         // yields at most one translation per source position — no COUNT fan-out.
@@ -327,7 +329,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.status = %d
+                WHERE p.status = %d{$match}
                 GROUP BY p.post_id, wp.post_type, wp.post_title
                 ORDER BY wp.post_type, wp.post_title";
 
@@ -336,7 +338,8 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $sql,
             TranslationStatus::NEEDS_REVIEW,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map(static fn (array $r): array => [
@@ -350,16 +353,18 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ], (array) $rows);
     }
 
-    public function listPostTexts(int $postId, string $langCode): array
+    public function listPostTexts(int $postId, string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_post');
         $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.post_id = %d AND p.status = %d
+                WHERE p.post_id = %d AND p.status = %d{$match}
                 ORDER BY p.field, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -367,16 +372,19 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $sql,
             $langCode,
             $postId,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map([$this, 'textUnitRow'], (array) $rows);
     }
 
-    public function optionCollectionSummary(string $langCode): array
+    public function optionCollectionSummary(string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_option');
         $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT COUNT(*)           AS total,
                        SUM(t.status > 0)  AS translated,
@@ -384,14 +392,15 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                        SUM(t.id IS NULL)  AS missing
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.status = %d";
+                WHERE p.status = %d{$match}";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             TranslationStatus::NEEDS_REVIEW,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A) ?: [];
 
         return [
@@ -402,23 +411,26 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ];
     }
 
-    public function listOptionTexts(string $langCode): array
+    public function listOptionTexts(string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_option');
         $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.option_name AS option_name, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.status = %d
+                WHERE p.status = %d{$match}
                 ORDER BY p.option_name, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map(function (array $r): array {
@@ -429,12 +441,14 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     }
 
 
-    public function listTermCollections(string $langCode): array
+    public function listTermCollections(string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_term');
         $child  = $parent . '_translation';
         $tt     = $this->wpdb->term_taxonomy;
         $terms  = $this->wpdb->terms;
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.term_taxonomy_id AS term_taxonomy_id, tx.taxonomy AS taxonomy, tm.name AS name,
                        COUNT(*)              AS total,
@@ -445,7 +459,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                 JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
                 JOIN {$terms} tm ON tm.term_id = tx.term_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.status = %d
+                WHERE p.status = %d{$match}
                 GROUP BY p.term_taxonomy_id, tx.taxonomy, tm.name
                 ORDER BY tx.taxonomy, tm.name";
 
@@ -454,7 +468,8 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $sql,
             TranslationStatus::NEEDS_REVIEW,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map(static fn (array $r): array => [
@@ -491,12 +506,14 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return array_map([$this, 'textUnitRow'], (array) $rows);
     }
 
-    public function listTaxonomyTexts(string $taxonomy, string $langCode): array
+    public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_term');
         $child  = $parent . '_translation';
         $tt     = $this->wpdb->term_taxonomy;
         $terms  = $this->wpdb->terms;
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.field AS field, tm.term_id AS term_id, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
@@ -504,7 +521,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                 JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
                 JOIN {$terms} tm ON tm.term_id = tx.term_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE tx.taxonomy = %s AND p.status = %d
+                WHERE tx.taxonomy = %s AND p.status = %d{$match}
                 ORDER BY tm.name, p.field, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -512,7 +529,8 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $sql,
             $langCode,
             $taxonomy,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map(function (array $r): array {
@@ -522,11 +540,13 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         }, (array) $rows);
     }
 
-    public function postMetaCounts(string $langCode): array
+    public function postMetaCounts(string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_meta');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         // meta is a parent_id child: join on parent_id, not original_hash.
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
@@ -537,7 +557,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
-                WHERE p.status = %d
+                WHERE p.status = %d{$match}
                 GROUP BY p.post_id, wp.post_type, wp.post_title
                 ORDER BY wp.post_type, wp.post_title";
 
@@ -546,7 +566,8 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $sql,
             TranslationStatus::NEEDS_REVIEW,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map(static fn (array $r): array => [
@@ -560,16 +581,18 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ], (array) $rows);
     }
 
-    public function listMetaTexts(int $postId, string $langCode): array
+    public function listMetaTexts(int $postId, string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_meta');
         $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
-                WHERE p.post_id = %d AND p.status = %d
+                WHERE p.post_id = %d AND p.status = %d{$match}
                 ORDER BY p.meta_key, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -577,7 +600,8 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $sql,
             $langCode,
             $postId,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map(function (array $r): array {
@@ -588,10 +612,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     }
 
 
-    public function htmlCollectionSummary(string $langCode): array
+    public function htmlCollectionSummary(string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_html');
         $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT COUNT(*)           AS total,
                        SUM(t.status > 0)  AS translated,
@@ -599,14 +625,15 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                        SUM(t.id IS NULL)  AS missing
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.status = %d";
+                WHERE p.status = %d{$match}";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             TranslationStatus::NEEDS_REVIEW,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A) ?: [];
 
         return [
@@ -617,23 +644,26 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ];
     }
 
-    public function listHtmlTexts(string $langCode): array
+    public function listHtmlTexts(string $langCode, string $search = ''): array
     {
         $parent = $this->parent('tl_html');
         $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.selector AS selector, p.source_url AS source_url, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.status = %d
+                WHERE p.status = %d{$match}
                 ORDER BY p.selector, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
         ), ARRAY_A);
 
         return array_map(function (array $r): array {
@@ -699,6 +729,38 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ), ARRAY_A) ?: [];
 
         return [(int) ($row['total'] ?? 0), (int) ($row['done'] ?? 0)];
+    }
+
+    /**
+     * The board search predicate + its bound args, or ['', []] for no search — so an
+     * unsearched board runs byte-for-byte the query it has always run.
+     *
+     * The predicate lives in WHERE, not in the LEFT JOIN's ON: for an untranslated row
+     * `t.translated_text LIKE …` is NULL, and NULL OR TRUE is TRUE, so a row whose
+     * ORIGINAL matches survives with t.* still NULL — SUM(t.id IS NULL) keeps counting it
+     * as missing. Only genuinely non-matching rows drop out. In ON, the predicate would
+     * instead null out translated non-matches and inflate `missing`.
+     *
+     * The child is already restricted to the selected language by the ON clause, so the
+     * translation half of the match can never leak another language.
+     *
+     * ponytail: plain LIKE, no FULLTEXT index. Known limit — composed units store codec
+     * markers ({1}…{/1}), so a phrase that CROSSES a marker boundary does not match;
+     * phrases inside one segment do. Fixing it needs REGEXP_REPLACE (MySQL 8+) or a
+     * marker-stripped shadow column (DDL + DB_VERSION bump). Revisit only if users hit it.
+     *
+     * @return array{0:string, 1:array<int,string>}
+     */
+    private function searchPredicate(string $search): array
+    {
+        if ($search === '') {
+            return ['', []];
+        }
+
+        // esc_like neutralizes % _ \ in the TERM; prepare() quotes the whole value.
+        $like = '%' . $this->wpdb->esc_like($search) . '%';
+
+        return [' AND (p.original_text LIKE %s OR t.translated_text LIKE %s)', [$like, $like]];
     }
 
     /** Normalize a board text-unit row: null translation when untranslated. */

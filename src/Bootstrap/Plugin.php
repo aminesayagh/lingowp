@@ -173,7 +173,7 @@ class Plugin
 
         // rest_api_init has not run yet at plugins_loaded, so match the REST URL prefix.
         $prefix = trim(rest_get_url_prefix(), '/');
-        $uri    = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $uri    = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
 
         return $prefix !== '' && strpos($uri, '/' . $prefix . '/') !== false;
     }

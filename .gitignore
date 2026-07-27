@@ -36,3 +36,11 @@ node_modules/
 # NOTE: CLAUDE.md and AGENTS.md are intentionally NOT ignored — they are
 # shared project context and should be committed.
 # <<< agent-setup managed block <<<
+
+# Security scan output (see composer security)
+security-reports/*
+!security-reports/.gitkeep
+
+vendor/*
+.VSCode/
+.senera/

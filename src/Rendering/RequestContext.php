@@ -229,7 +229,7 @@ class RequestContext
 
     public function isGetRequest(): bool
     {
-        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        $method = strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'] ?? 'GET')));
 
         // HEAD renders like GET; both are safe to buffer. POST etc. are not.
         return $method === 'GET' || $method === 'HEAD';
@@ -244,7 +244,7 @@ class RequestContext
      */
     public function path(): string
     {
-        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        $uri = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
 
         return trim((string) parse_url($uri, PHP_URL_PATH), '/');
     }
@@ -277,7 +277,7 @@ class RequestContext
      */
     private function scriptIs(string $file): bool
     {
-        $script = (string) ($_SERVER['SCRIPT_FILENAME'] ?? $_SERVER['PHP_SELF'] ?? '');
+        $script = sanitize_text_field(wp_unslash($_SERVER['SCRIPT_FILENAME'] ?? $_SERVER['PHP_SELF'] ?? ''));
 
         return basename($script) === $file;
     }

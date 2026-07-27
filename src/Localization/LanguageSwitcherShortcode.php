@@ -142,7 +142,7 @@ JS;
      */
     private function currentPath(): string
     {
-        $uri  = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
+        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         if ($path === '') {
@@ -157,7 +157,7 @@ JS;
      */
     private function currentQuery(): string
     {
-        $uri   = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';

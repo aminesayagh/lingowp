@@ -26,6 +26,9 @@ final class CollectionRestController
 {
     private const NS = 'translangs/v1';
 
+    /** Board search minimum. Below this the term is ignored and the tree is normal. */
+    private const SEARCH_MIN = 2;
+
     public function __construct(
         private SourceTranslationRepository $repo,
         private OptionLanguageRegistry $registry
@@ -67,9 +70,13 @@ final class CollectionRestController
     public function index(WP_REST_Request $request): WP_REST_Response
     {
         $lang        = $this->resolveLang($request);
+        $search      = $this->resolveSearch($request);
         $collections = [];
 
-        $option = $this->repo->optionCollectionSummary($lang);
+        // With a search active every count describes the MATCHING subset, and a
+        // collection with no hits produces no row at all — that is how empty groups
+        // drop out of the board without any filtering here.
+        $option = $this->repo->optionCollectionSummary($lang, $search);
         if ($option['total'] > 0) {
             $collections[] = [
                 'id'             => 'option:site',
@@ -80,7 +87,7 @@ final class CollectionRestController
             ] + $option;
         }
 
-        $html = $this->repo->htmlCollectionSummary($lang);
+        $html = $this->repo->htmlCollectionSummary($lang, $search);
         if ($html['total'] > 0) {
             $collections[] = [
                 'id'             => 'html:all',
@@ -94,10 +101,10 @@ final class CollectionRestController
         // A content collection is one WP post's tl_post fields + its tl_meta,
         // merged by post_id (preserving the post-type/title ordering of tl_post).
         $byPost = [];
-        foreach ($this->repo->listPostCollections($lang) as $c) {
+        foreach ($this->repo->listPostCollections($lang, $search) as $c) {
             $byPost[$c['post_id']] = $c;
         }
-        foreach ($this->repo->postMetaCounts($lang) as $m) {
+        foreach ($this->repo->postMetaCounts($lang, $search) as $m) {
             $pid = $m['post_id'];
             if (! isset($byPost[$pid])) {
                 $byPost[$pid] = $m;
@@ -151,7 +158,7 @@ final class CollectionRestController
         // categories together, all product categories together, …), not one per
         // term. Counts are summed across the taxonomy's terms.
         $byTax = [];
-        foreach ($this->repo->listTermCollections($lang) as $t) {
+        foreach ($this->repo->listTermCollections($lang, $search) as $t) {
             $tax = $t['taxonomy'];
             if (! isset($byTax[$tax])) {
                 $byTax[$tax] = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
@@ -173,6 +180,9 @@ final class CollectionRestController
         return rest_ensure_response([
             'ok'          => true,
             'language'    => $lang,
+            // Echoed so the client knows which term produced this tree — a term below
+            // SEARCH_MIN comes back as '' and the tree is unfiltered.
+            'search'      => $search,
             'collections' => $collections,
         ]);
     }
@@ -180,14 +190,15 @@ final class CollectionRestController
     /** Text units of one collection for the selected language. */
     public function texts(WP_REST_Request $request): WP_REST_Response
     {
-        $lang = $this->resolveLang($request);
-        $id   = urldecode((string) $request->get_param('id'));
+        $lang   = $this->resolveLang($request);
+        $search = $this->resolveSearch($request);
+        $id     = urldecode((string) $request->get_param('id'));
 
         if ($id === 'option:site') {
             $optionPreview = ['preview_url' => admin_url('options-general.php'), 'preview_target' => 'admin'];
             $texts = array_map(
                 fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name']) + $optionPreview,
-                $this->repo->listOptionTexts($lang)
+                $this->repo->listOptionTexts($lang, $search)
             );
         } elseif ($id === 'html:all') {
             $texts = array_map(
@@ -197,7 +208,7 @@ final class CollectionRestController
                         : $this->frontendPreviewUrl((string) $r['source_url'], $lang),
                     'preview_target' => 'frontend',
                 ],
-                $this->repo->listHtmlTexts($lang)
+                $this->repo->listHtmlTexts($lang, $search)
             );
         } elseif (preg_match('/^content:([0-9]+)$/', $id, $m)) {
             $postId = (int) $m[1];
@@ -221,11 +232,11 @@ final class CollectionRestController
             }
             $posts = array_map(
                 fn (array $r): array => $this->presentText('post', $r, (string) $r['field']) + $preview,
-                $this->repo->listPostTexts($postId, $lang)
+                $this->repo->listPostTexts($postId, $lang, $search)
             );
             $metas = array_map(
                 fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']) + $preview,
-                $this->repo->listMetaTexts($postId, $lang)
+                $this->repo->listMetaTexts($postId, $lang, $search)
             );
             $texts = array_merge($posts, $metas);
         } elseif (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
@@ -237,7 +248,7 @@ final class CollectionRestController
                     ),
                     'preview_target' => 'admin',
                 ],
-                $this->repo->listTaxonomyTexts($taxonomy, $lang)
+                $this->repo->listTaxonomyTexts($taxonomy, $lang, $search)
             );
         } else {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
@@ -246,6 +257,7 @@ final class CollectionRestController
         return rest_ensure_response([
             'ok'       => true,
             'language' => $lang,
+            'search'   => $search,
             'texts'    => $texts,
         ]);
     }
@@ -380,6 +392,24 @@ final class CollectionRestController
         }
 
         return $this->registry->getTargetLanguages()[0] ?? '';
+    }
+
+    /**
+     * The board search term, or '' for no search.
+     *
+     * WP_REST_Server already unslashed $_GET, and the term is only ever bound as a
+     * prepared LIKE parameter, so prepare() is the whole safety story.
+     *
+     * Deliberately NOT sanitize_text_field(): it strips every %xx sequence, so a
+     * search for "100%ab" would silently become "100". wp_check_invalid_utf8 is the
+     * one filter that belongs here — it returns '' for malformed input, which
+     * degrades cleanly to "no search" instead of reaching MySQL.
+     */
+    private function resolveSearch(WP_REST_Request $request): string
+    {
+        $q = trim(wp_check_invalid_utf8((string) $request->get_param('search')));
+
+        return mb_strlen($q) < self::SEARCH_MIN ? '' : $q;
     }
 
     /** Human-readable taxonomy name (plural label), falling back to the slug. */

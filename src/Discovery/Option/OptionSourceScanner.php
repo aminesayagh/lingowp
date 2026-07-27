@@ -102,7 +102,7 @@ final class OptionSourceScanner
      */
     private function widgetOptionNames(): array
     {
-        $names = $this->wpdb->get_col( // phpcs:ignore WordPress.DB
+        $names = $this->wpdb->get_col( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             "SELECT option_name FROM {$this->wpdb->options} WHERE option_name LIKE 'widget\\_%'"
         );
 

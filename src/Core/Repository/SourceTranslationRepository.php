@@ -87,6 +87,20 @@ interface SourceTranslationRepository
     // ── board reads (admin dashboard) ──────────────────────────────────────────
 
     /**
+     * Board search (the `$search` argument on every read below).
+     *
+     * A non-empty term matches the source text OR its translation in `$langCode`,
+     * case- and accent-insensitively (utf8mb4_unicode_520_ci), with % and _ taken
+     * literally. Empty string means no search, and runs exactly the query that
+     * shipped before search existed.
+     *
+     * IMPORTANT — while searching, the counts describe the MATCHING SUBSET, not the
+     * collection: `total` is the match count, and translated/needs_review/missing are
+     * the status breakdown of the matching rows only. A collection with no matches
+     * produces no row at all, which is how the board hides empty groups.
+     */
+
+    /**
      * Post-content collections for one language: one row per WP post that has
      * discovered tl_post sources, with per-status counts. Joined to wp_posts for
      * post_type + title. For the workspace group list (Pages/Posts/CPT).
@@ -94,7 +108,7 @@ interface SourceTranslationRepository
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
      *   total:int, translated:int, needs_review:int, missing:int}>
      */
-    public function listPostCollections(string $langCode): array;
+    public function listPostCollections(string $langCode, string $search = ''): array;
 
     /**
      * The discovered tl_post text units of one WP post for one language, each with
@@ -103,7 +117,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listPostTexts(int $postId, string $langCode): array;
+    public function listPostTexts(int $postId, string $langCode, string $search = ''): array;
 
     /**
      * The single Site-settings collection (all discovered tl_option sources) with
@@ -111,7 +125,7 @@ interface SourceTranslationRepository
      *
      * @return array{total:int, translated:int, needs_review:int, missing:int}
      */
-    public function optionCollectionSummary(string $langCode): array;
+    public function optionCollectionSummary(string $langCode, string $search = ''): array;
 
     /**
      * The discovered tl_option text units for one language, each with its
@@ -120,7 +134,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, option_name:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listOptionTexts(string $langCode): array;
+    public function listOptionTexts(string $langCode, string $search = ''): array;
 
 
     /**
@@ -130,10 +144,13 @@ interface SourceTranslationRepository
      * @return array<int, array{term_taxonomy_id:int, taxonomy:string, name:string,
      *   total:int, translated:int, needs_review:int, missing:int}>
      */
-    public function listTermCollections(string $langCode): array;
+    public function listTermCollections(string $langCode, string $search = ''): array;
 
     /**
      * The discovered tl_term text units of one term for one language.
+     *
+     * Takes no `$search`: the board expands taxonomies whole via listTaxonomyTexts,
+     * and this one exists only to feed AI translation of a single term.
      *
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
@@ -147,7 +164,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listTaxonomyTexts(string $taxonomy, string $langCode): array;
+    public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = ''): array;
 
     /**
      * Post-meta per-status counts grouped by WP post (joined to wp_posts) for one
@@ -156,7 +173,7 @@ interface SourceTranslationRepository
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
      *   total:int, translated:int, needs_review:int, missing:int}>
      */
-    public function postMetaCounts(string $langCode): array;
+    public function postMetaCounts(string $langCode, string $search = ''): array;
 
     /**
      * The discovered tl_meta text units of one post for one language.
@@ -164,7 +181,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, meta_key:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listMetaTexts(int $postId, string $langCode): array;
+    public function listMetaTexts(int $postId, string $langCode, string $search = ''): array;
 
 
     /**
@@ -174,7 +191,7 @@ interface SourceTranslationRepository
      *
      * @return array{total:int, translated:int, needs_review:int, missing:int}
      */
-    public function htmlCollectionSummary(string $langCode): array;
+    public function htmlCollectionSummary(string $langCode, string $search = ''): array;
 
     /**
      * The discovered tl_html text units for one language (field = selector).
@@ -182,7 +199,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listHtmlTexts(string $langCode): array;
+    public function listHtmlTexts(string $langCode, string $search = ''): array;
 
 
     /** Original text of one discovered source by ref, or null if gone/ignored. */

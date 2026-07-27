@@ -114,6 +114,16 @@ const FILTERS = [
   { key: "translated", label: "Translated" },
 ];
 
+// Search runs server-side (?search= on /collections and /collections/{id}/texts),
+// matching source text OR its translation in the selected language.
+// 300ms because each keystroke refetches every group's counts.
+const SEARCH_DEBOUNCE_MS = 300;
+// One letter matches almost everything; below this the box is inert.
+const SEARCH_MIN = 2;
+// ponytail: each auto-opened group is one /texts request, and a broad query can match
+// hundreds. Beyond this the groups still list with their match count and open on click.
+const AUTO_EXPAND_MAX = 20;
+
 export default function Dashboard({
   view,
   defaultLanguage,
@@ -125,6 +135,11 @@ export default function Dashboard({
   // expanded[id] = 'loading' | array of text units (undefined = collapsed).
   const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState("");
+  // The debounced term actually sent to the server ("" = not searching).
+  const [query, setQuery] = useState("");
+  // The search tree, same shape as `expanded`. Kept separate so a search never
+  // touches the groups the user opened by hand.
+  const [matches, setMatches] = useState({});
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerInitial, setManagerInitial] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -133,12 +148,18 @@ export default function Dashboard({
   const [ai, setAi] = useState({ available: false, error: "" });
   const [quota, setQuota] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [showSearch, setShowSearch] = useState(false);
+  const [autosaveToast, setAutosaveToast] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
 
   // Mirrors `expanded` so effects can read it without re-subscribing.
   const expandedRef = useRef({});
+  const autosaveToastTimerRef = useRef(null);
   expandedRef.current = expanded;
+  const matchesRef = useRef({});
+  matchesRef.current = matches;
+  // Lets an in-flight fetch recognize that the term moved on under it.
+  const queryRef = useRef("");
+  queryRef.current = query;
 
   const defaultCode = defaultLanguage?.code || defaultLanguage;
 
@@ -157,6 +178,29 @@ export default function Dashboard({
       setAi({ available: !!res.ai_available, error: res.ai_error || "" });
     });
     loadQuota();
+  }, []);
+
+  useEffect(() => {
+    function showAutosaveToast() {
+      setAutosaveToast(true);
+      clearTimeout(autosaveToastTimerRef.current);
+      autosaveToastTimerRef.current = setTimeout(() => {
+        setAutosaveToast(false);
+      }, 3000);
+    }
+
+    function handleShortcut(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        showAutosaveToast();
+      }
+    }
+
+    window.addEventListener("keydown", handleShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      clearTimeout(autosaveToastTimerRef.current);
+    };
   }, []);
 
   // AI translate a scope (text | collection | language), then refresh views + quota.
@@ -196,8 +240,9 @@ export default function Dashboard({
       }.`,
     });
     loadCollections();
-    Object.keys(expanded).forEach((id) => {
-      if (Array.isArray(expanded[id])) {
+    const open = queryRef.current ? matchesRef.current : expandedRef.current;
+    Object.keys(open).forEach((id) => {
+      if (Array.isArray(open[id])) {
         loadTexts(id);
       }
     });
@@ -264,33 +309,86 @@ export default function Dashboard({
 
   useEffect(refreshLanguages, []);
 
+  // Debounce the box into the term we actually query with. Below SEARCH_MIN the term
+  // counts as empty, so backspacing to one letter restores the full tree.
+  useEffect(() => {
+    const q = search.trim();
+    const id = setTimeout(
+      () => setQuery(q.length < SEARCH_MIN ? "" : q),
+      SEARCH_DEBOUNCE_MS
+    );
+    return () => clearTimeout(id);
+  }, [search]);
+
+  const searchParam = (q) => (q ? `&search=${enc(q)}` : "");
+
   function loadCollections() {
-    api.get(`/collections?language=${enc(selectedLang)}`).then((res) => {
-      setCollections(res.ok ? res.collections || [] : []);
-    });
+    const q = queryRef.current;
+    api
+      .get(`/collections?language=${enc(selectedLang)}${searchParam(q)}`)
+      .then((res) => {
+        if (queryRef.current !== q) {
+          return; // the term moved on while this was in flight
+        }
+        setCollections(res.ok ? res.collections || [] : []);
+      });
   }
 
-  // Reload for the new working language, keeping open groups open — the overlay
-  // switches language in place and would otherwise lose the row it is editing.
+  // Reload for the new working language or a new search term, keeping open groups
+  // open — the overlay switches language in place and would otherwise lose the row
+  // it is editing. A search builds its own tree, so it never refetches `expanded`.
   useEffect(() => {
     if (!selectedLang) {
       return;
     }
     setCollections(null);
+    setMatches({});
     loadCollections();
-    Object.keys(expandedRef.current).forEach(loadTexts);
-  }, [selectedLang]);
+    if (!query) {
+      Object.keys(expandedRef.current).forEach(loadTexts);
+    }
+  }, [selectedLang, query]);
+
+  // Auto-open the matching groups, capped: each one is a request. Fires once per
+  // (language, term) — `collections` also changes on every counts refresh after a
+  // mutation, and re-running then would reopen a group the user had just closed.
+  const autoExpandedRef = useRef("");
+  useEffect(() => {
+    if (!query || collections === null) {
+      return;
+    }
+    const key = `${selectedLang}\n${query}`;
+    if (autoExpandedRef.current === key) {
+      return;
+    }
+    autoExpandedRef.current = key;
+    collections.slice(0, AUTO_EXPAND_MAX).forEach((c) => {
+      setMatches((m) => ({ ...m, [c.id]: "loading" }));
+      loadTexts(c.id);
+    });
+  }, [query, collections, selectedLang]);
 
   function loadTexts(id) {
+    const q = queryRef.current;
     api
-      .get(`/collections/${enc(id)}/texts?language=${enc(selectedLang)}`)
+      .get(
+        `/collections/${enc(id)}/texts?language=${enc(selectedLang)}${searchParam(q)}`
+      )
       .then((res) => {
-        setExpanded((c) => ({ ...c, [id]: res.ok ? res.texts || [] : [] }));
+        if (queryRef.current !== q) {
+          return;
+        }
+        // A searched fetch lands in the search tree; an unsearched one in the user's
+        // own tree, which a search must never disturb.
+        (q ? setMatches : setExpanded)((c) => ({
+          ...c,
+          [id]: res.ok ? res.texts || [] : [],
+        }));
       });
   }
 
   function toggleGroup(id) {
-    setExpanded((cur) => {
+    (queryRef.current ? setMatches : setExpanded)((cur) => {
       if (cur[id] !== undefined) {
         const next = { ...cur };
         delete next[id];
@@ -303,7 +401,8 @@ export default function Dashboard({
 
   // After a mutation on a unit: refresh that group's texts (if open) + counts.
   function afterMutate(cid) {
-    if (expanded[cid] !== undefined) {
+    const open = queryRef.current ? matchesRef.current : expandedRef.current;
+    if (open[cid] !== undefined) {
       loadTexts(cid);
     }
     loadCollections();
@@ -343,10 +442,15 @@ export default function Dashboard({
     );
   }
 
+  const searching = query !== "";
+  // While searching the server has already filtered `collections` to groups with
+  // hits, and `matches` holds their matching rows — so the whole board reads one
+  // map or the other and `expanded` is left exactly as the user arranged it.
+  const openMap = searching ? matches : expanded;
+
+  // No heading filter: search is server-side now, and a page's title is itself a
+  // searchable text row, so typing a title still surfaces its group.
   const filtered = (collections || []).filter((c) => {
-    if (!groupHeading(c).toLowerCase().includes(search.toLowerCase())) {
-      return false;
-    }
     if (statusFilter === "untranslated") {
       return c.missing > 0;
     }
@@ -362,8 +466,8 @@ export default function Dashboard({
   // Every row currently rendered, in table order — this is what the overlay's
   // prev/next arrows walk, so they cross group boundaries.
   const loadedRows = filtered.flatMap((c) =>
-    Array.isArray(expanded[c.id])
-      ? expanded[c.id].map((u) => ({
+    Array.isArray(openMap[c.id])
+      ? openMap[c.id].map((u) => ({
           unit: u,
           cid: c.id,
           fieldLabel: `${groupHeading(c)} — ${u.field}`,
@@ -582,7 +686,6 @@ export default function Dashboard({
                         value={search}
                         onChange={setSearch}
                         autoComplete="off"
-                        focused={showSearch}
                         clearButton
                         onClearButtonClick={() => setSearch("")}
                       />
@@ -631,11 +734,21 @@ export default function Dashboard({
             ) : filtered.length === 0 ? (
               <Box padding="500">
                 <Text as="p" tone="subdued">
-                  No translatable content found for this language yet.
+                  {searching
+                    ? `No text matches “${query}” in this language.`
+                    : "No translatable content found for this language yet."}
                 </Text>
               </Box>
             ) : (
               <BlockStack gap="0">
+                {searching && filtered.length > AUTO_EXPAND_MAX && (
+                  <Box paddingInline="300" paddingBlock="200">
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      {filtered.length} groups match — the first {AUTO_EXPAND_MAX}{" "}
+                      are open. Click any other group to see its matches.
+                    </Text>
+                  </Box>
+                )}
                 <Box paddingInlineStart="1000">
                   <Box paddingInline="300" paddingBlock="200">
                     <InlineStack
@@ -664,11 +777,10 @@ export default function Dashboard({
                     key={c.id}
                     collection={c}
                     language={selectedLang}
-                    open={expanded[c.id] !== undefined}
-                    texts={
-                      Array.isArray(expanded[c.id]) ? expanded[c.id] : null
-                    }
-                    loading={expanded[c.id] === "loading"}
+                    open={openMap[c.id] !== undefined}
+                    texts={Array.isArray(openMap[c.id]) ? openMap[c.id] : null}
+                    loading={openMap[c.id] === "loading"}
+                    searching={searching}
                     onToggle={() => toggleGroup(c.id)}
                     onMutate={() => afterMutate(c.id)}
                     onConfirm={setConfirm}
@@ -686,6 +798,7 @@ export default function Dashboard({
                 <Box padding="300">
                   <Text as="p" alignment="end" tone="subdued" variant="bodySm">
                     {totalDone} of {totalTexts} translated
+                    {searching ? " in matching text" : ""}
                   </Text>
                 </Box>
               </>
@@ -736,6 +849,28 @@ export default function Dashboard({
         onNext={() => setOverlay({ id: loadedRows[overlayIndex + 1].unit.id })}
       />
       <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
+      {autosaveToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: "24px",
+            transform: "translateX(-50%)",
+            zIndex: 999999,
+            padding: "10px 14px",
+            borderRadius: "8px",
+            background: "var(--p-color-bg-fill-inverse)",
+            color: "var(--p-color-text-inverse)",
+            boxShadow: "var(--p-shadow-400)",
+            fontSize: "13px",
+            lineHeight: "20px",
+          }}
+        >
+          The plugin has auto save enabled.
+        </div>
+      )}
     </Page>
   );
 }
@@ -772,6 +907,7 @@ function CollectionGroup({
   open,
   texts,
   loading,
+  searching,
   onToggle,
   onMutate,
   onConfirm,
@@ -822,6 +958,40 @@ function CollectionGroup({
     });
   }
 
+  // Ignore all / Clear all are whole-collection on the server. Offering them beside
+  // a filtered row list would read as "ignore these 3", so they hide during a search;
+  // the preview link is scope-free and stays.
+  const bulkItems = [
+    ...(c.preview_url
+      ? [
+          {
+            content:
+              c.preview_target === "frontend"
+                ? "Show in canvas"
+                : "Edit in WordPress",
+            onAction: () => {
+              setMenuOpen(false);
+              openCanvas(c.preview_url, c.preview_target);
+            },
+          },
+        ]
+      : []),
+    ...(searching
+      ? []
+      : [
+          {
+            content: "Ignore all",
+            destructive: true,
+            onAction: confirmIgnoreAll,
+          },
+          {
+            content: "Clear all",
+            destructive: true,
+            onAction: confirmClearAll,
+          },
+        ]),
+  ];
+
   return (
     <Box>
       <div
@@ -859,6 +1029,13 @@ function CollectionGroup({
             <Text as="span" variant="bodyMd" fontWeight="medium">
               {groupHeading(c)}
             </Text>
+            {/* While searching, the server's counts describe the matching subset,
+                so `total` is the match count. */}
+            {searching && (
+              <Text as="span" variant="bodySm" tone="subdued">
+                {c.total} {c.total === 1 ? "match" : "matches"}
+              </Text>
+            )}
           </button>
           <div
             style={{
@@ -868,57 +1045,34 @@ function CollectionGroup({
             }}
           >
           <InlineStack gap="100" blockAlign="center" wrap={false}>
-            <Button
-              variant="tertiary"
-              size="micro"
-              disabled={!aiAvailable}
-              icon={(props) => <StartIcon {...props} />}
-              onClick={confirmAiGroup}
-            >
-              Translate all
-            </Button>
-            <Popover
-              active={menuOpen}
-              onClose={() => setMenuOpen(false)}
-              activator={
-                <Button
-                  variant="tertiary"
-                  size="micro"
-                  onClick={() => setMenuOpen((o) => !o)}
-                >
-                  ⋯
-                </Button>
-              }
-            >
-              <ActionList
-                items={[
-                  ...(c.preview_url
-                    ? [
-                        {
-                          content:
-                            c.preview_target === "frontend"
-                              ? "Show in canvas"
-                              : "Edit in WordPress",
-                          onAction: () => {
-                            setMenuOpen(false);
-                            openCanvas(c.preview_url, c.preview_target);
-                          },
-                        },
-                      ]
-                    : []),
-                  {
-                    content: "Ignore all",
-                    destructive: true,
-                    onAction: confirmIgnoreAll,
-                  },
-                  {
-                    content: "Clear all",
-                    destructive: true,
-                    onAction: confirmClearAll,
-                  },
-                ]}
-              />
-            </Popover>
+            {!searching && (
+              <Button
+                variant="tertiary"
+                size="micro"
+                disabled={!aiAvailable}
+                icon={(props) => <StartIcon {...props} />}
+                onClick={confirmAiGroup}
+              >
+                Translate all
+              </Button>
+            )}
+            {bulkItems.length > 0 && (
+              <Popover
+                active={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                activator={
+                  <Button
+                    variant="tertiary"
+                    size="micro"
+                    onClick={() => setMenuOpen((o) => !o)}
+                  >
+                    ⋯
+                  </Button>
+                }
+              >
+                <ActionList items={bulkItems} />
+              </Popover>
+            )}
           </InlineStack>
           </div>
         </InlineStack>

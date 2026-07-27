@@ -107,6 +107,7 @@ class ResolveRequestLanguage
      */
     private function resolveFromPreview(): ?string
     {
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only language preview, gated on edit_posts; it changes no state, so a nonce would only break shareable preview URLs.
         if (empty($_GET['translangs_preview'])) {
             return null;
         }
@@ -116,6 +117,7 @@ class ResolveRequestLanguage
         }
 
         return $this->validate(sanitize_key(wp_unslash($_GET['translangs_preview'])));
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
     /**
@@ -133,7 +135,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        $path = trim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH), '/');
+        $path = trim((string) parse_url(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '')), PHP_URL_PATH), '/');
         if ($path === '') {
             return $this->getDefaultLanguage();
         }
@@ -169,7 +171,9 @@ class ResolveRequestLanguage
             return null;
         }
 
-        foreach ($this->parseAcceptLanguage((string) $_SERVER['HTTP_ACCEPT_LANGUAGE']) as $code) {
+        $accept = sanitize_text_field(wp_unslash($_SERVER['HTTP_ACCEPT_LANGUAGE']));
+
+        foreach ($this->parseAcceptLanguage($accept) as $code) {
             $valid = $this->validate($code);
             if ($valid !== null) {
                 return $valid;
@@ -215,7 +219,7 @@ class ResolveRequestLanguage
             return true;
         }
 
-        $path = trim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH), '/');
+        $path = trim((string) parse_url(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '')), PHP_URL_PATH), '/');
 
         return $path === 'wp-login.php';
     }

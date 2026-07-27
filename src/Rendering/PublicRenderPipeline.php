@@ -174,6 +174,7 @@ final class PublicRenderPipeline
             return false;
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- edit_posts is checked above and this only forces marking that the throttle below performs anyway; no state change is gated on it.
         if (!empty($_GET['translangs_mark'])) {
             return true;
         }
@@ -189,7 +190,7 @@ final class PublicRenderPipeline
 
     private function currentUrl(): ?string
     {
-        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        $uri = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         if ($uri === '' || !function_exists('home_url')) {
             return $uri === '' ? null : $uri;
         }

@@ -14078,6 +14078,16 @@ const FILTERS = [{
   key: "translated",
   label: "Translated"
 }];
+
+// Search runs server-side (?search= on /collections and /collections/{id}/texts),
+// matching source text OR its translation in the selected language.
+// 300ms because each keystroke refetches every group's counts.
+const SEARCH_DEBOUNCE_MS = 300;
+// One letter matches almost everything; below this the box is inert.
+const SEARCH_MIN = 2;
+// ponytail: each auto-opened group is one /texts request, and a broad query can match
+// hundreds. Beyond this the groups still list with their match count and open on click.
+const AUTO_EXPAND_MAX = 20;
 function Dashboard({
   view,
   defaultLanguage,
@@ -14089,6 +14099,11 @@ function Dashboard({
   // expanded[id] = 'loading' | array of text units (undefined = collapsed).
   const [expanded, setExpanded] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)({});
   const [search, setSearch] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)("");
+  // The debounced term actually sent to the server ("" = not searching).
+  const [query, setQuery] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)("");
+  // The search tree, same shape as `expanded`. Kept separate so a search never
+  // touches the groups the user opened by hand.
+  const [matches, setMatches] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)({});
   const [managerOpen, setManagerOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
   const [managerInitial, setManagerInitial] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
   const [settingsOpen, setSettingsOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
@@ -14100,12 +14115,18 @@ function Dashboard({
   });
   const [quota, setQuota] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
   const [notice, setNotice] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
-  const [showSearch, setShowSearch] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
+  const [autosaveToast, setAutosaveToast] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
   const [statusFilter, setStatusFilter] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)("all");
 
   // Mirrors `expanded` so effects can read it without re-subscribing.
   const expandedRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useRef)({});
+  const autosaveToastTimerRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useRef)(null);
   expandedRef.current = expanded;
+  const matchesRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useRef)({});
+  matchesRef.current = matches;
+  // Lets an in-flight fetch recognize that the term moved on under it.
+  const queryRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useRef)("");
+  queryRef.current = query;
   const defaultCode = defaultLanguage?.code || defaultLanguage;
 
   // Open the language manager, optionally focused on a specific language.
@@ -14124,6 +14145,26 @@ function Dashboard({
       });
     });
     loadQuota();
+  }, []);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(() => {
+    function showAutosaveToast() {
+      setAutosaveToast(true);
+      clearTimeout(autosaveToastTimerRef.current);
+      autosaveToastTimerRef.current = setTimeout(() => {
+        setAutosaveToast(false);
+      }, 3000);
+    }
+    function handleShortcut(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        showAutosaveToast();
+      }
+    }
+    window.addEventListener("keydown", handleShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      clearTimeout(autosaveToastTimerRef.current);
+    };
   }, []);
 
   // AI translate a scope (text | collection | language), then refresh views + quota.
@@ -14159,8 +14200,9 @@ function Dashboard({
       content: `Translated ${res.translated} text${res.translated === 1 ? "" : "s"}.`
     });
     loadCollections();
-    Object.keys(expanded).forEach(id => {
-      if (Array.isArray(expanded[id])) {
+    const open = queryRef.current ? matchesRef.current : expandedRef.current;
+    Object.keys(open).forEach(id => {
+      if (Array.isArray(open[id])) {
         loadTexts(id);
       }
     });
@@ -14223,32 +14265,77 @@ function Dashboard({
     });
   }
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(refreshLanguages, []);
+
+  // Debounce the box into the term we actually query with. Below SEARCH_MIN the term
+  // counts as empty, so backspacing to one letter restores the full tree.
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(() => {
+    const q = search.trim();
+    const id = setTimeout(() => setQuery(q.length < SEARCH_MIN ? "" : q), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [search]);
+  const searchParam = q => q ? `&search=${enc(q)}` : "";
   function loadCollections() {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.get(`/collections?language=${enc(selectedLang)}`).then(res => {
+    const q = queryRef.current;
+    _api__WEBPACK_IMPORTED_MODULE_23__.api.get(`/collections?language=${enc(selectedLang)}${searchParam(q)}`).then(res => {
+      if (queryRef.current !== q) {
+        return; // the term moved on while this was in flight
+      }
       setCollections(res.ok ? res.collections || [] : []);
     });
   }
 
-  // Reload for the new working language, keeping open groups open — the overlay
-  // switches language in place and would otherwise lose the row it is editing.
+  // Reload for the new working language or a new search term, keeping open groups
+  // open — the overlay switches language in place and would otherwise lose the row
+  // it is editing. A search builds its own tree, so it never refetches `expanded`.
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(() => {
     if (!selectedLang) {
       return;
     }
     setCollections(null);
+    setMatches({});
     loadCollections();
-    Object.keys(expandedRef.current).forEach(loadTexts);
-  }, [selectedLang]);
+    if (!query) {
+      Object.keys(expandedRef.current).forEach(loadTexts);
+    }
+  }, [selectedLang, query]);
+
+  // Auto-open the matching groups, capped: each one is a request. Fires once per
+  // (language, term) — `collections` also changes on every counts refresh after a
+  // mutation, and re-running then would reopen a group the user had just closed.
+  const autoExpandedRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useRef)("");
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(() => {
+    if (!query || collections === null) {
+      return;
+    }
+    const key = `${selectedLang}\n${query}`;
+    if (autoExpandedRef.current === key) {
+      return;
+    }
+    autoExpandedRef.current = key;
+    collections.slice(0, AUTO_EXPAND_MAX).forEach(c => {
+      setMatches(m => ({
+        ...m,
+        [c.id]: "loading"
+      }));
+      loadTexts(c.id);
+    });
+  }, [query, collections, selectedLang]);
   function loadTexts(id) {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.get(`/collections/${enc(id)}/texts?language=${enc(selectedLang)}`).then(res => {
-      setExpanded(c => ({
+    const q = queryRef.current;
+    _api__WEBPACK_IMPORTED_MODULE_23__.api.get(`/collections/${enc(id)}/texts?language=${enc(selectedLang)}${searchParam(q)}`).then(res => {
+      if (queryRef.current !== q) {
+        return;
+      }
+      // A searched fetch lands in the search tree; an unsearched one in the user's
+      // own tree, which a search must never disturb.
+      (q ? setMatches : setExpanded)(c => ({
         ...c,
         [id]: res.ok ? res.texts || [] : []
       }));
     });
   }
   function toggleGroup(id) {
-    setExpanded(cur => {
+    (queryRef.current ? setMatches : setExpanded)(cur => {
       if (cur[id] !== undefined) {
         const next = {
           ...cur
@@ -14266,7 +14353,8 @@ function Dashboard({
 
   // After a mutation on a unit: refresh that group's texts (if open) + counts.
   function afterMutate(cid) {
-    if (expanded[cid] !== undefined) {
+    const open = queryRef.current ? matchesRef.current : expandedRef.current;
+    if (open[cid] !== undefined) {
       loadTexts(cid);
     }
     loadCollections();
@@ -14303,10 +14391,15 @@ function Dashboard({
       })]
     });
   }
+  const searching = query !== "";
+  // While searching the server has already filtered `collections` to groups with
+  // hits, and `matches` holds their matching rows — so the whole board reads one
+  // map or the other and `expanded` is left exactly as the user arranged it.
+  const openMap = searching ? matches : expanded;
+
+  // No heading filter: search is server-side now, and a page's title is itself a
+  // searchable text row, so typing a title still surfaces its group.
   const filtered = (collections || []).filter(c => {
-    if (!groupHeading(c).toLowerCase().includes(search.toLowerCase())) {
-      return false;
-    }
     if (statusFilter === "untranslated") {
       return c.missing > 0;
     }
@@ -14321,7 +14414,7 @@ function Dashboard({
 
   // Every row currently rendered, in table order — this is what the overlay's
   // prev/next arrows walk, so they cross group boundaries.
-  const loadedRows = filtered.flatMap(c => Array.isArray(expanded[c.id]) ? expanded[c.id].map(u => ({
+  const loadedRows = filtered.flatMap(c => Array.isArray(openMap[c.id]) ? openMap[c.id].map(u => ({
     unit: u,
     cid: c.id,
     fieldLabel: `${groupHeading(c)} — ${u.field}`
@@ -14523,7 +14616,6 @@ function Dashboard({
                       value: search,
                       onChange: setSearch,
                       autoComplete: "off",
-                      focused: showSearch,
                       clearButton: true,
                       onClearButtonClick: () => setSearch("")
                     })
@@ -14572,11 +14664,20 @@ function Dashboard({
             children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
               as: "p",
               tone: "subdued",
-              children: "No translatable content found for this language yet."
+              children: searching ? `No text matches “${query}” in this language.` : "No translatable content found for this language yet."
             })
           }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
             gap: "0",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+            children: [searching && filtered.length > AUTO_EXPAND_MAX && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+              paddingInline: "300",
+              paddingBlock: "200",
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                as: "p",
+                tone: "subdued",
+                variant: "bodySm",
+                children: [filtered.length, " groups match \u2014 the first ", AUTO_EXPAND_MAX, " ", "are open. Click any other group to see its matches."]
+              })
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
               paddingInlineStart: "1000",
               children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
                 paddingInline: "300",
@@ -14614,9 +14715,10 @@ function Dashboard({
             }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Divider, {}), filtered.map(c => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(CollectionGroup, {
               collection: c,
               language: selectedLang,
-              open: expanded[c.id] !== undefined,
-              texts: Array.isArray(expanded[c.id]) ? expanded[c.id] : null,
-              loading: expanded[c.id] === "loading",
+              open: openMap[c.id] !== undefined,
+              texts: Array.isArray(openMap[c.id]) ? openMap[c.id] : null,
+              loading: openMap[c.id] === "loading",
+              searching: searching,
               onToggle: () => toggleGroup(c.id),
               onMutate: () => afterMutate(c.id),
               onConfirm: setConfirm,
@@ -14634,7 +14736,7 @@ function Dashboard({
                 alignment: "end",
                 tone: "subdued",
                 variant: "bodySm",
-                children: [totalDone, " of ", totalTexts, " translated"]
+                children: [totalDone, " of ", totalTexts, " translated", searching ? " in matching text" : ""]
               })
             })]
           })]
@@ -14681,6 +14783,24 @@ function Dashboard({
     }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(ConfirmDialog, {
       confirm: confirm,
       onClose: () => setConfirm(null)
+    }), autosaveToast && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+      role: "status",
+      "aria-live": "polite",
+      style: {
+        position: "fixed",
+        left: "50%",
+        bottom: "24px",
+        transform: "translateX(-50%)",
+        zIndex: 999999,
+        padding: "10px 14px",
+        borderRadius: "8px",
+        background: "var(--p-color-bg-fill-inverse)",
+        color: "var(--p-color-text-inverse)",
+        boxShadow: "var(--p-shadow-400)",
+        fontSize: "13px",
+        lineHeight: "20px"
+      },
+      children: "The plugin has auto save enabled."
     })]
   });
 }
@@ -14721,6 +14841,7 @@ function CollectionGroup({
   open,
   texts,
   loading,
+  searching,
   onToggle,
   onMutate,
   onConfirm,
@@ -14768,6 +14889,25 @@ function CollectionGroup({
       onConfirm: () => bulk("clear")
     });
   }
+
+  // Ignore all / Clear all are whole-collection on the server. Offering them beside
+  // a filtered row list would read as "ignore these 3", so they hide during a search;
+  // the preview link is scope-free and stays.
+  const bulkItems = [...(c.preview_url ? [{
+    content: c.preview_target === "frontend" ? "Show in canvas" : "Edit in WordPress",
+    onAction: () => {
+      setMenuOpen(false);
+      openCanvas(c.preview_url, c.preview_target);
+    }
+  }] : []), ...(searching ? [] : [{
+    content: "Ignore all",
+    destructive: true,
+    onAction: confirmIgnoreAll
+  }, {
+    content: "Clear all",
+    destructive: true,
+    onAction: confirmClearAll
+  }])];
   return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
     children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
       onMouseEnter: () => setHovered(true),
@@ -14813,6 +14953,11 @@ function CollectionGroup({
               variant: "bodyMd",
               fontWeight: "medium",
               children: groupHeading(c)
+            }), searching && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+              as: "span",
+              variant: "bodySm",
+              tone: "subdued",
+              children: [c.total, " ", c.total === 1 ? "match" : "matches"]
             })]
           }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
             style: {
@@ -14824,7 +14969,7 @@ function CollectionGroup({
               gap: "100",
               blockAlign: "center",
               wrap: false,
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+              children: [!searching && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
                 variant: "tertiary",
                 size: "micro",
                 disabled: !aiAvailable,
@@ -14833,7 +14978,7 @@ function CollectionGroup({
                 }),
                 onClick: confirmAiGroup,
                 children: "Translate all"
-              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_14__.Popover, {
+              }), bulkItems.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_14__.Popover, {
                 active: menuOpen,
                 onClose: () => setMenuOpen(false),
                 activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
@@ -14843,21 +14988,7 @@ function CollectionGroup({
                   children: "\u22EF"
                 }),
                 children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
-                  items: [...(c.preview_url ? [{
-                    content: c.preview_target === "frontend" ? "Show in canvas" : "Edit in WordPress",
-                    onAction: () => {
-                      setMenuOpen(false);
-                      openCanvas(c.preview_url, c.preview_target);
-                    }
-                  }] : []), {
-                    content: "Ignore all",
-                    destructive: true,
-                    onAction: confirmIgnoreAll
-                  }, {
-                    content: "Clear all",
-                    destructive: true,
-                    onAction: confirmClearAll
-                  }]
+                  items: bulkItems
                 })
               })]
             })

@@ -110,7 +110,7 @@ class SettingsPageController
      */
     private function maybeHandleSave(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        if (sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
             return;
         }
 
@@ -133,11 +133,11 @@ class SettingsPageController
         // Sanitize and validate posted target languages.
         // Source language is excluded — it is never stored as a target.
         $postedRaw = isset($_POST['enabled_languages'])
-            ? (array) wp_unslash($_POST['enabled_languages'])
+            ? array_map('sanitize_key', (array) wp_unslash($_POST['enabled_languages']))
             : [];
 
         $postedTargets = array_values(array_filter(
-            array_map('sanitize_key', $postedRaw),
+            $postedRaw,
             static fn(string $c): bool => $c !== '' && $c !== $source && SupportedLanguages::exists($c)
         ));
 
