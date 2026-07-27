@@ -1,0 +1,6 @@
+/* ponytail: theme + utilities only, no preflight — Polaris owns base styles here. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@source './';

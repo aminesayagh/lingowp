@@ -2,6 +2,13 @@
 
 namespace TransLangs\Setup;
 
+use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use TransLangs\Localization\LanguageRouteRegistrar;
+use TransLangs\Discovery\InitialDiscoveryScan;
+use TransLangs\Database\SchemaFailure;
+use TransLangs\Database\TranslationMemorySchema;
+
 /**
  * Runs once on plugin activation.
  *
@@ -14,16 +21,37 @@ class Activator
 {
     public static function run(): void
     {
-        Schema::install();
-        Schema::setDefaultOptions();
-        
-        // Register our rewrite rules now, then flush so they take effect
-        // immediately. The init hook hasn't run during activation, so we
-        // register them directly here before flushing.
-        $resolver = new \TransLangs\Frontend\LanguageResolver();
-        (new \TransLangs\Frontend\Router($resolver))->addRewriteRules();
- 
+        // Abort activation with a specific, human-readable message rather than a
+        // white screen or raw SQL error when the DB prerequisites are not met
+        // (non-InnoDB parent tables, or FKs that could not be created — §10).
+        try {
+            TranslationMemorySchema::install();
+        } catch (SchemaFailure $failure) {
+            wp_die(
+                esc_html($failure->getMessage()),
+                esc_html__('TransLangs activation failed', 'translangs'),
+                ['back_link' => true]
+            );
+        }
+
+        TranslationMemorySchema::setDefaultOptions();
+
+        // Carry any previously configured languages over to the v4 code lists.
+        $registry = new OptionLanguageRegistry();
+        $registry->seedFromLegacyOption();
+
+        // Request a one-time initial discovery scan; the batched Action Scheduler
+        // job is enqueued on the next init, once the AS store is ready.
+        update_option(InitialDiscoveryScan::OPTION_FLAG, 1);
+
+        // Register the rewrite compilation filter now, then flush so language
+        // rule copies are included immediately. The normal plugin boot may not
+        // have run during activation.
+        $resolver = new ResolveRequestLanguage($registry);
+        (new LanguageRouteRegistrar($resolver))->registerRewriteRulesFilter();
+
         // Flushing is expensive, so it happens only on activation, never per request.
         flush_rewrite_rules();
+        update_option('translangs_rewrite_rules_version', LanguageRouteRegistrar::REWRITE_RULES_VERSION, false);
     }
 }

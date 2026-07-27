@@ -5,8 +5,6 @@
  * Expects:
  *   $settings  array  current option values
  *   $languages array  full language catalog (code => meta)
- *   $tabs      array  navbar tabs
- *   $current   string active tab slug
  *
  * @package TransLangs
  */
@@ -20,12 +18,6 @@ if (!defined('ABSPATH')) {
 ?>
 <div class="wrap translangs-page">
     <h1 class="translangs-page__title"><?php esc_html_e('TransLangs Settings', 'translangs'); ?></h1>
-
-    <?php
-    $tabs = $tabs ?? [];
-    $current = $current ?? '';
-    \TransLangs\Config\View::render('admin-navbar.php', ['tabs' => $tabs, 'current' => $current]);
-    ?>
 
     <form method="post" action="">
         <?php wp_nonce_field('translangs_save_settings', 'translangs_nonce'); ?>
@@ -42,16 +34,15 @@ if (!defined('ABSPATH')) {
                         </span>
                     </label>
                     <div class="translangs-form__field">
-                        <select name="default_language" id="tl-default-language">
-                            <?php foreach ($languages as $code => $meta) : ?>
-                                <option
-                                    value="<?php echo esc_attr($code); ?>"
-                                    <?php selected($settings['default_language'], $code); ?>
-                                >
-                                    <?php echo esc_html($meta['name'] . ' (' . $code . ')'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <?php
+                        // Read-only: the source language is frozen at setup (translangs_source_locale)
+                        // and inherited from WordPress; it is not editable here (see onboarding arch).
+                        $tlDefault = $settings['default_language'];
+                        $tlName    = $languages[$tlDefault]['name'] ?? strtoupper((string) $tlDefault);
+                        ?>
+                        <p id="tl-default-language">
+                            <strong><?php echo esc_html($tlName . ' (' . $tlDefault . ')'); ?></strong>
+                        </p>
                     </div>
                 </div>
 
@@ -65,6 +56,7 @@ if (!defined('ABSPATH')) {
                     <div class="translangs-form__field">
                         <div class="translangs-checklist">
                             <?php foreach ($languages as $code => $meta) : ?>
+                                <?php if ($code === $settings['default_language']) : continue; endif; ?>
                                 <label>
                                     <input
                                         type="checkbox"
@@ -132,4 +124,19 @@ if (!defined('ABSPATH')) {
             </button>
         </p>
     </form>
+
+    <div class="translangs-card">
+        <h2 class="translangs-card__title"><?php esc_html_e('Restart onboarding', 'translangs'); ?></h2>
+        <p class="translangs-card__desc">
+            <?php esc_html_e('Reset the setup experience and go through onboarding again from the start. This disconnects Translangs and clears your categories and language list; your saved translations are kept.', 'translangs'); ?>
+        </p>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
+            onsubmit="return confirm('<?php echo esc_js(__('Restart onboarding? This disconnects Translangs and clears your categories and languages.', 'translangs')); ?>');">
+            <input type="hidden" name="action" value="translangs_restart">
+            <?php wp_nonce_field('translangs_restart', 'translangs_restart_nonce'); ?>
+            <button type="submit" class="button button-link-delete">
+                <?php esc_html_e('Restart onboarding', 'translangs'); ?>
+            </button>
+        </form>
+    </div>
 </div>

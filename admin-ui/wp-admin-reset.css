@@ -1,0 +1,87 @@
+/*
+ * Neutralize WordPress admin's global form styles where they bleed into Polaris.
+ *
+ * wp-admin's forms.css styles every input/select/textarea with its own border,
+ * box-shadow, min-height and background. Those override Polaris, which keeps the
+ * inner <input> bare and draws the visible border/background on a separate
+ * Backdrop element — so without this reset the TextField/Select shows a double
+ * border, wrong height, and a stray focus glow.
+ *
+ * Targets Polaris input classes only (not the mount) so it also covers fields in
+ * Modals, which render in a portal at <body>. This stylesheet is enqueued only on
+ * the Translangs SPA screen, so the legacy settings form and the rest of wp-admin
+ * are unaffected. !important is needed to beat wp-admin's `input[type=text]`.
+ */
+.Polaris-TextField__Input,
+.Polaris-Select__Input {
+	min-height: 0 !important;
+	margin: 0 !important;
+	border: none !important;
+	border-radius: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	line-height: inherit !important;
+	padding: var(--p-space-150) var(--p-space-300) !important;
+}
+
+.Polaris-TextField__Input:focus,
+.Polaris-Select__Input:focus,
+.Polaris-TextField__Input:focus-visible,
+.Polaris-Select__Input:focus-visible {
+	border: none !important;
+	box-shadow: none !important;
+	outline: none !important;
+}
+
+/*
+ * Full-width Translangs screen: strip wp-admin's .wrap left/right margin and
+ * Polaris Page's inline padding + max-width so the dashboard spans the whole
+ * content area. Scoped to our screen (only .wrap that holds #translangs-app).
+ */
+.wrap:has(> #translangs-app) {
+	margin: 0 !important;
+}
+#translangs-app .Polaris-Page {
+	padding-inline: 0 !important;
+	max-width: none !important;
+}
+
+/*
+ * Minimal filter row: Polaris Filters draws its own divider/box-shadow to
+ * separate itself from a list. We embed it in the header, so strip that chrome
+ * (container level only — filter pills keep their own borders).
+ */
+#translangs-app .tl-filters .Polaris-Filters,
+#translangs-app .tl-filters .Polaris-Filters__Container,
+#translangs-app .tl-filters .Polaris-Filters__FiltersWrapper,
+#translangs-app .tl-filters .Polaris-Filters__FiltersInner,
+#translangs-app .tl-filters .Polaris-Filters__FiltersStickyArea {
+	border-block-end: 0 !important;
+	padding: 0 !important;
+}
+#translangs-app .tl-filters > .Polaris-Box {
+	border-block-end: 0 !important;
+}
+
+/*
+ * Widen the language-manager (Configuration) modal beyond Polaris "large".
+ * Scoped via :has() to the dialog that contains our .tl-wide-modal marker, so
+ * other large modals keep their default width.
+ */
+.Polaris-Modal-Dialog__Modal.Polaris-Modal-Dialog--sizeLarge:has(.tl-wide-modal) {
+	max-width: min(1100px, 92vw);
+	width: min(1100px, 92vw);
+}
+
+/*
+ * wp-admin's common.css sets `dd, li { margin-bottom: 6px; }` globally, which
+ * bleeds into Polaris lists. Neutralize it on both our mount and the body-level
+ * portal root (#translangs-portals, where Popover/ActionList/dropdown <li> render
+ * via App.jsx) — both are ours, so the rest of wp-admin keeps its spacing.
+ */
+#translangs-app dd,
+#translangs-app li,
+#translangs-portals dd,
+#translangs-portals li {
+	margin-bottom: 0;
+}

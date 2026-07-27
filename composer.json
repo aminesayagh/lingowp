@@ -5,7 +5,8 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.1",
-        "masterminds/html5": "^2.10"
+        "masterminds/html5": "^2.10",
+        "woocommerce/action-scheduler": "^3.9"
     },
     "autoload": {
         "psr-4": {
@@ -14,5 +15,23 @@
     },
     "config": {
         "optimize-autoloader": true
+    },
+    "scripts": {
+        "test": [
+            "@php tests/normalizer_gate_check.php",
+            "@php tests/source_identity_check.php",
+            "@php tests/option_gate_check.php",
+            "@php bin/check-split-field.php"
+        ],
+        "test:db": [
+            "wp eval-file tests/db/schema_constraints_it.php",
+            "wp eval-file tests/db/option_pipeline_it.php",
+            "wp eval-file tests/db/reconcile_it.php",
+            "wp eval-file tests/db/orphan_sweep_it.php"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Pure checks — no WordPress, no database. Safe anywhere.",
+        "test:db": "Integration checks against the local dev DB. Requires a shell whose PHP has mysqli (Local's Open Site Shell, not WSL)."
     }
 }

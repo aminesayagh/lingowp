@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__initial_instructions",
+      "mcp__code-review-graph__get_architecture_overview_tool",
+      "mcp__code-review-graph__semantic_search_nodes_tool",
+      "mcp__serena__find_symbol",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__replace_content",
+      "mcp__serena__replace_symbol_body",
+      "mcp__serena__get_diagnostics_for_file",
+      "mcp__serena__find_referencing_symbols",
+      "mcp__serena__insert_after_symbol",
+      "mcp__context7__query-docs",
+      "Bash(awk -F: '$1>385 && $1<400')",
+      "Read(//mnt/c/Users/amine/Local Sites/translangs/app/public/**)",
+      "Bash(php -r ' *)",
+      "Bash(grep -rn -e \"->scan\\(\\)\" --include=\"*.php\" src/)",
+      "Bash(php -m)",
+      "Bash(grep -iE \"^\\(mysqli|pdo_mysql\\)$\")",
+      "Read(//mnt/c/Users/amine/AppData/Roaming/Local/lightning-services/**)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
+}
