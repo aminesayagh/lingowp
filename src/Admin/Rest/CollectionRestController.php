@@ -29,6 +29,13 @@ final class CollectionRestController
     /** Board search minimum. Below this the term is ignored and the tree is normal. */
     private const SEARCH_MIN = 2;
 
+    /** Accepted `status` filter values; anything else is a 400, not a silent no-op. */
+    private const VALID_STATUSES = ['all', 'untranslated', 'needs_review', 'translated'];
+
+    /** Default/maximum page size for `GET /collections`. */
+    private const DEFAULT_LIMIT = 20;
+    private const MAX_LIMIT     = 100;
+
     public function __construct(
         private SourceTranslationRepository $repo,
         private OptionLanguageRegistry $registry
@@ -69,8 +76,59 @@ final class CollectionRestController
     /** Collection groups for the selected language: Site settings first, then content. */
     public function index(WP_REST_Request $request): WP_REST_Response
     {
-        $lang        = $this->resolveLang($request);
-        $search      = $this->resolveSearch($request);
+        $lang   = $this->resolveLang($request);
+        $search = $this->resolveSearch($request);
+        $status = $this->resolveStatus($request);
+
+        if (! in_array($status, self::VALID_STATUSES, true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_STATUS'], 400);
+        }
+
+        $offset = max(0, (int) $request->get_param('offset'));
+        $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
+
+        $collections = $this->buildCollections($lang, $search);
+
+        if ($status !== 'all') {
+            $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
+                'untranslated' => $c['missing'] > 0,
+                'needs_review' => $c['needs_review'] > 0,
+                'translated'   => $c['translated'] > 0,
+            }));
+        }
+
+        // Response (not DB) pagination: slice the assembled, already-filtered list.
+        $total    = count($collections);
+        $page     = array_slice($collections, $offset, $limit);
+        $returned = count($page);
+        $next     = $offset + $returned;
+
+        return rest_ensure_response([
+            'ok'          => true,
+            'language'    => $lang,
+            // Echoed so the client knows which term/status produced this page — a
+            // search term below SEARCH_MIN comes back as '' and the tree is unfiltered.
+            'search'      => $search,
+            'status'      => $status,
+            'collections' => array_values($page),
+            'total'       => $total,
+            'offset'      => $offset,
+            'limit'       => $limit,
+            'returned'    => $returned,
+            'next_offset' => $next,
+            'has_more'    => $next < $total,
+        ]);
+    }
+
+    /**
+     * Every collection group for a language + search term (Site settings first,
+     * then content, then taxonomies), unpaged. The aggregate queries behind this
+     * cost about the same regardless of how much of the result index() keeps, so
+     * building the full filtered list once and slicing it is cheaper than trying
+     * to paginate at the SQL layer.
+     */
+    private function buildCollections(string $lang, string $search): array
+    {
         $collections = [];
 
         // With a search active every count describes the MATCHING subset, and a
@@ -177,14 +235,7 @@ final class CollectionRestController
             ] + $c;
         }
 
-        return rest_ensure_response([
-            'ok'          => true,
-            'language'    => $lang,
-            // Echoed so the client knows which term produced this tree — a term below
-            // SEARCH_MIN comes back as '' and the tree is unfiltered.
-            'search'      => $search,
-            'collections' => $collections,
-        ]);
+        return $collections;
     }
 
     /** Text units of one collection for the selected language. */
@@ -410,6 +461,15 @@ final class CollectionRestController
         $q = trim(wp_check_invalid_utf8((string) $request->get_param('search')));
 
         return mb_strlen($q) < self::SEARCH_MIN ? '' : $q;
+    }
+
+
+    /** The board status filter, defaulting to 'all'. Validity is index()'s job. */
+    private function resolveStatus(WP_REST_Request $request): string
+    {
+        $status = sanitize_key((string) $request->get_param('status'));
+
+        return $status === '' ? 'all' : $status;
     }
 
     /** Human-readable taxonomy name (plural label), falling back to the slug. */

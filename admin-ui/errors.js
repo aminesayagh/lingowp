@@ -11,6 +11,7 @@ const MESSAGES = {
 	ERR_INVALID_PAYLOAD: 'Translangs could not validate this connection. Please contact support.',
 	ERR_INVALID_INPUT: 'Select at least one category to continue.',
 	ERR_NOT_CONNECTED: 'Translangs is not connected. Please finish setup first.',
+	ERR_INVALID_STATUS: 'Unknown status filter. Please refresh and try again.',
 };
 
 export function errorMessage( code ) {
