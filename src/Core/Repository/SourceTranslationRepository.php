@@ -183,6 +183,26 @@ interface SourceTranslationRepository
      */
     public function listMetaTexts(int $postId, string $langCode, string $search = ''): array;
 
+    /**
+     * Gettext collections grouped by textdomain (the plugin/theme slug) for one
+     * language: one row per raw domain string found in tl_staticText.reference
+     * (`domain|context`). For the Plugins & Themes board.
+     *
+     * @return array<int, array{domain:string, total:int, translated:int,
+     *   needs_review:int, missing:int}>
+     */
+    public function staticTextDomainSummary(string $langCode, string $search = ''): array;
+
+    /**
+     * The discovered tl_staticText units for one textdomain, one language.
+     * `field` is the gettext context half of `reference` (may be empty). For
+     * expanding a Plugins & Themes group.
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = ''): array;
+
 
     /**
      * Every unique content text (post/meta/term/option) across the whole

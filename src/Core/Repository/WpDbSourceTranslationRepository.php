@@ -614,6 +614,78 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         }, (array) $rows);
     }
 
+    /** @inheritDoc */
+    public function staticTextDomainSummary(string $langCode, string $search = ''): array
+    {
+        $parent = $this->parent('tl_staticText');
+        $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
+
+        $sql = "SELECT SUBSTRING_INDEX(p.reference, '|', 1) AS domain,
+                       COUNT(*)              AS total,
+                       SUM(t.status > 0)     AS translated,
+                       SUM(t.status = %d)    AS needs_review,
+                       SUM(t.id IS NULL)     AS missing
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s AND t.form_index = 0
+                WHERE p.status = %d{$match}
+                GROUP BY domain
+                ORDER BY domain";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(static fn (array $r): array => [
+            'domain'       => (string) $r['domain'],
+            'total'        => (int) $r['total'],
+            'translated'   => (int) $r['translated'],
+            'needs_review' => (int) $r['needs_review'],
+            'missing'      => (int) $r['missing'],
+        ], (array) $rows);
+    }
+
+    /** @inheritDoc */
+    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = ''): array
+    {
+        $parent = $this->parent('tl_staticText');
+        $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->searchPredicate($search);
+
+        $sql = "SELECT p.id AS id, p.reference AS reference, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s AND t.form_index = 0
+                WHERE SUBSTRING_INDEX(p.reference, '|', 1) = %s AND p.status = %d{$match}
+                ORDER BY p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $domain,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        // parent_id kinds never share a translation row across parents, so no
+        // original_hash is selected — presentText()'s original_hash stays null,
+        // exactly like tl_meta.
+        return array_map(function (array $r): array {
+            $unit = $this->textUnitRow($r);
+            $reference = (string) $r['reference'];
+            $unit['field'] = (string) substr($reference, strpos($reference, '|') + 1);
+            return $unit;
+        }, (array) $rows);
+    }
+
 
     /** @inheritDoc */
     public function exportTextsForLanguages(array $langCodes): array

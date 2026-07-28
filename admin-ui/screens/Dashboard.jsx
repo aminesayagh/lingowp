@@ -94,6 +94,8 @@ function groupHeading({ type, label }) {
     post: "Posts",
     cpt: "Custom",
     taxonomy: "Taxonomies",
+    plugin: "Plugin",
+    theme: "Theme",
   }[type];
   return prefix ? `${prefix} · ${label}` : label;
 }
@@ -156,6 +158,10 @@ export default function Dashboard({
   const [notice, setNotice] = useState(null);
   const [autosaveToast, setAutosaveToast] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  // Which board is showing: today's Content tree, or gettext grouped by
+  // plugin/theme. Swaps the `source` param on the same collections/text-order
+  // queries below — same load/search/pagination machinery, different data.
+  const [board, setBoard] = useState("content");
 
   const autosaveToastTimerRef = useRef(null);
 
@@ -333,13 +339,13 @@ export default function Dashboard({
   const groupsQ = useInfiniteQuery({
     queryKey: [
       "collections",
-      { language: selectedLang, search: query, status: statusFilter, limit: PAGE_SIZE },
+      { language: selectedLang, search: query, status: statusFilter, source: board, limit: PAGE_SIZE },
     ],
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }) => {
       const res = await api.get(
         `/collections?language=${enc(selectedLang)}&offset=${pageParam}&limit=${PAGE_SIZE}` +
-          `${searchParam(query)}&status=${enc(statusFilter)}`,
+          `${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}`,
         { signal }
       );
       if (!res.ok) {
@@ -617,10 +623,10 @@ export default function Dashboard({
   // Cross-group prev/next: every matching group's text-id order, fetched only
   // while the overlay is open (not part of the paginated board itself).
   const orderQ = useQuery({
-    queryKey: ["text-order", selectedLang, query, statusFilter],
+    queryKey: ["text-order", selectedLang, query, statusFilter, board],
     queryFn: async ({ signal }) => {
       const res = await api.get(
-        `/collections/text-order?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}`,
+        `/collections/text-order?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}`,
         { signal }
       );
       if (!res.ok) {
@@ -841,16 +847,24 @@ export default function Dashboard({
                     <Text as="h2" variant="headingSm">
                       Sources
                     </Text>
-                    {/* ponytail: v1 has post + option only; per-source-type
-								     totals land when the other 4 types are wired. */}
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodySm">
+                    <BlockStack gap="050">
+                      <Button
+                        fullWidth
+                        textAlign="left"
+                        variant={board === "content" ? "primary" : "tertiary"}
+                        onClick={() => setBoard("content")}
+                      >
                         Content
-                      </Text>
-                      <Text as="span" tone="subdued" variant="bodySm">
-                        {totalTexts}
-                      </Text>
-                    </InlineStack>
+                      </Button>
+                      <Button
+                        fullWidth
+                        textAlign="left"
+                        variant={board === "plugins" ? "primary" : "tertiary"}
+                        onClick={() => setBoard("plugins")}
+                      >
+                        Plugins & Themes
+                      </Button>
+                    </BlockStack>
                   </BlockStack>
                 </Card>
               </BlockStack>
@@ -922,7 +936,7 @@ export default function Dashboard({
                           title: "AI translate all missing text?",
                           body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
                           actionLabel: "Translate all",
-                          onConfirm: () => translateScope("language"),
+                          onConfirm: () => translateScope("language", { source: board }),
                         })
                       }
                     />

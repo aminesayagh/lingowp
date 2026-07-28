@@ -32,6 +32,9 @@ final class CollectionRestController
     /** Accepted `status` filter values; anything else is a 400, not a silent no-op. */
     private const VALID_STATUSES = ['all', 'untranslated', 'needs_review', 'translated'];
 
+    /** Accepted `source` board values: today's Content board, or Plugins & Themes (gettext). */
+    private const VALID_SOURCES = ['content', 'plugins'];
+
     /** Default/maximum page size for `GET /collections`. */
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT     = 100;
@@ -84,15 +87,19 @@ final class CollectionRestController
         $lang   = $this->resolveLang($request);
         $search = $this->resolveSearch($request);
         $status = $this->resolveStatus($request);
+        $source = $this->resolveSource($request);
 
         if (! in_array($status, self::VALID_STATUSES, true)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_STATUS'], 400);
+        }
+        if (! in_array($source, self::VALID_SOURCES, true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_SOURCE'], 400);
         }
 
         $offset = max(0, (int) $request->get_param('offset'));
         $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
 
-        $collections = $this->buildCollections($lang, $search);
+        $collections = $this->buildCollections($lang, $search, $source);
 
         if ($status !== 'all') {
             $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
@@ -121,6 +128,7 @@ final class CollectionRestController
             // search term below SEARCH_MIN comes back as '' and the tree is unfiltered.
             'search'           => $search,
             'status'           => $status,
+            'source'           => $source,
             'collections'      => array_values($page),
             'total'            => $total,
             'total_texts'      => $totalTexts,
@@ -139,9 +147,17 @@ final class CollectionRestController
      * cost about the same regardless of how much of the result index() keeps, so
      * building the full filtered list once and slicing it is cheaper than trying
      * to paginate at the SQL layer.
+     *
+     * $source picks the board: 'content' (default) is today's Site settings /
+     * Template content / posts / taxonomies tree. 'plugins' is the gettext board,
+     * grouped by textdomain, with unmatched domains collapsed into one "Other" row.
      */
-    private function buildCollections(string $lang, string $search): array
+    private function buildCollections(string $lang, string $search, string $source = 'content'): array
     {
+        if ($source === 'plugins') {
+            return $this->buildPluginCollections($lang, $search);
+        }
+
         $collections = [];
 
         // With a search active every count describes the MATCHING subset, and a
@@ -251,6 +267,47 @@ final class CollectionRestController
         return $collections;
     }
 
+    /**
+     * The Plugins & Themes board: one collection per textdomain that resolves to
+     * an installed plugin/theme, plus one "Other" collection merging every domain
+     * that doesn't (WordPress core's `default` domain, or a since-removed plugin).
+     */
+    private function buildPluginCollections(string $lang, string $search): array
+    {
+        $collections = [];
+        $resolved    = $this->resolveTextDomains();
+        $other       = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
+
+        foreach ($this->repo->staticTextDomainSummary($lang, $search) as $row) {
+            $domain = $row['domain'];
+            if (isset($resolved[$domain])) {
+                $collections[] = [
+                    'id'             => 'plugin:' . rawurlencode($domain),
+                    'label'          => $resolved[$domain]['label'],
+                    'type'           => $resolved[$domain]['kind'], // 'plugin' | 'theme'
+                    'preview_url'    => null,
+                    'preview_target' => null,
+                ] + $row;
+                continue;
+            }
+            foreach (['total', 'translated', 'needs_review', 'missing'] as $k) {
+                $other[$k] += $row[$k];
+            }
+        }
+
+        if ($other['total'] > 0) {
+            $collections[] = [
+                'id'             => 'plugin:__other__',
+                'label'          => __('Other', 'translangs'),
+                'type'           => 'other',
+                'preview_url'    => null,
+                'preview_target' => null,
+            ] + $other;
+        }
+
+        return $collections;
+    }
+
     /** Text units of one collection for the selected language. */
     public function texts(WP_REST_Request $request): WP_REST_Response
     {
@@ -338,7 +395,39 @@ final class CollectionRestController
             );
         }
 
+        if (preg_match('/^plugin:(.+)$/', $id, $m)) {
+            $rows = [];
+            foreach ($this->pluginIdDomains($m[1], $lang, $search) as $domain) {
+                $rows = array_merge($rows, $this->repo->listStaticTextDomainTexts($domain, $lang, $search));
+            }
+            return array_map(
+                fn (array $r): array => $this->presentText('staticText', $r, (string) $r['field']) + [
+                    'preview_url'    => null,
+                    'preview_target' => null,
+                ],
+                $rows
+            );
+        }
+
         return null;
+    }
+
+    /**
+     * Resolve a `plugin:{token}` collection-id token to the raw domain(s) it
+     * covers: `__other__` expands to every domain not matching an installed
+     * plugin/theme (the merged "Other" bucket); anything else is one literal,
+     * rawurldecode()'d domain.
+     *
+     * @return string[]
+     */
+    private function pluginIdDomains(string $token, string $lang, string $search): array
+    {
+        $token = rawurldecode($token);
+        if ($token === '__other__') {
+            return $this->unmatchedTextDomains($lang, $search);
+        }
+
+        return [$token];
     }
 
 
@@ -422,12 +511,16 @@ final class CollectionRestController
         $lang   = $this->resolveLang($request);
         $search = $this->resolveSearch($request);
         $status = $this->resolveStatus($request);
+        $source = $this->resolveSource($request);
 
         if (! in_array($status, self::VALID_STATUSES, true)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_STATUS'], 400);
         }
+        if (! in_array($source, self::VALID_SOURCES, true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_SOURCE'], 400);
+        }
 
-        $collections = $this->buildCollections($lang, $search);
+        $collections = $this->buildCollections($lang, $search, $source);
         if ($status !== 'all') {
             $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
                 'untranslated' => $c['missing'] > 0,
@@ -535,6 +628,15 @@ final class CollectionRestController
                 $this->repo->listTaxonomyTexts($m[1], $lang)
             );
         }
+        if (preg_match('/^plugin:(.+)$/', $id, $m)) {
+            $refs = [];
+            foreach ($this->pluginIdDomains($m[1], $lang, '') as $domain) {
+                foreach ($this->repo->listStaticTextDomainTexts($domain, $lang) as $u) {
+                    $refs[] = SourceRef::make('staticText', (int) $u['id']);
+                }
+            }
+            return $refs;
+        }
 
         return null;
     }
@@ -629,6 +731,14 @@ final class CollectionRestController
         return $status === '' ? 'all' : $status;
     }
 
+    /** Which board: 'content' (default) or 'plugins'. Validity is the caller's job. */
+    private function resolveSource(WP_REST_Request $request): string
+    {
+        $source = sanitize_key((string) $request->get_param('source'));
+
+        return $source === '' ? 'content' : $source;
+    }
+
     /** Human-readable taxonomy name (plural label), falling back to the slug. */
     private function taxonomyLabel(string $taxonomy): string
     {
@@ -651,6 +761,66 @@ final class CollectionRestController
         }
 
         return 'cpt';
+    }
+
+    /**
+     * Domains present in tl_staticText that don't resolve to an installed
+     * plugin/theme (WordPress core's `default` domain, or a removed plugin) —
+     * the raw domains merged into the Plugins & Themes board's "Other" bucket.
+     * Public so AiTranslationController can reuse it instead of re-implementing
+     * plugin/theme resolution for its own `plugin:__other__` handling.
+     *
+     * @return string[]
+     */
+    public function unmatchedTextDomains(string $lang, string $search = ''): array
+    {
+        $known   = array_keys($this->resolveTextDomains());
+        $present = array_column($this->repo->staticTextDomainSummary($lang, $search), 'domain');
+
+        return array_values(array_diff($present, $known));
+    }
+
+    /**
+     * Every installed plugin/theme's textdomain → {label, kind}, built fresh per
+     * request (cheap: a handful of plugin headers + the active theme). Domains
+     * with no match are simply absent — "Other" bucketing is the caller's job.
+     *
+     * @return array<string, array{label:string, kind:'plugin'|'theme'}>
+     */
+    private function resolveTextDomains(): array
+    {
+        if (! function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $map = [];
+
+        foreach (get_plugins() as $pluginFile => $data) {
+            $domain = trim((string) ($data['TextDomain'] ?? ''));
+            if ($domain === '') {
+                // No TextDomain header: fall back to the plugin's own folder slug,
+                // which is what WordPress itself uses to guess a domain at load time.
+                $dir    = dirname($pluginFile);
+                $domain = $dir === '.' ? '' : $dir;
+            }
+            if ($domain === '') {
+                continue;
+            }
+            $map[$domain] = ['label' => (string) ($data['Name'] ?: $domain), 'kind' => 'plugin'];
+        }
+
+        $theme = wp_get_theme();
+        foreach (array_filter([$theme, $theme->parent()]) as $t) {
+            $domain = trim((string) $t->get('TextDomain'));
+            if ($domain === '') {
+                $domain = $t->get_stylesheet();
+            }
+            if ($domain !== '') {
+                $map[$domain] = ['label' => (string) $t->get('Name'), 'kind' => 'theme'];
+            }
+        }
+
+        return $map;
     }
 
     /**
