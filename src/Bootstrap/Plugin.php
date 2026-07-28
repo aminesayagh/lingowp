@@ -3,7 +3,6 @@
 namespace TransLangs\Bootstrap;
 
 use TransLangs\Admin\AdminAssets;
-use TransLangs\Admin\SettingsPageController;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Rendering\StaticText\GettextResolver;
@@ -155,7 +154,6 @@ class Plugin
             (new DatabaseHealthReport($wpdb))->register();
             (new AdminAssets())->register();
             (new OnboardingPageController())->register();
-            (new SettingsPageController($languageRegistry))->register();
         }
     }
 

@@ -12,6 +12,8 @@ final class OnboardingPageController
 {
     public const CAPABILITY = 'manage_options';
     public const SLUG       = 'translangs';
+    private const REPORT_SLUG = 'translangs-report';
+    private const BILLING_SLUG = 'translangs-billing';
     private const HANDLE    = 'translangs-app';
 
     private string $hookSuffix = '';
@@ -30,11 +32,53 @@ final class OnboardingPageController
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage'],
-            'dashicons-translation',
+            $this->menuIcon(),
             30
         );
 
+        add_submenu_page(
+            self::SLUG,
+            __('TransLangs', 'translangs'),
+            __('Workspace', 'translangs'),
+            self::CAPABILITY,
+            self::SLUG,
+            [$this, 'renderPage']
+        );
+
+        add_submenu_page(
+            self::SLUG,
+            __('Report', 'translangs'),
+            __('Report', 'translangs'),
+            self::CAPABILITY,
+            self::REPORT_SLUG,
+            [$this, 'renderReportPage']
+        );
+
+        add_submenu_page(
+            self::SLUG,
+            __('Billing', 'translangs'),
+            __('Billing', 'translangs'),
+            self::CAPABILITY,
+            self::BILLING_SLUG,
+            [$this, 'renderBillingPage']
+        );
+
         $this->hookSuffix = is_string($hook) ? $hook : '';
+    }
+
+    private function menuIcon(): string
+    {
+        $logo = TRANSLANGS_DIR . 'assets/images/logo-white.svg';
+        if (!is_readable($logo)) {
+            return 'dashicons-translation';
+        }
+
+        $svg = file_get_contents($logo);
+        if (!is_string($svg) || $svg === '') {
+            return 'dashicons-translation';
+        }
+
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
     }
 
     public function renderPage(): void
@@ -44,6 +88,24 @@ final class OnboardingPageController
         }
 
         echo '<div class="wrap"><div id="translangs-app"></div></div>';
+    }
+
+    public function renderReportPage(): void
+    {
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
+        }
+
+        echo '<div class="wrap"></div>';
+    }
+
+    public function renderBillingPage(): void
+    {
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
+        }
+
+        echo '<div class="wrap"></div>';
     }
 
     public function enqueue(string $hook): void

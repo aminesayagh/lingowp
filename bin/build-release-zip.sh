@@ -4,7 +4,7 @@ set -euo pipefail
 
 PLUGIN_SLUG="translangs"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="$(grep -m1 -oP "(?<=Version:\s)[\d.]+" "$ROOT_DIR/translangs.php")"
+VERSION="$(grep -m1 -oP "Version:\s*\K[\d.]+" "$ROOT_DIR/translangs.php")"
 BUILD_DIR="$(mktemp -d)"
 DEST="$ROOT_DIR/${PLUGIN_SLUG}-${VERSION}.zip"
 
