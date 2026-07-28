@@ -17,3 +17,10 @@ const MESSAGES = {
 export function errorMessage( code ) {
 	return MESSAGES[ code ] || 'Something went wrong. Please try again.';
 }
+
+// A query cancelled because a newer one superseded it (language/search/status
+// changed, or the row scrolled out of view) — never a real failure, so callers
+// use this to skip showing a notice for it.
+export function isAbortError( err ) {
+	return err?.name === 'AbortError';
+}

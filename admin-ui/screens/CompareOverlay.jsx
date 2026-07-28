@@ -84,6 +84,7 @@ export default function CompareOverlay({
   unit,
   fieldLabel,
   language,
+  collectionId,
   languages = [],
   sourceLabel = "Original",
   sourceFlag = "",
@@ -132,13 +133,14 @@ export default function CompareOverlay({
         text_unit_id: unitId,
         language,
         text: value,
+        collection_id: collectionId,
       });
       setSaving(false);
       if (res.ok) {
         savedRef.current = value;
         setError("");
         setSavedTick((t) => t + 1);
-        onSaved();
+        onSaved(res);
         return;
       }
       setError(
@@ -147,7 +149,7 @@ export default function CompareOverlay({
           : "Could not save. Please try again."
       );
     },
-    [unitId, language, composed, onSaved]
+    [unitId, language, composed, collectionId, onSaved]
   );
 
   const flush = useCallback(() => {
@@ -209,7 +211,7 @@ export default function CompareOverlay({
   async function translate() {
     setTranslating(true);
     await flush();
-    await onAiTranslate("text", { ref: unit.id });
+    await onAiTranslate("text", { ref: unit.id, collection_id: collectionId });
     setTranslating(false);
   }
 

@@ -20,9 +20,13 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "@wordpress/element";
@@ -107,7 +111,7 @@ function openCanvas(url, target, snippet) {
   window.open(final, "_blank", "noopener");
 }
 
-// Header status filters (client-side over collection counts).
+// Header status filters — sent as ?status= to the server now.
 const FILTERS = [
   { key: "untranslated", label: "Untranslated" },
   { key: "needs_review", label: "Needs review" },
@@ -120,30 +124,28 @@ const FILTERS = [
 const SEARCH_DEBOUNCE_MS = 300;
 // One letter matches almost everything; below this the box is inert.
 const SEARCH_MIN = 2;
-// ponytail: each auto-opened group is one /texts request, and a broad query can match
-// hundreds. Beyond this the groups still list with their match count and open on click.
-const AUTO_EXPAND_MAX = 20;
+// Collections page size (matches CollectionRestController's DEFAULT_LIMIT).
+const PAGE_SIZE = 20;
+// Rows revealed per "Show more" click in a group — an auto-opened 1,000-text
+// group never dumps every row at once.
+const TEXT_BATCH = 50;
 
 export default function Dashboard({
   view,
   defaultLanguage,
   onLanguageCreated,
 }) {
+  const queryClient = useQueryClient();
   const [languages, setLanguages] = useState([]);
   const [selectedLang, setSelectedLang] = useState("");
-  const [collections, setCollections] = useState(null);
-  // expanded[id] = 'loading' | array of text units (undefined = collapsed).
-  const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState("");
   // The debounced term actually sent to the server ("" = not searching).
   const [query, setQuery] = useState("");
-  // The search tree, same shape as `expanded`. Kept separate so a search never
-  // touches the groups the user opened by hand.
-  const [matches, setMatches] = useState({});
+  // { id, cid } of the text unit open in the compare overlay, or null.
+  const [overlay, setOverlay] = useState(null);
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerInitial, setManagerInitial] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [overlay, setOverlay] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [ai, setAi] = useState({ available: false, error: "" });
   const [quota, setQuota] = useState(null);
@@ -151,15 +153,7 @@ export default function Dashboard({
   const [autosaveToast, setAutosaveToast] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Mirrors `expanded` so effects can read it without re-subscribing.
-  const expandedRef = useRef({});
   const autosaveToastTimerRef = useRef(null);
-  expandedRef.current = expanded;
-  const matchesRef = useRef({});
-  matchesRef.current = matches;
-  // Lets an in-flight fetch recognize that the term moved on under it.
-  const queryRef = useRef("");
-  queryRef.current = query;
 
   const defaultCode = defaultLanguage?.code || defaultLanguage;
 
@@ -239,12 +233,20 @@ export default function Dashboard({
         res.translated === 1 ? "" : "s"
       }.`,
     });
-    loadCollections();
-    const open = queryRef.current ? matchesRef.current : expandedRef.current;
-    Object.keys(open).forEach((id) => {
-      if (Array.isArray(open[id])) {
-        loadTexts(id);
-      }
+    if (res.collection_summary) {
+      patchCollectionSummary(res.collection_summary);
+    } else {
+      invalidateCollections();
+    }
+    if (res.updated_unit) {
+      // scope 'text' resolves to one unit; propagate it to any other visible
+      // occurrence of the same text (its own group is invalidated below anyway).
+      propagateTranslation(opts.collection_id ?? opts.id, res.updated_unit);
+    }
+    // Every mounted group's texts for this language may have changed (a scope
+    // or language-wide AI translate isn't limited to one group).
+    queryClient.invalidateQueries({
+      predicate: (q) => q.queryKey[0] === "texts" && q.queryKey[2] === selectedLang,
     });
     loadQuota();
     refreshLanguages(); // rail percentages changed
@@ -322,90 +324,311 @@ export default function Dashboard({
 
   const searchParam = (q) => (q ? `&search=${enc(q)}` : "");
 
-  function loadCollections() {
-    const q = queryRef.current;
-    api
-      .get(`/collections?language=${enc(selectedLang)}${searchParam(q)}`)
-      .then((res) => {
-        if (queryRef.current !== q) {
-          return; // the term moved on while this was in flight
-        }
-        setCollections(res.ok ? res.collections || [] : []);
-      });
-  }
-
-  // Reload for the new working language or a new search term, keeping open groups
-  // open — the overlay switches language in place and would otherwise lose the row
-  // it is editing. A search builds its own tree, so it never refetches `expanded`.
-  useEffect(() => {
-    if (!selectedLang) {
-      return;
-    }
-    setCollections(null);
-    setMatches({});
-    loadCollections();
-    if (!query) {
-      Object.keys(expandedRef.current).forEach(loadTexts);
-    }
-  }, [selectedLang, query]);
-
-  // Auto-open the matching groups, capped: each one is a request. Fires once per
-  // (language, term) — `collections` also changes on every counts refresh after a
-  // mutation, and re-running then would reopen a group the user had just closed.
-  const autoExpandedRef = useRef("");
-  useEffect(() => {
-    if (!query || collections === null) {
-      return;
-    }
-    const key = `${selectedLang}\n${query}`;
-    if (autoExpandedRef.current === key) {
-      return;
-    }
-    autoExpandedRef.current = key;
-    collections.slice(0, AUTO_EXPAND_MAX).forEach((c) => {
-      setMatches((m) => ({ ...m, [c.id]: "loading" }));
-      loadTexts(c.id);
-    });
-  }, [query, collections, selectedLang]);
-
-  function loadTexts(id) {
-    const q = queryRef.current;
-    api
-      .get(
-        `/collections/${enc(id)}/texts?language=${enc(selectedLang)}${searchParam(q)}`
-      )
-      .then((res) => {
-        if (queryRef.current !== q) {
-          return;
-        }
-        // A searched fetch lands in the search tree; an unsearched one in the user's
-        // own tree, which a search must never disturb.
-        (q ? setMatches : setExpanded)((c) => ({
-          ...c,
-          [id]: res.ok ? res.texts || [] : [],
-        }));
-      });
-  }
-
-  function toggleGroup(id) {
-    (queryRef.current ? setMatches : setExpanded)((cur) => {
-      if (cur[id] !== undefined) {
-        const next = { ...cur };
-        delete next[id];
-        return next;
+  // Collections, paged. Language/search/status/limit live in the key, so any
+  // change refetches from page 0 automatically — no manual reset effect needed.
+  const groupsQ = useInfiniteQuery({
+    queryKey: [
+      "collections",
+      { language: selectedLang, search: query, status: statusFilter, limit: PAGE_SIZE },
+    ],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam, signal }) => {
+      const res = await api.get(
+        `/collections?language=${enc(selectedLang)}&offset=${pageParam}&limit=${PAGE_SIZE}` +
+          `${searchParam(query)}&status=${enc(statusFilter)}`,
+        { signal }
+      );
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
       }
-      loadTexts(id);
-      return { ...cur, [id]: "loading" };
+      return res;
+    },
+    getNextPageParam: (last) => (last.has_more ? last.next_offset : undefined),
+    enabled: !!selectedLang,
+  });
+
+  function invalidateCollections() {
+    queryClient.invalidateQueries({
+      predicate: (q) =>
+        q.queryKey[0] === "collections" && q.queryKey[1]?.language === selectedLang,
     });
   }
 
-  // After a mutation on a unit: refresh that group's texts (if open) + counts.
-  function afterMutate(cid) {
-    const open = queryRef.current ? matchesRef.current : expandedRef.current;
-    if (open[cid] !== undefined) {
-      loadTexts(cid);
+  // A mutation response that resolved to one collection's fresh counts
+  // (`collection_summary`) patches the cached board directly — no refetch
+  // round-trip. Also keeps the header total_texts/total_translated in step
+  // (derives their delta from the one collection's old vs. new numbers), and
+  // drops the row if it no longer matches the active status filter (mirrors
+  // what a real refetch would do server-side).
+  function patchCollectionSummary(summary) {
+    const stillMatchesFilter =
+      statusFilter === "all" ||
+      (statusFilter === "untranslated" && summary.missing > 0) ||
+      (statusFilter === "needs_review" && summary.needs_review > 0) ||
+      (statusFilter === "translated" && summary.translated > 0);
+
+    queryClient.setQueriesData(
+      {
+        predicate: (q) =>
+          q.queryKey[0] === "collections" && q.queryKey[1]?.language === selectedLang,
+      },
+      (old) => {
+        if (!old) {
+          return old;
+        }
+        let deltaTotal = 0;
+        let deltaTranslated = 0;
+        let found = false;
+        const pages = old.pages.map((p) => {
+          if (!p.collections.some((c) => c.id === summary.id)) {
+            return p;
+          }
+          found = true;
+          const collections = p.collections.flatMap((c) => {
+            if (c.id !== summary.id) {
+              return [c];
+            }
+            deltaTotal = summary.total - c.total;
+            deltaTranslated = summary.translated - c.translated;
+            return stillMatchesFilter ? [{ ...c, ...summary }] : [];
+          });
+          return { ...p, collections };
+        });
+        if (!found) {
+          return old;
+        }
+        return {
+          ...old,
+          pages: pages.map((p) => ({
+            ...p,
+            total_texts: p.total_texts + deltaTotal,
+            total_translated: p.total_translated + deltaTranslated,
+          })),
+        };
+      }
+    );
+  }
+
+  // Hash-link kinds (post/term/html/option) share one translation row across
+  // every position with the same source text — a save in one group doesn't
+  // magically update another, already-cached group showing the same text.
+  // Patch every OTHER cached group's matching row (by original_hash) directly,
+  // and recompute that group's summary from the patched array. Skips the
+  // group just edited — that one already gets its normal targeted invalidate.
+  function propagateTranslation(editedCid, updatedUnit) {
+    const hash = updatedUnit?.original_hash;
+    if (!hash) {
+      return; // meta / unlinked kinds never share a translation
     }
-    loadCollections();
+
+    const entries = queryClient.getQueriesData({
+      predicate: (q) =>
+        q.queryKey[0] === "texts" && q.queryKey[2] === selectedLang && q.queryKey[1] !== editedCid,
+    });
+
+    for (const [key, data] of entries) {
+      const texts = data?.texts;
+      if (!Array.isArray(texts)) {
+        continue;
+      }
+      let changed = false;
+      const nextTexts = texts.map((t) => {
+        if (t.original_hash !== hash) {
+          return t;
+        }
+        changed = true;
+        return {
+          ...t,
+          translated: updatedUnit.translated,
+          status: updatedUnit.status,
+          origin: updatedUnit.origin,
+          is_ai: updatedUnit.is_ai,
+          word_count: updatedUnit.word_count,
+        };
+      });
+      if (!changed) {
+        continue;
+      }
+      queryClient.setQueryData(key, { ...data, texts: nextTexts });
+
+      const cid = key[1];
+      const summary = { id: cid, total: nextTexts.length, translated: 0, needs_review: 0, missing: 0 };
+      for (const t of nextTexts) {
+        if (t.status === "missing") {
+          summary.missing++;
+        } else if (t.status === "needs_review") {
+          summary.needs_review++;
+        } else {
+          summary.translated++;
+        }
+      }
+      patchCollectionSummary(summary);
+    }
+  }
+
+  // Offset paging can repeat a row across pages (mid-scroll inserts/removals);
+  // first occurrence wins, which preserves page order.
+  const groups = useMemo(() => {
+    const seen = new Set();
+    const result = [];
+    for (const p of groupsQ.data?.pages ?? []) {
+      for (const g of p.collections ?? []) {
+        if (seen.has(g.id)) continue;
+        seen.add(g.id);
+        result.push(g);
+      }
+    }
+    return result;
+  }, [groupsQ.data]);
+
+  // Header progress badge — the whole matching set's totals, from the most
+  // recently fetched page (every page carries the same whole-set totals).
+  const pages = groupsQ.data?.pages ?? [];
+  const lastPage = pages[pages.length - 1];
+  const totalTexts = lastPage?.total_texts ?? 0;
+  const totalDone = lastPage?.total_translated ?? 0;
+  const totalGroups = lastPage?.total ?? groups.length;
+
+  // Every group is open by default; a manual collapse is remembered here and
+  // reset when the working language changes (mirrors the old per-language reset).
+  const [collapsedIds, setCollapsedIds] = useState(() => new Set());
+  useEffect(() => {
+    setCollapsedIds(new Set());
+  }, [selectedLang]);
+  const toggleCollapsed = useCallback((id) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Window-scroll virtualization: only near-view group rows mount. One extra
+  // "sentinel" row (count+1) carries the load-more/retry control when more
+  // pages exist. Scroll margin is measured (not assumed), so content above the
+  // list (notices, sticky header) doesn't misalign rows.
+  const listRef = useRef(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useLayoutEffect(() => {
+    const update = () => setScrollMargin(listRef.current?.offsetTop ?? 0);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  const getItemKey = useCallback(
+    (i) => (i < groups.length ? groups[i].id : "__sentinel__"),
+    [groups]
+  );
+  const v = useWindowVirtualizer({
+    count: groupsQ.hasNextPage ? groups.length + 1 : groups.length,
+    estimateSize: () => 320,
+    overscan: 3,
+    getItemKey,
+    scrollMargin,
+  });
+  const virtualItems = v.getVirtualItems();
+
+  // Fetch the next page once the sentinel/last row nears the viewport.
+  useEffect(() => {
+    const last = virtualItems[virtualItems.length - 1];
+    if (!last) {
+      return;
+    }
+    if (
+      last.index >= groups.length - 3 &&
+      groupsQ.hasNextPage &&
+      !groupsQ.isFetchingNextPage &&
+      !groupsQ.isRefetching
+    ) {
+      groupsQ.fetchNextPage();
+    }
+  }, [
+    virtualItems,
+    groups.length,
+    groupsQ.hasNextPage,
+    groupsQ.isFetchingNextPage,
+    groupsQ.isRefetching,
+  ]);
+
+  // The overlay reads its group's texts from the same cache key each
+  // CollectionGroup uses, so opening a neighbor group is just a query-key
+  // change (shares cache with that group's own row if it's mounted).
+  const overlayTextsQ = useQuery({
+    queryKey: ["texts", overlay?.cid, selectedLang, query],
+    queryFn: async ({ signal }) => {
+      const res = await api.get(
+        `/collections/${enc(overlay.cid)}/texts?language=${enc(selectedLang)}${searchParam(query)}`,
+        { signal }
+      );
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: !!overlay,
+  });
+  const overlayTexts = overlayTextsQ.data?.texts ?? [];
+  const overlayIndex = overlay
+    ? overlayTexts.findIndex((t) => t.id === overlay.id)
+    : -1;
+  const overlayUnit = overlayIndex >= 0 ? overlayTexts[overlayIndex] : null;
+
+  // Cross-group prev/next: every matching group's text-id order, fetched only
+  // while the overlay is open (not part of the paginated board itself).
+  const orderQ = useQuery({
+    queryKey: ["text-order", selectedLang, query, statusFilter],
+    queryFn: async ({ signal }) => {
+      const res = await api.get(
+        `/collections/text-order?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}`,
+        { signal }
+      );
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: !!overlay,
+  });
+  const orderFlat = useMemo(
+    () =>
+      (orderQ.data?.groups ?? []).flatMap((g) =>
+        g.ids.map((id) => ({ id, cid: g.cid, label: g.label, type: g.type }))
+      ),
+    [orderQ.data]
+  );
+  const globalIndex = overlay
+    ? orderFlat.findIndex((o) => o.id === overlay.id)
+    : -1;
+  const overlayOrderEntry = globalIndex >= 0 ? orderFlat[globalIndex] : null;
+  // Prefer the order response's group label (works even for a neighbor group
+  // the board hasn't paginated its way to yet); fall back to the loaded board
+  // list for the brief window before the order list has resolved.
+  const overlayCollection =
+    overlayOrderEntry ??
+    (overlay ? groups.find((g) => g.id === overlay.cid) : null);
+  const overlayFieldLabel =
+    overlayUnit && overlayCollection
+      ? `${groupHeading(overlayCollection)} — ${overlayUnit.field}`
+      : undefined;
+
+  // After a mutation on a unit: invalidate that group's texts (any cached
+  // search variant); patch the collections cache directly if the mutation
+  // returned a fresh summary, otherwise fall back to invalidating it; and
+  // propagate the new value to any other visible occurrence of the same text.
+  function afterMutate(cid, patch) {
+    queryClient.invalidateQueries({ queryKey: ["texts", cid, selectedLang] });
+    if (patch?.collection_summary) {
+      patchCollectionSummary(patch.collection_summary);
+    } else {
+      invalidateCollections();
+    }
+    if (patch?.updated_unit) {
+      propagateTranslation(cid, patch.updated_unit);
+    }
   }
 
   // Empty-language state: same shell, centered CTA (wireframe 1.3).
@@ -443,45 +666,6 @@ export default function Dashboard({
   }
 
   const searching = query !== "";
-  // While searching the server has already filtered `collections` to groups with
-  // hits, and `matches` holds their matching rows — so the whole board reads one
-  // map or the other and `expanded` is left exactly as the user arranged it.
-  const openMap = searching ? matches : expanded;
-
-  // No heading filter: search is server-side now, and a page's title is itself a
-  // searchable text row, so typing a title still surfaces its group.
-  const filtered = (collections || []).filter((c) => {
-    if (statusFilter === "untranslated") {
-      return c.missing > 0;
-    }
-    if (statusFilter === "needs_review") {
-      return c.needs_review > 0;
-    }
-    if (statusFilter === "translated") {
-      return c.translated > 0;
-    }
-    return true;
-  });
-
-  // Every row currently rendered, in table order — this is what the overlay's
-  // prev/next arrows walk, so they cross group boundaries.
-  const loadedRows = filtered.flatMap((c) =>
-    Array.isArray(openMap[c.id])
-      ? openMap[c.id].map((u) => ({
-          unit: u,
-          cid: c.id,
-          fieldLabel: `${groupHeading(c)} — ${u.field}`,
-        }))
-      : []
-  );
-  // Resolve by id, not a stored index: a refetch replaces the unit objects.
-  const overlayIndex = overlay
-    ? loadedRows.findIndex((r) => r.unit.id === overlay.id)
-    : -1;
-  const overlayRow = overlayIndex >= 0 ? loadedRows[overlayIndex] : null;
-
-  const totalTexts = (collections || []).reduce((n, c) => n + c.total, 0);
-  const totalDone = (collections || []).reduce((n, c) => n + c.translated, 0);
 
   // Column headers show the actual language names: source (default) on the left,
   // the selected target on the right. Prefer an explicit display name; otherwise
@@ -727,11 +911,22 @@ export default function Dashboard({
                 </BlockStack>
               </Box>
             </div>
-            {collections === null ? (
+            {groupsQ.isPending ? (
               <Box padding="500">
                 <Spinner accessibilityLabel="Loading content" size="small" />
               </Box>
-            ) : filtered.length === 0 ? (
+            ) : groupsQ.isError && groups.length === 0 ? (
+              <Box padding="500">
+                <BlockStack gap="200">
+                  <Text as="p" tone="critical">
+                    Could not load content for this language.
+                  </Text>
+                  <InlineStack>
+                    <Button onClick={() => groupsQ.refetch()}>Retry</Button>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
+            ) : groups.length === 0 ? (
               <Box padding="500">
                 <Text as="p" tone="subdued">
                   {searching
@@ -741,11 +936,10 @@ export default function Dashboard({
               </Box>
             ) : (
               <BlockStack gap="0">
-                {searching && filtered.length > AUTO_EXPAND_MAX && (
+                {searching && (
                   <Box paddingInline="300" paddingBlock="200">
                     <Text as="p" tone="subdued" variant="bodySm">
-                      {filtered.length} groups match — the first {AUTO_EXPAND_MAX}{" "}
-                      are open. Click any other group to see its matches.
+                      {totalGroups} {totalGroups === 1 ? "group matches" : "groups match"}.
                     </Text>
                   </Box>
                 )}
@@ -772,27 +966,66 @@ export default function Dashboard({
                   </Box>
                 </Box>
                 <Divider />
-                {filtered.map((c) => (
-                  <CollectionGroup
-                    key={c.id}
-                    collection={c}
-                    language={selectedLang}
-                    open={openMap[c.id] !== undefined}
-                    texts={Array.isArray(openMap[c.id]) ? openMap[c.id] : null}
-                    loading={openMap[c.id] === "loading"}
-                    searching={searching}
-                    onToggle={() => toggleGroup(c.id)}
-                    onMutate={() => afterMutate(c.id)}
-                    onConfirm={setConfirm}
-                    aiAvailable={ai.available}
-                    onAiTranslate={translateScope}
-                    onOpenOverlay={(unit) => setOverlay({ id: unit.id })}
-                  />
-                ))}
+                <div
+                  ref={listRef}
+                  style={{ position: "relative", height: v.getTotalSize() }}
+                >
+                  {virtualItems.map((row) => {
+                    const isLoaderRow = row.index >= groups.length;
+                    const c = groups[row.index];
+                    return (
+                      <div
+                        key={row.key}
+                        data-index={row.index}
+                        ref={v.measureElement}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          transform: `translateY(${row.start - scrollMargin}px)`,
+                        }}
+                      >
+                        {isLoaderRow ? (
+                          <Box padding="300">
+                            <InlineStack align="center">
+                              {groupsQ.isFetchNextPageError ? (
+                                <Button onClick={() => groupsQ.fetchNextPage()}>
+                                  Retry loading more
+                                </Button>
+                              ) : groupsQ.hasNextPage ? (
+                                <Button
+                                  onClick={() => groupsQ.fetchNextPage()}
+                                  loading={groupsQ.isFetchingNextPage}
+                                  disabled={groupsQ.isFetchingNextPage}
+                                >
+                                  Load more
+                                </Button>
+                              ) : null}
+                            </InlineStack>
+                          </Box>
+                        ) : (
+                          <CollectionGroup
+                            collection={c}
+                            language={selectedLang}
+                            search={query}
+                            collapsed={collapsedIds.has(c.id)}
+                            onToggleCollapsed={() => toggleCollapsed(c.id)}
+                            onMutate={(patch) => afterMutate(c.id, patch)}
+                            onConfirm={setConfirm}
+                            aiAvailable={ai.available}
+                            onAiTranslate={translateScope}
+                            onOpenOverlay={(unit, cid) => setOverlay({ id: unit.id, cid })}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </BlockStack>
             )}
 
-            {collections !== null && (
+            {!groupsQ.isPending && (
               <>
                 <Divider />
                 <Box padding="300">
@@ -824,10 +1057,11 @@ export default function Dashboard({
         onClose={() => setSettingsOpen(false)}
       />
       <CompareOverlay
-        open={!!overlayRow}
-        unit={overlayRow?.unit}
-        fieldLabel={overlayRow?.fieldLabel}
+        open={!!overlayUnit}
+        unit={overlayUnit}
+        fieldLabel={overlayFieldLabel}
         language={selectedLang}
+        collectionId={overlay?.cid}
         languages={languages}
         sourceLabel={originalLabel}
         sourceFlag={flagEmoji(
@@ -842,11 +1076,17 @@ export default function Dashboard({
         onAiTranslate={translateScope}
         onPickLanguage={setSelectedLang}
         onClose={() => setOverlay(null)}
-        onSaved={() => overlayRow && afterMutate(overlayRow.cid)}
-        hasPrev={overlayIndex > 0}
-        hasNext={overlayIndex >= 0 && overlayIndex < loadedRows.length - 1}
-        onPrev={() => setOverlay({ id: loadedRows[overlayIndex - 1].unit.id })}
-        onNext={() => setOverlay({ id: loadedRows[overlayIndex + 1].unit.id })}
+        onSaved={(patch) => overlay && afterMutate(overlay.cid, patch)}
+        hasPrev={globalIndex > 0}
+        hasNext={globalIndex >= 0 && globalIndex < orderFlat.length - 1}
+        onPrev={() => {
+          const prev = orderFlat[globalIndex - 1];
+          setOverlay({ id: prev.id, cid: prev.cid });
+        }}
+        onNext={() => {
+          const next = orderFlat[globalIndex + 1];
+          setOverlay({ id: next.id, cid: next.cid });
+        }}
       />
       <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
       {autosaveToast && (
@@ -904,11 +1144,9 @@ function ConfirmDialog({ confirm, onClose }) {
 function CollectionGroup({
   collection,
   language,
-  open,
-  texts,
-  loading,
-  searching,
-  onToggle,
+  search,
+  collapsed,
+  onToggleCollapsed,
   onMutate,
   onConfirm,
   onOpenOverlay,
@@ -916,8 +1154,40 @@ function CollectionGroup({
   onAiTranslate,
 }) {
   const c = collection;
+  const open = !collapsed;
+  const searching = search !== "";
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [shown, setShown] = useState(TEXT_BATCH);
+
+  // Suppress requests for groups only flashed past during fast scroll: a
+  // collapsed/just-scrolled-past group never settles long enough to fetch.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (collapsed) {
+      setSettled(false);
+      return;
+    }
+    const t = setTimeout(() => setSettled(true), 120);
+    return () => clearTimeout(t);
+  }, [collapsed]);
+
+  const textsQ = useQuery({
+    queryKey: ["texts", c.id, language, search],
+    queryFn: async ({ signal }) => {
+      const res = await api.get(
+        `/collections/${enc(c.id)}/texts?language=${enc(language)}${search ? `&search=${enc(search)}` : ""}`,
+        { signal }
+      );
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: !collapsed && settled,
+  });
+  const allTexts = textsQ.data?.texts ?? [];
+  const rows = allTexts.slice(0, shown);
 
   function confirmAiGroup() {
     onConfirm({
@@ -934,7 +1204,7 @@ function CollectionGroup({
       language,
     });
     if (res.ok) {
-      onMutate();
+      onMutate(res);
     }
   }
 
@@ -1002,7 +1272,7 @@ function CollectionGroup({
         <InlineStack align="space-between" blockAlign="center" wrap={false}>
           <button
             type="button"
-            onClick={onToggle}
+            onClick={onToggleCollapsed}
             style={{
               all: "unset",
               cursor: "pointer",
@@ -1080,23 +1350,43 @@ function CollectionGroup({
       </div>
       <Collapsible open={open} id={`col-${c.id}`}>
         <Box paddingBlockEnd="200" paddingInlineStart="1000">
-          {loading || texts === null ? (
+          {textsQ.isPending ? (
             <Box padding="300">
               <Spinner accessibilityLabel="Loading texts" size="small" />
             </Box>
+          ) : textsQ.isError ? (
+            <Box padding="300">
+              <Text as="p" tone="critical" variant="bodySm">
+                Could not load texts for this group.
+              </Text>
+            </Box>
           ) : (
-            texts.map((t) => (
-              <TextUnitRow
-                key={t.id}
-                unit={t}
-                language={language}
-                onMutate={onMutate}
-                onConfirm={onConfirm}
-                aiAvailable={aiAvailable}
-                onAiTranslate={onAiTranslate}
-                onOpenOverlay={onOpenOverlay}
-              />
-            ))
+            <>
+              {rows.map((t) => (
+                <TextUnitRow
+                  key={t.id}
+                  unit={t}
+                  language={language}
+                  collectionId={c.id}
+                  onMutate={onMutate}
+                  onConfirm={onConfirm}
+                  aiAvailable={aiAvailable}
+                  onAiTranslate={onAiTranslate}
+                  onOpenOverlay={(unit) => onOpenOverlay(unit, c.id)}
+                />
+              ))}
+              {allTexts.length > shown && (
+                <Box padding="300">
+                  <Button
+                    onClick={() =>
+                      setShown((n) => Math.min(n + TEXT_BATCH, allTexts.length))
+                    }
+                  >
+                    Show {Math.min(TEXT_BATCH, allTexts.length - shown)} more
+                  </Button>
+                </Box>
+              )}
+            </>
           )}
         </Box>
       </Collapsible>
@@ -1108,6 +1398,7 @@ function CollectionGroup({
 function TextUnitRow({
   unit,
   language,
+  collectionId,
   onMutate,
   onConfirm,
   onOpenOverlay,
@@ -1164,9 +1455,10 @@ function TextUnitRow({
       text_unit_id: unit.id,
       language,
       text: draft,
+      collection_id: collectionId,
     });
     if (res.ok) {
-      onMutate();
+      onMutate(res);
     }
   }
 
@@ -1175,9 +1467,10 @@ function TextUnitRow({
     const res = await api.post(`/texts/${enc(unit.id)}/status`, {
       action,
       language,
+      collection_id: collectionId,
     });
     if (res.ok) {
-      onMutate();
+      onMutate(res);
     }
   }
 
@@ -1206,7 +1499,7 @@ function TextUnitRow({
       content: "AI translate",
       onAction: () => {
         setMenuOpen(false);
-        onAiTranslate("text", { ref: unit.id });
+        onAiTranslate("text", { ref: unit.id, collection_id: collectionId });
       },
     },
     {

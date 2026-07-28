@@ -53,6 +53,11 @@ final class CollectionRestController
         register_rest_route(self::NS, '/collections', ['methods' => 'GET', 'callback' => [$this, 'index']] + $guard);
         register_rest_route(
             self::NS,
+            '/collections/text-order',
+            ['methods' => 'GET', 'callback' => [$this, 'textOrder']] + $guard
+        );
+        register_rest_route(
+            self::NS,
             '/collections/(?P<id>[^/]+)/texts',
             ['methods' => 'GET', 'callback' => [$this, 'texts']] + $guard
         );
@@ -97,6 +102,12 @@ final class CollectionRestController
             }));
         }
 
+        // Header progress badge ("X of Y translated") describes the whole matching
+        // set, not just the page returned — sum over the full filtered array before
+        // slicing it, so scrolling never makes the badge look like it's shrinking.
+        $totalTexts      = array_sum(array_column($collections, 'total'));
+        $totalTranslated = array_sum(array_column($collections, 'translated'));
+
         // Response (not DB) pagination: slice the assembled, already-filtered list.
         $total    = count($collections);
         $page     = array_slice($collections, $offset, $limit);
@@ -104,19 +115,21 @@ final class CollectionRestController
         $next     = $offset + $returned;
 
         return rest_ensure_response([
-            'ok'          => true,
-            'language'    => $lang,
+            'ok'               => true,
+            'language'         => $lang,
             // Echoed so the client knows which term/status produced this page — a
             // search term below SEARCH_MIN comes back as '' and the tree is unfiltered.
-            'search'      => $search,
-            'status'      => $status,
-            'collections' => array_values($page),
-            'total'       => $total,
-            'offset'      => $offset,
-            'limit'       => $limit,
-            'returned'    => $returned,
-            'next_offset' => $next,
-            'has_more'    => $next < $total,
+            'search'           => $search,
+            'status'           => $status,
+            'collections'      => array_values($page),
+            'total'            => $total,
+            'total_texts'      => $totalTexts,
+            'total_translated' => $totalTranslated,
+            'offset'           => $offset,
+            'limit'            => $limit,
+            'returned'         => $returned,
+            'next_offset'      => $next,
+            'has_more'         => $next < $total,
         ]);
     }
 
@@ -245,14 +258,32 @@ final class CollectionRestController
         $search = $this->resolveSearch($request);
         $id     = urldecode((string) $request->get_param('id'));
 
+        $texts = $this->collectionTexts($id, $lang, $search);
+        if ($texts === null) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        return rest_ensure_response([
+            'ok'       => true,
+            'language' => $lang,
+            'search'   => $search,
+            'texts'    => $texts,
+        ]);
+    }
+
+    /** Text units of one collection, or null if `$id` doesn't resolve to a known collection. */
+    private function collectionTexts(string $id, string $lang, string $search): ?array
+    {
         if ($id === 'option:site') {
             $optionPreview = ['preview_url' => admin_url('options-general.php'), 'preview_target' => 'admin'];
-            $texts = array_map(
+            return array_map(
                 fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name']) + $optionPreview,
                 $this->repo->listOptionTexts($lang, $search)
             );
-        } elseif ($id === 'html:all') {
-            $texts = array_map(
+        }
+
+        if ($id === 'html:all') {
+            return array_map(
                 fn (array $r): array => $this->presentText('html', $r, (string) $r['field']) + [
                     'preview_url'    => empty($r['source_url'])
                         ? null
@@ -261,7 +292,9 @@ final class CollectionRestController
                 ],
                 $this->repo->listHtmlTexts($lang, $search)
             );
-        } elseif (preg_match('/^content:([0-9]+)$/', $id, $m)) {
+        }
+
+        if (preg_match('/^content:([0-9]+)$/', $id, $m)) {
             $postId = (int) $m[1];
             $post   = get_post($postId);
             if ($post && $this->isFrontPage($postId, $post->post_type, $post->post_name)) {
@@ -289,10 +322,12 @@ final class CollectionRestController
                 fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']) + $preview,
                 $this->repo->listMetaTexts($postId, $lang, $search)
             );
-            $texts = array_merge($posts, $metas);
-        } elseif (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
+            return array_merge($posts, $metas);
+        }
+
+        if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
             $taxonomy = $m[1];
-            $texts = array_map(
+            return array_map(
                 fn (array $r): array => $this->presentText('term', $r, (string) $r['field']) + [
                     'preview_url'    => admin_url(
                         'term.php?taxonomy=' . urlencode($taxonomy) . '&tag_ID=' . (int) $r['term_id']
@@ -301,22 +336,129 @@ final class CollectionRestController
                 ],
                 $this->repo->listTaxonomyTexts($taxonomy, $lang, $search)
             );
-        } else {
-            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
-        return rest_ensure_response([
-            'ok'       => true,
-            'language' => $lang,
-            'search'   => $search,
-            'texts'    => $texts,
-        ]);
+        return null;
+    }
+
+
+    /**
+     * Recomputed total/translated/needs_review/missing for one collection,
+     * post-mutation — lets a mutation response patch the board's cached
+     * summary directly instead of the caller re-fetching the whole page.
+     * Reuses collectionTexts() so bucket semantics (reviewed + translated
+     * both count as "translated") stay identical to the board's own numbers.
+     */
+    public function summaryFor(string $id, string $lang): ?array
+    {
+        $texts = $this->collectionTexts($id, $lang, '');
+        if ($texts === null) {
+            return null;
+        }
+
+        $summary = ['id' => $id, 'total' => count($texts), 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
+        foreach ($texts as $t) {
+            if ($t['status'] === 'missing') {
+                $summary['missing']++;
+            } elseif ($t['status'] === 'needs_review') {
+                $summary['needs_review']++;
+            } else {
+                // 'reviewed' and 'translated' share one aggregate bucket.
+                $summary['translated']++;
+            }
+        }
+
+        return $summary;
+    }
+
+
+    /**
+     * The just-written unit (by its formatted SourceRef) plus the collection's
+     * recomputed summary, in one collectionTexts() call — a single-text
+     * mutation needs both to patch the client's cache directly.
+     *
+     * @return array{unit: ?array, summary: ?array}
+     */
+    public function unitAndSummaryFor(string $id, string $lang, string $refFormatted): array
+    {
+        $texts = $this->collectionTexts($id, $lang, '');
+        if ($texts === null) {
+            return ['unit' => null, 'summary' => null];
+        }
+
+        $unit    = null;
+        $summary = ['id' => $id, 'total' => count($texts), 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
+        foreach ($texts as $t) {
+            if ($t['id'] === $refFormatted) {
+                $unit = $t;
+            }
+            if ($t['status'] === 'missing') {
+                $summary['missing']++;
+            } elseif ($t['status'] === 'needs_review') {
+                $summary['needs_review']++;
+            } else {
+                $summary['translated']++;
+            }
+        }
+
+        return ['unit' => $unit, 'summary' => $summary];
+    }
+
+    /**
+     * Every matching group's text-unit ids, in board order (same group order
+     * and filters as index(), each group's own text order within it). Powers
+     * the compare overlay's cross-group prev/next — not part of the paginated
+     * board itself, so it's only fetched when the overlay actually needs it.
+     * Grouped (not a flat {id,cid} list) so the client can label a neighbor
+     * group even if the board hasn't paginated its way to it yet.
+     *
+     * ponytail: reuses collectionTexts() per matching group, the same cost as
+     * opening every one of them (a deliberate "walk everything" action, not
+     * something called on scroll). If that cost bites at scale, project id
+     * columns only instead of running full presentText() per row.
+     */
+    public function textOrder(WP_REST_Request $request): WP_REST_Response
+    {
+        $lang   = $this->resolveLang($request);
+        $search = $this->resolveSearch($request);
+        $status = $this->resolveStatus($request);
+
+        if (! in_array($status, self::VALID_STATUSES, true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_STATUS'], 400);
+        }
+
+        $collections = $this->buildCollections($lang, $search);
+        if ($status !== 'all') {
+            $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
+                'untranslated' => $c['missing'] > 0,
+                'needs_review' => $c['needs_review'] > 0,
+                'translated'   => $c['translated'] > 0,
+            }));
+        }
+
+        $groups = [];
+        foreach ($collections as $c) {
+            $ids = array_column($this->collectionTexts($c['id'], $lang, $search) ?? [], 'id');
+            if ($ids === []) {
+                continue;
+            }
+            $groups[] = [
+                'cid'   => $c['id'],
+                'label' => $c['label'],
+                'type'  => $c['type'],
+                'ids'   => $ids,
+            ];
+        }
+
+        return rest_ensure_response(['ok' => true, 'groups' => $groups]);
     }
 
     /** Ignore every text in a collection (source-global). Confirmation-gated in the UI. */
     public function ignoreAll(WP_REST_Request $request): WP_REST_Response
     {
-        $refs = $this->collectionRefs(urldecode((string) $request->get_param('id')), $this->resolveLang($request));
+        $id   = urldecode((string) $request->get_param('id'));
+        $lang = $this->resolveLang($request);
+        $refs = $this->collectionRefs($id, $lang);
         if ($refs === null) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
@@ -324,7 +466,11 @@ final class CollectionRestController
             $this->repo->ignoreSource($ref);
         }
 
-        return rest_ensure_response(['ok' => true, 'count' => count($refs)]);
+        return rest_ensure_response([
+            'ok' => true,
+            'count' => count($refs),
+            'collection_summary' => $this->summaryFor($id, $lang),
+        ]);
     }
 
     /** Clear every translation in a collection for the selected language. */
@@ -334,7 +480,8 @@ final class CollectionRestController
         if ($lang === '') {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
-        $refs = $this->collectionRefs(urldecode((string) $request->get_param('id')), $lang);
+        $id   = urldecode((string) $request->get_param('id'));
+        $refs = $this->collectionRefs($id, $lang);
         if ($refs === null) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
@@ -342,7 +489,11 @@ final class CollectionRestController
             $this->repo->deleteTranslation($ref, $lang);
         }
 
-        return rest_ensure_response(['ok' => true, 'count' => count($refs)]);
+        return rest_ensure_response([
+            'ok' => true,
+            'count' => count($refs),
+            'collection_summary' => $this->summaryFor($id, $lang),
+        ]);
     }
 
     /**
@@ -409,17 +560,23 @@ final class CollectionRestController
         $isAi = $translated !== null && $status === TranslationStatus::MACHINE && $provider !== null;
 
         return [
-            'id'         => SourceRef::make($kind, (int) $row['id'])->format(),
-            'field'      => $field,
-            'original'   => $original,
-            'translated' => $translated,
+            'id'            => SourceRef::make($kind, (int) $row['id'])->format(),
+            'field'         => $field,
+            'original'      => $original,
+            'translated'    => $translated,
             // v1: fallback shows the source text; fallback-language lookup is later.
-            'fallback'   => $original,
-            'status'     => $statusLabel,
-            'origin'     => $translated === null ? null : ($provider !== null ? 'ai' : 'manual'),
-            'is_ai'      => $isAi,
-            'word_count' => str_word_count(wp_strip_all_tags($original)),
-            'char_count' => mb_strlen($original),
+            'fallback'      => $original,
+            'status'        => $statusLabel,
+            'origin'        => $translated === null ? null : ($provider !== null ? 'ai' : 'manual'),
+            'is_ai'         => $isAi,
+            'word_count'    => str_word_count(wp_strip_all_tags($original)),
+            'char_count'    => mb_strlen($original),
+            // Hash-link kinds (post/term/html/option) share one translation row
+            // per (original_hash, lang) across every position with the same
+            // text; null for parent_id kinds (meta), which never share. Lets
+            // the client patch every other visible occurrence of this exact
+            // text after a save, instead of only the one just edited.
+            'original_hash' => $row['original_hash'] ?? null,
         ];
     }
 

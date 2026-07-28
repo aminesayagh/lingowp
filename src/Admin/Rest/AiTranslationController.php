@@ -37,7 +37,8 @@ final class AiTranslationController
         private BackendClient $backend,
         private SourceTranslationRepository $repo,
         private OptionLanguageRegistry $registry,
-        private LanguageMetadataStore $langStore
+        private LanguageMetadataStore $langStore,
+        private CollectionRestController $collections
     ) {}
 
     public function register(): void
@@ -73,7 +74,7 @@ final class AiTranslationController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
         if ($units === []) {
-            return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0]);
+            return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0] + $this->summaryPatch($scope, $request, $lang));
         }
 
         // Quota pre-check against the (cached) backend snapshot.
@@ -138,7 +139,49 @@ final class AiTranslationController
 
         delete_transient(self::QUOTA_CACHE); // usage changed; force a fresh read next time.
 
-        return rest_ensure_response(['ok' => true, 'translated' => $done, 'words_used' => $words]);
+        return rest_ensure_response(
+            ['ok' => true, 'translated' => $done, 'words_used' => $words] + $this->summaryPatch($scope, $request, $lang)
+        );
+    }
+
+    /**
+     * For 'collection'/'text' scope, the updated summary of the one collection
+     * involved — lets the caller patch the board's cache instead of refetching.
+     * 'text' scope also resolves the single translated unit itself, so the
+     * client can propagate it to any other visible occurrence of the same
+     * text (hash-link kinds share one translation across positions). 'language'
+     * scope touches every collection (and many units), so there's nothing
+     * single to hand back; the caller falls back to invalidating.
+     */
+    private function summaryPatch(string $scope, WP_REST_Request $request, string $lang): array
+    {
+        if ($scope === 'text') {
+            $collectionId = urldecode((string) $request->get_param('collection_id'));
+            $ref          = SourceRef::parse(urldecode((string) $request->get_param('ref')));
+            if ($collectionId === '' || $ref === null) {
+                return [];
+            }
+            $result = $this->collections->unitAndSummaryFor($collectionId, $lang, $ref->format());
+            $patch  = [];
+            if ($result['summary'] !== null) {
+                $patch['collection_summary'] = $result['summary'];
+            }
+            if ($result['unit'] !== null) {
+                $patch['updated_unit'] = $result['unit'];
+            }
+            return $patch;
+        }
+
+        if ($scope === 'collection') {
+            $collectionId = urldecode((string) $request->get_param('id'));
+            if ($collectionId === '') {
+                return [];
+            }
+            $summary = $this->collections->summaryFor($collectionId, $lang);
+            return $summary === null ? [] : ['collection_summary' => $summary];
+        }
+
+        return [];
     }
 
     /** Current AI word quota snapshot (cached ~60s), proxied from the backend. */

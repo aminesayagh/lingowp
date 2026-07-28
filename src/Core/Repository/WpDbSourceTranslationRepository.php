@@ -361,6 +361,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
@@ -419,6 +420,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.option_name AS option_name, p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
@@ -516,6 +518,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.field AS field, tm.term_id AS term_id, p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
@@ -652,6 +655,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         [$match, $matchArgs] = $this->searchPredicate($search);
 
         $sql = "SELECT p.id AS id, p.selector AS selector, p.source_url AS source_url, p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
@@ -775,6 +779,10 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             'translated_text' => $translated === null ? null : (string) $translated,
             'status'          => $r['status'] === null ? null : (int) $r['status'],
             'provider'        => $r['provider'] === null ? null : (string) $r['provider'],
+            // Hash-link kinds (post/term/html/option) share one translation row
+            // per (original_hash, lang) across every position with the same
+            // text; absent for parent_id kinds (meta), which never share.
+            'original_hash'   => isset($r['original_hash']) ? (string) $r['original_hash'] : null,
         ];
     }
 

@@ -135,9 +135,10 @@ class Plugin
             (new OnboardingRestController($backendClient, $connection, $siteMetadata, $languageRegistry, $connectionStatus))->register();
             (new ConnectionRestController($backendClient, $connection, $siteMetadata, $connectionStatus))->register();
             (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
-            (new CollectionRestController($sourceRepository, $languageRegistry))->register();
-            (new TranslationRestController($sourceRepository, $languageRegistry))->register();
-            (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata))->register();
+            $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry);
+            $collectionsController->register();
+            (new TranslationRestController($sourceRepository, $languageRegistry, $collectionsController))->register();
+            (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController))->register();
             (new ScanRestController())->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).
