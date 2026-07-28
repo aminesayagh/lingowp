@@ -41,6 +41,7 @@ node_modules/
 security-reports/*
 !security-reports/.gitkeep
 
-vendor/*
+vendor/
 .VSCode/
 .senera/
+
