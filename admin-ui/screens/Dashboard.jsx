@@ -39,6 +39,7 @@ import {
 } from "@shopify/polaris-icons";
 import { api } from "../api";
 import SettingsModal from "./SettingsModal";
+import ExportImportModal from "./ExportImportModal";
 import LanguageManagerModal from "./LanguageManagerModal";
 import LanguageList, { flagEmoji } from "./LanguageList";
 import CompareOverlay from "./CompareOverlay";
@@ -146,6 +147,9 @@ export default function Dashboard({
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerInitial, setManagerInitial] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exportImportOpen, setExportImportOpen] = useState(false);
+  const [pageMenuOpen, setPageMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [ai, setAi] = useState({ available: false, error: "" });
   const [quota, setQuota] = useState(null);
@@ -351,6 +355,39 @@ export default function Dashboard({
     queryClient.invalidateQueries({
       predicate: (q) =>
         q.queryKey[0] === "collections" && q.queryKey[1]?.language === selectedLang,
+    });
+  }
+
+  // Manual "recheck the site for missing text": re-arm the same scan that runs
+  // on activation, then poll status the same way SettingUp.jsx does during
+  // onboarding. On completion, refetch the board so newly discovered text
+  // shows up without a full page reload.
+  function refreshScan() {
+    if (refreshing) {
+      return;
+    }
+    setRefreshing(true);
+    setNotice({ tone: "info", content: "Rescanning your site…" });
+    api.post("/scan/refresh").then(pollScanStatus);
+  }
+
+  function pollScanStatus() {
+    api.get("/scan/status").then((res) => {
+      const status = res.status || "running";
+      if (status === "running") {
+        setTimeout(pollScanStatus, 3000);
+        return;
+      }
+      setRefreshing(false);
+      if (status === "completed") {
+        setNotice({ tone: "success", content: "Scan complete." });
+        invalidateCollections();
+      } else {
+        setNotice({
+          tone: "critical",
+          content: "Scan could not finish. Please try again.",
+        });
+      }
     });
   }
 
@@ -896,6 +933,47 @@ export default function Dashboard({
                       size="medium"
                       onClick={() => openManager(null)}
                     />
+                    <Popover
+                      active={pageMenuOpen}
+                      onClose={() => setPageMenuOpen(false)}
+                      activator={
+                        <Button
+                          variant="tertiary"
+                          size="medium"
+                          accessibilityLabel="More actions"
+                          onClick={() => setPageMenuOpen((o) => !o)}
+                        >
+                          ⋯
+                        </Button>
+                      }
+                    >
+                      <ActionList
+                        items={[
+                          {
+                            content: "Settings",
+                            onAction: () => {
+                              setPageMenuOpen(false);
+                              setSettingsOpen(true);
+                            },
+                          },
+                          {
+                            content: "Export / Import",
+                            onAction: () => {
+                              setPageMenuOpen(false);
+                              setExportImportOpen(true);
+                            },
+                          },
+                          {
+                            content: "Refresh",
+                            disabled: refreshing,
+                            onAction: () => {
+                              setPageMenuOpen(false);
+                              refreshScan();
+                            },
+                          },
+                        ]}
+                      />
+                    </Popover>
                   </div>
                   {/* Line 2: standard Polaris Filters (status) */}
                   <div className="tl-filters">
@@ -1055,6 +1133,12 @@ export default function Dashboard({
         open={settingsOpen}
         defaultLanguage={defaultCode}
         onClose={() => setSettingsOpen(false)}
+      />
+      <ExportImportModal
+        open={exportImportOpen}
+        languages={languages}
+        initialLanguage={selectedLang}
+        onClose={() => setExportImportOpen(false)}
       />
       <CompareOverlay
         open={!!overlayUnit}

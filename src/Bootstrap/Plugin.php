@@ -46,6 +46,7 @@ use TransLangs\Admin\Rest\CollectionRestController;
 use TransLangs\Admin\Rest\TranslationRestController;
 use TransLangs\Admin\Rest\AiTranslationController;
 use TransLangs\Admin\Rest\ScanRestController;
+use TransLangs\Admin\Rest\ExportImportRestController;
 
 class Plugin
 {
@@ -86,7 +87,10 @@ class Plugin
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         (new SourceLifecycleRefresher($structuredScanner))->register();
-        (new InitialDiscoveryScan($wpdb, $structuredScanner, $optionScanner))->register();
+        // Kept as a named instance (not built inline) so the backend-context block
+        // below can reuse it for the manual "refresh" REST action.
+        $initialScan = new InitialDiscoveryScan($wpdb, $structuredScanner, $optionScanner);
+        $initialScan->register();
 
         // v5 structured render: post/term by text hash, meta by location.
         (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes))->register();
@@ -139,7 +143,8 @@ class Plugin
             $collectionsController->register();
             (new TranslationRestController($sourceRepository, $languageRegistry, $collectionsController))->register();
             (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController))->register();
-            (new ScanRestController())->register();
+            (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
+            (new ScanRestController($initialScan))->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).
             (new SiteMetadataSyncJob($backendClient, $connection, $siteMetadata))->register();
