@@ -166,7 +166,15 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    /** wp_tl_html — identity (selector_hash, original_hash). No content FK. */
+    /**
+     * wp_tl_html — identity (selector_hash, original_hash). No content FK.
+     *
+     * last_seen_at is bumped by every discovery pass (marking mode and the
+     * background crawl alike) that re-encounters a row's hash, distinct from
+     * created_at/updated_at: it exists so a row that only a bounded crawl scope
+     * or a scan failure would otherwise miss doesn't look abandoned just
+     * because THIS pass didn't cover it — see HtmlDiscovery::discover().
+     */
     public static function html(string $table, string $charsetCollate): string
     {
         return "CREATE TABLE IF NOT EXISTS {$table} (
@@ -177,6 +185,7 @@ final class TableDefinitions
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
     status                 tinyint          NOT NULL DEFAULT 0,
+    last_seen_at           datetime         NULL,
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),

@@ -4,6 +4,7 @@ namespace TransLangs\Admin\Rest;
 
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\SiteMetadataProvider;
+use TransLangs\Core\Parsing\TranslationSubmissionGuard;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Source\Value\TranslationStatus;
@@ -97,6 +98,7 @@ final class AiTranslationController
         $cats     = array_values((array) get_option(SiteMetadataProvider::OPTION_CATEGORIES, []));
         $done     = 0;
         $words    = 0;
+        $failures = [];
 
         foreach (array_chunk($units, self::BATCH) as $chunk) {
             $payload = [
@@ -131,6 +133,24 @@ final class AiTranslationController
                 if ($text === null || $text === '') {
                     continue;
                 }
+
+                // Validate from the in-memory unit — never a query per item.
+                $errors = TranslationSubmissionGuard::validate(
+                    (string) $u['original'],
+                    $text,
+                    $u['meta_key'] ?? null
+                );
+                if ($errors !== []) {
+                    // Reject this item only: a mangled %%sep%% must never reach a
+                    // rendered title, but 49 good translations must not be lost.
+                    $failures[] = [
+                        'ref'     => $u['ref']->format(),
+                        'error'   => 'ERR_PROTECTED_TOKEN_STRUCTURE',
+                        'details' => $errors,
+                    ];
+                    continue;
+                }
+
                 $this->repo->saveTranslation($u['ref'], $lang, $text, TranslationStatus::MACHINE, self::PROVIDER);
                 $done++;
             }
@@ -139,8 +159,16 @@ final class AiTranslationController
 
         delete_transient(self::QUOTA_CACHE); // usage changed; force a fresh read next time.
 
+        // `failed`/`failures` are only present when something was rejected, so the
+        // existing client shape is unchanged on a clean run.
+        $rejected = $failures === []
+            ? []
+            : ['failed' => count($failures), 'failures' => $failures];
+
         return rest_ensure_response(
-            ['ok' => true, 'translated' => $done, 'words_used' => $words] + $this->summaryPatch($scope, $request, $lang)
+            ['ok' => true, 'translated' => $done, 'words_used' => $words]
+            + $rejected
+            + $this->summaryPatch($scope, $request, $lang)
         );
     }
 
@@ -235,8 +263,10 @@ final class AiTranslationController
             if ($ref === null) {
                 return null;
             }
-            $text = $this->repo->loadSourceText($ref);
-            return $text === null ? [] : [['ref' => $ref, 'original' => $text]];
+            $context = $this->repo->loadSourceValidationContext($ref);
+            return $context === null
+                ? []
+                : [['ref' => $ref, 'original' => $context['text'], 'meta_key' => $context['meta_key']]];
         }
 
         if ($scope === 'collection') {
@@ -345,11 +375,15 @@ final class AiTranslationController
     /** @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int}> */
     private function unitsFromRows(string $kind, array $rows): array
     {
+        // meta rows already carry the key as `field` (listMetaTexts); keeping it on
+        // the unit is what lets the write guard pick an SEO variable grammar without
+        // a per-item query inside the result loop.
         return array_map(static fn (array $r): array => [
             'ref'        => SourceRef::make($kind, (int) $r['id']),
             'original'   => (string) $r['original_text'],
             'translated' => $r['translated_text'],
             'status'     => $r['status'],
+            'meta_key'   => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
         ], $rows);
     }
 

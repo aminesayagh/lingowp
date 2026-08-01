@@ -35,6 +35,11 @@ final class CollectionRestController
     /** Accepted `source` board values: today's Content board, or Plugins & Themes (gettext). */
     private const VALID_SOURCES = ['content', 'plugins'];
 
+    private const VALID_ORIGINS       = ['manual', 'ai', 'not_translated'];
+    private const VALID_CONTENT_TYPES = ['page', 'post', 'cpt', 'taxonomy', 'site_settings', 'html', 'plugin', 'theme'];
+    private const VALID_TEXT_LENGTHS = ['short', 'medium', 'long'];
+    private const VALID_PROGRESS     = ['not_started', 'in_progress', 'complete', 'has_review'];
+
     /** Default/maximum page size for `GET /collections`. */
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT     = 100;
@@ -74,6 +79,16 @@ final class CollectionRestController
             '/collections/(?P<id>[^/]+)/clear',
             ['methods' => 'POST', 'callback' => [$this, 'clearAll']] + $guard
         );
+        register_rest_route(
+            self::NS,
+            '/collections/(?P<id>[^/]+)/stale',
+            ['methods' => 'GET', 'callback' => [$this, 'staleTexts']] + $guard
+        );
+        register_rest_route(
+            self::NS,
+            '/collections/(?P<id>[^/]+)/delete-stale',
+            ['methods' => 'POST', 'callback' => [$this, 'deleteStale']] + $guard
+        );
     }
 
     public function canManage(): bool
@@ -84,10 +99,11 @@ final class CollectionRestController
     /** Collection groups for the selected language: Site settings first, then content. */
     public function index(WP_REST_Request $request): WP_REST_Response
     {
-        $lang   = $this->resolveLang($request);
-        $search = $this->resolveSearch($request);
-        $status = $this->resolveStatus($request);
-        $source = $this->resolveSource($request);
+        $lang    = $this->resolveLang($request);
+        $search  = $this->resolveSearch($request);
+        $status  = $this->resolveStatus($request);
+        $source  = $this->resolveSource($request);
+        $filters = $this->resolveFilters($request);
 
         if (! in_array($status, self::VALID_STATUSES, true)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_STATUS'], 400);
@@ -95,11 +111,18 @@ final class CollectionRestController
         if (! in_array($source, self::VALID_SOURCES, true)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_SOURCE'], 400);
         }
+        if ($filters === null) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_FILTER'], 400);
+        }
 
         $offset = max(0, (int) $request->get_param('offset'));
         $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
 
-        $collections = $this->buildCollections($lang, $search, $source);
+        $collections = $this->buildCollections($lang, $search, $source, $filters);
+        $collections = array_values(array_filter(
+            $collections,
+            fn (array $collection): bool => $this->collectionMatchesFilters($collection, $filters)
+        ));
 
         if ($status !== 'all') {
             $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
@@ -129,6 +152,7 @@ final class CollectionRestController
             'search'           => $search,
             'status'           => $status,
             'source'           => $source,
+            'filters'          => $filters,
             'collections'      => array_values($page),
             'total'            => $total,
             'total_texts'      => $totalTexts,
@@ -152,10 +176,10 @@ final class CollectionRestController
      * Template content / posts / taxonomies tree. 'plugins' is the gettext board,
      * grouped by textdomain, with unmatched domains collapsed into one "Other" row.
      */
-    private function buildCollections(string $lang, string $search, string $source = 'content'): array
+    private function buildCollections(string $lang, string $search, string $source = 'content', array $filters = []): array
     {
         if ($source === 'plugins') {
-            return $this->buildPluginCollections($lang, $search);
+            return $this->buildPluginCollections($lang, $search, $filters);
         }
 
         $collections = [];
@@ -163,7 +187,7 @@ final class CollectionRestController
         // With a search active every count describes the MATCHING subset, and a
         // collection with no hits produces no row at all — that is how empty groups
         // drop out of the board without any filtering here.
-        $option = $this->repo->optionCollectionSummary($lang, $search);
+        $option = $this->repo->optionCollectionSummary($lang, $search, $filters);
         if ($option['total'] > 0) {
             $collections[] = [
                 'id'             => 'option:site',
@@ -174,24 +198,13 @@ final class CollectionRestController
             ] + $option;
         }
 
-        $html = $this->repo->htmlCollectionSummary($lang, $search);
-        if ($html['total'] > 0) {
-            $collections[] = [
-                'id'             => 'html:all',
-                'label'          => __('Template content', 'translangs'),
-                'type'           => 'html',
-                'preview_url'    => null,
-                'preview_target' => 'frontend',
-            ] + $html;
-        }
-
         // A content collection is one WP post's tl_post fields + its tl_meta,
         // merged by post_id (preserving the post-type/title ordering of tl_post).
         $byPost = [];
-        foreach ($this->repo->listPostCollections($lang, $search) as $c) {
+        foreach ($this->repo->listPostCollections($lang, $search, $filters) as $c) {
             $byPost[$c['post_id']] = $c;
         }
-        foreach ($this->repo->postMetaCounts($lang, $search) as $m) {
+        foreach ($this->repo->postMetaCounts($lang, $search, $filters) as $m) {
             $pid = $m['post_id'];
             if (! isset($byPost[$pid])) {
                 $byPost[$pid] = $m;
@@ -245,7 +258,7 @@ final class CollectionRestController
         // categories together, all product categories together, …), not one per
         // term. Counts are summed across the taxonomy's terms.
         $byTax = [];
-        foreach ($this->repo->listTermCollections($lang, $search) as $t) {
+        foreach ($this->repo->listTermCollections($lang, $search, $filters) as $t) {
             $tax = $t['taxonomy'];
             if (! isset($byTax[$tax])) {
                 $byTax[$tax] = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
@@ -264,6 +277,17 @@ final class CollectionRestController
             ] + $c;
         }
 
+        $html = $this->repo->htmlCollectionSummary($lang, $search, $filters);
+        if ($html['total'] > 0) {
+            $collections[] = [
+                'id'             => 'html:all',
+                'label'          => __('Template content', 'translangs'),
+                'type'           => 'html',
+                'preview_url'    => null,
+                'preview_target' => 'frontend',
+            ] + $html;
+        }
+
         return $collections;
     }
 
@@ -272,13 +296,13 @@ final class CollectionRestController
      * an installed plugin/theme, plus one "Other" collection merging every domain
      * that doesn't (WordPress core's `default` domain, or a since-removed plugin).
      */
-    private function buildPluginCollections(string $lang, string $search): array
+    private function buildPluginCollections(string $lang, string $search, array $filters = []): array
     {
         $collections = [];
         $resolved    = $this->resolveTextDomains();
         $other       = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
 
-        foreach ($this->repo->staticTextDomainSummary($lang, $search) as $row) {
+        foreach ($this->repo->staticTextDomainSummary($lang, $search, $filters) as $row) {
             $domain = $row['domain'];
             if (isset($resolved[$domain])) {
                 $collections[] = [
@@ -311,11 +335,16 @@ final class CollectionRestController
     /** Text units of one collection for the selected language. */
     public function texts(WP_REST_Request $request): WP_REST_Response
     {
-        $lang   = $this->resolveLang($request);
-        $search = $this->resolveSearch($request);
-        $id     = urldecode((string) $request->get_param('id'));
+        $lang    = $this->resolveLang($request);
+        $search  = $this->resolveSearch($request);
+        $id      = urldecode((string) $request->get_param('id'));
+        $filters = $this->resolveFilters($request);
 
-        $texts = $this->collectionTexts($id, $lang, $search);
+        if ($filters === null) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_FILTER'], 400);
+        }
+
+        $texts = $this->collectionTexts($id, $lang, $search, $filters);
         if ($texts === null) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
@@ -324,18 +353,19 @@ final class CollectionRestController
             'ok'       => true,
             'language' => $lang,
             'search'   => $search,
+            'filters'  => $filters,
             'texts'    => $texts,
         ]);
     }
 
     /** Text units of one collection, or null if `$id` doesn't resolve to a known collection. */
-    private function collectionTexts(string $id, string $lang, string $search): ?array
+    private function collectionTexts(string $id, string $lang, string $search, array $filters = []): ?array
     {
         if ($id === 'option:site') {
             $optionPreview = ['preview_url' => admin_url('options-general.php'), 'preview_target' => 'admin'];
             return array_map(
                 fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name']) + $optionPreview,
-                $this->repo->listOptionTexts($lang, $search)
+                $this->repo->listOptionTexts($lang, $search, $filters)
             );
         }
 
@@ -344,10 +374,10 @@ final class CollectionRestController
                 fn (array $r): array => $this->presentText('html', $r, (string) $r['field']) + [
                     'preview_url'    => empty($r['source_url'])
                         ? null
-                        : $this->frontendPreviewUrl((string) $r['source_url'], $lang),
+                        : $this->frontendPreviewUrl(home_url((string) $r['source_url']), $lang),
                     'preview_target' => 'frontend',
                 ],
-                $this->repo->listHtmlTexts($lang, $search)
+                $this->repo->listHtmlTexts($lang, $search, $filters)
             );
         }
 
@@ -373,11 +403,11 @@ final class CollectionRestController
             }
             $posts = array_map(
                 fn (array $r): array => $this->presentText('post', $r, (string) $r['field']) + $preview,
-                $this->repo->listPostTexts($postId, $lang, $search)
+                $this->repo->listPostTexts($postId, $lang, $search, $filters)
             );
             $metas = array_map(
                 fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']) + $preview,
-                $this->repo->listMetaTexts($postId, $lang, $search)
+                $this->repo->listMetaTexts($postId, $lang, $search, $filters)
             );
             return array_merge($posts, $metas);
         }
@@ -391,14 +421,17 @@ final class CollectionRestController
                     ),
                     'preview_target' => 'admin',
                 ],
-                $this->repo->listTaxonomyTexts($taxonomy, $lang, $search)
+                $this->repo->listTaxonomyTexts($taxonomy, $lang, $search, $filters)
             );
         }
 
         if (preg_match('/^plugin:(.+)$/', $id, $m)) {
             $rows = [];
             foreach ($this->pluginIdDomains($m[1], $lang, $search) as $domain) {
-                $rows = array_merge($rows, $this->repo->listStaticTextDomainTexts($domain, $lang, $search));
+                $rows = array_merge(
+                    $rows,
+                    $this->repo->listStaticTextDomainTexts($domain, $lang, $search, $filters)
+                );
             }
             return array_map(
                 fn (array $r): array => $this->presentText('staticText', $r, (string) $r['field']) + [
@@ -508,10 +541,11 @@ final class CollectionRestController
      */
     public function textOrder(WP_REST_Request $request): WP_REST_Response
     {
-        $lang   = $this->resolveLang($request);
-        $search = $this->resolveSearch($request);
-        $status = $this->resolveStatus($request);
-        $source = $this->resolveSource($request);
+        $lang    = $this->resolveLang($request);
+        $search  = $this->resolveSearch($request);
+        $status  = $this->resolveStatus($request);
+        $source  = $this->resolveSource($request);
+        $filters = $this->resolveFilters($request);
 
         if (! in_array($status, self::VALID_STATUSES, true)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_STATUS'], 400);
@@ -519,8 +553,15 @@ final class CollectionRestController
         if (! in_array($source, self::VALID_SOURCES, true)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_SOURCE'], 400);
         }
+        if ($filters === null) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_FILTER'], 400);
+        }
 
-        $collections = $this->buildCollections($lang, $search, $source);
+        $collections = $this->buildCollections($lang, $search, $source, $filters);
+        $collections = array_values(array_filter(
+            $collections,
+            fn (array $collection): bool => $this->collectionMatchesFilters($collection, $filters)
+        ));
         if ($status !== 'all') {
             $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
                 'untranslated' => $c['missing'] > 0,
@@ -531,7 +572,7 @@ final class CollectionRestController
 
         $groups = [];
         foreach ($collections as $c) {
-            $ids = array_column($this->collectionTexts($c['id'], $lang, $search) ?? [], 'id');
+            $ids = array_column($this->collectionTexts($c['id'], $lang, $search, $filters) ?? [], 'id');
             if ($ids === []) {
                 continue;
             }
@@ -586,6 +627,65 @@ final class CollectionRestController
             'ok' => true,
             'count' => count($refs),
             'collection_summary' => $this->summaryFor($id, $lang),
+        ]);
+    }
+
+    /**
+     * tl_html rows the background crawl has flagged stale (see
+     * WpDbSourceTranslationRepository::flagStaleHtmlSources()) — nobody has
+     * re-encountered them via marking mode or the crawl within the grace
+     * window. Html-only: staleness has no meaning for post/meta/term/option,
+     * which reconcile against a deterministic owner entity instead of a bare
+     * content hash. Surfaced for admin review before a manual delete, never
+     * removed automatically.
+     */
+    public function staleTexts(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = urldecode((string) $request->get_param('id'));
+        if ($id !== 'html:all') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        $lang   = $this->resolveLang($request);
+        $search = $this->resolveSearch($request);
+        $texts  = array_map(
+            fn (array $r): array => $this->presentText('html', $r, (string) $r['field']) + [
+                'preview_url'    => empty($r['source_url'])
+                    ? null
+                    : $this->frontendPreviewUrl(home_url((string) $r['source_url']), $lang),
+                'preview_target' => 'frontend',
+            ],
+            $this->repo->listStaleHtmlSources($lang, $search)
+        );
+
+        return rest_ensure_response(['ok' => true, 'language' => $lang, 'texts' => $texts]);
+    }
+
+    /**
+     * Hard-delete every currently stale-flagged tl_html row. Confirmation-gated
+     * in the UI, same as ignoreAll()/clearAll() — but unlike those, this is a
+     * real delete of the source row itself, not a status flip or a
+     * translation-only clear, since a stale row genuinely has nowhere else to
+     * live once confirmed gone.
+     */
+    public function deleteStale(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = urldecode((string) $request->get_param('id'));
+        if ($id !== 'html:all') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        $lang = $this->resolveLang($request);
+        $ids  = array_map(
+            static fn (array $r): int => (int) $r['id'],
+            $this->repo->listStaleHtmlSources($lang)
+        );
+        $deleted = $this->repo->deleteStaleHtmlSources($ids);
+
+        return rest_ensure_response([
+            'ok'                  => true,
+            'count'               => $deleted,
+            'collection_summary'  => $this->summaryFor($id, $lang),
         ]);
     }
 
@@ -720,6 +820,69 @@ final class CollectionRestController
         $q = trim(wp_check_invalid_utf8((string) $request->get_param('search')));
 
         return mb_strlen($q) < self::SEARCH_MIN ? '' : $q;
+    }
+
+    /**
+     * Normalize comma-separated or repeated filter parameters.
+     *
+     * @return array{origin:string[], content_type:string[], text_length:string[], progress:string[]}|null
+     */
+    private function resolveFilters(WP_REST_Request $request): ?array
+    {
+        $definitions = [
+            'origin'       => self::VALID_ORIGINS,
+            'content_type' => self::VALID_CONTENT_TYPES,
+            'text_length'  => self::VALID_TEXT_LENGTHS,
+            'progress'     => self::VALID_PROGRESS,
+        ];
+        $filters = [];
+
+        foreach ($definitions as $key => $allowed) {
+            $raw    = $request->get_param($key);
+            $values = is_array($raw)
+                ? $raw
+                : preg_split('/\s*,\s*/', (string) $raw, -1, PREG_SPLIT_NO_EMPTY);
+            $values = array_values(array_unique(array_filter(array_map(
+                static fn ($value): string => sanitize_key((string) $value),
+                $values ?: []
+            ))));
+
+            if (array_diff($values, $allowed) !== []) {
+                return null;
+            }
+            $filters[$key] = $values;
+        }
+
+        return $filters;
+    }
+
+    /** Collection-level Content Type and Progress matching. */
+    private function collectionMatchesFilters(array $collection, array $filters): bool
+    {
+        $contentTypes = $filters['content_type'] ?? [];
+        if ($contentTypes !== [] && ! in_array($collection['type'], $contentTypes, true)) {
+            return false;
+        }
+
+        $progress = $filters['progress'] ?? [];
+        if ($progress === []) {
+            return true;
+        }
+
+        foreach ($progress as $value) {
+            $matches = match ($value) {
+                'not_started' => $collection['translated'] === 0,
+                'in_progress' => $collection['translated'] > 0
+                    && ($collection['missing'] > 0 || $collection['needs_review'] > 0),
+                'complete'    => $collection['missing'] === 0 && $collection['needs_review'] === 0,
+                'has_review'  => $collection['needs_review'] > 0,
+            };
+            if ($matches) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 

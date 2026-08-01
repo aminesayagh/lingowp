@@ -108,7 +108,7 @@ interface SourceTranslationRepository
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
      *   total:int, translated:int, needs_review:int, missing:int}>
      */
-    public function listPostCollections(string $langCode, string $search = ''): array;
+    public function listPostCollections(string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * The discovered tl_post text units of one WP post for one language, each with
@@ -117,7 +117,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listPostTexts(int $postId, string $langCode, string $search = ''): array;
+    public function listPostTexts(int $postId, string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * The single Site-settings collection (all discovered tl_option sources) with
@@ -125,7 +125,7 @@ interface SourceTranslationRepository
      *
      * @return array{total:int, translated:int, needs_review:int, missing:int}
      */
-    public function optionCollectionSummary(string $langCode, string $search = ''): array;
+    public function optionCollectionSummary(string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * The discovered tl_option text units for one language, each with its
@@ -134,7 +134,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, option_name:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listOptionTexts(string $langCode, string $search = ''): array;
+    public function listOptionTexts(string $langCode, string $search = '', array $filters = []): array;
 
 
     /**
@@ -144,7 +144,7 @@ interface SourceTranslationRepository
      * @return array<int, array{term_taxonomy_id:int, taxonomy:string, name:string,
      *   total:int, translated:int, needs_review:int, missing:int}>
      */
-    public function listTermCollections(string $langCode, string $search = ''): array;
+    public function listTermCollections(string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * The discovered tl_term text units of one term for one language.
@@ -164,7 +164,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = ''): array;
+    public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * Post-meta per-status counts grouped by WP post (joined to wp_posts) for one
@@ -173,7 +173,7 @@ interface SourceTranslationRepository
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
      *   total:int, translated:int, needs_review:int, missing:int}>
      */
-    public function postMetaCounts(string $langCode, string $search = ''): array;
+    public function postMetaCounts(string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * The discovered tl_meta text units of one post for one language.
@@ -181,7 +181,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, meta_key:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listMetaTexts(int $postId, string $langCode, string $search = ''): array;
+    public function listMetaTexts(int $postId, string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * Gettext collections grouped by textdomain (the plugin/theme slug) for one
@@ -191,7 +191,7 @@ interface SourceTranslationRepository
      * @return array<int, array{domain:string, total:int, translated:int,
      *   needs_review:int, missing:int}>
      */
-    public function staticTextDomainSummary(string $langCode, string $search = ''): array;
+    public function staticTextDomainSummary(string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * The discovered tl_staticText units for one textdomain, one language.
@@ -201,7 +201,7 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = ''): array;
+    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = '', array $filters = []): array;
 
 
     /**
@@ -248,7 +248,7 @@ interface SourceTranslationRepository
      *
      * @return array{total:int, translated:int, needs_review:int, missing:int}
      */
-    public function htmlCollectionSummary(string $langCode, string $search = ''): array;
+    public function htmlCollectionSummary(string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * The discovered tl_html text units for one language (field = selector).
@@ -256,11 +256,73 @@ interface SourceTranslationRepository
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
      */
-    public function listHtmlTexts(string $langCode, string $search = ''): array;
+    public function listHtmlTexts(string $langCode, string $search = '', array $filters = []): array;
+
+    /**
+     * tl_html rows flagged SOURCE_STALE (see flagStaleHtmlSources()) — nobody has
+     * re-encountered them via marking mode or the background crawl in the grace
+     * window. Same shape as listHtmlTexts(), for the admin review-before-delete
+     * surface.
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listStaleHtmlSources(string $langCode, string $search = '', array $filters = []): array;
+
+    /**
+     * Refresh last_seen_at on every tl_html row matching one of these original
+     * hashes. Called by HtmlDiscovery::discover() after each pass (marking mode
+     * or crawl) with every candidate hash it resolved, new or pre-existing.
+     *
+     * @param string[] $rawHashes
+     */
+    public function touchHtmlSeen(array $rawHashes): void;
+
+    /**
+     * Flag tl_html rows whose last_seen_at predates $graceDays as stale, for
+     * admin review — never an automatic delete (a bounded crawl scope or a
+     * single fetch failure can make a still-valid row look absent).
+     *
+     * @return int rows flagged
+     */
+    public function flagStaleHtmlSources(int $graceDays): int;
+
+    /**
+     * Hard-delete confirmed-stale tl_html rows (only ever acts on rows already
+     * flagged SOURCE_STALE). Their translation children are reclaimed by
+     * OrphanTranslationSweep's existing daily sweep, not deleted here.
+     *
+     * @param int[] $ids
+     * @return int rows deleted
+     */
+    public function deleteStaleHtmlSources(array $ids): int;
 
 
     /** Original text of one discovered source by ref, or null if gone/ignored. */
     public function loadSourceText(SourceRef $ref): ?string;
+
+
+    /**
+     * Source text plus the identity the write guard needs to choose a validation
+     * grammar (SEO templates use per-plugin variable syntax, and a SourceRef only
+     * carries {kind}:{id}). Manual saves only — the AI batch carries these fields
+     * on its units and must not query per item.
+     *
+     * @return array{text: string, kind: string, meta_key: ?string}|null
+     */
+    public function loadSourceValidationContext(SourceRef $ref): ?array;
+
+
+    /**
+     * Source template + translation for a post's SEO meta keys, in one read, so
+     * the output layer can tell "translated" from "exists but untranslated" —
+     * states that need opposite handling. LEFT JOIN keeps untranslated rows;
+     * child status is not filtered, matching every other render read.
+     *
+     * @param  string[] $metaKeys
+     * @return array<int, array{meta_key: string, original_text: string, translated_text: ?string}>
+     */
+    public function fetchPostMetaTranslationStates(int $postId, array $metaKeys, string $langCode): array;
 
 
     /**

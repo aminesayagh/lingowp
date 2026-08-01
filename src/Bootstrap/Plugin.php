@@ -17,15 +17,19 @@ use TransLangs\Localization\LanguageSwitcherShortcode;
 use TransLangs\Localization\LocalizedUrlBuilder;
 use TransLangs\Localization\PublicLinkRewriter;
 use TransLangs\Rendering\PublicRenderPipeline;
+use TransLangs\Seo\SeoHeadTranslator;
 use TransLangs\Rendering\RequestContext;
 use TransLangs\Rendering\Primary\StructuredRenderResolver;
 use TransLangs\Core\Parsing\TranslationUnitCodec;
 use TransLangs\Discovery\StaticText\GettextCaptureWorker;
+use TransLangs\Discovery\HtmlDiscovery;
+use TransLangs\Discovery\HtmlDiscoveryCrawl;
 use TransLangs\Discovery\InitialDiscoveryScan;
 use TransLangs\Discovery\Option\OptionSourceScanner;
 use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
 use TransLangs\Admin\DatabaseHealthReport;
 use TransLangs\Admin\OnboardingPageController;
+use TransLangs\Discovery\SeoDiscoveryRescan;
 use TransLangs\Discovery\SourceLifecycleRefresher;
 use TransLangs\Discovery\StructuredSourceScanner;
 use TransLangs\Database\OrphanTranslationSweep;
@@ -73,6 +77,11 @@ class Plugin
         $unitExtractor     = new HtmlUnitExtractor(new TranslationUnitCodec());
         $structuredScanner = new StructuredSourceScanner($sourceRepository, $unitExtractor);
 
+        // Shared hardcoded-HTML discovery walk: used by marking mode (below) and
+        // the background crawl (backend-context block below).
+        $htmlRenderer  = new HtmlRenderer($unitExtractor);
+        $htmlDiscovery = new HtmlDiscovery($htmlRenderer, $ownedStringIndex, $sourceRepository);
+
         // Options discovery (Path E): allowlisted wp_options text → tl_option.
         $optionScanner = new OptionSourceScanner($sourceRepository, $wpdb);
 
@@ -89,7 +98,21 @@ class Plugin
         // Kept as a named instance (not built inline) so the backend-context block
         // below can reuse it for the manual "refresh" REST action.
         $initialScan = new InitialDiscoveryScan($wpdb, $structuredScanner, $optionScanner);
+        // Narrow SEO-only rescan: catches meta written by direct SQL (importers)
+        // or predating the plugin, which fire no save hook. Registered on the
+        // public side too — `activated_plugin` fires outside admin contexts.
+        $seoRescan = new SeoDiscoveryRescan($wpdb, $structuredScanner);
+        $seoRescan->register();
         $initialScan->register();
+
+        // Background HTML crawl: sweeps every known public URL so hardcoded
+        // markup is discovered even on pages nobody with edit rights has
+        // opened — marking mode alone only covers pages an editor visits.
+        // Registered unconditionally (not gated to backend context), same
+        // reasoning as SeoDiscoveryRescan above: `activated_plugin` fires
+        // outside admin contexts on some update flows.
+        $htmlCrawl = new HtmlDiscoveryCrawl($wpdb, $htmlDiscovery);
+        $htmlCrawl->register();
 
         // v5 structured render: post/term by text hash, meta by location.
         (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes))->register();
@@ -104,14 +127,16 @@ class Plugin
         // Tier-2 ownership-gated).
         (new GettextCaptureWorker($sourceRepository, $ownedStringIndex))->register();
 
-        // Output buffer: hardcoded-HTML REPLACE pass (block units) + link rewriting.
+        // Output buffer: hardcoded-HTML REPLACE pass (block units), the SEO <head>
+        // pass (same DOM, one parse), and link rewriting.
         (new PublicRenderPipeline(
             $languageResolver,
             $context,
             new PublicLinkRewriter($urlBuilder),
             $sourceRepository,
-            new HtmlRenderer($unitExtractor),
-            $ownedStringIndex
+            $htmlRenderer,
+            $htmlDiscovery,
+            new SeoHeadTranslator($sourceRepository)
         ))->register();
 
         // Onboarding / backend connection. Never loaded on a public visitor page
@@ -143,7 +168,7 @@ class Plugin
             (new TranslationRestController($sourceRepository, $languageRegistry, $collectionsController))->register();
             (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController))->register();
             (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
-            (new ScanRestController($initialScan))->register();
+            (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).
             (new SiteMetadataSyncJob($backendClient, $connection, $siteMetadata))->register();

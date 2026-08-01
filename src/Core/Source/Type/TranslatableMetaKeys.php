@@ -16,9 +16,18 @@ final class TranslatableMetaKeys
     /** Media ALT is allow-listed by default; it rides the attachment (type-2) path. */
     public const ATTACHMENT_ALT = '_wp_attachment_image_alt';
 
+    /**
+     * A STATIC UNION across SEO plugins — never narrowed to whichever one is
+     * active. reconcilePost() reconciles the whole post meta scope, so a key
+     * dropping out of this list on a save deletes its rows and cascades to their
+     * translations. Deactivating a plugin does not delete its post meta, so
+     * keeping the key here costs nothing and preserves the translations.
+     */
     private const DEFAULTS = [
         '_yoast_wpseo_title',
         '_yoast_wpseo_metadesc',
+        'rank_math_title',
+        'rank_math_description',
         '_wc_product_short_description',
     ];
 

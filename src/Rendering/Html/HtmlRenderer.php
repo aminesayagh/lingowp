@@ -29,9 +29,12 @@ final class HtmlRenderer
      * @param array<string, string>        $map    lowercase hex(original_hash) => translated unit string
      * @param null|callable(string,string):void $onUnit (selector, unit text) reporter for discovery
      */
-    public function render(string $html, array $map, ?callable $onUnit = null): string
+    public function render(string $html, array $map, ?callable $onUnit = null, ?callable $onDocument = null): string
     {
-        if (($map === [] && $onUnit === null) || !class_exists(HTML5::class)) {
+        // $onDocument must be part of this guard: a site with no tl_html/tl_option
+        // rows has an empty $map, and skipping the parse would silently skip every
+        // document-level pass (SEO <head>) too.
+        if (($map === [] && $onUnit === null && $onDocument === null) || !class_exists(HTML5::class)) {
             return $html;
         }
 
@@ -55,6 +58,19 @@ final class HtmlRenderer
 
                 return $map[bin2hex(TL_Key::currentHash($unit))] ?? null;
             });
+
+            // Document-level passes run on the SAME DOM — parsing and serializing
+            // the page a second time would double the cost and risk the two passes
+            // disagreeing. Isolated: a failure here must not discard the body
+            // translations already applied above, which is what returning $html
+            // from the outer catch would do.
+            if ($onDocument !== null) {
+                try {
+                    $onDocument($dom);
+                } catch (\Throwable) {
+                    // Body translations stand; this pass simply made no change.
+                }
+            }
 
             return $html5->saveHTML($dom);
         } catch (\Throwable) {

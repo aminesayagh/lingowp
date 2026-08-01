@@ -29,6 +29,8 @@
             "@php tests/normalizer_gate_check.php",
             "@php tests/source_identity_check.php",
             "@php tests/option_gate_check.php",
+            "@php tests/unit_structure_guard_check.php",
+            "@php tests/seo_var_guard_check.php",
             "@php bin/check-split-field.php"
         ],
         "test:db": [
