@@ -34,6 +34,8 @@ final class HtmlSource extends SourceRecord
         $this->selector = strlen($selector) > self::SELECTOR_MAX_LENGTH
             ? substr($selector, -self::SELECTOR_MAX_LENGTH)
             : $selector;
+
+        $this->sourceUrl = self::normalizeSourceUrl($sourceUrl);
     }
 
     public function selector(): string
@@ -44,6 +46,35 @@ final class HtmlSource extends SourceRecord
     public function sourceUrl(): ?string
     {
         return $this->sourceUrl;
+    }
+
+    /**
+     * Keep only the request path and query. A stored host would be stale after
+     * a domain move and would be prepended again when the workspace calls
+     * home_url() to build the front-end preview link.
+     */
+    public static function normalizeSourceUrl(?string $sourceUrl): ?string
+    {
+        $sourceUrl = trim((string) $sourceUrl);
+        if ($sourceUrl === '') {
+            return null;
+        }
+
+        $parts = parse_url($sourceUrl);
+        if ($parts === false) {
+            return null;
+        }
+
+        $path = (string) ($parts['path'] ?? '/');
+        if ($path === '' || $path[0] !== '/') {
+            $path = '/' . $path;
+        }
+
+        $query = isset($parts['query']) && $parts['query'] !== ''
+            ? '?' . $parts['query']
+            : '';
+
+        return $path . $query;
     }
 
     public function table(): string

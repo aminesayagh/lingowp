@@ -136,6 +136,17 @@ ok('HtmlSource leaves a 255-char selector alone',
 ok('HtmlSource rejects empty selector', throws(fn() => new HtmlSource('   ', null, 'x')));
 ok('HtmlSource selector_hash is sha256 of the selector',
     $html->identity()['selector_hash'] === hash('sha256', 'body>main>h1', true));
+ok('HtmlSource strips scheme and domain from source URL',
+    $html->sourceUrl() === '/');
+ok('HtmlSource preserves path and query only',
+    (new HtmlSource('body', 'https://translangs.masayagh.com/hello-world/?page=2#section', 'x'))->sourceUrl()
+        === '/hello-world/?page=2');
+ok('HtmlSource normalizes a relative source URL',
+    (new HtmlSource('body', 'hello-world/', 'x'))->sourceUrl() === '/hello-world/');
+ok('HtmlSource keeps an existing path-only source URL',
+    (new HtmlSource('body', '/hello-world/?page=2', 'x'))->sourceUrl() === '/hello-world/?page=2');
+ok('HtmlSource converts an empty source URL to null',
+    (new HtmlSource('body', '', 'x'))->sourceUrl() === null);
 
 // StaticTextSource: reference is mb-capped at 191 CHARACTERS — deliberately
 // different from HtmlSource's byte cap. Assert the asymmetry.

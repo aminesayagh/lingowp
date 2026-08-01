@@ -2,6 +2,8 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Core\Source\Type\HtmlSource;
+
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Source\Value\TranslationStatus;
@@ -372,9 +374,7 @@ final class CollectionRestController
         if ($id === 'html:all') {
             return array_map(
                 fn (array $r): array => $this->presentText('html', $r, (string) $r['field']) + [
-                    'preview_url'    => empty($r['source_url'])
-                        ? null
-                        : $this->frontendPreviewUrl(home_url((string) $r['source_url']), $lang),
+                    'preview_url'    => $this->htmlPreviewUrl($r['source_url'] ?? null, $lang),
                     'preview_target' => 'frontend',
                 ],
                 $this->repo->listHtmlTexts($lang, $search, $filters)
@@ -650,9 +650,7 @@ final class CollectionRestController
         $search = $this->resolveSearch($request);
         $texts  = array_map(
             fn (array $r): array => $this->presentText('html', $r, (string) $r['field']) + [
-                'preview_url'    => empty($r['source_url'])
-                    ? null
-                    : $this->frontendPreviewUrl(home_url((string) $r['source_url']), $lang),
+                'preview_url'    => $this->htmlPreviewUrl($r['source_url'] ?? null, $lang),
                 'preview_target' => 'frontend',
             ],
             $this->repo->listStaleHtmlSources($lang, $search)
@@ -791,6 +789,16 @@ final class CollectionRestController
         $sep = str_contains($base, '?') ? '&' : '?';
 
         return $base . $sep . 'translangs_preview=' . rawurlencode($lang);
+    }
+
+    /** Build an HTML preview on the current domain, including for legacy absolute rows. */
+    private function htmlPreviewUrl(mixed $sourceUrl, string $lang): ?string
+    {
+        $path = HtmlSource::normalizeSourceUrl(is_string($sourceUrl) ? $sourceUrl : null);
+
+        return $path === null
+            ? null
+            : $this->frontendPreviewUrl(home_url($path), $lang);
     }
 
     /** Selected target language, defaulting to the first enabled target. */

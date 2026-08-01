@@ -29,6 +29,7 @@ use TransLangs\Discovery\Option\OptionSourceScanner;
 use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
 use TransLangs\Admin\DatabaseHealthReport;
 use TransLangs\Admin\OnboardingPageController;
+use TransLangs\Admin\ResetPageController;
 use TransLangs\Discovery\SeoDiscoveryRescan;
 use TransLangs\Discovery\SourceLifecycleRefresher;
 use TransLangs\Discovery\StructuredSourceScanner;
@@ -179,6 +180,12 @@ class Plugin
             (new DatabaseHealthReport($wpdb))->register();
             (new AdminAssets())->register();
             (new OnboardingPageController())->register();
+
+            // Dev-only "reset translation data" tool. Never registered on a
+            // real customer site — see ResetPageController's class doc.
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                (new ResetPageController($wpdb))->register();
+            }
         }
     }
 

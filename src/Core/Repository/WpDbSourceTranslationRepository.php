@@ -2,6 +2,7 @@
 
 namespace TransLangs\Core\Repository;
 
+use TransLangs\Core\Source\Type\HtmlSource;
 use TransLangs\Core\Source\Type\StaticTextSource;
 use TransLangs\Core\Text\IdentityKey;
 use TransLangs\Core\Source\Base\SourceRecord;
@@ -41,6 +42,9 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         $inserted = 0;
         foreach ($this->groupByTable($records) as $tableKey => $group) {
             $inserted += $this->insertParents($tableKey, $group);
+            if ($tableKey === 'tl_html') {
+                $this->refreshHtmlSourceUrls($group);
+            }
         }
 
         return $inserted;
@@ -162,6 +166,49 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         }
 
         return $count;
+    }
+
+    /**
+     * Repair source_url on existing HTML identities after INSERT IGNORE leaves
+     * their other columns untouched. This preserves upsertSources()'s inserted
+     * row count while allowing a rescan to remove previously stored domains.
+     *
+     * @param SourceRecord[] $records
+     */
+    private function refreshHtmlSourceUrls(array $records): void
+    {
+        $records = array_values(array_filter(
+            $records,
+            static fn (SourceRecord $record): bool => $record instanceof HtmlSource && $record->sourceUrl() !== null
+        ));
+        if ($records === []) {
+            return;
+        }
+
+        $table = $this->parent('tl_html');
+        foreach (array_chunk($records, self::INSERT_CHUNK) as $chunk) {
+            $selects = [];
+            $args    = [];
+            foreach ($chunk as $record) {
+                /** @var HtmlSource $record */
+                $identity  = $record->identity();
+                $selects[] = 'SELECT UNHEX(%s) AS selector_hash, UNHEX(%s) AS original_hash, %s AS source_url';
+                $args[]    = bin2hex($identity['selector_hash']);
+                $args[]    = bin2hex($identity['original_hash']);
+                $args[]    = $record->sourceUrl();
+            }
+
+            $incoming = implode(' UNION ALL ', $selects);
+            $sql = "UPDATE {$table} p
+                    INNER JOIN ({$incoming}) incoming
+                       ON incoming.selector_hash = p.selector_hash
+                      AND incoming.original_hash = p.original_hash
+                    SET p.source_url = incoming.source_url
+                    WHERE NOT (p.source_url <=> incoming.source_url)";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+        }
     }
 
     // ── render reads ───────────────────────────────────────────────────────────
