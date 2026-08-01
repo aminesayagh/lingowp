@@ -311,13 +311,13 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
 
     // ── board reads (admin dashboard) ────────────────────────────────────────────
 
-    public function listPostCollections(string $langCode, string $search = ''): array
+    public function listPostCollections(string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_post');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         // hash-link child is unique per (original_hash, lang_code), so the LEFT JOIN
         // yields at most one translation per source position — no COUNT fan-out.
@@ -353,12 +353,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ], (array) $rows);
     }
 
-    public function listPostTexts(int $postId, string $langCode, string $search = ''): array
+    public function listPostTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_post');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
@@ -380,12 +380,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return array_map([$this, 'textUnitRow'], (array) $rows);
     }
 
-    public function optionCollectionSummary(string $langCode, string $search = ''): array
+    public function optionCollectionSummary(string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_option');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT COUNT(*)           AS total,
                        SUM(t.status > 0)  AS translated,
@@ -412,12 +412,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ];
     }
 
-    public function listOptionTexts(string $langCode, string $search = ''): array
+    public function listOptionTexts(string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_option');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT p.id AS id, p.option_name AS option_name, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
@@ -443,14 +443,14 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     }
 
 
-    public function listTermCollections(string $langCode, string $search = ''): array
+    public function listTermCollections(string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_term');
         $child  = $parent . '_translation';
         $tt     = $this->wpdb->term_taxonomy;
         $terms  = $this->wpdb->terms;
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT p.term_taxonomy_id AS term_taxonomy_id, tx.taxonomy AS taxonomy, tm.name AS name,
                        COUNT(*)              AS total,
@@ -508,14 +508,14 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return array_map([$this, 'textUnitRow'], (array) $rows);
     }
 
-    public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = ''): array
+    public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_term');
         $child  = $parent . '_translation';
         $tt     = $this->wpdb->term_taxonomy;
         $terms  = $this->wpdb->terms;
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT p.id AS id, p.field AS field, tm.term_id AS term_id, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
@@ -543,13 +543,13 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         }, (array) $rows);
     }
 
-    public function postMetaCounts(string $langCode, string $search = ''): array
+    public function postMetaCounts(string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_meta');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         // meta is a parent_id child: join on parent_id, not original_hash.
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
@@ -584,12 +584,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ], (array) $rows);
     }
 
-    public function listMetaTexts(int $postId, string $langCode, string $search = ''): array
+    public function listMetaTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_meta');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
@@ -615,12 +615,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     }
 
     /** @inheritDoc */
-    public function staticTextDomainSummary(string $langCode, string $search = ''): array
+    public function staticTextDomainSummary(string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_staticText');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT SUBSTRING_INDEX(p.reference, '|', 1) AS domain,
                        COUNT(*)              AS total,
@@ -652,12 +652,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     }
 
     /** @inheritDoc */
-    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = ''): array
+    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_staticText');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT p.id AS id, p.reference AS reference, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
@@ -818,12 +818,12 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     }
 
 
-    public function htmlCollectionSummary(string $langCode, string $search = ''): array
+    public function htmlCollectionSummary(string $langCode, string $search = '', array $filters = []): array
     {
         $parent = $this->parent('tl_html');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT COUNT(*)           AS total,
                        SUM(t.status > 0)  AS translated,
@@ -850,12 +850,24 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ];
     }
 
-    public function listHtmlTexts(string $langCode, string $search = ''): array
+    public function listHtmlTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->htmlTextsByStatus(TranslationStatus::SOURCE_DISCOVERED, $langCode, $search, $filters);
+    }
+
+    /** Same shape as listHtmlTexts(), scoped to rows flagged stale for admin review. */
+    public function listStaleHtmlSources(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->htmlTextsByStatus(TranslationStatus::SOURCE_STALE, $langCode, $search, $filters);
+    }
+
+    /** Shared query behind listHtmlTexts()/listStaleHtmlSources(), scoped by parent status. */
+    private function htmlTextsByStatus(int $status, string $langCode, string $search, array $filters): array
     {
         $parent = $this->parent('tl_html');
         $child  = $parent . '_translation';
 
-        [$match, $matchArgs] = $this->searchPredicate($search);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT p.id AS id, p.selector AS selector, p.source_url AS source_url, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
@@ -869,7 +881,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
-            TranslationStatus::SOURCE_DISCOVERED,
+            $status,
             ...$matchArgs
         ), ARRAY_A);
 
@@ -879,6 +891,90 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $unit['source_url'] = $r['source_url'] === null ? null : (string) $r['source_url'];
             return $unit;
         }, (array) $rows);
+    }
+
+    /**
+     * Refresh last_seen_at for every hash a discovery pass resolved that has a
+     * tl_html row (see HtmlDiscovery::discover()) — both freshly inserted rows
+     * and ones already owned by tl_html. A hash belonging to another parent
+     * table simply matches no row here, so this is safe to call with a walk's
+     * full candidate set without first working out which table owns what.
+     *
+     * @param string[] $rawHashes
+     */
+    public function touchHtmlSeen(array $rawHashes): void
+    {
+        if ($rawHashes === []) {
+            return;
+        }
+
+        $parent       = $this->parent('tl_html');
+        $hexes        = array_map('bin2hex', array_values(array_unique($rawHashes)));
+        $placeholders = implode(', ', array_fill(0, count($hexes), 'UNHEX(%s)'));
+
+        $sql = "UPDATE {$parent} SET last_seen_at = %s WHERE original_hash IN ({$placeholders})";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $this->wpdb->query($this->wpdb->prepare($sql, current_time('mysql'), ...$hexes));
+    }
+
+    /**
+     * Flag tl_html rows nobody has re-encountered (marking mode or the crawl)
+     * in over $graceDays as stale, for admin review — never an automatic
+     * delete, since a bounded crawl scope or a single fetch failure can make a
+     * still-valid row look absent without it actually being gone.
+     *
+     * @return int rows flagged
+     */
+    public function flagStaleHtmlSources(int $graceDays): int
+    {
+        $parent = $this->parent('tl_html');
+
+        $sql = "UPDATE {$parent}
+                    SET status = %d
+                  WHERE status = %d
+                    AND last_seen_at IS NOT NULL
+                    AND last_seen_at < (NOW() - INTERVAL %d DAY)";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $result = $this->wpdb->query($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::SOURCE_STALE,
+            TranslationStatus::SOURCE_DISCOVERED,
+            $graceDays
+        ));
+
+        return is_int($result) ? $result : 0;
+    }
+
+    /**
+     * Hard-delete confirmed-stale tl_html rows. Only ever acts on rows already
+     * flagged SOURCE_STALE, never anything else. No child-translation cleanup
+     * needed: tl_html_translation has no FK to its parent (hash-link, shared by
+     * many parent rows) — OrphanTranslationSweep already reaps translation rows
+     * whose hash no longer exists in any parent table, on its own daily sweep.
+     *
+     * @param int[] $ids
+     */
+    public function deleteStaleHtmlSources(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        $parent       = $this->parent('tl_html');
+        $placeholders = implode(', ', array_fill(0, count($ids), '%d'));
+
+        $sql = "DELETE FROM {$parent} WHERE status = %d AND id IN ({$placeholders})";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $result = $this->wpdb->query($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::SOURCE_STALE,
+            ...$ids
+        ));
+
+        return is_int($result) ? $result : 0;
     }
 
 
@@ -895,6 +991,104 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         );
 
         return is_string($value) ? $value : null;
+    }
+
+    /**
+     * Source text plus the identity the write guard needs to pick a validation
+     * grammar. A SourceRef is only {kind}:{id}, so `meta:45` cannot say whether
+     * it holds a Yoast (%%var%%) or Rank Math (%var%) template — but the two are
+     * validated by different patterns, so the key has to come back with the text.
+     *
+     * Manual saves only. The AI batch already carries both fields on its in-memory
+     * units and must NOT call this per item (50 rows per batch).
+     *
+     * @return array{text: string, kind: string, meta_key: ?string}|null
+     */
+    public function loadSourceValidationContext(SourceRef $ref): ?array
+    {
+        $parent   = $this->parent($ref->parentTableKey());
+        $isMeta   = $ref->kind === 'meta';
+        $selected = $isMeta ? 'original_text, meta_key' : 'original_text';
+
+        $row = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "SELECT {$selected} FROM {$parent} WHERE id = %d AND status = %d",
+                $ref->id,
+                TranslationStatus::SOURCE_DISCOVERED
+            ),
+            ARRAY_A
+        );
+
+        if (!is_array($row) || !isset($row['original_text'])) {
+            return null;
+        }
+
+        return [
+            'text'     => (string) $row['original_text'],
+            'kind'     => $ref->kind,
+            'meta_key' => $isMeta ? (string) ($row['meta_key'] ?? '') : null,
+        ];
+    }
+
+    /**
+     * Source template + its translation for a post's SEO meta keys, in one read.
+     *
+     * fetchParentTranslations() cannot serve the output layer: it returns only
+     * translated text keyed by lookup identity, so it can say "here is a
+     * translation" but never "a source exists and is untranslated" — and those two
+     * states need opposite handling (an untranslated explicit title is authored
+     * text that must be left alone, not generated output to substitute into).
+     *
+     * A LEFT JOIN keeps rows whose child is missing, which is exactly the
+     * distinction. Child status is deliberately NOT filtered, mirroring every
+     * other render read — SEO must not acquire different rendering rules.
+     *
+     * Scoped to context_hash = hash('') because SEO fields are scalar; array/JSON
+     * leaves of the same key are not templates.
+     *
+     * @param  string[] $metaKeys
+     * @return array<int, array{meta_key: string, original_text: string, translated_text: ?string}>
+     */
+    public function fetchPostMetaTranslationStates(int $postId, array $metaKeys, string $langCode): array
+    {
+        $metaKeys = array_values(array_unique(array_filter($metaKeys, static fn ($k): bool => is_string($k) && $k !== '')));
+        if ($postId <= 0 || $metaKeys === [] || $langCode === '') {
+            return [];
+        }
+
+        $parent = $this->parent('tl_meta');
+        $child  = $parent . '_translation';
+        $keySet = implode(', ', array_fill(0, count($metaKeys), '%s'));
+
+        $sql = "SELECT p.meta_key AS meta_key, p.original_text AS original_text,
+                       t.translated_text AS translated_text
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                WHERE p.post_id = %d AND p.status = %d
+                  AND p.context_hash = UNHEX(%s)
+                  AND p.meta_key IN ({$keySet})";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $postId,
+            TranslationStatus::SOURCE_DISCOVERED,
+            bin2hex(hash('sha256', '', true)),
+            ...$metaKeys
+        ), ARRAY_A);
+
+        $out = [];
+        foreach ((array) $rows as $row) {
+            $translated = $row['translated_text'] ?? null;
+            $out[]      = [
+                'meta_key'        => (string) $row['meta_key'],
+                'original_text'   => (string) $row['original_text'],
+                'translated_text' => $translated === null ? null : (string) $translated,
+            ];
+        }
+
+        return $out;
     }
 
 
@@ -968,6 +1162,46 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         $like = '%' . $this->wpdb->esc_like($search) . '%';
 
         return [' AND (p.original_text LIKE %s OR t.translated_text LIKE %s)', [$like, $like]];
+    }
+
+    /**
+     * Board search plus row-level Origin and Text Length filters.
+     *
+     * Values inside one filter are ORed; Origin and Text Length are ANDed with
+     * each other and with search. Callers validate values before they reach here.
+     *
+     * @param array{origin?:string[], text_length?:string[]} $filters
+     * @return array{0:string, 1:array<int,string>}
+     */
+    private function textFilterPredicate(string $search, array $filters): array
+    {
+        [$predicate, $args] = $this->searchPredicate($search);
+
+        $originClauses = [];
+        foreach ($filters['origin'] ?? [] as $origin) {
+            $originClauses[] = match ($origin) {
+                'manual'         => '(t.id IS NOT NULL AND t.provider IS NULL)',
+                'ai'             => '(t.id IS NOT NULL AND t.provider IS NOT NULL)',
+                'not_translated' => 't.id IS NULL',
+            };
+        }
+        if ($originClauses !== []) {
+            $predicate .= ' AND (' . implode(' OR ', $originClauses) . ')';
+        }
+
+        $lengthClauses = [];
+        foreach ($filters['text_length'] ?? [] as $length) {
+            $lengthClauses[] = match ($length) {
+                'short'  => 'CHAR_LENGTH(p.original_text) <= 80',
+                'medium' => '(CHAR_LENGTH(p.original_text) BETWEEN 81 AND 300)',
+                'long'   => 'CHAR_LENGTH(p.original_text) > 300',
+            };
+        }
+        if ($lengthClauses !== []) {
+            $predicate .= ' AND (' . implode(' OR ', $lengthClauses) . ')';
+        }
+
+        return [$predicate, $args];
     }
 
     /** Normalize a board text-unit row: null translation when untranslated. */

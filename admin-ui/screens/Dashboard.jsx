@@ -31,10 +31,6 @@ import {
   useState,
 } from "@wordpress/element";
 import {
-  MagicIcon,
-  SettingsIcon,
-  SearchIcon,
-  LanguageIcon,
   PageIcon
 } from "@shopify/polaris-icons";
 import { api } from "../api";
@@ -64,13 +60,13 @@ const StartIcon = ({ color = "currentColor", ...props }) => (
   </svg>
 );
 
-// Schema status → workspace pill (per design-ux-data-mapping.md §2). Translated
-// rows carry no pill.
+// Schema status → workspace pill. Completed rows keep a visible marker so table
+// progress is scannable even when the row is not hovered.
 const STATUS_BADGE = {
   missing: null,
   needs_review: { tone: "warning", label: "Needs review" },
-  reviewed: null,
-  translated: null,
+  reviewed: { tone: "success", label: "Done" },
+  translated: { tone: "success", label: "Done" },
 };
 
 // Truncate a cell to a single line with an ellipsis; the whole cell is a
@@ -120,6 +116,39 @@ const FILTERS = [
   { key: "needs_review", label: "Needs review" },
   { key: "translated", label: "Translated" },
 ];
+const ORIGIN_FILTERS = [
+  { key: "manual", label: "Manual" },
+  { key: "ai", label: "AI" },
+  { key: "not_translated", label: "Not translated" },
+];
+const CONTENT_TYPE_FILTERS = [
+  { key: "page", label: "Pages" },
+  { key: "post", label: "Posts" },
+  { key: "cpt", label: "Custom post types" },
+  { key: "taxonomy", label: "Taxonomies" },
+  { key: "site_settings", label: "Site settings" },
+  { key: "html", label: "Template content" },
+  { key: "plugin", label: "Plugin text" },
+  { key: "theme", label: "Theme text" },
+];
+const TEXT_LENGTH_FILTERS = [
+  { key: "short", label: "Short text" },
+  { key: "medium", label: "Medium text" },
+  { key: "long", label: "Long text" },
+];
+const PROGRESS_FILTERS = [
+  { key: "not_started", label: "Not started" },
+  { key: "in_progress", label: "In progress" },
+  { key: "complete", label: "Complete" },
+  { key: "has_review", label: "Has review items" },
+];
+
+function filterQueryParams(filters) {
+  return Object.entries(filters)
+    .filter(([, values]) => values.length > 0)
+    .map(([key, values]) => `&${key}=${enc(values.join(","))}`)
+    .join("");
+}
 
 // Search runs server-side (?search= on /collections and /collections/{id}/texts),
 // matching source text OR its translation in the selected language.
@@ -158,6 +187,10 @@ export default function Dashboard({
   const [notice, setNotice] = useState(null);
   const [autosaveToast, setAutosaveToast] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [originFilter, setOriginFilter] = useState([]);
+  const [contentTypeFilter, setContentTypeFilter] = useState([]);
+  const [textLengthFilter, setTextLengthFilter] = useState([]);
+  const [progressFilter, setProgressFilter] = useState([]);
   // Which board is showing: today's Content tree, or gettext grouped by
   // plugin/theme. Swaps the `source` param on the same collections/text-order
   // queries below — same load/search/pagination machinery, different data.
@@ -166,6 +199,17 @@ export default function Dashboard({
   const autosaveToastTimerRef = useRef(null);
 
   const defaultCode = defaultLanguage?.code || defaultLanguage;
+  const advancedFilters = {
+    origin: originFilter,
+    content_type: contentTypeFilter,
+    text_length: textLengthFilter,
+    progress: progressFilter,
+  };
+  const advancedFilterParams = filterQueryParams(advancedFilters);
+  const hasAdvancedFilters = Object.values(advancedFilters).some(
+    (values) => values.length > 0
+  );
+  const hasAnyFilter = statusFilter !== "all" || hasAdvancedFilters;
 
   // Open the language manager, optionally focused on a specific language.
   function openManager(code) {
@@ -237,11 +281,20 @@ export default function Dashboard({
       });
       return;
     }
+    // Some items can be rejected while the rest save (a translation that dropped
+    // or invented a protected variable/tag would break the rendered output). The
+    // run still succeeded, so this is a warning, not a failure — but it must be
+    // visible, or the user just sees rows that silently stayed untranslated.
+    const failed = res.failed || 0;
     setNotice({
-      tone: "success",
-      content: `Translated ${res.translated} text${
-        res.translated === 1 ? "" : "s"
-      }.`,
+      tone: failed > 0 ? "warning" : "success",
+      content:
+        `Translated ${res.translated} text${res.translated === 1 ? "" : "s"}.` +
+        (failed > 0
+          ? ` ${failed} ${
+              failed === 1 ? "was" : "were"
+            } rejected because protected variables or formatting changed.`
+          : ""),
     });
     if (res.collection_summary) {
       patchCollectionSummary(res.collection_summary);
@@ -339,13 +392,20 @@ export default function Dashboard({
   const groupsQ = useInfiniteQuery({
     queryKey: [
       "collections",
-      { language: selectedLang, search: query, status: statusFilter, source: board, limit: PAGE_SIZE },
+      {
+        language: selectedLang,
+        search: query,
+        status: statusFilter,
+        source: board,
+        filters: advancedFilters,
+        limit: PAGE_SIZE,
+      },
     ],
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }) => {
       const res = await api.get(
         `/collections?language=${enc(selectedLang)}&offset=${pageParam}&limit=${PAGE_SIZE}` +
-          `${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}`,
+          `${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`,
         { signal }
       );
       if (!res.ok) {
@@ -404,6 +464,13 @@ export default function Dashboard({
   // drops the row if it no longer matches the active status filter (mirrors
   // what a real refetch would do server-side).
   function patchCollectionSummary(summary) {
+    if (hasAdvancedFilters) {
+      queryClient.invalidateQueries({ queryKey: ["collections"] });
+      queryClient.invalidateQueries({ queryKey: ["texts"] });
+      queryClient.invalidateQueries({ queryKey: ["text-order"] });
+      return;
+    }
+
     const stillMatchesFilter =
       statusFilter === "all" ||
       (statusFilter === "untranslated" && summary.missing > 0) ||
@@ -601,10 +668,10 @@ export default function Dashboard({
   // CollectionGroup uses, so opening a neighbor group is just a query-key
   // change (shares cache with that group's own row if it's mounted).
   const overlayTextsQ = useQuery({
-    queryKey: ["texts", overlay?.cid, selectedLang, query],
+    queryKey: ["texts", overlay?.cid, selectedLang, query, advancedFilters],
     queryFn: async ({ signal }) => {
       const res = await api.get(
-        `/collections/${enc(overlay.cid)}/texts?language=${enc(selectedLang)}${searchParam(query)}`,
+        `/collections/${enc(overlay.cid)}/texts?language=${enc(selectedLang)}${searchParam(query)}${advancedFilterParams}`,
         { signal }
       );
       if (!res.ok) {
@@ -623,10 +690,17 @@ export default function Dashboard({
   // Cross-group prev/next: every matching group's text-id order, fetched only
   // while the overlay is open (not part of the paginated board itself).
   const orderQ = useQuery({
-    queryKey: ["text-order", selectedLang, query, statusFilter, board],
+    queryKey: [
+      "text-order",
+      selectedLang,
+      query,
+      statusFilter,
+      board,
+      advancedFilters,
+    ],
     queryFn: async ({ signal }) => {
       const res = await api.get(
-        `/collections/text-order?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}`,
+        `/collections/text-order?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`,
         { signal }
       );
       if (!res.ok) {
@@ -728,7 +802,14 @@ export default function Dashboard({
   const translationLabel =
     langLabel(languages.find((l) => l.code === selectedLang)) || "Translation";
 
-  // Standard Polaris Filters config (status only, single-select).
+  const choices = (items) =>
+    items.map((item) => ({ label: item.label, value: item.key }));
+  const selectedLabels = (items, selected) =>
+    items
+      .filter((item) => selected.includes(item.key))
+      .map((item) => item.label)
+      .join(", ");
+
   const filters = [
     {
       key: "status",
@@ -744,19 +825,109 @@ export default function Dashboard({
       ),
       shortcut: true,
     },
+    {
+      key: "origin",
+      label: "Origin",
+      filter: (
+        <ChoiceList
+          title="Origin"
+          titleHidden
+          allowMultiple
+          choices={choices(ORIGIN_FILTERS)}
+          selected={originFilter}
+          onChange={setOriginFilter}
+        />
+      ),
+      shortcut: true,
+    },
+    {
+      key: "content_type",
+      label: "Content type",
+      filter: (
+        <ChoiceList
+          title="Content type"
+          titleHidden
+          allowMultiple
+          choices={choices(CONTENT_TYPE_FILTERS)}
+          selected={contentTypeFilter}
+          onChange={setContentTypeFilter}
+        />
+      ),
+    },
+    {
+      key: "text_length",
+      label: "Text length",
+      filter: (
+        <ChoiceList
+          title="Text length"
+          titleHidden
+          allowMultiple
+          choices={choices(TEXT_LENGTH_FILTERS)}
+          selected={textLengthFilter}
+          onChange={setTextLengthFilter}
+        />
+      ),
+    },
+    {
+      key: "progress",
+      label: "Collection progress",
+      filter: (
+        <ChoiceList
+          title="Collection progress"
+          titleHidden
+          allowMultiple
+          choices={choices(PROGRESS_FILTERS)}
+          selected={progressFilter}
+          onChange={setProgressFilter}
+        />
+      ),
+    },
   ];
-  const appliedFilters =
-    statusFilter === "all"
+  const appliedFilters = [
+    ...(statusFilter === "all"
       ? []
-      : [
-          {
-            key: "status",
-            label: `Status: ${
-              FILTERS.find((f) => f.key === statusFilter)?.label
-            }`,
-            onRemove: () => setStatusFilter("all"),
-          },
-        ];
+      : [{
+          key: "status",
+          label: `Status: ${FILTERS.find((f) => f.key === statusFilter)?.label}`,
+          onRemove: () => setStatusFilter("all"),
+        }]),
+    ...(originFilter.length === 0
+      ? []
+      : [{
+          key: "origin",
+          label: `Origin: ${selectedLabels(ORIGIN_FILTERS, originFilter)}`,
+          onRemove: () => setOriginFilter([]),
+        }]),
+    ...(contentTypeFilter.length === 0
+      ? []
+      : [{
+          key: "content_type",
+          label: `Content type: ${selectedLabels(CONTENT_TYPE_FILTERS, contentTypeFilter)}`,
+          onRemove: () => setContentTypeFilter([]),
+        }]),
+    ...(textLengthFilter.length === 0
+      ? []
+      : [{
+          key: "text_length",
+          label: `Text length: ${selectedLabels(TEXT_LENGTH_FILTERS, textLengthFilter)}`,
+          onRemove: () => setTextLengthFilter([]),
+        }]),
+    ...(progressFilter.length === 0
+      ? []
+      : [{
+          key: "progress",
+          label: `Collection progress: ${selectedLabels(PROGRESS_FILTERS, progressFilter)}`,
+          onRemove: () => setProgressFilter([]),
+        }]),
+  ];
+
+  const clearAllFilters = () => {
+    setStatusFilter("all");
+    setOriginFilter([]);
+    setContentTypeFilter([]);
+    setTextLengthFilter([]);
+    setProgressFilter([]);
+  };
 
   return (
     <Page fullWidth>
@@ -904,7 +1075,7 @@ export default function Dashboard({
             >
               <Box padding="300">
                 <BlockStack gap="200">
-                  {/* Line 1: search (left) + AI · Configure (right) */}
+                  {/* Line 1: search (left) + actions (right) */}
                   <div
                     style={{
                       display: "flex",
@@ -925,40 +1096,37 @@ export default function Dashboard({
                         onClearButtonClick={() => setSearch("")}
                       />
                     </div>
-                    <Button
-                      icon={(props) => <StartIcon {...props} />}
-                      variant="tertiary"
-                      disabled={!ai.available}
-                      accessibilityLabel="AI translate all"
-                      size="medium"
-                      onClick={() =>
-                        setConfirm({
-                          title: "AI translate all missing text?",
-                          body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
-                          actionLabel: "Translate all",
-                          onConfirm: () => translateScope("language", { source: board }),
-                        })
-                      }
-                    />
-                    <Button
-                      icon={SettingsIcon}
-                      variant="tertiary"
-                      accessibilityLabel="Configure"
-                      size="medium"
-                      onClick={() => openManager(null)}
-                    />
+                    <Tooltip content="AI translate all">
+                      <Button
+                        icon={(props) => <StartIcon {...props} />}
+                        variant="tertiary"
+                        disabled={!ai.available}
+                        accessibilityLabel="AI translate all"
+                        size="medium"
+                        onClick={() =>
+                          setConfirm({
+                            title: "AI translate all missing text?",
+                            body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
+                            actionLabel: "Translate all",
+                            onConfirm: () => translateScope("language", { source: board }),
+                          })
+                        }
+                      />
+                    </Tooltip>
                     <Popover
                       active={pageMenuOpen}
                       onClose={() => setPageMenuOpen(false)}
                       activator={
-                        <Button
-                          variant="tertiary"
-                          size="medium"
-                          accessibilityLabel="More actions"
-                          onClick={() => setPageMenuOpen((o) => !o)}
-                        >
-                          ⋯
-                        </Button>
+                        <Tooltip content="More actions">
+                          <Button
+                            variant="tertiary"
+                            size="medium"
+                            accessibilityLabel="More actions"
+                            onClick={() => setPageMenuOpen((o) => !o)}
+                          >
+                            ⋯
+                          </Button>
+                        </Tooltip>
                       }
                     >
                       <ActionList
@@ -997,7 +1165,7 @@ export default function Dashboard({
                       appliedFilters={appliedFilters}
                       onQueryChange={() => {}}
                       onQueryClear={() => {}}
-                      onClearAll={() => setStatusFilter("all")}
+                      onClearAll={clearAllFilters}
                     />
                   </div>
                 </BlockStack>
@@ -1023,7 +1191,9 @@ export default function Dashboard({
                 <Text as="p" tone="subdued">
                   {searching
                     ? `No text matches “${query}” in this language.`
-                    : "No translatable content found for this language yet."}
+                    : hasAnyFilter
+                      ? "No content matches the selected filters."
+                      : "No translatable content found for this language yet."}
                 </Text>
               </Box>
             ) : (
@@ -1101,6 +1271,8 @@ export default function Dashboard({
                             collection={c}
                             language={selectedLang}
                             search={query}
+                            filterKey={advancedFilters}
+                            filterParams={advancedFilterParams}
                             collapsed={collapsedIds.has(c.id)}
                             onToggleCollapsed={() => toggleCollapsed(c.id)}
                             onMutate={(patch) => afterMutate(c.id, patch)}
@@ -1123,7 +1295,7 @@ export default function Dashboard({
                 <Box padding="300">
                   <Text as="p" alignment="end" tone="subdued" variant="bodySm">
                     {totalDone} of {totalTexts} translated
-                    {searching ? " in matching text" : ""}
+                    {searching || hasAnyFilter ? " in filtered text" : ""}
                   </Text>
                 </Box>
               </>
@@ -1243,6 +1415,8 @@ function CollectionGroup({
   collection,
   language,
   search,
+  filterKey,
+  filterParams,
   collapsed,
   onToggleCollapsed,
   onMutate,
@@ -1271,10 +1445,10 @@ function CollectionGroup({
   }, [collapsed]);
 
   const textsQ = useQuery({
-    queryKey: ["texts", c.id, language, search],
+    queryKey: ["texts", c.id, language, search, filterKey],
     queryFn: async ({ signal }) => {
       const res = await api.get(
-        `/collections/${enc(c.id)}/texts?language=${enc(language)}${search ? `&search=${enc(search)}` : ""}`,
+        `/collections/${enc(c.id)}/texts?language=${enc(language)}${search ? `&search=${enc(search)}` : ""}${filterParams}`,
         { signal }
       );
       if (!res.ok) {
@@ -1286,6 +1460,25 @@ function CollectionGroup({
   });
   const allTexts = textsQ.data?.texts ?? [];
   const rows = allTexts.slice(0, shown);
+
+  // Stale tl_html rows: text nobody (marking mode or the background crawl)
+  // has re-encountered in the grace window. Html-only — staleness has no
+  // meaning for the other collection types.
+  const staleQ = useQuery({
+    queryKey: ["html-stale", c.id, language],
+    queryFn: async ({ signal }) => {
+      const res = await api.get(
+        `/collections/${enc(c.id)}/stale?language=${enc(language)}`,
+        { signal }
+      );
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: c.id === "html:all" && !collapsed && settled,
+  });
+  const staleCount = staleQ.data?.texts?.length ?? 0;
 
   function confirmAiGroup() {
     onConfirm({
@@ -1326,6 +1519,27 @@ function CollectionGroup({
     });
   }
 
+  async function deleteStale() {
+    setMenuOpen(false);
+    const res = await api.post(`/collections/${enc(c.id)}/delete-stale`, {
+      language,
+    });
+    if (res.ok) {
+      onMutate(res);
+      staleQ.refetch();
+    }
+  }
+
+  function confirmDeleteStale() {
+    onConfirm({
+      title: "Delete stale text?",
+      body: `${staleCount} ${staleCount === 1 ? "text hasn't" : "texts haven't"} been seen on the site in over 30 days. Deleting removes them and their translations permanently — this cannot be undone.`,
+      actionLabel: "Delete stale",
+      destructive: true,
+      onConfirm: deleteStale,
+    });
+  }
+
   // Ignore all / Clear all are whole-collection on the server. Offering them beside
   // a filtered row list would read as "ignore these 3", so they hide during a search;
   // the preview link is scope-free and stays.
@@ -1357,6 +1571,15 @@ function CollectionGroup({
             destructive: true,
             onAction: confirmClearAll,
           },
+          ...(c.id === "html:all" && staleCount > 0
+            ? [
+                {
+                  content: `Delete stale (${staleCount})`,
+                  destructive: true,
+                  onAction: confirmDeleteStale,
+                },
+              ]
+            : []),
         ]),
   ];
 
@@ -1507,10 +1730,15 @@ function TextUnitRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
 
-  const badge = STATUS_BADGE[unit.status];
   const shown = unit.translated ?? unit.fallback;
   const hasTranslation =
     unit.translated !== null && unit.translated !== undefined;
+  const badge =
+    unit.status === "needs_review"
+      ? STATUS_BADGE.needs_review
+      : hasTranslation
+        ? STATUS_BADGE.translated
+        : null;
 
   // "Long" = the original doesn't fit on one line in its cell at the current
   // width. Measured, so it adapts to screen/column size instead of a fixed

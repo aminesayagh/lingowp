@@ -10,6 +10,7 @@ use TransLangs\Core\Source\Base\SourceRecord;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Type\SplitPostSource;
 use TransLangs\Core\Source\Type\TermSource;
+use TransLangs\Core\Parsing\SeoTemplateVariables;
 use TransLangs\Core\Text\TL_Key;
 use TransLangs\Core\Source\Type\TranslatableMetaKeys;
 
@@ -130,6 +131,13 @@ final class StructuredSourceScanner
     }
 
     /**
+     * Filtering happens HERE rather than inside PostMetaValuePaths::isTranslatable()
+     * because the variable grammar depends on the meta key, which only this scope
+     * knows — and because that filter is shared by every allow-listed key, so an
+     * SEO-specific rule there would change behaviour for WooCommerce and custom
+     * fields too. extract() has already flattened scalar, array and JSON leaves,
+     * so filtering its output still covers all of them.
+     *
      * @return SourceRecord[]
      */
     private function metaCandidates(int $postId, string $metaKey, mixed $value): array
@@ -137,6 +145,11 @@ final class StructuredSourceScanner
         $records = [];
 
         foreach (PostMetaValuePaths::extract($value) as $leaf) {
+            // A pure template ("%%title%% %%sep%% %%sitename%%") holds no words:
+            // storing it only invites a translator to break the variables.
+            if (!SeoTemplateVariables::hasTranslatableProse($metaKey, $leaf['text'])) {
+                continue;
+            }
             $records[] = new PostMetaSource($postId, $metaKey, $leaf['context'], $leaf['text']);
         }
 

@@ -2,7 +2,9 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Discovery\HtmlDiscoveryCrawl;
 use TransLangs\Discovery\InitialDiscoveryScan;
+use TransLangs\Discovery\SeoDiscoveryRescan;
 use WP_REST_Response;
 
 /**
@@ -20,8 +22,11 @@ final class ScanRestController
 {
     private const NS = 'translangs/v1';
 
-    public function __construct(private InitialDiscoveryScan $scan)
-    {
+    public function __construct(
+        private InitialDiscoveryScan $scan,
+        private SeoDiscoveryRescan $seoRescan,
+        private HtmlDiscoveryCrawl $htmlCrawl
+    ) {
     }
 
     public function register(): void
@@ -39,6 +44,16 @@ final class ScanRestController
         register_rest_route(self::NS, '/scan/refresh', [
             'methods'             => 'POST',
             'callback'            => [$this, 'refresh'],
+            'permission_callback' => [$this, 'canManage'],
+        ]);
+        register_rest_route(self::NS, '/scan/seo', [
+            'methods'             => 'POST',
+            'callback'            => [$this, 'rescanSeo'],
+            'permission_callback' => [$this, 'canManage'],
+        ]);
+        register_rest_route(self::NS, '/scan/html', [
+            'methods'             => 'POST',
+            'callback'            => [$this, 'rescanHtml'],
             'permission_callback' => [$this, 'canManage'],
         ]);
     }
@@ -66,6 +81,40 @@ final class ScanRestController
         $this->scan->maybeEnqueue();
 
         return rest_ensure_response(['ok' => true, 'status' => $this->deriveStatus()]);
+    }
+
+    /**
+     * Rescan SEO meta only — for data that arrived without firing a save hook
+     * (direct-SQL importers, or SEO fields that predate Translangs).
+     *
+     * Separate from /scan/refresh on purpose: this is proportional to the SEO data
+     * present rather than to the whole site, and it must stay available even when
+     * `activated_plugin` never fires — WordPress skips that hook on silent
+     * activation, so the automatic trigger alone would leave gaps.
+     */
+    public function rescanSeo(): WP_REST_Response
+    {
+        $queued = $this->seoRescan->start();
+
+        return rest_ensure_response([
+            'ok'     => $queued,
+            'status' => $queued ? 'running' : 'unavailable',
+        ]);
+    }
+
+    /**
+     * Manual trigger for the background HTML crawl (sweeps every known public
+     * URL for hardcoded markup). Same shape as rescanSeo() — start() itself
+     * coalesces with any already-running sweep, so repeated clicks are safe.
+     */
+    public function rescanHtml(): WP_REST_Response
+    {
+        $queued = $this->htmlCrawl->start();
+
+        return rest_ensure_response([
+            'ok'     => $queued,
+            'status' => $queued ? 'running' : 'unavailable',
+        ]);
     }
 
     private function deriveStatus(): string
