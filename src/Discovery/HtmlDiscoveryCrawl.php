@@ -33,7 +33,19 @@ final class HtmlDiscoveryCrawl
     /** Staleness grace period: see WpDbSourceTranslationRepository::flagStaleHtmlSources(). */
     private const STALE_GRACE_DAYS = 30;
 
-    private const BATCH = 200;
+    /**
+     * Deliberately much smaller than InitialDiscoveryScan's 200: each unit of
+     * work here is a blocking wp_remote_get() round-trip, not a cheap DB read,
+     * so a large batch risks the single Action Scheduler action running long
+     * enough to hit PHP's max_execution_time mid-batch (killing it before the
+     * next batch is even enqueued). Many small, fast batches let Action
+     * Scheduler's own cadence pace the crawl instead.
+     */
+    private const BATCH = 15;
+
+    /** Per-URL fetch timeout. Short on purpose — a slow/hanging page should
+     * not block the rest of a batch; it just gets deferred to marking mode. */
+    private const FETCH_TIMEOUT_SECONDS = 8;
 
     public function __construct(
         private \wpdb $wpdb,
@@ -180,7 +192,7 @@ final class HtmlDiscoveryCrawl
     private function crawlUrl(string $url): void
     {
         $response = wp_remote_get(CrawlRequestMarker::urlWithMarker($url), [
-            'timeout'   => 15,
+            'timeout'   => self::FETCH_TIMEOUT_SECONDS,
             // Loopback request to the site's own domain — matches core's own
             // convention for self-requests (e.g. spawn_cron()'s loopback ping).
             'sslverify' => apply_filters('https_local_ssl_verify', false),
