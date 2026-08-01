@@ -179,6 +179,29 @@ final class OptionLanguageRegistry implements LanguageRegistry
         }
     }
 
+    /**
+     * Fully retire a code from both rosters — unlike disableLanguage(), which
+     * deliberately keeps a soft-disabled target in `existing` so re-enabling is
+     * instant. Used when a target is promoted to source: it is not a retired
+     * target, it IS the source now, so it should not linger in either list.
+     */
+    public function forgetLanguage(string $code): void
+    {
+        $code = $this->sanitize($code);
+
+        $active = array_values(array_filter(
+            $this->getTargetLanguages(),
+            static fn(string $c): bool => $c !== $code
+        ));
+        $this->writeList(self::OPTION_ACTIVE, $active);
+
+        $existing = array_values(array_filter(
+            $this->existingLanguages(),
+            static fn(string $c): bool => $c !== $code
+        ));
+        $this->writeList(self::OPTION_EXISTING, $existing);
+    }
+
     /** @return string[] */
     private function readList(string $option): array
     {

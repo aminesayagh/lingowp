@@ -192,8 +192,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             foreach ($chunk as $record) {
                 /** @var HtmlSource $record */
                 $identity  = $record->identity();
-                $selects[] = 'SELECT UNHEX(%s) AS selector_hash, UNHEX(%s) AS original_hash, %s AS source_url';
-                $args[]    = bin2hex($identity['selector_hash']);
+                $selects[] = 'SELECT UNHEX(%s) AS original_hash, %s AS source_url';
                 $args[]    = bin2hex($identity['original_hash']);
                 $args[]    = $record->sourceUrl();
             }
@@ -201,8 +200,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $incoming = implode(' UNION ALL ', $selects);
             $sql = "UPDATE {$table} p
                     INNER JOIN ({$incoming}) incoming
-                       ON incoming.selector_hash = p.selector_hash
-                      AND incoming.original_hash = p.original_hash
+                       ON incoming.original_hash = p.original_hash
                     SET p.source_url = incoming.source_url
                     WHERE NOT (p.source_url <=> incoming.source_url)";
 

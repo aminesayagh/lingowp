@@ -167,7 +167,15 @@ final class TableDefinitions
     }
 
     /**
-     * wp_tl_html — identity (selector_hash, original_hash). No content FK.
+     * wp_tl_html — identity is original_hash alone. No content FK.
+     *
+     * The same text is exactly one row regardless of how many DOM locations
+     * render it — the translation is already shared via the hash-link child
+     * table, so a second parent row per location would only duplicate review
+     * effort. selector/source_url are descriptive-only (admin preview/"field"
+     * display), first-discovered values kept as-is except source_url, which
+     * refreshHtmlSourceUrls() keeps current on rediscovery. See
+     * HtmlSource's class doc for the full reasoning.
      *
      * last_seen_at is bumped by every discovery pass (marking mode and the
      * background crawl alike) that re-encounters a row's hash, distinct from
@@ -180,7 +188,6 @@ final class TableDefinitions
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
     selector               varchar(255)     NOT NULL,
-    selector_hash          binary(32)       NOT NULL,
     source_url             text             NULL,
     original_hash          binary(32)       NOT NULL,
     original_text          longtext         NOT NULL,
@@ -189,8 +196,7 @@ final class TableDefinitions
     created_at             datetime         NOT NULL,
     updated_at             datetime         NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (selector_hash, original_hash),
-    KEY idx_hash (original_hash),
+    UNIQUE KEY uniq_source (original_hash),
     KEY idx_queue (status, id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }

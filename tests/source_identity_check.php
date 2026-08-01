@@ -113,7 +113,7 @@ $expected = [
     'SplitPostSource'  => [$split, ['post_id', 'field', 'original_hash']],
     'PostMetaSource'   => [$meta,  ['post_id', 'meta_key_hash', 'context_hash', 'original_hash']],
     'TermSource'       => [$term,  ['term_taxonomy_id', 'field', 'original_hash']],
-    'HtmlSource'       => [$html,  ['selector_hash', 'original_hash']],
+    'HtmlSource'       => [$html,  ['original_hash']],
     'StaticTextSource' => [$stat,  ['source', 'reference_hash', 'original_hash']],
     'OptionSource'     => [$opt,   ['option_id', 'option_path_hash', 'original_hash']],
 ];
@@ -142,8 +142,6 @@ ok('HtmlSource keeps the RIGHTMOST bytes', $capped === substr($long, -255));
 ok('HtmlSource leaves a 255-char selector alone',
     (new HtmlSource(str_repeat('b', 255), null, 'x'))->selector() === str_repeat('b', 255));
 ok('HtmlSource rejects empty selector', throws(fn() => new HtmlSource('   ', null, 'x')));
-ok('HtmlSource selector_hash is sha256 of the selector',
-    $html->identity()['selector_hash'] === hash('sha256', 'body>main>h1', true));
 ok('HtmlSource strips scheme and domain from source URL',
     $html->sourceUrl() === '/');
 ok('HtmlSource preserves path and query only',

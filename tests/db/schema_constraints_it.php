@@ -118,7 +118,7 @@ $expectedUniq = [
     'tl_meta'       => ['post_id', 'meta_key_hash', 'context_hash', 'original_hash'],
     'tl_term'       => ['term_taxonomy_id', 'field', 'original_hash'],
     'tl_staticText' => ['source', 'reference_hash', 'original_hash'],
-    'tl_html'       => ['selector_hash', 'original_hash'],
+    'tl_html'       => ['original_hash'],
     'tl_option'     => ['option_id', 'option_path_hash', 'original_hash'],
 ];
 
@@ -147,8 +147,15 @@ $plural = tl_index_cols($schema, TranslationMemorySchema::pluralTable(), 'uniq_p
 tl_ok('  tl_staticPluralText is 1:1 with its anchor', $plural === ['static_text_id'],
     'got ' . json_encode($plural));
 
-// idx_hash is what makes the orphan sweep's NOT EXISTS join cheap.
+// idx_hash is what makes the orphan sweep's NOT EXISTS join cheap, needed
+// wherever original_hash isn't the leftmost column of uniq_source. tl_html is
+// keyed on original_hash alone (see HtmlSource's class doc), so uniq_source
+// itself already covers the sweep's lookup there — a separate idx_hash would
+// just duplicate it.
 foreach ($expectedUniq as $key => $_) {
+    if ($key === 'tl_html') {
+        continue;
+    }
     $got = tl_index_cols($schema, $parents[$key], 'idx_hash');
     tl_ok("  {$key}.idx_hash exists (sweep depends on it)", $got === ['original_hash'],
         'got ' . json_encode($got));

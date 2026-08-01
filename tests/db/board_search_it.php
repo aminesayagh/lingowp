@@ -109,22 +109,19 @@ tl_ok('title source row found', $titleId > 0, "id=$titleId");
 
 $htmlTable = TranslationMemorySchema::parentTables()['tl_html'];
 $htmlUrl   = tl_var(
-    "SELECT source_url FROM {$htmlTable} WHERE selector_hash = UNHEX(%s) AND original_hash = UNHEX(%s)",
-    hash('sha256', '.tl-test-block'),
+    "SELECT source_url FROM {$htmlTable} WHERE original_hash = UNHEX(%s)",
     strtolower(bin2hex(TL_Key::currentHash('TLTEST html needle')))
 );
 tl_ok('HTML source URL stores no domain', $htmlUrl === '/', "source_url=$htmlUrl");
 
 $wpdb->update($htmlTable, ['source_url' => 'https://legacy.example.test/old-path/'], [
-    'selector_hash' => hex2bin(hash('sha256', '.tl-test-block')),
     'original_hash' => TL_Key::currentHash('TLTEST html needle'),
 ]);
 $repo->upsertSources([
     new HtmlSource('.tl-test-block', 'https://example.test/repaired-path/?page=2', 'TLTEST html needle'),
 ]);
 $repairedUrl = tl_var(
-    "SELECT source_url FROM {$htmlTable} WHERE selector_hash = UNHEX(%s) AND original_hash = UNHEX(%s)",
-    hash('sha256', '.tl-test-block'),
+    "SELECT source_url FROM {$htmlTable} WHERE original_hash = UNHEX(%s)",
     strtolower(bin2hex(TL_Key::currentHash('TLTEST html needle')))
 );
 tl_ok('HTML rediscovery repairs a legacy absolute URL', $repairedUrl === '/repaired-path/?page=2', "source_url=$repairedUrl");

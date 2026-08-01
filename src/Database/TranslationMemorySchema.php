@@ -18,7 +18,7 @@ use TransLangs\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '21';
+    public const DB_VERSION        = '22';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
@@ -101,6 +101,10 @@ class TranslationMemorySchema
 
         // 2d. Upgrade path: an existing wp_tl_html (pre-v21) lacks last_seen_at.
         self::migrateHtmlLastSeenAt();
+
+        // 2e. Upgrade path: an existing wp_tl_html (pre-v22) is keyed
+        // (selector_hash, original_hash) instead of original_hash alone.
+        self::migrateHtmlIdentityToHashOnly();
 
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
         $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
@@ -254,6 +258,56 @@ class TranslationMemorySchema
         }
 
         $wpdb->query("ALTER TABLE {$table} ADD COLUMN last_seen_at datetime NULL"); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+    }
+
+    /**
+     * Collapse an existing wp_tl_html (pre-v22) from identity
+     * (selector_hash, original_hash) to original_hash alone. The same text at
+     * two DOM locations used to mint two parent rows sharing one translation
+     * (the child table was always keyed by original_hash alone) — cluttering
+     * the flat html:all board without ever producing a second translation, so
+     * collapsing the parent identity loses nothing translation-wise.
+     *
+     * Guarded by an information_schema column check so it never re-runs or
+     * touches a freshly created table (which is already original_hash-only
+     * via TableDefinitions::html()). Existing duplicates are deduped — lowest
+     * id per original_hash kept — before the unique key is rebuilt, since
+     * MySQL would otherwise reject a UNIQUE KEY the current duplicate rows
+     * already violate.
+     */
+    private static function migrateHtmlIdentityToHashOnly(): void
+    {
+        global $wpdb;
+
+        $table = self::parentTables()['tl_html'];
+
+        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
+            $wpdb->prepare(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'selector_hash'",
+                $table
+            )
+        );
+
+        if ($hasColumn !== 'selector_hash') {
+            return;
+        }
+
+        // Keep the earliest row per original_hash; later duplicates are pure
+        // location clutter now that the parent identity is hash-only.
+        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            "DELETE p1 FROM {$table} p1
+                INNER JOIN {$table} p2
+                    ON p2.original_hash = p1.original_hash AND p2.id < p1.id"
+        );
+
+        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            "ALTER TABLE {$table}
+                DROP INDEX uniq_source,
+                DROP INDEX idx_hash,
+                DROP COLUMN selector_hash,
+                ADD UNIQUE KEY uniq_source (original_hash)"
+        );
     }
 
     /** Storage engine of one table per information_schema, or null if unknown. */

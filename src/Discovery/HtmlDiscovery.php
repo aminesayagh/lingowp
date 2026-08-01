@@ -43,11 +43,23 @@ final class HtmlDiscovery
             return;
         }
 
-        $hashes = array_map(static fn(HtmlSource $s): string => $s->originalHash(), $units);
+        // Collapse candidates sharing an original_hash to one per pass. tl_html
+        // is keyed on original_hash alone (see HtmlSource's class doc), so this
+        // is not needed to prevent a duplicate row — INSERT IGNORE already
+        // guarantees that. It avoids handing upsertSources()/
+        // refreshHtmlSourceUrls() two source_url candidates for the same hash
+        // in one call, which would otherwise update the row's source_url via
+        // an arbitrary, non-deterministic pick between them.
+        $candidates = [];
+        foreach ($units as $unit) {
+            $candidates[bin2hex($unit->originalHash())] ??= $unit;
+        }
+
+        $hashes = array_map(static fn(HtmlSource $s): string => $s->originalHash(), $candidates);
         $owned  = $this->ownedIndex->ownedHexes($hashes);
 
         $records = array_values(array_filter(
-            $units,
+            $candidates,
             static fn(HtmlSource $s): bool => !isset($owned[bin2hex($s->originalHash())])
         ));
 

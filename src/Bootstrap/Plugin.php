@@ -4,6 +4,7 @@ namespace TransLangs\Bootstrap;
 
 use TransLangs\Admin\AdminAssets;
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\Language\Application\SourceLanguageTransition;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Rendering\StaticText\GettextResolver;
 use TransLangs\Localization\HreflangPresenter;
@@ -34,6 +35,7 @@ use TransLangs\Discovery\SeoDiscoveryRescan;
 use TransLangs\Discovery\SourceLifecycleRefresher;
 use TransLangs\Discovery\StructuredSourceScanner;
 use TransLangs\Database\OrphanTranslationSweep;
+use TransLangs\Database\SourceLanguageSnapshot;
 use TransLangs\Database\TranslationMemorySchema;
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\BackendEndpointResolver;
@@ -62,6 +64,20 @@ class Plugin
         TranslationMemorySchema::maybeUpgrade();
 
         $languageRegistry = new OptionLanguageRegistry();
+
+        // Reacts to WordPress's own Site Language changing after setup. Not
+        // gated to isBackendContext()/is_admin(): WPLANG can change via
+        // wp-admin, but also WP-CLI or an importer, neither of which is
+        // is_admin(), REST_REQUEST, or wp_doing_cron() — same reasoning as
+        // SeoDiscoveryRescan/HtmlDiscoveryCrawl below being registered
+        // unconditionally.
+        (new SourceLanguageTransition(
+            $languageRegistry,
+            new LanguageMetadataStore(),
+            new SourceLanguageSnapshot($wpdb),
+            $wpdb
+        ))->register();
+
         $languageResolver = new ResolveRequestLanguage($languageRegistry);
 
         $urlBuilder = new LocalizedUrlBuilder($languageResolver);
