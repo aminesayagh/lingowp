@@ -3,9 +3,9 @@
 namespace TransLangs\Language\Domain;
 
 /**
- * Converts WordPress locale strings to short language codes.
+ * Canonicalizes WordPress locale identifiers without discarding region.
  *
- * e.g. en_US → en, fr_FR → fr, pt_BR → pt, ar → ar.
+ * e.g. en-us → en_US, fr_fr → fr_FR, pt_BR → pt_BR, ar → ar.
  */
 final class LocaleNormalizer
 {
@@ -15,8 +15,32 @@ final class LocaleNormalizer
 
     public static function normalize(string $locale): string
     {
-        $pos = strpos($locale, '_');
-        return $pos !== false ? substr($locale, 0, $pos) : $locale;
+        $parts = array_values(array_filter(explode('_', str_replace('-', '_', trim($locale))), 'strlen'));
+        if ($parts === [] || !preg_match('/^[A-Za-z]{2,3}$/', $parts[0])) {
+            return '';
+        }
+
+        $parts[0] = strtolower($parts[0]);
+        if (isset($parts[1]) && preg_match('/^[A-Za-z]{2}$/', $parts[1])) {
+            $parts[1] = strtoupper($parts[1]);
+        }
+        for ($i = 2; $i < count($parts); $i++) {
+            $parts[$i] = strtolower($parts[$i]);
+        }
+
+        return implode('_', $parts);
+    }
+
+    public static function language(string $locale): string
+    {
+        return explode('_', self::normalize($locale))[0] ?? '';
+    }
+
+    public static function region(string $locale): string
+    {
+        $parts = explode('_', self::normalize($locale));
+
+        return isset($parts[1]) && preg_match('/^[A-Z]{2}$/', $parts[1]) ? $parts[1] : '';
     }
 
     public static function current(): string

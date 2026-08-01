@@ -37,6 +37,7 @@ import { api } from "../api";
 import SettingsModal from "./SettingsModal";
 import ExportImportModal from "./ExportImportModal";
 import LanguageManagerModal from "./LanguageManagerModal";
+import OnboardingPage from "./OnboardingPage";
 import LanguageList, { flagEmoji } from "./LanguageList";
 import CompareOverlay from "./CompareOverlay";
 import QuotaCard from "./QuotaCard";
@@ -169,6 +170,9 @@ export default function Dashboard({
 }) {
   const queryClient = useQueryClient();
   const [languages, setLanguages] = useState([]);
+  // null means the REST request is still pending; an empty array is a completed
+  // response with no additional WordPress locales available.
+  const [languageCatalog, setLanguageCatalog] = useState(null);
   const [selectedLang, setSelectedLang] = useState("");
   const [search, setSearch] = useState("");
   // The debounced term actually sent to the server ("" = not searching).
@@ -291,9 +295,8 @@ export default function Dashboard({
       content:
         `Translated ${res.translated} text${res.translated === 1 ? "" : "s"}.` +
         (failed > 0
-          ? ` ${failed} ${
-              failed === 1 ? "was" : "were"
-            } rejected because protected variables or formatting changed.`
+          ? ` ${failed} ${failed === 1 ? "was" : "were"
+          } rejected because protected variables or formatting changed.`
           : ""),
     });
     if (res.collection_summary) {
@@ -319,9 +322,8 @@ export default function Dashboard({
   function translateLanguageAll(lang) {
     setSelectedLang(lang.code);
     setConfirm({
-      title: `AI translate all of ${
-        lang.display_name || lang.name || lang.code
-      }?`,
+      title: `AI translate all of ${lang.display_name || lang.name || lang.code
+        }?`,
       body: "All untranslated text in this language will be sent to AI translation and may use a large number of words.",
       actionLabel: "Translate all",
       onConfirm: () => translateScope("language", { language: lang.code }),
@@ -358,9 +360,13 @@ export default function Dashboard({
   function refreshLanguages() {
     api.get("/languages").then((res) => {
       if (!res.ok) {
+        // Resolve the pending state even when the request fails so the modal
+        // never leaves the user behind an endless loading message.
+        setLanguageCatalog([]);
         return;
       }
       const langs = res.languages || [];
+      setLanguageCatalog(res.catalog || []);
       setLanguages(langs);
       setSelectedLang((cur) => {
         if (cur && langs.some((l) => l.code === cur)) {
@@ -405,7 +411,7 @@ export default function Dashboard({
     queryFn: async ({ pageParam, signal }) => {
       const res = await api.get(
         `/collections?language=${enc(selectedLang)}&offset=${pageParam}&limit=${PAGE_SIZE}` +
-          `${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`,
+        `${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`,
         { signal }
       );
       if (!res.ok) {
@@ -428,25 +434,40 @@ export default function Dashboard({
   // on activation, then poll status the same way SettingUp.jsx does during
   // onboarding. On completion, refetch the board so newly discovered text
   // shows up without a full page reload.
+  //
+  // The HTML crawl also gets (re-)triggered by this same click, but it is
+  // deliberately NOT part of what's polled below — it's network-bound (one
+  // fetch per page) and can run far longer than the DB-only scan on a large
+  // site. Waiting for it would hold the dashboard hostage for no reason: the
+  // crawl keeps filling in tl_html in the background regardless, and newly
+  // discovered hardcoded text just shows up next time the html:all group is
+  // fetched (a manual refresh, reopening the group, etc.) — no spinner needed.
   function refreshScan() {
     if (refreshing) {
       return;
     }
     setRefreshing(true);
     setNotice({ tone: "info", content: "Rescanning your site…" });
-    api.post("/scan/refresh").then(pollScanStatus);
+    api.post("/scan/refresh").then((res) => {
+      pollScanStatus(res.html_status === "running");
+    });
   }
 
-  function pollScanStatus() {
+  function pollScanStatus(htmlCrawlRunning) {
     api.get("/scan/status").then((res) => {
       const status = res.status || "running";
       if (status === "running") {
-        setTimeout(pollScanStatus, 3000);
+        setTimeout(() => pollScanStatus(htmlCrawlRunning), 3000);
         return;
       }
       setRefreshing(false);
       if (status === "completed") {
-        setNotice({ tone: "success", content: "Scan complete." });
+        setNotice({
+          tone: "success",
+          content: htmlCrawlRunning
+            ? "Scan complete. We're still looking for more text on your site — check back soon."
+            : "Scan complete.",
+        });
         invalidateCollections();
       } else {
         setNotice({
@@ -751,25 +772,28 @@ export default function Dashboard({
   // Empty-language state: same shell, centered CTA (wireframe 1.3).
   if (view === "dashboard_empty_language" && languages.length === 0) {
     return (
-      <Page title="Translangs" fullWidth>
-        <Card>
-          <EmptyState
-            heading="Add your first language"
-            action={{
-              content: "Create a language",
-              onAction: () => openManager(null),
-            }}
-          >
-            <p>
-              Your site is ready. Create a language to start translating your
-              content.
-            </p>
-            <p>Need more later? Add them from the sidebar anytime.</p>
-          </EmptyState>
-        </Card>
+      <>
+        <OnboardingPage>
+          <Card>
+            <EmptyState
+              heading="Add your first language"
+              action={{
+                content: "Create a language",
+                onAction: () => openManager(null),
+              }}
+            >
+              <p>
+                Your site is ready. Create a language to start translating your
+                content.
+              </p>
+              <p>Need more later? Add them from the sidebar anytime.</p>
+            </EmptyState>
+          </Card>
+        </OnboardingPage>
         <LanguageManagerModal
           open={managerOpen}
           languages={languages}
+          catalog={languageCatalog}
           defaultCode={defaultCode}
           initialCode={managerInitial}
           onClose={() => setManagerOpen(false)}
@@ -778,7 +802,7 @@ export default function Dashboard({
             onLanguageCreated();
           }}
         />
-      </Page>
+      </>
     );
   }
 
@@ -887,38 +911,38 @@ export default function Dashboard({
     ...(statusFilter === "all"
       ? []
       : [{
-          key: "status",
-          label: `Status: ${FILTERS.find((f) => f.key === statusFilter)?.label}`,
-          onRemove: () => setStatusFilter("all"),
-        }]),
+        key: "status",
+        label: `Status: ${FILTERS.find((f) => f.key === statusFilter)?.label}`,
+        onRemove: () => setStatusFilter("all"),
+      }]),
     ...(originFilter.length === 0
       ? []
       : [{
-          key: "origin",
-          label: `Origin: ${selectedLabels(ORIGIN_FILTERS, originFilter)}`,
-          onRemove: () => setOriginFilter([]),
-        }]),
+        key: "origin",
+        label: `Origin: ${selectedLabels(ORIGIN_FILTERS, originFilter)}`,
+        onRemove: () => setOriginFilter([]),
+      }]),
     ...(contentTypeFilter.length === 0
       ? []
       : [{
-          key: "content_type",
-          label: `Content type: ${selectedLabels(CONTENT_TYPE_FILTERS, contentTypeFilter)}`,
-          onRemove: () => setContentTypeFilter([]),
-        }]),
+        key: "content_type",
+        label: `Content type: ${selectedLabels(CONTENT_TYPE_FILTERS, contentTypeFilter)}`,
+        onRemove: () => setContentTypeFilter([]),
+      }]),
     ...(textLengthFilter.length === 0
       ? []
       : [{
-          key: "text_length",
-          label: `Text length: ${selectedLabels(TEXT_LENGTH_FILTERS, textLengthFilter)}`,
-          onRemove: () => setTextLengthFilter([]),
-        }]),
+        key: "text_length",
+        label: `Text length: ${selectedLabels(TEXT_LENGTH_FILTERS, textLengthFilter)}`,
+        onRemove: () => setTextLengthFilter([]),
+      }]),
     ...(progressFilter.length === 0
       ? []
       : [{
-          key: "progress",
-          label: `Collection progress: ${selectedLabels(PROGRESS_FILTERS, progressFilter)}`,
-          onRemove: () => setProgressFilter([]),
-        }]),
+        key: "progress",
+        label: `Collection progress: ${selectedLabels(PROGRESS_FILTERS, progressFilter)}`,
+        onRemove: () => setProgressFilter([]),
+      }]),
   ];
 
   const clearAllFilters = () => {
@@ -1163,8 +1187,8 @@ export default function Dashboard({
                       hideQueryField
                       filters={filters}
                       appliedFilters={appliedFilters}
-                      onQueryChange={() => {}}
-                      onQueryClear={() => {}}
+                      onQueryChange={() => { }}
+                      onQueryClear={() => { }}
                       onClearAll={clearAllFilters}
                     />
                   </div>
@@ -1307,6 +1331,7 @@ export default function Dashboard({
       <LanguageManagerModal
         open={managerOpen}
         languages={languages}
+        catalog={languageCatalog}
         defaultCode={defaultCode}
         initialCode={managerInitial}
         onClose={() => setManagerOpen(false)}
@@ -1546,41 +1571,41 @@ function CollectionGroup({
   const bulkItems = [
     ...(c.preview_url
       ? [
-          {
-            content:
-              c.preview_target === "frontend"
-                ? "Show in canvas"
-                : "Edit in WordPress",
-            onAction: () => {
-              setMenuOpen(false);
-              openCanvas(c.preview_url, c.preview_target);
-            },
+        {
+          content:
+            c.preview_target === "frontend"
+              ? "Show in canvas"
+              : "Edit in WordPress",
+          onAction: () => {
+            setMenuOpen(false);
+            openCanvas(c.preview_url, c.preview_target);
           },
-        ]
+        },
+      ]
       : []),
     ...(searching
       ? []
       : [
-          {
-            content: "Ignore all",
-            destructive: true,
-            onAction: confirmIgnoreAll,
-          },
-          {
-            content: "Clear all",
-            destructive: true,
-            onAction: confirmClearAll,
-          },
-          ...(c.id === "html:all" && staleCount > 0
-            ? [
-                {
-                  content: `Delete stale (${staleCount})`,
-                  destructive: true,
-                  onAction: confirmDeleteStale,
-                },
-              ]
-            : []),
-        ]),
+        {
+          content: "Ignore all",
+          destructive: true,
+          onAction: confirmIgnoreAll,
+        },
+        {
+          content: "Clear all",
+          destructive: true,
+          onAction: confirmClearAll,
+        },
+        ...(c.id === "html:all" && staleCount > 0
+          ? [
+            {
+              content: `Delete stale (${staleCount})`,
+              destructive: true,
+              onAction: confirmDeleteStale,
+            },
+          ]
+          : []),
+      ]),
   ];
 
   return (
@@ -1589,85 +1614,85 @@ function CollectionGroup({
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-      <Box padding="300" background={open ? "bg-surface-secondary" : undefined}>
-        <InlineStack align="space-between" blockAlign="center" wrap={false}>
-          <button
-            type="button"
-            onClick={onToggleCollapsed}
-            style={{
-              all: "unset",
-              cursor: "pointer",
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <Text as="span" variant="bodyMd" fontWeight="medium">
-              {open ? "▾" : "▸"}
-            </Text>
-            <span
+        <Box padding="300" background={open ? "bg-surface-secondary" : undefined}>
+          <InlineStack align="space-between" blockAlign="center" wrap={false}>
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
               style={{
-                display: "inline-flex",
-                flexShrink: 0,
-                width: 16,
-                height: 16,
-                color: "var(--p-color-icon-subdued)",
+                all: "unset",
+                cursor: "pointer",
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
               }}
             >
-              <PageIcon fill="currentColor" width={16} height={16} />
-            </span>
-            <Text as="span" variant="bodyMd" fontWeight="medium">
-              {groupHeading(c)}
-            </Text>
-            {/* While searching, the server's counts describe the matching subset,
-                so `total` is the match count. */}
-            {searching && (
-              <Text as="span" variant="bodySm" tone="subdued">
-                {c.total} {c.total === 1 ? "match" : "matches"}
+              <Text as="span" variant="bodyMd" fontWeight="medium">
+                {open ? "▾" : "▸"}
               </Text>
-            )}
-          </button>
-          <div
-            style={{
-              opacity: hovered || menuOpen ? 1 : 0,
-              visibility: hovered || menuOpen ? "visible" : "hidden",
-              transition: "opacity 120ms ease",
-            }}
-          >
-          <InlineStack gap="100" blockAlign="center" wrap={false}>
-            {!searching && (
-              <Button
-                variant="tertiary"
-                size="micro"
-                disabled={!aiAvailable}
-                icon={(props) => <StartIcon {...props} />}
-                onClick={confirmAiGroup}
+              <span
+                style={{
+                  display: "inline-flex",
+                  flexShrink: 0,
+                  width: 16,
+                  height: 16,
+                  color: "var(--p-color-icon-subdued)",
+                }}
               >
-                Translate all
-              </Button>
-            )}
-            {bulkItems.length > 0 && (
-              <Popover
-                active={menuOpen}
-                onClose={() => setMenuOpen(false)}
-                activator={
+                <PageIcon fill="currentColor" width={16} height={16} />
+              </span>
+              <Text as="span" variant="bodyMd" fontWeight="medium">
+                {groupHeading(c)}
+              </Text>
+              {/* While searching, the server's counts describe the matching subset,
+                so `total` is the match count. */}
+              {searching && (
+                <Text as="span" variant="bodySm" tone="subdued">
+                  {c.total} {c.total === 1 ? "match" : "matches"}
+                </Text>
+              )}
+            </button>
+            <div
+              style={{
+                opacity: hovered || menuOpen ? 1 : 0,
+                visibility: hovered || menuOpen ? "visible" : "hidden",
+                transition: "opacity 120ms ease",
+              }}
+            >
+              <InlineStack gap="100" blockAlign="center" wrap={false}>
+                {!searching && (
                   <Button
                     variant="tertiary"
                     size="micro"
-                    onClick={() => setMenuOpen((o) => !o)}
+                    disabled={!aiAvailable}
+                    icon={(props) => <StartIcon {...props} />}
+                    onClick={confirmAiGroup}
                   >
-                    ⋯
+                    Translate all
                   </Button>
-                }
-              >
-                <ActionList items={bulkItems} />
-              </Popover>
-            )}
+                )}
+                {bulkItems.length > 0 && (
+                  <Popover
+                    active={menuOpen}
+                    onClose={() => setMenuOpen(false)}
+                    activator={
+                      <Button
+                        variant="tertiary"
+                        size="micro"
+                        onClick={() => setMenuOpen((o) => !o)}
+                      >
+                        ⋯
+                      </Button>
+                    }
+                  >
+                    <ActionList items={bulkItems} />
+                  </Popover>
+                )}
+              </InlineStack>
+            </div>
           </InlineStack>
-          </div>
-        </InlineStack>
-      </Box>
+        </Box>
       </div>
       <Collapsible open={open} id={`col-${c.id}`}>
         <Box paddingBlockEnd="200" paddingInlineStart="1000">
@@ -1874,108 +1899,108 @@ function TextUnitRow({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-    <Box paddingInline="300" paddingBlock="200">
-      <InlineStack
-        gap="300"
-        align="space-between"
-        blockAlign="center"
-        wrap={false}
-      >
-        <Box width="42%" minWidth="0">
-          <button
-            ref={originalRef}
-            type="button"
-            onClick={clickable ? () => onOpenOverlay(unit) : undefined}
-            disabled={!clickable}
-            style={{ ...oneLineStyle, cursor: clickable ? "pointer" : "default" }}
-          >
-            <Text as="span" variant="bodySm">
-              {originalText}
-            </Text>
-          </button>
-        </Box>
-
-        <Box width="42%" minWidth="0">
-          {clickable ? (
+      <Box paddingInline="300" paddingBlock="200">
+        <InlineStack
+          gap="300"
+          align="space-between"
+          blockAlign="center"
+          wrap={false}
+        >
+          <Box width="42%" minWidth="0">
             <button
+              ref={originalRef}
               type="button"
-              onClick={() => onOpenOverlay(unit)}
-              style={oneLineStyle}
+              onClick={clickable ? () => onOpenOverlay(unit) : undefined}
+              disabled={!clickable}
+              style={{ ...oneLineStyle, cursor: clickable ? "pointer" : "default" }}
             >
-              <Text
-                as="span"
-                variant="bodySm"
-                tone={hasTranslation ? undefined : "subdued"}
-              >
-                {shownText}
+              <Text as="span" variant="bodySm">
+                {originalText}
               </Text>
             </button>
-          ) : (
-            <input
-              type="text"
-              aria-label="Translation"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={saveTranslation}
-              placeholder={unit.fallback || ""}
-              style={{
-                all: "unset",
-                display: "block",
-                width: "100%",
-                minWidth: 0,
-                cursor: "text",
-                fontSize: "var(--p-font-size-300, 0.75rem)",
-                lineHeight: "var(--p-font-line-height-300, 1rem)",
-                color: hasTranslation
-                  ? "var(--p-color-text)"
-                  : "var(--p-color-text-subdued)",
-              }}
-            />
-          )}
-        </Box>
+          </Box>
 
-        <Box width="16%">
-          <InlineStack gap="100" align="end" blockAlign="center" wrap={false}>
-            {isComposed && (hovered || menuOpen) && (
-              <Tooltip content="This text contains inline formatting (links, bold, etc.). Open it to edit — the formatting is kept for you.">
-                <Badge tone="info" size="small">
-                  Rich text
-                </Badge>
-              </Tooltip>
-            )}
-            {unit.is_ai && <Badge size="small">AI</Badge>}
-            {badge && (
-              <Badge tone={badge.tone} size="small">
-                {badge.label}
-              </Badge>
-            )}
-            <div
-              style={{
-                opacity: hovered || menuOpen ? 1 : 0,
-                visibility: hovered || menuOpen ? "visible" : "hidden",
-                transition: "opacity 120ms ease",
-              }}
-            >
-              <Popover
-                active={menuOpen}
-                onClose={() => setMenuOpen(false)}
-                activator={
-                  <Button
-                    variant="tertiary"
-                    size="micro"
-                    onClick={() => setMenuOpen((o) => !o)}
-                  >
-                    ⋯
-                  </Button>
-                }
+          <Box width="42%" minWidth="0">
+            {clickable ? (
+              <button
+                type="button"
+                onClick={() => onOpenOverlay(unit)}
+                style={oneLineStyle}
               >
-                <ActionList items={menuItems} />
-              </Popover>
-            </div>
-          </InlineStack>
-        </Box>
-      </InlineStack>
-    </Box>
+                <Text
+                  as="span"
+                  variant="bodySm"
+                  tone={hasTranslation ? undefined : "subdued"}
+                >
+                  {shownText}
+                </Text>
+              </button>
+            ) : (
+              <input
+                type="text"
+                aria-label="Translation"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={saveTranslation}
+                placeholder={unit.fallback || ""}
+                style={{
+                  all: "unset",
+                  display: "block",
+                  width: "100%",
+                  minWidth: 0,
+                  cursor: "text",
+                  fontSize: "var(--p-font-size-300, 0.75rem)",
+                  lineHeight: "var(--p-font-line-height-300, 1rem)",
+                  color: hasTranslation
+                    ? "var(--p-color-text)"
+                    : "var(--p-color-text-subdued)",
+                }}
+              />
+            )}
+          </Box>
+
+          <Box width="16%">
+            <InlineStack gap="100" align="end" blockAlign="center" wrap={false}>
+              {isComposed && (hovered || menuOpen) && (
+                <Tooltip content="This text contains inline formatting (links, bold, etc.). Open it to edit — the formatting is kept for you.">
+                  <Badge tone="info" size="small">
+                    Rich text
+                  </Badge>
+                </Tooltip>
+              )}
+              {unit.is_ai && <Badge size="small">AI</Badge>}
+              {badge && (
+                <Badge tone={badge.tone} size="small">
+                  {badge.label}
+                </Badge>
+              )}
+              <div
+                style={{
+                  opacity: hovered || menuOpen ? 1 : 0,
+                  visibility: hovered || menuOpen ? "visible" : "hidden",
+                  transition: "opacity 120ms ease",
+                }}
+              >
+                <Popover
+                  active={menuOpen}
+                  onClose={() => setMenuOpen(false)}
+                  activator={
+                    <Button
+                      variant="tertiary"
+                      size="micro"
+                      onClick={() => setMenuOpen((o) => !o)}
+                    >
+                      ⋯
+                    </Button>
+                  }
+                >
+                  <ActionList items={menuItems} />
+                </Popover>
+              </div>
+            </InlineStack>
+          </Box>
+        </InlineStack>
+      </Box>
     </div>
   );
 }

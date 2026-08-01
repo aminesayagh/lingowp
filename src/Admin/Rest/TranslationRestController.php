@@ -2,6 +2,8 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Language\Domain\LocaleNormalizer;
+
 use TransLangs\Core\Parsing\TranslationSubmissionGuard;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Value\SourceRef;
@@ -143,7 +145,7 @@ final class TranslationRestController
     /** Selected target language, defaulting to the first enabled target. */
     private function resolveLang(WP_REST_Request $request): string
     {
-        $lang = sanitize_key((string) $request->get_param('language'));
+        $lang = LocaleNormalizer::normalize((string) $request->get_param('language'));
         if ($lang !== '') {
             return $lang;
         }

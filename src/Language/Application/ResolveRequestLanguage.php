@@ -3,6 +3,7 @@
 namespace TransLangs\Language\Application;
 
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\Language\Domain\LocaleNormalizer;
 
 /**
  * Decides the active language for the current request.
@@ -71,6 +72,16 @@ class ResolveRequestLanguage
         return $this->registry->isEnabledLanguage($lang);
     }
 
+    public function slugForLanguage(string $lang): string
+    {
+        return $this->registry->slugForLanguage($lang);
+    }
+
+    public function languageForSlug(string $slug): ?string
+    {
+        return $this->registry->languageForSlug($slug);
+    }
+
     public function isTranslatedRequest(): bool
     {
         return $this->resolve() !== $this->getDefaultLanguage();
@@ -116,7 +127,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->validate(sanitize_key(wp_unslash($_GET['translangs_preview'])));
+        return $this->validate(wp_unslash($_GET['translangs_preview']));
         // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
@@ -140,8 +151,8 @@ class ResolveRequestLanguage
             return $this->getDefaultLanguage();
         }
 
-        $first = strtolower(explode('/', $path)[0]);
-        if ($this->isEnabledLanguage($first)) {
+        $first = rawurldecode(explode('/', $path)[0]);
+        if ($this->languageForSlug($first) !== null) {
             return null;
         }
 
@@ -158,7 +169,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->validate(sanitize_key(wp_unslash($_COOKIE[self::COOKIE_NAME])));
+        return $this->validate(wp_unslash($_COOKIE[self::COOKIE_NAME]));
     }
 
     /**
@@ -173,10 +184,17 @@ class ResolveRequestLanguage
 
         $accept = sanitize_text_field(wp_unslash($_SERVER['HTTP_ACCEPT_LANGUAGE']));
 
-        foreach ($this->parseAcceptLanguage($accept) as $code) {
-            $valid = $this->validate($code);
+        foreach ($this->parseAcceptLanguage($accept) as $locale) {
+            $valid = $this->validate($locale);
             if ($valid !== null) {
                 return $valid;
+            }
+
+            $language = LocaleNormalizer::language($locale);
+            foreach ($this->getEnabledLanguages() as $enabled) {
+                if (LocaleNormalizer::language($enabled) === $language) {
+                    return $enabled;
+                }
             }
         }
 
@@ -192,7 +210,7 @@ class ResolveRequestLanguage
      */
     private function validate(string $lang): ?string
     {
-        $lang = sanitize_key($lang);
+        $lang = LocaleNormalizer::normalize($lang);
 
         return ($lang !== '' && $this->isEnabledLanguage($lang)) ? $lang : null;
     }
@@ -231,7 +249,7 @@ class ResolveRequestLanguage
         }
 
         $current = isset($_COOKIE[self::COOKIE_NAME])
-            ? sanitize_key(wp_unslash($_COOKIE[self::COOKIE_NAME]))
+            ? LocaleNormalizer::normalize(wp_unslash($_COOKIE[self::COOKIE_NAME]))
             : '';
 
         if ($current === $lang) {
@@ -251,7 +269,7 @@ class ResolveRequestLanguage
 
     /**
      * Parse an Accept-Language header into base codes, ordered by q-weight.
-     * "fr-CA,fr;q=0.9,en;q=0.8" => ['fr', 'fr', 'en']
+     * "fr-CA,fr;q=0.9,en;q=0.8" => ['fr_CA', 'fr', 'en']
      *
      * @return string[]
      */
@@ -261,16 +279,14 @@ class ResolveRequestLanguage
 
         foreach (explode(',', $header) as $part) {
             $bits = explode(';q=', trim($part));
-            $tag  = strtolower(trim($bits[0]));
+            $tag  = LocaleNormalizer::normalize(trim($bits[0]));
             $q    = isset($bits[1]) ? (float) $bits[1] : 1.0;
 
             if ($tag === '') {
                 continue;
             }
 
-            // Reduce "fr-CA" to "fr".
-            $base     = explode('-', $tag)[0];
-            $ranked[] = ['code' => $base, 'q' => $q];
+            $ranked[] = ['code' => $tag, 'q' => $q];
         }
 
         usort($ranked, static fn($a, $b) => $b['q'] <=> $a['q']);

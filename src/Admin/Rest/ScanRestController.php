@@ -74,13 +74,28 @@ final class ScanRestController
      * — a REST request has already passed `init` by the time this callback
      * runs, so waiting on the hook would delay the actual scan start until some
      * later request.
+     *
+     * Also fires the HTML crawl, but deliberately fire-and-forget: `status`
+     * (what the caller polls) reflects only the fast DB-only scan above.
+     * The crawl is network-bound and can take much longer on a large site —
+     * making the dashboard wait for it would block on nothing the admin
+     * actually needs to see right away. New hardcoded HTML simply appears in
+     * the html:all collection whenever it's next fetched, no polling needed.
+     * `html_status` rides along only as an informational hint for the
+     * completion notice, never polled itself.
      */
     public function refresh(): WP_REST_Response
     {
         update_option(InitialDiscoveryScan::OPTION_FLAG, 1);
         $this->scan->maybeEnqueue();
 
-        return rest_ensure_response(['ok' => true, 'status' => $this->deriveStatus()]);
+        $htmlQueued = $this->htmlCrawl->start();
+
+        return rest_ensure_response([
+            'ok'          => true,
+            'status'      => $this->deriveStatus(),
+            'html_status' => $htmlQueued ? 'running' : 'unavailable',
+        ]);
     }
 
     /**

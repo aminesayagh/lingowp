@@ -110,7 +110,7 @@ class HreflangPresenter
 
             $out .= sprintf(
                 '<link rel="alternate" hreflang="%1$s" href="%2$s" />' . "\n",
-                esc_attr($lang),
+                esc_attr(str_replace('_', '-', $lang)),
                 esc_url($url)
             );
         }

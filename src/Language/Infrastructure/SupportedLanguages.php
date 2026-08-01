@@ -3,10 +3,7 @@
 namespace TransLangs\Language\Infrastructure;
 
 /**
- * Static catalog of supported languages.
- *
- * Keeps a single source of truth for code => name/native/direction, so the
- * settings screen, languages screen, and switcher all agree. Expand as needed.
+ * Compatibility facade over WordPress's Site Language catalog.
  */
 class SupportedLanguages
 {
@@ -15,20 +12,19 @@ class SupportedLanguages
      */
     public static function all(): array
     {
-        return [
-            'en' => ['name' => 'English',    'native' => 'English',  'dir' => 'ltr'],
-            'fr' => ['name' => 'French',     'native' => 'Français', 'dir' => 'ltr'],
-            'es' => ['name' => 'Spanish',    'native' => 'Español',  'dir' => 'ltr'],
-            'de' => ['name' => 'German',     'native' => 'Deutsch',  'dir' => 'ltr'],
-            'it' => ['name' => 'Italian',    'native' => 'Italiano', 'dir' => 'ltr'],
-            'pt' => ['name' => 'Portuguese', 'native' => 'Português','dir' => 'ltr'],
-            'nl' => ['name' => 'Dutch',      'native' => 'Nederlands','dir' => 'ltr'],
-            'ar' => ['name' => 'Arabic',     'native' => 'العربية',  'dir' => 'rtl'],
-        ];
+        return array_map(static fn(array $item): array => [
+            'name'   => $item['english_name'],
+            'native' => $item['native_name'],
+            'dir'    => $item['direction'],
+        ], WordPressLanguageCatalog::all());
     }
 
     public static function label(string $code): string
     {
+        $stored = (new LanguageMetadataStore())->get($code);
+        if ($stored !== null && !empty($stored['name'])) {
+            return (string) $stored['name'];
+        }
         $all = self::all();
 
         return $all[$code]['name'] ?? strtoupper($code);
@@ -40,6 +36,10 @@ class SupportedLanguages
      */
     public static function nativeLabel(string $code): string
     {
+        $stored = (new LanguageMetadataStore())->get($code);
+        if ($stored !== null) {
+            return (string) ($stored['display_name'] ?: ($stored['name'] ?? strtoupper($code)));
+        }
         $all = self::all();
 
         return $all[$code]['native'] ?? ($all[$code]['name'] ?? strtoupper($code));

@@ -11,8 +11,8 @@ use TransLangs\Language\Domain\LocaleNormalizer;
  * v4 has no languages table: there is no FK, join, or SQL integrity rule a
  * table would satisfy. Config is two autoloaded, pipe-delimited code lists:
  *
- *   translangs_active_lang    'fr|ar'      currently enabled targets
- *   translangs_existing_lang  'fr|ar|es'   every target ever added (append-only)
+ *   translangs_active_lang    'fr_FR|ar'       currently enabled targets
+ *   translangs_existing_lang  'fr_FR|ar|es_ES' every target ever added (append-only)
  *
  * Languages are identified by code everywhere — tl_translation stores the code
  * directly, so no numeric dictionary is needed. The existing roster is
@@ -20,7 +20,8 @@ use TransLangs\Language\Domain\LocaleNormalizer;
  * existing, so its translations (keyed by code) survive and re-enabling is
  * instant.
  *
- * Display metadata comes from SupportedLanguages by code; it is never stored.
+ * Display metadata is stored when a locale is added from WordPress' language
+ * catalog, so runtime requests do not depend on fetching that catalog again.
  *
  * Source language is the normalized site locale, captured ONCE into the
  * translangs_source_locale option at setup (v5 §1.1). It is read from that option
@@ -41,7 +42,7 @@ final class OptionLanguageRegistry implements LanguageRegistry
         $stored = (string) get_option(self::OPTION_SOURCE_LOCALE, '');
 
         // Fallback to the live locale only until the option is seeded at setup.
-        return $stored !== '' ? $stored : LocaleNormalizer::current();
+        return $stored !== '' ? LocaleNormalizer::normalize($stored) : LocaleNormalizer::current();
     }
 
     /** @return string[] */
@@ -53,15 +54,15 @@ final class OptionLanguageRegistry implements LanguageRegistry
     /** @return array<string, array{name: string, native: string, dir: string}> */
     public function getTargetLanguageDetails(): array
     {
-        $catalog = SupportedLanguages::all();
+        $catalog = (new LanguageMetadataStore())->all();
         $details = [];
 
         foreach ($this->getTargetLanguages() as $code) {
             $meta          = $catalog[$code] ?? null;
             $details[$code] = [
-                'name'   => $meta['name']   ?? strtoupper($code),
-                'native' => $meta['native'] ?? ($meta['name'] ?? strtoupper($code)),
-                'dir'    => $meta['dir']    ?? 'ltr',
+                'name'   => $meta['name'] ?? strtoupper($code),
+                'native' => !empty($meta['display_name']) ? $meta['display_name'] : ($meta['name'] ?? strtoupper($code)),
+                'dir'    => $meta['direction'] ?? 'ltr',
             ];
         }
 
@@ -81,6 +82,26 @@ final class OptionLanguageRegistry implements LanguageRegistry
         return $code !== '' && in_array($code, $this->getEnabledLanguages(), true);
     }
 
+    public function slugForLanguage(string $code): string
+    {
+        $code = $this->sanitize($code);
+        $meta = (new LanguageMetadataStore())->get($code);
+
+        return sanitize_title((string) ($meta['slug'] ?? str_replace('_', '-', strtolower($code))));
+    }
+
+    public function languageForSlug(string $slug): ?string
+    {
+        $slug = sanitize_title($slug);
+        foreach ($this->getEnabledLanguages() as $code) {
+            if ($this->slugForLanguage($code) === $slug) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
     /** @return string[] */
     public function existingLanguages(): array
     {
@@ -91,7 +112,7 @@ final class OptionLanguageRegistry implements LanguageRegistry
     {
         $code = $this->sanitize($code);
 
-        if ($code === '' || $code === $this->getDefaultLanguage() || !SupportedLanguages::exists($code)) {
+        if ($code === '' || $code === $this->getDefaultLanguage()) {
             return;
         }
 
@@ -124,21 +145,6 @@ final class OptionLanguageRegistry implements LanguageRegistry
         }
     }
 
-    /**
-     * One-time migration: seed the code lists from the legacy
-     * translangs_enabled_languages option. No-op once a roster exists.
-     */
-    public function seedFromLegacyOption(): void
-    {
-        if ($this->existingLanguages() !== [] || $this->getTargetLanguages() !== []) {
-            return;
-        }
-
-        foreach ((array) get_option('translangs_enabled_languages', []) as $code) {
-            $this->enableLanguage((string) $code);
-        }
-    }
-
     /** @return string[] */
     private function readList(string $option): array
     {
@@ -162,6 +168,6 @@ final class OptionLanguageRegistry implements LanguageRegistry
 
     private function sanitize(string $code): string
     {
-        return sanitize_key(trim($code));
+        return LocaleNormalizer::normalize($code);
     }
 }

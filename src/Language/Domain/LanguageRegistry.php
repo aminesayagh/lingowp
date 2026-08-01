@@ -5,20 +5,20 @@ namespace TransLangs\Language\Domain;
 /**
  * Authoritative source for which languages are active in this installation.
  *
- * Languages are identified by their short code everywhere (no numeric id).
+ * Languages are identified by canonical WordPress locale everywhere (no numeric id).
  * Config is two pipe-delimited code lists stored as options:
  *   - active   languages currently enabled as translation targets
  *   - existing every target ever added (append-only roster; active ⊆ existing)
  *
- * Per-language display metadata (name, native name, direction) is NOT stored —
- * it is read from the SupportedLanguages catalog by code.
+ * Per-language display and routing metadata is stored in the language metadata
+ * option and sourced from WordPress's Site Language catalog when created.
  *
  * Source language is never stored — it is always read from get_locale().
  * Only TARGET languages live in config.
  */
 interface LanguageRegistry
 {
-    /** Normalized source language from get_locale(), e.g. 'en'. Never in storage. */
+    /** Canonical source locale from get_locale(), e.g. 'en_US'. */
     public function getDefaultLanguage(): string;
 
     /**
@@ -46,6 +46,12 @@ interface LanguageRegistry
 
     /** Returns true for the source language and any active target language. */
     public function isEnabledLanguage(string $code): bool;
+
+    /** Public URL slug for an enabled locale. */
+    public function slugForLanguage(string $code): string;
+
+    /** Enabled locale identified by a public URL slug, or null. */
+    public function languageForSlug(string $slug): ?string;
 
     /**
      * Every target language ever added, active or soft-deleted (the permanent

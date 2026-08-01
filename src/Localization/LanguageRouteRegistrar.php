@@ -18,7 +18,7 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
  */
 class LanguageRouteRegistrar
 {
-    public const REWRITE_RULES_VERSION = '3';
+    public const REWRITE_RULES_VERSION = '4';
 
     private const REWRITE_RULES_FILTER_PRIORITY = 9999;
 
@@ -139,14 +139,15 @@ class LanguageRouteRegistrar
         $languageRules = [];
 
         foreach ($languages as $lang) {
-            $languageRules[$this->languageHomeRegex($lang)] = $this->languageHomeQuery($lang);
+            $slug = $this->resolver->slugForLanguage($lang);
+            $languageRules[$this->languageHomeRegex($slug)] = $this->languageHomeQuery($lang);
 
             foreach ($rules as $regex => $query) {
                 if (!is_string($regex) || !is_string($query) || !$this->isIndexQuery($query)) {
                     continue;
                 }
 
-                $prefixedRegex = $this->prefixRegex($regex, $lang);
+                $prefixedRegex = $this->prefixRegex($regex, $slug);
                 if ($prefixedRegex === null || isset($languageRules[$prefixedRegex])) {
                     continue;
                 }

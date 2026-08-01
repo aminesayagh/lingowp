@@ -7,7 +7,7 @@ use TransLangs\Api\ConnectionRepository;
 use TransLangs\Api\ConnectionStatus;
 use TransLangs\Api\SiteMetadataProvider;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Infrastructure\SupportedLanguages;
+use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
 use WP_REST_Request;
 use WP_REST_Response;
 
@@ -55,10 +55,15 @@ final class OnboardingRestController
     public function state(): WP_REST_Response
     {
         $status = $this->status->current();
+        // A stored connection proves configuration was already submitted. This
+        // also repairs installs that completed configuration before the
+        // completion flag was moved earlier in the flow.
+        $onboardingCompleted = $this->connection->isOnboardingComplete()
+            || $this->connection->isConnected();
 
         return rest_ensure_response([
             'ok'                    => true,
-            'onboarding_completed'  => $this->connection->isOnboardingComplete(),
+            'onboarding_completed'  => $onboardingCompleted,
             'connected'             => $this->connection->isConnected(),
             'ai_available'          => $status['available'],
             'ai_error'              => $status['error'],
@@ -106,6 +111,11 @@ final class OnboardingRestController
         update_option('translangs_cookie_preference', (bool) $request->get_param('cookie_preference'));
         update_option('translangs_browser_detection', $browserDetection);
         update_option('translangs_auto_redirect', $autoRedirect);
+
+        // Configuration is the last required user action. Persist completion
+        // before starting the scan so navigating to Workspace (or reloading)
+        // cannot send the user back to the first configuration screen.
+        $this->connection->markOnboardingComplete();
 
         $warning = $this->attemptConnect();
 
@@ -176,7 +186,7 @@ final class OnboardingRestController
     private function defaultLanguage(): array
     {
         $code = $this->languages->getDefaultLanguage();
-        $dir  = SupportedLanguages::all()[$code]['dir'] ?? 'ltr';
+        $dir  = WordPressLanguageCatalog::get($code)['direction'] ?? 'ltr';
 
         return ['code' => $code, 'direction' => $dir];
     }

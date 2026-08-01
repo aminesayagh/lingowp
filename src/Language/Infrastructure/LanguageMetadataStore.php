@@ -2,12 +2,14 @@
 
 namespace TransLangs\Language\Infrastructure;
 
+use TransLangs\Language\Domain\LocaleNormalizer;
+
 /**
  * Local source of truth for target-language metadata (v1 §P3).
  *
  * A single JSON option `translangs_languages` holds a map keyed by language code.
  * Each entry carries the display/routing metadata the SPA and workspace need:
- *   { code, locale, region, name, display_name, slug, fallback_language,
+ *   { code, language, locale, region, name, display_name, slug, fallback_language,
  *     ai_style, direction, created_at, updated_at }
  *
  * Active/enabled runtime state is deliberately NOT stored here — that stays in
@@ -28,13 +30,13 @@ final class LanguageMetadataStore
 
     public function has(string $code): bool
     {
-        return isset($this->all()[$code]);
+        return isset($this->all()[LocaleNormalizer::normalize($code)]);
     }
 
     /** @return array<string, mixed>|null */
     public function get(string $code): ?array
     {
-        return $this->all()[$code] ?? null;
+        return $this->all()[LocaleNormalizer::normalize($code)] ?? null;
     }
 
     /** @return string[] */
@@ -51,7 +53,7 @@ final class LanguageMetadataStore
      */
     public function save(array $entry): void
     {
-        $code = sanitize_key((string) ($entry['code'] ?? ''));
+        $code = LocaleNormalizer::normalize((string) ($entry['code'] ?? ''));
         if ($code === '') {
             return;
         }
@@ -62,6 +64,7 @@ final class LanguageMetadataStore
 
         $map[$code] = [
             'code'              => $code,
+            'language'          => (string) ($entry['language'] ?? LocaleNormalizer::language($code)),
             'locale'            => (string) ($entry['locale'] ?? ''),
             'region'            => (string) ($entry['region'] ?? ''),
             'name'              => (string) ($entry['name'] ?? ''),
@@ -82,7 +85,7 @@ final class LanguageMetadataStore
     /** Remove one language's metadata entry. No-op if absent. */
     public function remove(string $code): void
     {
-        $code = sanitize_key($code);
+        $code = LocaleNormalizer::normalize($code);
         $map  = $this->all();
 
         if (isset($map[$code])) {
