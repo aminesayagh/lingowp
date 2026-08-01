@@ -2,8 +2,11 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Language\Domain\LocaleNormalizer;
+
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\SiteMetadataProvider;
+use TransLangs\Core\Parsing\TranslationSubmissionGuard;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Source\Value\TranslationStatus;
@@ -37,7 +40,8 @@ final class AiTranslationController
         private BackendClient $backend,
         private SourceTranslationRepository $repo,
         private OptionLanguageRegistry $registry,
-        private LanguageMetadataStore $langStore
+        private LanguageMetadataStore $langStore,
+        private CollectionRestController $collections
     ) {}
 
     public function register(): void
@@ -73,7 +77,7 @@ final class AiTranslationController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
         if ($units === []) {
-            return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0]);
+            return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0] + $this->summaryPatch($scope, $request, $lang));
         }
 
         // Quota pre-check against the (cached) backend snapshot.
@@ -96,6 +100,7 @@ final class AiTranslationController
         $cats     = array_values((array) get_option(SiteMetadataProvider::OPTION_CATEGORIES, []));
         $done     = 0;
         $words    = 0;
+        $failures = [];
 
         foreach (array_chunk($units, self::BATCH) as $chunk) {
             $payload = [
@@ -130,6 +135,24 @@ final class AiTranslationController
                 if ($text === null || $text === '') {
                     continue;
                 }
+
+                // Validate from the in-memory unit — never a query per item.
+                $errors = TranslationSubmissionGuard::validate(
+                    (string) $u['original'],
+                    $text,
+                    $u['meta_key'] ?? null
+                );
+                if ($errors !== []) {
+                    // Reject this item only: a mangled %%sep%% must never reach a
+                    // rendered title, but 49 good translations must not be lost.
+                    $failures[] = [
+                        'ref'     => $u['ref']->format(),
+                        'error'   => 'ERR_PROTECTED_TOKEN_STRUCTURE',
+                        'details' => $errors,
+                    ];
+                    continue;
+                }
+
                 $this->repo->saveTranslation($u['ref'], $lang, $text, TranslationStatus::MACHINE, self::PROVIDER);
                 $done++;
             }
@@ -138,7 +161,57 @@ final class AiTranslationController
 
         delete_transient(self::QUOTA_CACHE); // usage changed; force a fresh read next time.
 
-        return rest_ensure_response(['ok' => true, 'translated' => $done, 'words_used' => $words]);
+        // `failed`/`failures` are only present when something was rejected, so the
+        // existing client shape is unchanged on a clean run.
+        $rejected = $failures === []
+            ? []
+            : ['failed' => count($failures), 'failures' => $failures];
+
+        return rest_ensure_response(
+            ['ok' => true, 'translated' => $done, 'words_used' => $words]
+            + $rejected
+            + $this->summaryPatch($scope, $request, $lang)
+        );
+    }
+
+    /**
+     * For 'collection'/'text' scope, the updated summary of the one collection
+     * involved — lets the caller patch the board's cache instead of refetching.
+     * 'text' scope also resolves the single translated unit itself, so the
+     * client can propagate it to any other visible occurrence of the same
+     * text (hash-link kinds share one translation across positions). 'language'
+     * scope touches every collection (and many units), so there's nothing
+     * single to hand back; the caller falls back to invalidating.
+     */
+    private function summaryPatch(string $scope, WP_REST_Request $request, string $lang): array
+    {
+        if ($scope === 'text') {
+            $collectionId = urldecode((string) $request->get_param('collection_id'));
+            $ref          = SourceRef::parse(urldecode((string) $request->get_param('ref')));
+            if ($collectionId === '' || $ref === null) {
+                return [];
+            }
+            $result = $this->collections->unitAndSummaryFor($collectionId, $lang, $ref->format());
+            $patch  = [];
+            if ($result['summary'] !== null) {
+                $patch['collection_summary'] = $result['summary'];
+            }
+            if ($result['unit'] !== null) {
+                $patch['updated_unit'] = $result['unit'];
+            }
+            return $patch;
+        }
+
+        if ($scope === 'collection') {
+            $collectionId = urldecode((string) $request->get_param('id'));
+            if ($collectionId === '') {
+                return [];
+            }
+            $summary = $this->collections->summaryFor($collectionId, $lang);
+            return $summary === null ? [] : ['collection_summary' => $summary];
+        }
+
+        return [];
     }
 
     /** Current AI word quota snapshot (cached ~60s), proxied from the backend. */
@@ -192,8 +265,10 @@ final class AiTranslationController
             if ($ref === null) {
                 return null;
             }
-            $text = $this->repo->loadSourceText($ref);
-            return $text === null ? [] : [['ref' => $ref, 'original' => $text]];
+            $context = $this->repo->loadSourceValidationContext($ref);
+            return $context === null
+                ? []
+                : [['ref' => $ref, 'original' => $context['text'], 'meta_key' => $context['meta_key']]];
         }
 
         if ($scope === 'collection') {
@@ -202,7 +277,8 @@ final class AiTranslationController
         }
 
         if ($scope === 'language') {
-            return $this->pending($this->languageUnits($lang));
+            $source = sanitize_key((string) $request->get_param('source')) ?: 'content';
+            return $this->pending($this->languageUnits($lang, $source));
         }
 
         return null;
@@ -243,13 +319,42 @@ final class AiTranslationController
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
             return $this->unitsFromRows('term', $this->repo->listTaxonomyTexts($m[1], $lang));
         }
+        if (preg_match('/^plugin:(.+)$/', $id, $m)) {
+            $token   = rawurldecode($m[1]);
+            $domains = $token === '__other__' ? $this->collections->unmatchedTextDomains($lang) : [$token];
+            $units   = [];
+            foreach ($domains as $domain) {
+                $units = array_merge(
+                    $units,
+                    $this->unitsFromRows('staticText', $this->repo->listStaticTextDomainTexts($domain, $lang))
+                );
+            }
+            return $units;
+        }
 
         return null;
     }
 
-    /** Every content/setting/template unit for a language (posts, meta, terms, options, html). */
-    private function languageUnits(string $lang): array
+    /**
+     * Every unit for a language, scoped by board: 'content' (default, unchanged
+     * behavior) is posts/meta/terms/options/html — the sidebar's per-language
+     * "Translate All" always uses this default. 'plugins' is every gettext
+     * string across every textdomain (Other bucket included; a language-wide
+     * translate doesn't need the known/unmatched split the board UI uses).
+     */
+    private function languageUnits(string $lang, string $source = 'content'): array
     {
+        if ($source === 'plugins') {
+            $units = [];
+            foreach ($this->repo->staticTextDomainSummary($lang) as $d) {
+                $units = array_merge(
+                    $units,
+                    $this->unitsFromRows('staticText', $this->repo->listStaticTextDomainTexts($d['domain'], $lang))
+                );
+            }
+            return $units;
+        }
+
         $units = array_merge(
             $this->unitsFromRows('option', $this->repo->listOptionTexts($lang)),
             $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang))
@@ -272,17 +377,21 @@ final class AiTranslationController
     /** @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int}> */
     private function unitsFromRows(string $kind, array $rows): array
     {
+        // meta rows already carry the key as `field` (listMetaTexts); keeping it on
+        // the unit is what lets the write guard pick an SEO variable grammar without
+        // a per-item query inside the result loop.
         return array_map(static fn (array $r): array => [
             'ref'        => SourceRef::make($kind, (int) $r['id']),
             'original'   => (string) $r['original_text'],
             'translated' => $r['translated_text'],
             'status'     => $r['status'],
+            'meta_key'   => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
         ], $rows);
     }
 
     private function resolveLang(WP_REST_Request $request): string
     {
-        $lang = sanitize_key((string) $request->get_param('language'));
+        $lang = LocaleNormalizer::normalize((string) $request->get_param('language'));
         if ($lang !== '') {
             return $lang;
         }

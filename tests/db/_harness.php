@@ -144,7 +144,7 @@ function tl_var(string $sql, ...$args)
 {
     global $wpdb;
     return $args === []
-        ? $wpdb->get_var($sql)
+        ? $wpdb->get_var($sql) // nosemgrep: wpdb-query-without-prepare -- test harness; callers pass literal SQL, values go through the prepare() branch below
         : $wpdb->get_var($wpdb->prepare($sql, ...$args));
 }
 

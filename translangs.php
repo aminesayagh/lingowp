@@ -4,7 +4,7 @@
  * Plugin URI:        https://example.com/translangs
  * Description:       TranslatePress-like translation layer for WordPress. Keeps one original page and renders many translated versions.
  * Version:           0.1.0
- * Requires at least: 6.0
+ * Requires at least: 6.2
  * Requires PHP:      8.1
  * Author:            Your Name
  * License:           GPL-2.0-or-later

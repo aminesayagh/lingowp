@@ -11,8 +11,16 @@ const MESSAGES = {
 	ERR_INVALID_PAYLOAD: 'Translangs could not validate this connection. Please contact support.',
 	ERR_INVALID_INPUT: 'Select at least one category to continue.',
 	ERR_NOT_CONNECTED: 'Translangs is not connected. Please finish setup first.',
+	ERR_INVALID_STATUS: 'Unknown status filter. Please refresh and try again.',
 };
 
 export function errorMessage( code ) {
 	return MESSAGES[ code ] || 'Something went wrong. Please try again.';
+}
+
+// A query cancelled because a newer one superseded it (language/search/status
+// changed, or the row scrolled out of view) — never a real failure, so callers
+// use this to skip showing a notice for it.
+export function isAbortError( err ) {
+	return err?.name === 'AbortError';
 }

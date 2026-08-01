@@ -2,7 +2,9 @@
 
 namespace TransLangs\Admin\Rest;
 
-use TransLangs\Core\Parsing\UnitStructureGuard;
+use TransLangs\Language\Domain\LocaleNormalizer;
+
+use TransLangs\Core\Parsing\TranslationSubmissionGuard;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Source\Value\TranslationStatus;
@@ -10,22 +12,14 @@ use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
 
-/**
- * Translation write endpoints (namespace translangs/v1) for the workspace.
- *
- * A text unit is addressed by its SourceRef ({kind}:{id}). Manual saves are
- * REVIEWED (2) with no provider (a manual edit of an AI string clears its AI
- * origin). Single-text status actions map to the existing repository operations
- * so all status/hash rules stay in one place. All actions work offline — no
- * backend call. See design-ux-data-mapping.md §2 for the status vocabulary.
- */
 final class TranslationRestController
 {
     private const NS = 'translangs/v1';
 
     public function __construct(
         private SourceTranslationRepository $repo,
-        private OptionLanguageRegistry $registry
+        private OptionLanguageRegistry $registry,
+        private CollectionRestController $collections
     ) {}
 
     public function register(): void
@@ -61,7 +55,12 @@ final class TranslationRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
-        $errors = UnitStructureGuard::validate($this->repo->loadSourceText($ref) ?? '', $text);
+        $context = $this->repo->loadSourceValidationContext($ref);
+        $errors  = TranslationSubmissionGuard::validate(
+            $context['text'] ?? '',
+            $text,
+            $context['meta_key'] ?? null
+        );
         if ($errors !== []) {
             return new WP_REST_Response(
                 ['ok' => false, 'error' => 'ERR_TAG_STRUCTURE', 'errors' => $errors],
@@ -71,7 +70,7 @@ final class TranslationRestController
 
         $this->repo->saveTranslation($ref, $lang, $text, TranslationStatus::REVIEWED, null);
 
-        return rest_ensure_response(['ok' => true]);
+        return rest_ensure_response(['ok' => true] + $this->boardPatch($request, $lang, $ref));
     }
 
     /**
@@ -91,7 +90,7 @@ final class TranslationRestController
         // Ignore is language-global; the others act on one language's child row.
         if ($action === 'ignore') {
             $this->repo->ignoreSource($ref);
-            return rest_ensure_response(['ok' => true]);
+            return rest_ensure_response(['ok' => true] + $this->boardPatch($request, $lang, $ref));
         }
 
         if ($lang === '') {
@@ -112,13 +111,41 @@ final class TranslationRestController
                 return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
-        return rest_ensure_response(['ok' => true]);
+        return rest_ensure_response(['ok' => true] + $this->boardPatch($request, $lang, $ref));
+    }
+
+    /**
+     * When the client tells us which board collection this text belongs to
+     * (`collection_id`), recompute that collection's summary AND reshape the
+     * just-written unit itself — the client uses `updated_unit.original_hash`
+     * to patch every other visible occurrence of the same text (hash-link
+     * kinds share one translation across positions), not just this one row.
+     * Optional: omitted entirely if the client didn't send a collection_id,
+     * or it doesn't resolve — callers fall back to invalidating instead.
+     */
+    private function boardPatch(WP_REST_Request $request, string $lang, SourceRef $ref): array
+    {
+        $collectionId = (string) $request->get_param('collection_id');
+        if ($collectionId === '' || $lang === '') {
+            return [];
+        }
+        $result = $this->collections->unitAndSummaryFor($collectionId, $lang, $ref->format());
+
+        $patch = [];
+        if ($result['summary'] !== null) {
+            $patch['collection_summary'] = $result['summary'];
+        }
+        if ($result['unit'] !== null) {
+            $patch['updated_unit'] = $result['unit'];
+        }
+
+        return $patch;
     }
 
     /** Selected target language, defaulting to the first enabled target. */
     private function resolveLang(WP_REST_Request $request): string
     {
-        $lang = sanitize_key((string) $request->get_param('language'));
+        $lang = LocaleNormalizer::normalize((string) $request->get_param('language'));
         if ($lang !== '') {
             return $lang;
         }

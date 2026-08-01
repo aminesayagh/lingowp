@@ -81,13 +81,15 @@ class LanguageSwitcherShortcode
             $url      = $this->prefixer->addPrefix($path, $lang) . $query;
             $label    = $this->labelFor($lang, $show);
             $isActive = $lang === $active;
+            $htmlLang = str_replace('_', '-', $lang);
 
             $items .= sprintf(
                 '<li class="tls-language-switcher__item%1$s">'
-                . '<a href="%2$s" hreflang="%3$s" lang="%3$s" data-tls-lang="%3$s"%4$s>%5$s</a>'
+                . '<a href="%2$s" hreflang="%3$s" lang="%3$s" data-tls-lang="%4$s"%5$s>%6$s</a>'
                 . '</li>',
                 $isActive ? ' is-active' : '',
                 esc_url($url),
+                esc_attr($htmlLang),
                 esc_attr($lang),
                 $isActive ? ' aria-current="true"' : '',
                 esc_html($label)
@@ -142,7 +144,7 @@ JS;
      */
     private function currentPath(): string
     {
-        $uri  = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
+        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         if ($path === '') {
@@ -157,7 +159,7 @@ JS;
      */
     private function currentQuery(): string
     {
-        $uri   = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';

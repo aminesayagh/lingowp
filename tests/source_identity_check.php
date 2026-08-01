@@ -21,6 +21,7 @@ use TransLangs\Core\Source\Type\StaticTextSource;
 use TransLangs\Core\Source\Type\TermSource;
 use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Text\IdentityKey;
+use TransLangs\Language\Domain\LocaleNormalizer;
 
 $failed = 0;
 $total  = 0;
@@ -66,6 +67,13 @@ $binary = random_bytes(32);
 $key    = IdentityKey::of(['original_hash' => $binary]);
 ok('raw binary yields a UTF-8-safe key', mb_check_encoding($key, 'UTF-8'), 'key=' . $key);
 ok('binary round-trips deterministically', $key === IdentityKey::of(['original_hash' => $binary]));
+
+echo "\nLocaleNormalizer:\n";
+ok('locale preserves and canonicalizes region', LocaleNormalizer::normalize('fr-fr') === 'fr_FR');
+ok('locale preserves WordPress variant', LocaleNormalizer::normalize('de_DE_formal') === 'de_DE_formal');
+ok('locale exposes base language', LocaleNormalizer::language('pt_BR') === 'pt');
+ok('locale exposes region', LocaleNormalizer::region('pt_BR') === 'BR');
+ok('locale accepts a regionless WordPress locale', LocaleNormalizer::normalize('ar') === 'ar');
 
 // ── B. Seven classes over six kinds ──────────────────────────────────────────
 // SplitPostSource shares PostSource's kind AND its identity columns — that
@@ -136,6 +144,17 @@ ok('HtmlSource leaves a 255-char selector alone',
 ok('HtmlSource rejects empty selector', throws(fn() => new HtmlSource('   ', null, 'x')));
 ok('HtmlSource selector_hash is sha256 of the selector',
     $html->identity()['selector_hash'] === hash('sha256', 'body>main>h1', true));
+ok('HtmlSource strips scheme and domain from source URL',
+    $html->sourceUrl() === '/');
+ok('HtmlSource preserves path and query only',
+    (new HtmlSource('body', 'https://translangs.masayagh.com/hello-world/?page=2#section', 'x'))->sourceUrl()
+        === '/hello-world/?page=2');
+ok('HtmlSource normalizes a relative source URL',
+    (new HtmlSource('body', 'hello-world/', 'x'))->sourceUrl() === '/hello-world/');
+ok('HtmlSource keeps an existing path-only source URL',
+    (new HtmlSource('body', '/hello-world/?page=2', 'x'))->sourceUrl() === '/hello-world/?page=2');
+ok('HtmlSource converts an empty source URL to null',
+    (new HtmlSource('body', '', 'x'))->sourceUrl() === null);
 
 // StaticTextSource: reference is mb-capped at 191 CHARACTERS — deliberately
 // different from HtmlSource's byte cap. Assert the asymmetry.

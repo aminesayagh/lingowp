@@ -1,0 +1,54 @@
+# Replaces WordPress.DB.PreparedSQL, which only recognises a global $wpdb and is
+# therefore blind to this plugin's injected $this->wpdb. See phpcs.xml.dist.
+#
+# Both rules are split because Semgrep's metavariable-pattern silently drops
+# interpolated-string bindings, so one pattern cannot express both shapes.
+# tests/fixtures/sql_prepare_fixture.php pins the behaviour of both.
+rules:
+  - id: wpdb-query-without-prepare
+    languages: [php]
+    severity: ERROR
+    message: >-
+      SQL reaches $wpdb as a pre-built variable, so prepare() is not visible at
+      the call site. Build the query with $wpdb->prepare() and placeholders here,
+      or justify it with a reviewed nosemgrep comment.
+    patterns:
+      - pattern-either:
+          - pattern: $W->query($SQL, ...)
+          - pattern: $W->get_var($SQL, ...)
+          - pattern: $W->get_col($SQL, ...)
+          - pattern: $W->get_row($SQL, ...)
+          - pattern: $W->get_results($SQL, ...)
+      - pattern-not: $W->query($A->prepare(...), ...)
+      - pattern-not: $W->get_var($A->prepare(...), ...)
+      - pattern-not: $W->get_col($A->prepare(...), ...)
+      - pattern-not: $W->get_row($A->prepare(...), ...)
+      - pattern-not: $W->get_results($A->prepare(...), ...)
+      - pattern-not: $W->query($A->$B->prepare(...), ...)
+      - pattern-not: $W->get_var($A->$B->prepare(...), ...)
+      - pattern-not: $W->get_col($A->$B->prepare(...), ...)
+      - pattern-not: $W->get_row($A->$B->prepare(...), ...)
+      - pattern-not: $W->get_results($A->$B->prepare(...), ...)
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: \$
+
+  - id: wpdb-interpolated-sql
+    languages: [php]
+    severity: ERROR
+    message: >-
+      String interpolated directly into a $wpdb query. A literal argument can
+      never be a prepare() call, so any value here is unescaped. Interpolating a
+      table name from a whitelist map is the only accepted use — mark those with
+      `nosemgrep: wpdb-interpolated-sql` and say where the name comes from.
+    patterns:
+      - pattern-either:
+          - pattern: $W->query($SQL, ...)
+          - pattern: $W->get_var($SQL, ...)
+          - pattern: $W->get_col($SQL, ...)
+          - pattern: $W->get_row($SQL, ...)
+          - pattern: $W->get_results($SQL, ...)
+      # Leading quote proves $SQL is a literal, which rules out a prepare() call.
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?s)^["'].*\$

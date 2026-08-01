@@ -5,12 +5,12 @@ import {
 	Card,
 	Checkbox,
 	ChoiceList,
-	Page,
 	Text,
 } from '@shopify/polaris';
 import { useEffect, useState } from '@wordpress/element';
 import { api } from '../api';
 import { errorMessage } from '../errors';
+import OnboardingPage from './OnboardingPage';
 
 // Code-only categories come from the backend; labels are a frontend concern.
 function humanize( code ) {
@@ -67,8 +67,7 @@ export default function Configuration( { onDone } ) {
 	}
 
 	return (
-		<Page
-			narrowWidth
+		<OnboardingPage
 			title="Configure Translangs"
 			subtitle="Tell us about your site and how visitors should reach translated pages."
 		>
@@ -131,6 +130,6 @@ export default function Configuration( { onDone } ) {
 					Continue
 				</Button>
 			</BlockStack>
-		</Page>
+		</OnboardingPage>
 	);
 }

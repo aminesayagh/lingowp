@@ -1,10 +1,26 @@
-import { AppProvider, Page, PortalsManager, Spinner } from '@shopify/polaris';
+import { AppProvider, BlockStack, Card, PortalsManager, Spinner } from '@shopify/polaris';
 import enTranslations from '@shopify/polaris/locales/en.json';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from '@wordpress/element';
+import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { api } from './api';
 import Configuration from './screens/Configuration';
 import SettingUp from './screens/SettingUp';
 import Dashboard from './screens/Dashboard';
+import OnboardingPage from './screens/OnboardingPage';
+
+// Module-level: one client for the whole admin page, not per-mount.
+const queryClient = new QueryClient( {
+	defaultOptions: {
+		queries: {
+			staleTime: 5 * 60_000,
+			gcTime: 30 * 60_000,
+			retry: 1,
+			refetchOnWindowFocus: false,
+		},
+		mutations: { retry: 0 },
+	},
+} );
 
 // Reflect the current screen in the admin query string (?page=translangs&view=…)
 // for shareable URLs. Routing is state-driven, not popstate-driven, so browser
@@ -63,31 +79,52 @@ export default function App() {
 
 	if ( ! state || ! view ) {
 		return (
-			<AppProvider i18n={ enTranslations }>
-				<Page>
-					<Spinner accessibilityLabel="Loading Translangs" />
-				</Page>
-			</AppProvider>
+			<QueryClientProvider client={ queryClient }>
+				<AppProvider i18n={ enTranslations }>
+					<OnboardingPage>
+						<Card>
+							<BlockStack inlineAlign="center">
+								<Spinner accessibilityLabel="Loading Translangs" />
+							</BlockStack>
+						</Card>
+					</OnboardingPage>
+				</AppProvider>
+			</QueryClientProvider>
 		);
 	}
 
 	return (
-		<AppProvider i18n={ enTranslations }>
-			<PortalsManager container={ portalRoot }>
-				{ view === 'onboarding_configuration' && (
-					<Configuration onDone={ () => setView( 'onboarding_setting_up' ) } />
-				) }
-				{ view === 'onboarding_setting_up' && (
-					<SettingUp onDone={ ( next ) => setView( next ) } />
-				) }
-				{ ( view === 'dashboard_empty_language' || view === 'dashboard_workspace' ) && (
-					<Dashboard
-						view={ view }
-						defaultLanguage={ state.default_language }
-						onLanguageCreated={ () => setView( 'dashboard_workspace' ) }
-					/>
-				) }
-			</PortalsManager>
-		</AppProvider>
+		<QueryClientProvider client={ queryClient }>
+			<AppProvider i18n={ enTranslations }>
+				<PortalsManager container={ portalRoot }>
+					<MotionConfig reducedMotion="user">
+						<AnimatePresence initial={ false } mode="wait">
+							<motion.div
+								key={ view }
+								initial={ { opacity: 0, y: 8 } }
+								animate={ { opacity: 1, y: 0 } }
+								exit={ { opacity: 0, y: -8 } }
+								transition={ { duration: 0.18, ease: 'easeOut' } }
+								style={ { width: '100%' } }
+							>
+								{ view === 'onboarding_configuration' && (
+									<Configuration onDone={ () => setView( 'onboarding_setting_up' ) } />
+								) }
+								{ view === 'onboarding_setting_up' && (
+									<SettingUp onDone={ ( next ) => setView( next ) } />
+								) }
+								{ ( view === 'dashboard_empty_language' || view === 'dashboard_workspace' ) && (
+									<Dashboard
+										view={ view }
+										defaultLanguage={ state.default_language }
+										onLanguageCreated={ () => setView( 'dashboard_workspace' ) }
+									/>
+								) }
+							</motion.div>
+						</AnimatePresence>
+					</MotionConfig>
+				</PortalsManager>
+			</AppProvider>
+		</QueryClientProvider>
 	);
 }

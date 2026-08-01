@@ -18,7 +18,7 @@ use TransLangs\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '20';
+    public const DB_VERSION        = '21';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
@@ -99,18 +99,21 @@ class TranslationMemorySchema
         // form_index. CREATE IF NOT EXISTS cannot add it, so migrate in place.
         self::migrateStaticTextTranslationFormIndex();
 
+        // 2d. Upgrade path: an existing wp_tl_html (pre-v21) lacks last_seen_at.
+        self::migrateHtmlLastSeenAt();
+
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
         $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
 
         // 4. On any missing FK: drop v5 tables (children first), then fail.
         if ($missing !== []) {
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
-                $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // phpcs:ignore WordPress.DB
+                $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             }
             // tl_staticPluralText references tl_staticText — drop it before the parents.
             $wpdb->query('DROP TABLE IF EXISTS ' . self::pluralTable()); // phpcs:ignore WordPress.DB
             foreach ($p as $table) {
-                $wpdb->query('DROP TABLE IF EXISTS ' . $table); // phpcs:ignore WordPress.DB
+                $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             }
 
             throw SchemaFailure::missingForeignKeys($missing);
@@ -184,8 +187,8 @@ class TranslationMemorySchema
         );
 
         if ($hasParentId === 'parent_id') {
-            $wpdb->query('DROP TABLE IF EXISTS ' . $child);                       // phpcs:ignore WordPress.DB
-            $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_option');  // phpcs:ignore WordPress.DB
+            $wpdb->query('DROP TABLE IF EXISTS ' . $child);                       // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_option');  // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
         }
     }
 
@@ -216,12 +219,41 @@ class TranslationMemorySchema
             return;
         }
 
-        $wpdb->query( // phpcs:ignore WordPress.DB
+        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             "ALTER TABLE {$table}
                 ADD COLUMN form_index tinyint unsigned NOT NULL DEFAULT 0,
                 DROP INDEX uniq_translation,
                 ADD UNIQUE KEY uniq_translation (parent_id, lang_code, form_index)"
         );
+    }
+
+    /**
+     * Add last_seen_at to an existing wp_tl_html (pre-v21). Guarded by an
+     * information_schema column check so it never re-runs or touches a freshly
+     * created table (which already has the column via TableDefinitions::html()).
+     * Existing rows get NULL, which the staleness query never matches — nothing
+     * is retroactively flagged stale on upgrade day (see HtmlDiscovery, the html
+     * repository staleness methods).
+     */
+    private static function migrateHtmlLastSeenAt(): void
+    {
+        global $wpdb;
+
+        $table = self::parentTables()['tl_html'];
+
+        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
+            $wpdb->prepare(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'last_seen_at'",
+                $table
+            )
+        );
+
+        if ($hasColumn === 'last_seen_at') {
+            return;
+        }
+
+        $wpdb->query("ALTER TABLE {$table} ADD COLUMN last_seen_at datetime NULL"); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
     }
 
     /** Storage engine of one table per information_schema, or null if unknown. */

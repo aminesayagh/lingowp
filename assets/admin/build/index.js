@@ -4879,178 +4879,6 @@ function FocusManager({
 
 /***/ },
 
-/***/ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.css.js"
-/*!*****************************************************************************************!*\
-  !*** ./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.css.js ***!
-  \*****************************************************************************************/
-(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (/* binding */ styles)
-/* harmony export */ });
-var styles = {
-  "Item": "Polaris-FormLayout__Item",
-  "grouped": "Polaris-FormLayout--grouped",
-  "condensed": "Polaris-FormLayout--condensed"
-};
-
-
-
-
-/***/ },
-
-/***/ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.js"
-/*!*************************************************************************************!*\
-  !*** ./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.js ***!
-  \*************************************************************************************/
-(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   FormLayout: () => (/* binding */ FormLayout)
-/* harmony export */ });
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _utilities_components_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../utilities/components.js */ "./node_modules/@shopify/polaris/build/esm/utilities/components.js");
-/* harmony import */ var _components_Group_Group_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./components/Group/Group.js */ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/components/Group/Group.js");
-/* harmony import */ var _BlockStack_BlockStack_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../BlockStack/BlockStack.js */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
-/* harmony import */ var _components_Item_Item_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./components/Item/Item.js */ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/components/Item/Item.js");
-
-
-
-
-
-
-const FormLayout = /*#__PURE__*/(0,react__WEBPACK_IMPORTED_MODULE_0__.memo)(function FormLayout({
-  children
-}) {
-  return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_BlockStack_BlockStack_js__WEBPACK_IMPORTED_MODULE_3__.BlockStack, {
-    gap: "400"
-  }, react__WEBPACK_IMPORTED_MODULE_0__.Children.map(children, wrapChildren));
-});
-FormLayout.Group = _components_Group_Group_js__WEBPACK_IMPORTED_MODULE_2__.Group;
-function wrapChildren(child, index) {
-  if ((0,_utilities_components_js__WEBPACK_IMPORTED_MODULE_1__.isElementOfType)(child, _components_Group_Group_js__WEBPACK_IMPORTED_MODULE_2__.Group)) {
-    return child;
-  }
-  const props = {
-    key: index
-  };
-  return (0,_utilities_components_js__WEBPACK_IMPORTED_MODULE_1__.wrapWithComponent)(child, _components_Item_Item_js__WEBPACK_IMPORTED_MODULE_4__.Item, props);
-}
-
-
-
-
-/***/ },
-
-/***/ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/components/Group/Group.js"
-/*!*************************************************************************************************!*\
-  !*** ./node_modules/@shopify/polaris/build/esm/components/FormLayout/components/Group/Group.js ***!
-  \*************************************************************************************************/
-(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   Group: () => (/* binding */ Group)
-/* harmony export */ });
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _utilities_components_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../../../utilities/components.js */ "./node_modules/@shopify/polaris/build/esm/utilities/components.js");
-/* harmony import */ var _Item_Item_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Item/Item.js */ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/components/Item/Item.js");
-/* harmony import */ var _BlockStack_BlockStack_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../BlockStack/BlockStack.js */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
-/* harmony import */ var _InlineStack_InlineStack_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../../InlineStack/InlineStack.js */ "./node_modules/@shopify/polaris/build/esm/components/InlineStack/InlineStack.js");
-/* harmony import */ var _Box_Box_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../../../Box/Box.js */ "./node_modules/@shopify/polaris/build/esm/components/Box/Box.js");
-/* harmony import */ var _Text_Text_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../../../Text/Text.js */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
-
-
-
-
-
-
-
-
-function Group({
-  children,
-  condensed,
-  title,
-  helpText
-}) {
-  const id = (0,react__WEBPACK_IMPORTED_MODULE_0__.useId)();
-  let helpTextElement = null;
-  let helpTextId;
-  let titleElement = null;
-  let titleId;
-  if (helpText) {
-    helpTextId = `${id}HelpText`;
-    helpTextElement = /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_Box_Box_js__WEBPACK_IMPORTED_MODULE_5__.Box, {
-      id: helpTextId,
-      color: "text-secondary"
-    }, helpText);
-  }
-  if (title) {
-    titleId = `${id}Title`;
-    titleElement = /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_Text_Text_js__WEBPACK_IMPORTED_MODULE_6__.Text, {
-      id: titleId,
-      as: "p"
-    }, title);
-  }
-  const itemsMarkup = react__WEBPACK_IMPORTED_MODULE_0__.Children.map(children, child => (0,_utilities_components_js__WEBPACK_IMPORTED_MODULE_1__.wrapWithComponent)(child, _Item_Item_js__WEBPACK_IMPORTED_MODULE_2__.Item, {
-    condensed
-  }));
-  return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_BlockStack_BlockStack_js__WEBPACK_IMPORTED_MODULE_3__.BlockStack, {
-    role: "group",
-    gap: "200",
-    "aria-labelledby": titleId,
-    "aria-describedby": helpTextId
-  }, titleElement, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_InlineStack_InlineStack_js__WEBPACK_IMPORTED_MODULE_4__.InlineStack, {
-    gap: "300"
-  }, itemsMarkup), helpTextElement);
-}
-
-
-
-
-/***/ },
-
-/***/ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/components/Item/Item.js"
-/*!***********************************************************************************************!*\
-  !*** ./node_modules/@shopify/polaris/build/esm/components/FormLayout/components/Item/Item.js ***!
-  \***********************************************************************************************/
-(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   Item: () => (/* binding */ Item)
-/* harmony export */ });
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _utilities_css_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../../../utilities/css.js */ "./node_modules/@shopify/polaris/build/esm/utilities/css.js");
-/* harmony import */ var _FormLayout_css_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../FormLayout.css.js */ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.css.js");
-
-
-
-
-function Item({
-  children,
-  condensed = false
-}) {
-  const className = (0,_utilities_css_js__WEBPACK_IMPORTED_MODULE_1__.classNames)(_FormLayout_css_js__WEBPACK_IMPORTED_MODULE_2__["default"].Item, condensed ? _FormLayout_css_js__WEBPACK_IMPORTED_MODULE_2__["default"].condensed : _FormLayout_css_js__WEBPACK_IMPORTED_MODULE_2__["default"].grouped);
-  return children ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
-    className: className
-  }, children) : null;
-}
-
-
-
-
-/***/ },
-
 /***/ "./node_modules/@shopify/polaris/build/esm/components/Icon/Icon.css.js"
 /*!*****************************************************************************!*\
   !*** ./node_modules/@shopify/polaris/build/esm/components/Icon/Icon.css.js ***!
@@ -13234,18 +13062,25 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (/* binding */ App)
 /* harmony export */ });
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/AppProvider/AppProvider.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Card/Card.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/PortalsManager/PortalsManager.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Spinner/Spinner.js");
-/* harmony import */ var _shopify_polaris_locales_en_json__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris/locales/en.json */ "./node_modules/@shopify/polaris/locales/en.json");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./api */ "./admin-ui/api.js");
-/* harmony import */ var _screens_Configuration__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./screens/Configuration */ "./admin-ui/screens/Configuration.jsx");
-/* harmony import */ var _screens_SettingUp__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./screens/SettingUp */ "./admin-ui/screens/SettingUp.jsx");
-/* harmony import */ var _screens_Dashboard__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./screens/Dashboard */ "./admin-ui/screens/Dashboard.jsx");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__);
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
+/* harmony import */ var _shopify_polaris_locales_en_json__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris/locales/en.json */ "./node_modules/@shopify/polaris/locales/en.json");
+/* harmony import */ var _tanstack_react_query__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @tanstack/react-query */ "./node_modules/@tanstack/query-core/build/modern/queryClient.js");
+/* harmony import */ var _tanstack_react_query__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @tanstack/react-query */ "./node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__);
+/* harmony import */ var motion_react__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! motion/react */ "./node_modules/motion/dist/es/react.mjs");
+/* harmony import */ var motion_react__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! motion/react */ "./node_modules/framer-motion/dist/es/components/AnimatePresence/index.mjs");
+/* harmony import */ var motion_react__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! motion/react */ "./node_modules/framer-motion/dist/es/components/MotionConfig/index.mjs");
+/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./api */ "./admin-ui/api.js");
+/* harmony import */ var _screens_Configuration__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./screens/Configuration */ "./admin-ui/screens/Configuration.jsx");
+/* harmony import */ var _screens_SettingUp__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./screens/SettingUp */ "./admin-ui/screens/SettingUp.jsx");
+/* harmony import */ var _screens_Dashboard__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./screens/Dashboard */ "./admin-ui/screens/Dashboard.jsx");
+/* harmony import */ var _screens_OnboardingPage__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./screens/OnboardingPage */ "./admin-ui/screens/OnboardingPage.jsx");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__);
 
 
 
@@ -13253,11 +13088,29 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
+
+
+
+// Module-level: one client for the whole admin page, not per-mount.
+
+const queryClient = new _tanstack_react_query__WEBPACK_IMPORTED_MODULE_6__.QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60_000,
+      gcTime: 30 * 60_000,
+      retry: 1,
+      refetchOnWindowFocus: false
+    },
+    mutations: {
+      retry: 0
+    }
+  }
+});
 
 // Reflect the current screen in the admin query string (?page=translangs&view=…)
 // for shareable URLs. Routing is state-driven, not popstate-driven, so browser
 // back/forward never steps through onboarding (arch nav rule).
-
 function pushView(view) {
   const url = new URL(window.location.href);
   url.searchParams.set('page', 'translangs');
@@ -13278,15 +13131,15 @@ function resolveView(state) {
   return state.has_target_language ? 'dashboard_workspace' : 'dashboard_empty_language';
 }
 function App() {
-  const [state, setState] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useState)(null);
-  const [view, setViewState] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useState)(null);
+  const [state, setState] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(null);
+  const [view, setViewState] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(null);
 
   // Polaris renders popovers/tooltips/modals into a portal container that, by
   // default, lives inside the React tree — which in wp-admin sits under the
   // positioned #wpwrap, offsetting every overlay by the admin-bar height. Give
   // Polaris a portal root on <body> instead so overlays anchor to the document
   // and position exactly against their activator.
-  const [portalRoot] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useState)(() => {
+  const [portalRoot] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(() => {
     const existing = document.getElementById('translangs-portals');
     if (existing) {
       return existing;
@@ -13296,39 +13149,78 @@ function App() {
     document.body.appendChild(el);
     return el;
   });
-  const setView = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useCallback)(next => {
+  const setView = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useCallback)(next => {
     setViewState(next);
     pushView(next);
   }, []);
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useEffect)(() => {
-    _api__WEBPACK_IMPORTED_MODULE_6__.api.get('/onboarding/state').then(s => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => {
+    _api__WEBPACK_IMPORTED_MODULE_12__.api.get('/onboarding/state').then(s => {
       setState(s);
       setViewState(resolveView(s));
     });
   }, []);
   if (!state || !view) {
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.AppProvider, {
-      i18n: _shopify_polaris_locales_en_json__WEBPACK_IMPORTED_MODULE_4__,
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Page, {
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Spinner, {
-          accessibilityLabel: "Loading Translangs"
+    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_tanstack_react_query__WEBPACK_IMPORTED_MODULE_7__.QueryClientProvider, {
+      client: queryClient,
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.AppProvider, {
+        i18n: _shopify_polaris_locales_en_json__WEBPACK_IMPORTED_MODULE_5__,
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_screens_OnboardingPage__WEBPACK_IMPORTED_MODULE_16__["default"], {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Card, {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.BlockStack, {
+              inlineAlign: "center",
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Spinner, {
+                accessibilityLabel: "Loading Translangs"
+              })
+            })
+          })
         })
       })
     });
   }
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.AppProvider, {
-    i18n: _shopify_polaris_locales_en_json__WEBPACK_IMPORTED_MODULE_4__,
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.PortalsManager, {
-      container: portalRoot,
-      children: [view === 'onboarding_configuration' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_screens_Configuration__WEBPACK_IMPORTED_MODULE_7__["default"], {
-        onDone: () => setView('onboarding_setting_up')
-      }), view === 'onboarding_setting_up' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_screens_SettingUp__WEBPACK_IMPORTED_MODULE_8__["default"], {
-        onDone: next => setView(next)
-      }), (view === 'dashboard_empty_language' || view === 'dashboard_workspace') && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_10__.jsx)(_screens_Dashboard__WEBPACK_IMPORTED_MODULE_9__["default"], {
-        view: view,
-        defaultLanguage: state.default_language,
-        onLanguageCreated: () => setView('dashboard_workspace')
-      })]
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_tanstack_react_query__WEBPACK_IMPORTED_MODULE_7__.QueryClientProvider, {
+    client: queryClient,
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.AppProvider, {
+      i18n: _shopify_polaris_locales_en_json__WEBPACK_IMPORTED_MODULE_5__,
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.PortalsManager, {
+        container: portalRoot,
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(motion_react__WEBPACK_IMPORTED_MODULE_11__.MotionConfig, {
+          reducedMotion: "user",
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(motion_react__WEBPACK_IMPORTED_MODULE_10__.AnimatePresence, {
+            initial: false,
+            mode: "wait",
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsxs)(motion_react__WEBPACK_IMPORTED_MODULE_9__.motion.div, {
+              initial: {
+                opacity: 0,
+                y: 8
+              },
+              animate: {
+                opacity: 1,
+                y: 0
+              },
+              exit: {
+                opacity: 0,
+                y: -8
+              },
+              transition: {
+                duration: 0.18,
+                ease: 'easeOut'
+              },
+              style: {
+                width: '100%'
+              },
+              children: [view === 'onboarding_configuration' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_screens_Configuration__WEBPACK_IMPORTED_MODULE_13__["default"], {
+                onDone: () => setView('onboarding_setting_up')
+              }), view === 'onboarding_setting_up' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_screens_SettingUp__WEBPACK_IMPORTED_MODULE_14__["default"], {
+                onDone: next => setView(next)
+              }), (view === 'dashboard_empty_language' || view === 'dashboard_workspace') && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_17__.jsx)(_screens_Dashboard__WEBPACK_IMPORTED_MODULE_15__["default"], {
+                view: view,
+                defaultLanguage: state.default_language,
+                onLanguageCreated: () => setView('dashboard_workspace')
+              })]
+            }, view)
+          })
+        })
+      })
     })
   });
 }
@@ -13354,7 +13246,9 @@ const cfg = window.Translangs || {
   rest: '',
   nonce: ''
 };
-async function request(method, path, body) {
+async function request(method, path, body, {
+  signal
+} = {}) {
   try {
     const res = await fetch(cfg.rest + path, {
       method,
@@ -13362,10 +13256,17 @@ async function request(method, path, body) {
         'Content-Type': 'application/json',
         'X-WP-Nonce': cfg.nonce
       },
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
+      signal
     });
     return (await res.json()) || {};
   } catch (e) {
+    // A superseded request (React Query cancelling a stale page/group fetch)
+    // must reject, not resolve — resolving would cache `undefined` as if it
+    // were a successful response.
+    if (e?.name === 'AbortError') {
+      throw e;
+    }
     // Network/parse failure below the REST layer surfaces as a transport error.
     return {
       ok: false,
@@ -13374,10 +13275,10 @@ async function request(method, path, body) {
   }
 }
 const api = {
-  get: path => request('GET', path),
-  post: (path, body) => request('POST', path, body),
-  patch: (path, body) => request('PATCH', path, body),
-  del: (path, body) => request('DELETE', path, body)
+  get: (path, opts) => request('GET', path, undefined, opts),
+  post: (path, body, opts) => request('POST', path, body, opts),
+  patch: (path, body, opts) => request('PATCH', path, body, opts),
+  del: (path, body, opts) => request('DELETE', path, body, opts)
 };
 
 /***/ },
@@ -13391,7 +13292,8 @@ const api = {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   errorMessage: () => (/* binding */ errorMessage)
+/* harmony export */   errorMessage: () => (/* binding */ errorMessage),
+/* harmony export */   isAbortError: () => (/* binding */ isAbortError)
 /* harmony export */ });
 // Maps stable ERR_* codes from PHP to user-facing copy. This is the single place
 // the SPA owns error wording (localizable later); PHP never sends sentences.
@@ -13405,10 +13307,18 @@ const MESSAGES = {
   ERR_NOT_FOUND: 'Translangs could not validate this connection. Please contact support.',
   ERR_INVALID_PAYLOAD: 'Translangs could not validate this connection. Please contact support.',
   ERR_INVALID_INPUT: 'Select at least one category to continue.',
-  ERR_NOT_CONNECTED: 'Translangs is not connected. Please finish setup first.'
+  ERR_NOT_CONNECTED: 'Translangs is not connected. Please finish setup first.',
+  ERR_INVALID_STATUS: 'Unknown status filter. Please refresh and try again.'
 };
 function errorMessage(code) {
   return MESSAGES[code] || 'Something went wrong. Please try again.';
+}
+
+// A query cancelled because a newer one superseded it (language/search/status
+// changed, or the row scrolled out of view) — never a real failure, so callers
+// use this to skip showing a notice for it.
+function isAbortError(err) {
+  return err?.name === 'AbortError';
 }
 
 /***/ },
@@ -13503,6 +13413,7 @@ function CompareOverlay({
   unit,
   fieldLabel,
   language,
+  collectionId,
   languages = [],
   sourceLabel = "Original",
   sourceFlag = "",
@@ -13545,18 +13456,19 @@ function CompareOverlay({
     const res = await _api__WEBPACK_IMPORTED_MODULE_15__.api.post("/translations", {
       text_unit_id: unitId,
       language,
-      text: value
+      text: value,
+      collection_id: collectionId
     });
     setSaving(false);
     if (res.ok) {
       savedRef.current = value;
       setError("");
       setSavedTick(t => t + 1);
-      onSaved();
+      onSaved(res);
       return;
     }
     setError(res.error === "ERR_TAG_STRUCTURE" ? "Tag structure is invalid — fix the highlighted tags." : "Could not save. Please try again.");
-  }, [unitId, language, composed, onSaved]);
+  }, [unitId, language, composed, collectionId, onSaved]);
   const flush = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_14__.useCallback)(() => {
     clearTimeout(timerRef.current);
     const value = pendingRef.current;
@@ -13608,7 +13520,8 @@ function CompareOverlay({
     setTranslating(true);
     await flush();
     await onAiTranslate("text", {
-      ref: unit.id
+      ref: unit.id,
+      collection_id: collectionId
     });
     setTranslating(false);
   }
@@ -13814,15 +13727,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Card/Card.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Checkbox/Checkbox.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/ChoiceList/ChoiceList.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_8__);
-/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
-/* harmony import */ var _errors__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../errors */ "./admin-ui/errors.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_7__);
+/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
+/* harmony import */ var _errors__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../errors */ "./admin-ui/errors.js");
+/* harmony import */ var _OnboardingPage__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./OnboardingPage */ "./admin-ui/screens/OnboardingPage.jsx");
 /* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
 /* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__);
+
 
 
 
@@ -13840,16 +13754,16 @@ function humanize(code) {
 function Configuration({
   onDone
 }) {
-  const [categoryChoices, setCategoryChoices] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)([]);
-  const [categories, setCategories] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)([]);
-  const [prefix, setPrefix] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(false);
-  const [cookie, setCookie] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(true);
-  const [browser, setBrowser] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(true);
-  const [autoRedirect, setAutoRedirect] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(false);
-  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)('');
-  const [submitting, setSubmitting] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(false);
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => {
-    _api__WEBPACK_IMPORTED_MODULE_9__.api.get('/onboarding/categories').then(res => {
+  const [categoryChoices, setCategoryChoices] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)([]);
+  const [categories, setCategories] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)([]);
+  const [prefix, setPrefix] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(false);
+  const [cookie, setCookie] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(true);
+  const [browser, setBrowser] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(true);
+  const [autoRedirect, setAutoRedirect] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(false);
+  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)('');
+  const [submitting, setSubmitting] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(false);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useEffect)(() => {
+    _api__WEBPACK_IMPORTED_MODULE_8__.api.get('/onboarding/categories').then(res => {
       if (res.ok && Array.isArray(res.categories)) {
         setCategoryChoices(res.categories.map(code => ({
           label: humanize(code),
@@ -13867,7 +13781,7 @@ function Configuration({
     // is reachable) — never block Continue on them.
     setSubmitting(true);
     setError('');
-    const res = await _api__WEBPACK_IMPORTED_MODULE_9__.api.post('/onboarding/configure', {
+    const res = await _api__WEBPACK_IMPORTED_MODULE_8__.api.post('/onboarding/configure', {
       categories,
       prefix_default_language: prefix,
       cookie_preference: cookie,
@@ -13881,15 +13795,14 @@ function Configuration({
       setError(res.error || 'ERR_BACKEND');
     }
   }
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Page, {
-    narrowWidth: true,
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_OnboardingPage__WEBPACK_IMPORTED_MODULE_10__["default"], {
     title: "Configure Translangs",
     subtitle: "Tell us about your site and how visitors should reach translated pages.",
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.BlockStack, {
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.BlockStack, {
       gap: "400",
       children: [error && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Banner, {
         tone: "critical",
-        children: (0,_errors__WEBPACK_IMPORTED_MODULE_10__.errorMessage)(error)
+        children: (0,_errors__WEBPACK_IMPORTED_MODULE_9__.errorMessage)(error)
       }), categoryChoices.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Card, {
         children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.ChoiceList, {
           allowMultiple: true,
@@ -13897,14 +13810,14 @@ function Configuration({
           choices: categoryChoices,
           selected: categories,
           onChange: setCategories
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.Text, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
           as: "p",
           tone: "subdued",
           variant: "bodySm",
           children: "Helps AI match your site's tone."
         })]
       }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Card, {
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.BlockStack, {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.BlockStack, {
           gap: "300",
           children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Checkbox, {
             label: "Prefix default language",
@@ -13973,19 +13886,28 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/TextField/TextField.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Tooltip/Tooltip.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_20___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_20__);
-/* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/PageIcon.svg.mjs");
-/* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/SettingsIcon.svg.mjs");
-/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
-/* harmony import */ var _SettingsModal__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./SettingsModal */ "./admin-ui/screens/SettingsModal.jsx");
-/* harmony import */ var _LanguageManagerModal__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./LanguageManagerModal */ "./admin-ui/screens/LanguageManagerModal.jsx");
-/* harmony import */ var _LanguageList__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./LanguageList */ "./admin-ui/screens/LanguageList.jsx");
-/* harmony import */ var _CompareOverlay__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./CompareOverlay */ "./admin-ui/screens/CompareOverlay.jsx");
-/* harmony import */ var _QuotaCard__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./QuotaCard */ "./admin-ui/screens/QuotaCard.jsx");
-/* harmony import */ var _TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./TranslationUnitEditor */ "./admin-ui/screens/TranslationUnitEditor.jsx");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__);
+/* harmony import */ var _tanstack_react_query__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! @tanstack/react-query */ "./node_modules/@tanstack/react-query/build/modern/useQuery.js");
+/* harmony import */ var _tanstack_react_query__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! @tanstack/react-query */ "./node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js");
+/* harmony import */ var _tanstack_react_query__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! @tanstack/react-query */ "./node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js");
+/* harmony import */ var _tanstack_react_virtual__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! @tanstack/react-virtual */ "./node_modules/@tanstack/react-virtual/dist/esm/index.js");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_24___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_24__);
+/* harmony import */ var _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! @shopify/polaris-icons */ "./node_modules/@shopify/polaris-icons/dist/icons/PageIcon.svg.mjs");
+/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
+/* harmony import */ var _SettingsModal__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./SettingsModal */ "./admin-ui/screens/SettingsModal.jsx");
+/* harmony import */ var _ExportImportModal__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./ExportImportModal */ "./admin-ui/screens/ExportImportModal.jsx");
+/* harmony import */ var _LanguageManagerModal__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./LanguageManagerModal */ "./admin-ui/screens/LanguageManagerModal.jsx");
+/* harmony import */ var _OnboardingPage__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./OnboardingPage */ "./admin-ui/screens/OnboardingPage.jsx");
+/* harmony import */ var _LanguageList__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./LanguageList */ "./admin-ui/screens/LanguageList.jsx");
+/* harmony import */ var _CompareOverlay__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./CompareOverlay */ "./admin-ui/screens/CompareOverlay.jsx");
+/* harmony import */ var _QuotaCard__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ./QuotaCard */ "./admin-ui/screens/QuotaCard.jsx");
+/* harmony import */ var _TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_34__ = __webpack_require__(/*! ./TranslationUnitEditor */ "./admin-ui/screens/TranslationUnitEditor.jsx");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__);
+
+
+
+
 
 
 
@@ -14000,14 +13922,14 @@ __webpack_require__.r(__webpack_exports__);
 const StartIcon = ({
   color = "currentColor",
   ...props
-}) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("svg", {
+}) => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("svg", {
   width: "24",
   height: "24",
   viewBox: "0 0 24 24",
   fill: "none",
   xmlns: "http://www.w3.org/2000/svg",
   ...props,
-  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("path", {
+  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("path", {
     d: "M10.6618 4.89303C11.1085 3.70232 12.8915 3.70232 13.3382 4.89303L14.8693 8.97405C15.0123 9.3552 15.3298 9.65504 15.7334 9.79009L20.0544 11.2361C21.3152 11.658 21.3152 13.342 20.0544 13.7639L15.7334 15.2099C15.3298 15.345 15.0123 15.6448 14.8693 16.0259L13.3382 20.107C12.8915 21.2977 11.1085 21.2977 10.6618 20.107L9.13068 16.0259C8.98769 15.6448 8.67021 15.345 8.26665 15.2099L3.94556 13.7639C2.68481 13.342 2.68481 11.658 3.94556 11.2361L8.26665 9.79009C8.67021 9.65504 8.98769 9.3552 9.13068 8.97405L10.6618 4.89303Z",
     stroke: color,
     strokeWidth: "1.5",
@@ -14015,16 +13937,22 @@ const StartIcon = ({
   })
 });
 
-// Schema status → workspace pill (per design-ux-data-mapping.md §2). Translated
-// rows carry no pill.
+// Schema status → workspace pill. Completed rows keep a visible marker so table
+// progress is scannable even when the row is not hovered.
 const STATUS_BADGE = {
   missing: null,
   needs_review: {
     tone: "warning",
     label: "Needs review"
   },
-  reviewed: null,
-  translated: null
+  reviewed: {
+    tone: "success",
+    label: "Done"
+  },
+  translated: {
+    tone: "success",
+    label: "Done"
+  }
 };
 
 // Truncate a cell to a single line with an ellipsis; the whole cell is a
@@ -14050,7 +13978,9 @@ function groupHeading({
     page: "Pages",
     post: "Posts",
     cpt: "Custom",
-    taxonomy: "Taxonomies"
+    taxonomy: "Taxonomies",
+    plugin: "Plugin",
+    theme: "Theme"
   }[type];
   return prefix ? `${prefix} · ${label}` : label;
 }
@@ -14067,7 +13997,7 @@ function openCanvas(url, target, snippet) {
   window.open(final, "_blank", "noopener");
 }
 
-// Header status filters (client-side over collection counts).
+// Header status filters — sent as ?status= to the server now.
 const FILTERS = [{
   key: "untranslated",
   label: "Untranslated"
@@ -14078,35 +14008,129 @@ const FILTERS = [{
   key: "translated",
   label: "Translated"
 }];
+const ORIGIN_FILTERS = [{
+  key: "manual",
+  label: "Manual"
+}, {
+  key: "ai",
+  label: "AI"
+}, {
+  key: "not_translated",
+  label: "Not translated"
+}];
+const CONTENT_TYPE_FILTERS = [{
+  key: "page",
+  label: "Pages"
+}, {
+  key: "post",
+  label: "Posts"
+}, {
+  key: "cpt",
+  label: "Custom post types"
+}, {
+  key: "taxonomy",
+  label: "Taxonomies"
+}, {
+  key: "site_settings",
+  label: "Site settings"
+}, {
+  key: "html",
+  label: "Template content"
+}, {
+  key: "plugin",
+  label: "Plugin text"
+}, {
+  key: "theme",
+  label: "Theme text"
+}];
+const TEXT_LENGTH_FILTERS = [{
+  key: "short",
+  label: "Short text"
+}, {
+  key: "medium",
+  label: "Medium text"
+}, {
+  key: "long",
+  label: "Long text"
+}];
+const PROGRESS_FILTERS = [{
+  key: "not_started",
+  label: "Not started"
+}, {
+  key: "in_progress",
+  label: "In progress"
+}, {
+  key: "complete",
+  label: "Complete"
+}, {
+  key: "has_review",
+  label: "Has review items"
+}];
+function filterQueryParams(filters) {
+  return Object.entries(filters).filter(([, values]) => values.length > 0).map(([key, values]) => `&${key}=${enc(values.join(","))}`).join("");
+}
+
+// Search runs server-side (?search= on /collections and /collections/{id}/texts),
+// matching source text OR its translation in the selected language.
+// 300ms because each keystroke refetches every group's counts.
+const SEARCH_DEBOUNCE_MS = 300;
+// One letter matches almost everything; below this the box is inert.
+const SEARCH_MIN = 2;
+// Collections page size (matches CollectionRestController's DEFAULT_LIMIT).
+const PAGE_SIZE = 20;
+// Rows revealed per "Show more" click in a group — an auto-opened 1,000-text
+// group never dumps every row at once.
+const TEXT_BATCH = 50;
 function Dashboard({
   view,
   defaultLanguage,
   onLanguageCreated
 }) {
-  const [languages, setLanguages] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)([]);
-  const [selectedLang, setSelectedLang] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)("");
-  const [collections, setCollections] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
-  // expanded[id] = 'loading' | array of text units (undefined = collapsed).
-  const [expanded, setExpanded] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)({});
-  const [search, setSearch] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)("");
-  const [managerOpen, setManagerOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
-  const [managerInitial, setManagerInitial] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
-  const [settingsOpen, setSettingsOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
-  const [overlay, setOverlay] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
-  const [confirm, setConfirm] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
-  const [ai, setAi] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)({
+  const queryClient = (0,_tanstack_react_query__WEBPACK_IMPORTED_MODULE_21__.useQueryClient)();
+  const [languages, setLanguages] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)([]);
+  // null means the REST request is still pending; an empty array is a completed
+  // response with no additional WordPress locales available.
+  const [languageCatalog, setLanguageCatalog] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(null);
+  const [selectedLang, setSelectedLang] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)("");
+  const [search, setSearch] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)("");
+  // The debounced term actually sent to the server ("" = not searching).
+  const [query, setQuery] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)("");
+  // { id, cid } of the text unit open in the compare overlay, or null.
+  const [overlay, setOverlay] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(null);
+  const [managerOpen, setManagerOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [managerInitial, setManagerInitial] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(null);
+  const [settingsOpen, setSettingsOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [exportImportOpen, setExportImportOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [pageMenuOpen, setPageMenuOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [refreshing, setRefreshing] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [confirm, setConfirm] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(null);
+  const [ai, setAi] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)({
     available: false,
     error: ""
   });
-  const [quota, setQuota] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
-  const [notice, setNotice] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(null);
-  const [showSearch, setShowSearch] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
-  const [statusFilter, setStatusFilter] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)("all");
-
-  // Mirrors `expanded` so effects can read it without re-subscribing.
-  const expandedRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useRef)({});
-  expandedRef.current = expanded;
+  const [quota, setQuota] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(null);
+  const [notice, setNotice] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(null);
+  const [autosaveToast, setAutosaveToast] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [statusFilter, setStatusFilter] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)("all");
+  const [originFilter, setOriginFilter] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)([]);
+  const [contentTypeFilter, setContentTypeFilter] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)([]);
+  const [textLengthFilter, setTextLengthFilter] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)([]);
+  const [progressFilter, setProgressFilter] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)([]);
+  // Which board is showing: today's Content tree, or gettext grouped by
+  // plugin/theme. Swaps the `source` param on the same collections/text-order
+  // queries below — same load/search/pagination machinery, different data.
+  const [board, setBoard] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)("content");
+  const autosaveToastTimerRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useRef)(null);
   const defaultCode = defaultLanguage?.code || defaultLanguage;
+  const advancedFilters = {
+    origin: originFilter,
+    content_type: contentTypeFilter,
+    text_length: textLengthFilter,
+    progress: progressFilter
+  };
+  const advancedFilterParams = filterQueryParams(advancedFilters);
+  const hasAdvancedFilters = Object.values(advancedFilters).some(values => values.length > 0);
+  const hasAnyFilter = statusFilter !== "all" || hasAdvancedFilters;
 
   // Open the language manager, optionally focused on a specific language.
   function openManager(code) {
@@ -14114,16 +14138,36 @@ function Dashboard({
     setManagerOpen(true);
   }
   function loadQuota() {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.get("/quota").then(res => setQuota(res.ok ? res.quota : null));
+    _api__WEBPACK_IMPORTED_MODULE_26__.api.get("/quota").then(res => setQuota(res.ok ? res.quota : null));
   }
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(() => {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.get("/connection/status").then(res => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(() => {
+    _api__WEBPACK_IMPORTED_MODULE_26__.api.get("/connection/status").then(res => {
       setAi({
         available: !!res.ai_available,
         error: res.ai_error || ""
       });
     });
     loadQuota();
+  }, []);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(() => {
+    function showAutosaveToast() {
+      setAutosaveToast(true);
+      clearTimeout(autosaveToastTimerRef.current);
+      autosaveToastTimerRef.current = setTimeout(() => {
+        setAutosaveToast(false);
+      }, 3000);
+    }
+    function handleShortcut(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        showAutosaveToast();
+      }
+    }
+    window.addEventListener("keydown", handleShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      clearTimeout(autosaveToastTimerRef.current);
+    };
   }, []);
 
   // AI translate a scope (text | collection | language), then refresh views + quota.
@@ -14135,7 +14179,7 @@ function Dashboard({
       });
       return;
     }
-    const res = await _api__WEBPACK_IMPORTED_MODULE_23__.api.post("/translate", {
+    const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.post("/translate", {
       scope,
       language: selectedLang,
       ...opts
@@ -14154,15 +14198,29 @@ function Dashboard({
       });
       return;
     }
+    // Some items can be rejected while the rest save (a translation that dropped
+    // or invented a protected variable/tag would break the rendered output). The
+    // run still succeeded, so this is a warning, not a failure — but it must be
+    // visible, or the user just sees rows that silently stayed untranslated.
+    const failed = res.failed || 0;
     setNotice({
-      tone: "success",
-      content: `Translated ${res.translated} text${res.translated === 1 ? "" : "s"}.`
+      tone: failed > 0 ? "warning" : "success",
+      content: `Translated ${res.translated} text${res.translated === 1 ? "" : "s"}.` + (failed > 0 ? ` ${failed} ${failed === 1 ? "was" : "were"} rejected because protected variables or formatting changed.` : "")
     });
-    loadCollections();
-    Object.keys(expanded).forEach(id => {
-      if (Array.isArray(expanded[id])) {
-        loadTexts(id);
-      }
+    if (res.collection_summary) {
+      patchCollectionSummary(res.collection_summary);
+    } else {
+      invalidateCollections();
+    }
+    if (res.updated_unit) {
+      // scope 'text' resolves to one unit; propagate it to any other visible
+      // occurrence of the same text (its own group is invalidated below anyway).
+      propagateTranslation(opts.collection_id ?? opts.id, res.updated_unit);
+    }
+    // Every mounted group's texts for this language may have changed (a scope
+    // or language-wide AI translate isn't limited to one group).
+    queryClient.invalidateQueries({
+      predicate: q => q.queryKey[0] === "texts" && q.queryKey[2] === selectedLang
     });
     loadQuota();
     refreshLanguages(); // rail percentages changed
@@ -14181,7 +14239,7 @@ function Dashboard({
     });
   }
   function patchLangStatus(code, status) {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.patch(`/languages/${enc(code)}`, {
+    _api__WEBPACK_IMPORTED_MODULE_26__.api.patch(`/languages/${enc(code)}`, {
       status
     }).then(res => {
       if (res.ok) {
@@ -14190,7 +14248,7 @@ function Dashboard({
     });
   }
   function deleteLang(code) {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.del(`/languages/${enc(code)}`).then(res => {
+    _api__WEBPACK_IMPORTED_MODULE_26__.api.del(`/languages/${enc(code)}`).then(res => {
       if (res.ok) {
         setSelectedLang(cur => cur === code ? "" : cur);
         refreshLanguages();
@@ -14207,11 +14265,15 @@ function Dashboard({
     });
   }
   function refreshLanguages() {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.get("/languages").then(res => {
+    _api__WEBPACK_IMPORTED_MODULE_26__.api.get("/languages").then(res => {
       if (!res.ok) {
+        // Resolve the pending state even when the request fails so the modal
+        // never leaves the user behind an endless loading message.
+        setLanguageCatalog([]);
         return;
       }
       const langs = res.languages || [];
+      setLanguageCatalog(res.catalog || []);
       setLanguages(langs);
       setSelectedLang(cur => {
         if (cur && langs.some(l => l.code === cur)) {
@@ -14222,77 +14284,391 @@ function Dashboard({
       });
     });
   }
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(refreshLanguages, []);
-  function loadCollections() {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.get(`/collections?language=${enc(selectedLang)}`).then(res => {
-      setCollections(res.ok ? res.collections || [] : []);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(refreshLanguages, []);
+
+  // Debounce the box into the term we actually query with. Below SEARCH_MIN the term
+  // counts as empty, so backspacing to one letter restores the full tree.
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(() => {
+    const q = search.trim();
+    const id = setTimeout(() => setQuery(q.length < SEARCH_MIN ? "" : q), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [search]);
+  const searchParam = q => q ? `&search=${enc(q)}` : "";
+
+  // Collections, paged. Language/search/status/limit live in the key, so any
+  // change refetches from page 0 automatically — no manual reset effect needed.
+  const groupsQ = (0,_tanstack_react_query__WEBPACK_IMPORTED_MODULE_22__.useInfiniteQuery)({
+    queryKey: ["collections", {
+      language: selectedLang,
+      search: query,
+      status: statusFilter,
+      source: board,
+      filters: advancedFilters,
+      limit: PAGE_SIZE
+    }],
+    initialPageParam: 0,
+    queryFn: async ({
+      pageParam,
+      signal
+    }) => {
+      const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.get(`/collections?language=${enc(selectedLang)}&offset=${pageParam}&limit=${PAGE_SIZE}` + `${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`, {
+        signal
+      });
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    getNextPageParam: last => last.has_more ? last.next_offset : undefined,
+    enabled: !!selectedLang
+  });
+  function invalidateCollections() {
+    queryClient.invalidateQueries({
+      predicate: q => q.queryKey[0] === "collections" && q.queryKey[1]?.language === selectedLang
     });
   }
 
-  // Reload for the new working language, keeping open groups open — the overlay
-  // switches language in place and would otherwise lose the row it is editing.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(() => {
-    if (!selectedLang) {
+  // Manual "recheck the site for missing text": re-arm the same scan that runs
+  // on activation, then poll status the same way SettingUp.jsx does during
+  // onboarding. On completion, refetch the board so newly discovered text
+  // shows up without a full page reload.
+  //
+  // The HTML crawl also gets (re-)triggered by this same click, but it is
+  // deliberately NOT part of what's polled below — it's network-bound (one
+  // fetch per page) and can run far longer than the DB-only scan on a large
+  // site. Waiting for it would hold the dashboard hostage for no reason: the
+  // crawl keeps filling in tl_html in the background regardless, and newly
+  // discovered hardcoded text just shows up next time the html:all group is
+  // fetched (a manual refresh, reopening the group, etc.) — no spinner needed.
+  function refreshScan() {
+    if (refreshing) {
       return;
     }
-    setCollections(null);
-    loadCollections();
-    Object.keys(expandedRef.current).forEach(loadTexts);
-  }, [selectedLang]);
-  function loadTexts(id) {
-    _api__WEBPACK_IMPORTED_MODULE_23__.api.get(`/collections/${enc(id)}/texts?language=${enc(selectedLang)}`).then(res => {
-      setExpanded(c => ({
-        ...c,
-        [id]: res.ok ? res.texts || [] : []
-      }));
+    setRefreshing(true);
+    setNotice({
+      tone: "info",
+      content: "Rescanning your site…"
+    });
+    _api__WEBPACK_IMPORTED_MODULE_26__.api.post("/scan/refresh").then(res => {
+      pollScanStatus(res.html_status === "running");
     });
   }
-  function toggleGroup(id) {
-    setExpanded(cur => {
-      if (cur[id] !== undefined) {
-        const next = {
-          ...cur
-        };
-        delete next[id];
-        return next;
+  function pollScanStatus(htmlCrawlRunning) {
+    _api__WEBPACK_IMPORTED_MODULE_26__.api.get("/scan/status").then(res => {
+      const status = res.status || "running";
+      if (status === "running") {
+        setTimeout(() => pollScanStatus(htmlCrawlRunning), 3000);
+        return;
       }
-      loadTexts(id);
+      setRefreshing(false);
+      if (status === "completed") {
+        setNotice({
+          tone: "success",
+          content: htmlCrawlRunning ? "Scan complete. We're still looking for more text on your site — check back soon." : "Scan complete."
+        });
+        invalidateCollections();
+      } else {
+        setNotice({
+          tone: "critical",
+          content: "Scan could not finish. Please try again."
+        });
+      }
+    });
+  }
+
+  // A mutation response that resolved to one collection's fresh counts
+  // (`collection_summary`) patches the cached board directly — no refetch
+  // round-trip. Also keeps the header total_texts/total_translated in step
+  // (derives their delta from the one collection's old vs. new numbers), and
+  // drops the row if it no longer matches the active status filter (mirrors
+  // what a real refetch would do server-side).
+  function patchCollectionSummary(summary) {
+    if (hasAdvancedFilters) {
+      queryClient.invalidateQueries({
+        queryKey: ["collections"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["texts"]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["text-order"]
+      });
+      return;
+    }
+    const stillMatchesFilter = statusFilter === "all" || statusFilter === "untranslated" && summary.missing > 0 || statusFilter === "needs_review" && summary.needs_review > 0 || statusFilter === "translated" && summary.translated > 0;
+    queryClient.setQueriesData({
+      predicate: q => q.queryKey[0] === "collections" && q.queryKey[1]?.language === selectedLang
+    }, old => {
+      if (!old) {
+        return old;
+      }
+      let deltaTotal = 0;
+      let deltaTranslated = 0;
+      let found = false;
+      const pages = old.pages.map(p => {
+        if (!p.collections.some(c => c.id === summary.id)) {
+          return p;
+        }
+        found = true;
+        const collections = p.collections.flatMap(c => {
+          if (c.id !== summary.id) {
+            return [c];
+          }
+          deltaTotal = summary.total - c.total;
+          deltaTranslated = summary.translated - c.translated;
+          return stillMatchesFilter ? [{
+            ...c,
+            ...summary
+          }] : [];
+        });
+        return {
+          ...p,
+          collections
+        };
+      });
+      if (!found) {
+        return old;
+      }
       return {
-        ...cur,
-        [id]: "loading"
+        ...old,
+        pages: pages.map(p => ({
+          ...p,
+          total_texts: p.total_texts + deltaTotal,
+          total_translated: p.total_translated + deltaTranslated
+        }))
       };
     });
   }
 
-  // After a mutation on a unit: refresh that group's texts (if open) + counts.
-  function afterMutate(cid) {
-    if (expanded[cid] !== undefined) {
-      loadTexts(cid);
+  // Hash-link kinds (post/term/html/option) share one translation row across
+  // every position with the same source text — a save in one group doesn't
+  // magically update another, already-cached group showing the same text.
+  // Patch every OTHER cached group's matching row (by original_hash) directly,
+  // and recompute that group's summary from the patched array. Skips the
+  // group just edited — that one already gets its normal targeted invalidate.
+  function propagateTranslation(editedCid, updatedUnit) {
+    const hash = updatedUnit?.original_hash;
+    if (!hash) {
+      return; // meta / unlinked kinds never share a translation
     }
-    loadCollections();
+    const entries = queryClient.getQueriesData({
+      predicate: q => q.queryKey[0] === "texts" && q.queryKey[2] === selectedLang && q.queryKey[1] !== editedCid
+    });
+    for (const [key, data] of entries) {
+      const texts = data?.texts;
+      if (!Array.isArray(texts)) {
+        continue;
+      }
+      let changed = false;
+      const nextTexts = texts.map(t => {
+        if (t.original_hash !== hash) {
+          return t;
+        }
+        changed = true;
+        return {
+          ...t,
+          translated: updatedUnit.translated,
+          status: updatedUnit.status,
+          origin: updatedUnit.origin,
+          is_ai: updatedUnit.is_ai,
+          word_count: updatedUnit.word_count
+        };
+      });
+      if (!changed) {
+        continue;
+      }
+      queryClient.setQueryData(key, {
+        ...data,
+        texts: nextTexts
+      });
+      const cid = key[1];
+      const summary = {
+        id: cid,
+        total: nextTexts.length,
+        translated: 0,
+        needs_review: 0,
+        missing: 0
+      };
+      for (const t of nextTexts) {
+        if (t.status === "missing") {
+          summary.missing++;
+        } else if (t.status === "needs_review") {
+          summary.needs_review++;
+        } else {
+          summary.translated++;
+        }
+      }
+      patchCollectionSummary(summary);
+    }
+  }
+
+  // Offset paging can repeat a row across pages (mid-scroll inserts/removals);
+  // first occurrence wins, which preserves page order.
+  const groups = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useMemo)(() => {
+    const seen = new Set();
+    const result = [];
+    for (const p of groupsQ.data?.pages ?? []) {
+      for (const g of p.collections ?? []) {
+        if (seen.has(g.id)) continue;
+        seen.add(g.id);
+        result.push(g);
+      }
+    }
+    return result;
+  }, [groupsQ.data]);
+
+  // Header progress badge — the whole matching set's totals, from the most
+  // recently fetched page (every page carries the same whole-set totals).
+  const pages = groupsQ.data?.pages ?? [];
+  const lastPage = pages[pages.length - 1];
+  const totalTexts = lastPage?.total_texts ?? 0;
+  const totalDone = lastPage?.total_translated ?? 0;
+  const totalGroups = lastPage?.total ?? groups.length;
+
+  // Every group is open by default; a manual collapse is remembered here and
+  // reset when the working language changes (mirrors the old per-language reset).
+  const [collapsedIds, setCollapsedIds] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(() => new Set());
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(() => {
+    setCollapsedIds(new Set());
+  }, [selectedLang]);
+  const toggleCollapsed = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useCallback)(id => {
+    setCollapsedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Window-scroll virtualization: only near-view group rows mount. One extra
+  // "sentinel" row (count+1) carries the load-more/retry control when more
+  // pages exist. Scroll margin is measured (not assumed), so content above the
+  // list (notices, sticky header) doesn't misalign rows.
+  const listRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useRef)(null);
+  const [scrollMargin, setScrollMargin] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(0);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useLayoutEffect)(() => {
+    const update = () => setScrollMargin(listRef.current?.offsetTop ?? 0);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  const getItemKey = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useCallback)(i => i < groups.length ? groups[i].id : "__sentinel__", [groups]);
+  const v = (0,_tanstack_react_virtual__WEBPACK_IMPORTED_MODULE_23__.useWindowVirtualizer)({
+    count: groupsQ.hasNextPage ? groups.length + 1 : groups.length,
+    estimateSize: () => 320,
+    overscan: 3,
+    getItemKey,
+    scrollMargin
+  });
+  const virtualItems = v.getVirtualItems();
+
+  // Fetch the next page once the sentinel/last row nears the viewport.
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(() => {
+    const last = virtualItems[virtualItems.length - 1];
+    if (!last) {
+      return;
+    }
+    if (last.index >= groups.length - 3 && groupsQ.hasNextPage && !groupsQ.isFetchingNextPage && !groupsQ.isRefetching) {
+      groupsQ.fetchNextPage();
+    }
+  }, [virtualItems, groups.length, groupsQ.hasNextPage, groupsQ.isFetchingNextPage, groupsQ.isRefetching]);
+
+  // The overlay reads its group's texts from the same cache key each
+  // CollectionGroup uses, so opening a neighbor group is just a query-key
+  // change (shares cache with that group's own row if it's mounted).
+  const overlayTextsQ = (0,_tanstack_react_query__WEBPACK_IMPORTED_MODULE_20__.useQuery)({
+    queryKey: ["texts", overlay?.cid, selectedLang, query, advancedFilters],
+    queryFn: async ({
+      signal
+    }) => {
+      const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.get(`/collections/${enc(overlay.cid)}/texts?language=${enc(selectedLang)}${searchParam(query)}${advancedFilterParams}`, {
+        signal
+      });
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: !!overlay
+  });
+  const overlayTexts = overlayTextsQ.data?.texts ?? [];
+  const overlayIndex = overlay ? overlayTexts.findIndex(t => t.id === overlay.id) : -1;
+  const overlayUnit = overlayIndex >= 0 ? overlayTexts[overlayIndex] : null;
+
+  // Cross-group prev/next: every matching group's text-id order, fetched only
+  // while the overlay is open (not part of the paginated board itself).
+  const orderQ = (0,_tanstack_react_query__WEBPACK_IMPORTED_MODULE_20__.useQuery)({
+    queryKey: ["text-order", selectedLang, query, statusFilter, board, advancedFilters],
+    queryFn: async ({
+      signal
+    }) => {
+      const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.get(`/collections/text-order?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`, {
+        signal
+      });
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: !!overlay
+  });
+  const orderFlat = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useMemo)(() => (orderQ.data?.groups ?? []).flatMap(g => g.ids.map(id => ({
+    id,
+    cid: g.cid,
+    label: g.label,
+    type: g.type
+  }))), [orderQ.data]);
+  const globalIndex = overlay ? orderFlat.findIndex(o => o.id === overlay.id) : -1;
+  const overlayOrderEntry = globalIndex >= 0 ? orderFlat[globalIndex] : null;
+  // Prefer the order response's group label (works even for a neighbor group
+  // the board hasn't paginated its way to yet); fall back to the loaded board
+  // list for the brief window before the order list has resolved.
+  const overlayCollection = overlayOrderEntry ?? (overlay ? groups.find(g => g.id === overlay.cid) : null);
+  const overlayFieldLabel = overlayUnit && overlayCollection ? `${groupHeading(overlayCollection)} — ${overlayUnit.field}` : undefined;
+
+  // After a mutation on a unit: invalidate that group's texts (any cached
+  // search variant); patch the collections cache directly if the mutation
+  // returned a fresh summary, otherwise fall back to invalidating it; and
+  // propagate the new value to any other visible occurrence of the same text.
+  function afterMutate(cid, patch) {
+    queryClient.invalidateQueries({
+      queryKey: ["texts", cid, selectedLang]
+    });
+    if (patch?.collection_summary) {
+      patchCollectionSummary(patch.collection_summary);
+    } else {
+      invalidateCollections();
+    }
+    if (patch?.updated_unit) {
+      propagateTranslation(cid, patch.updated_unit);
+    }
   }
 
   // Empty-language state: same shell, centered CTA (wireframe 1.3).
   if (view === "dashboard_empty_language" && languages.length === 0) {
-    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_13__.Page, {
-      title: "Translangs",
-      fullWidth: true,
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Card, {
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.EmptyState, {
-          heading: "Add your first language",
-          action: {
-            content: "Create a language",
-            onAction: () => openManager(null)
-          },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("p", {
-            children: "Your site is ready. Create a language to start translating your content."
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("p", {
-            children: "Need more later? Add them from the sidebar anytime."
-          })]
+    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.Fragment, {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_OnboardingPage__WEBPACK_IMPORTED_MODULE_30__["default"], {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Card, {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_9__.EmptyState, {
+            heading: "Add your first language",
+            action: {
+              content: "Create a language",
+              onAction: () => openManager(null)
+            },
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("p", {
+              children: "Your site is ready. Create a language to start translating your content."
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("p", {
+              children: "Need more later? Add them from the sidebar anytime."
+            })]
+          })
         })
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_LanguageManagerModal__WEBPACK_IMPORTED_MODULE_25__["default"], {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_LanguageManagerModal__WEBPACK_IMPORTED_MODULE_29__["default"], {
         open: managerOpen,
         languages: languages,
+        catalog: languageCatalog,
         defaultCode: defaultCode,
         initialCode: managerInitial,
         onClose: () => setManagerOpen(false),
@@ -14303,34 +14679,7 @@ function Dashboard({
       })]
     });
   }
-  const filtered = (collections || []).filter(c => {
-    if (!groupHeading(c).toLowerCase().includes(search.toLowerCase())) {
-      return false;
-    }
-    if (statusFilter === "untranslated") {
-      return c.missing > 0;
-    }
-    if (statusFilter === "needs_review") {
-      return c.needs_review > 0;
-    }
-    if (statusFilter === "translated") {
-      return c.translated > 0;
-    }
-    return true;
-  });
-
-  // Every row currently rendered, in table order — this is what the overlay's
-  // prev/next arrows walk, so they cross group boundaries.
-  const loadedRows = filtered.flatMap(c => Array.isArray(expanded[c.id]) ? expanded[c.id].map(u => ({
-    unit: u,
-    cid: c.id,
-    fieldLabel: `${groupHeading(c)} — ${u.field}`
-  })) : []);
-  // Resolve by id, not a stored index: a refetch replaces the unit objects.
-  const overlayIndex = overlay ? loadedRows.findIndex(r => r.unit.id === overlay.id) : -1;
-  const overlayRow = overlayIndex >= 0 ? loadedRows[overlayIndex] : null;
-  const totalTexts = (collections || []).reduce((n, c) => n + c.total, 0);
-  const totalDone = (collections || []).reduce((n, c) => n + c.translated, 0);
+  const searching = query !== "";
 
   // Column headers show the actual language names: source (default) on the left,
   // the selected target on the right. Prefer an explicit display name; otherwise
@@ -14348,12 +14697,15 @@ function Dashboard({
   const langLabel = l => l && (l.display_name || l.name || codeName(l.code || l));
   const originalLabel = langLabel(defaultLanguage) || codeName(defaultCode) || "Original";
   const translationLabel = langLabel(languages.find(l => l.code === selectedLang)) || "Translation";
-
-  // Standard Polaris Filters config (status only, single-select).
+  const choices = items => items.map(item => ({
+    label: item.label,
+    value: item.key
+  }));
+  const selectedLabels = (items, selected) => items.filter(item => selected.includes(item.key)).map(item => item.label).join(", ");
   const filters = [{
     key: "status",
     label: "Status",
-    filter: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.ChoiceList, {
+    filter: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.ChoiceList, {
       title: "Status",
       titleHidden: true,
       choices: FILTERS.map(f => ({
@@ -14364,27 +14716,95 @@ function Dashboard({
       onChange: vals => setStatusFilter(vals[0] || "all")
     }),
     shortcut: true
+  }, {
+    key: "origin",
+    label: "Origin",
+    filter: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.ChoiceList, {
+      title: "Origin",
+      titleHidden: true,
+      allowMultiple: true,
+      choices: choices(ORIGIN_FILTERS),
+      selected: originFilter,
+      onChange: setOriginFilter
+    }),
+    shortcut: true
+  }, {
+    key: "content_type",
+    label: "Content type",
+    filter: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.ChoiceList, {
+      title: "Content type",
+      titleHidden: true,
+      allowMultiple: true,
+      choices: choices(CONTENT_TYPE_FILTERS),
+      selected: contentTypeFilter,
+      onChange: setContentTypeFilter
+    })
+  }, {
+    key: "text_length",
+    label: "Text length",
+    filter: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.ChoiceList, {
+      title: "Text length",
+      titleHidden: true,
+      allowMultiple: true,
+      choices: choices(TEXT_LENGTH_FILTERS),
+      selected: textLengthFilter,
+      onChange: setTextLengthFilter
+    })
+  }, {
+    key: "progress",
+    label: "Collection progress",
+    filter: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.ChoiceList, {
+      title: "Collection progress",
+      titleHidden: true,
+      allowMultiple: true,
+      choices: choices(PROGRESS_FILTERS),
+      selected: progressFilter,
+      onChange: setProgressFilter
+    })
   }];
-  const appliedFilters = statusFilter === "all" ? [] : [{
+  const appliedFilters = [...(statusFilter === "all" ? [] : [{
     key: "status",
     label: `Status: ${FILTERS.find(f => f.key === statusFilter)?.label}`,
     onRemove: () => setStatusFilter("all")
-  }];
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_13__.Page, {
+  }]), ...(originFilter.length === 0 ? [] : [{
+    key: "origin",
+    label: `Origin: ${selectedLabels(ORIGIN_FILTERS, originFilter)}`,
+    onRemove: () => setOriginFilter([])
+  }]), ...(contentTypeFilter.length === 0 ? [] : [{
+    key: "content_type",
+    label: `Content type: ${selectedLabels(CONTENT_TYPE_FILTERS, contentTypeFilter)}`,
+    onRemove: () => setContentTypeFilter([])
+  }]), ...(textLengthFilter.length === 0 ? [] : [{
+    key: "text_length",
+    label: `Text length: ${selectedLabels(TEXT_LENGTH_FILTERS, textLengthFilter)}`,
+    onRemove: () => setTextLengthFilter([])
+  }]), ...(progressFilter.length === 0 ? [] : [{
+    key: "progress",
+    label: `Collection progress: ${selectedLabels(PROGRESS_FILTERS, progressFilter)}`,
+    onRemove: () => setProgressFilter([])
+  }])];
+  const clearAllFilters = () => {
+    setStatusFilter("all");
+    setOriginFilter([]);
+    setContentTypeFilter([]);
+    setTextLengthFilter([]);
+    setProgressFilter([]);
+  };
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_13__.Page, {
     fullWidth: true,
-    children: [notice && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+    children: [notice && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
       paddingBlockEnd: "300",
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Banner, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Banner, {
         tone: notice.tone,
         onDismiss: () => setNotice(null),
         children: notice.content
       })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
       gap: "200",
       align: "start",
       blockAlign: "start",
       wrap: false,
-      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)("div", {
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)("div", {
         style: {
           flex: "0 0 260px",
           width: 260,
@@ -14396,48 +14816,48 @@ function Dashboard({
           display: "flex",
           flexDirection: "column"
         },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
           style: {
             flex: 1,
             minHeight: 0,
             overflowY: "auto",
             paddingRight: 4
           },
-          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
             gap: "400",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
               align: "space-between",
               blockAlign: "center",
               wrap: false,
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
                 gap: "100",
                 blockAlign: "center",
                 wrap: false,
                 style: {
                   paddingLeft: 4
                 },
-                children: [cfg.logo && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("img", {
+                children: [cfg.logo && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("img", {
                   src: cfg.logo,
                   alt: "",
                   width: "24",
                   height: "24",
                   className: "block"
-                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
                   as: "span",
                   variant: "headingMd",
                   children: "Translangs"
                 })]
               })
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
               gap: "200",
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Card, {
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Card, {
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
                   gap: "200",
-                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
                     as: "h2",
                     variant: "headingSm",
                     children: "Target language"
-                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_LanguageList__WEBPACK_IMPORTED_MODULE_26__["default"], {
+                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_LanguageList__WEBPACK_IMPORTED_MODULE_31__["default"], {
                     languages: languages,
                     selectedCode: selectedLang,
                     aiAvailable: ai.available,
@@ -14449,52 +14869,55 @@ function Dashboard({
                     onAdd: () => openManager(null)
                   })]
                 })
-              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Card, {
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Card, {
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
                   gap: "100",
-                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
                     as: "h2",
                     variant: "headingSm",
                     children: "Sources"
-                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
-                    align: "space-between",
-                    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
-                      as: "span",
-                      variant: "bodySm",
+                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+                    gap: "050",
+                    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                      fullWidth: true,
+                      textAlign: "left",
+                      variant: board === "content" ? "primary" : "tertiary",
+                      onClick: () => setBoard("content"),
                       children: "Content"
-                    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
-                      as: "span",
-                      tone: "subdued",
-                      variant: "bodySm",
-                      children: totalTexts
+                    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                      fullWidth: true,
+                      textAlign: "left",
+                      variant: board === "plugins" ? "primary" : "tertiary",
+                      onClick: () => setBoard("plugins"),
+                      children: "Plugins & Themes"
                     })]
                   })]
                 })
               })]
             })]
           })
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
           className: "pt-4",
-          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_QuotaCard__WEBPACK_IMPORTED_MODULE_28__["default"], {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_QuotaCard__WEBPACK_IMPORTED_MODULE_33__["default"], {
             quota: quota,
             aiAvailable: ai.available
           })
         })]
-      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
         style: {
           flex: 1,
           minWidth: 0,
           marginBlockStart: 8,
           minHeight: "calc(100vh - 100px)"
         },
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)("div", {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)("div", {
           style: {
             minHeight: "calc(100vh - 100px)",
             background: "var(--p-color-bg-surface, #fff)",
             borderRadius: "var(--p-border-radius-300, 12px)",
             boxShadow: "var(--p-shadow-100, 0 1px 2px rgba(0,0,0,0.08))"
           },
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
             style: {
               position: "sticky",
               top: 32,
@@ -14503,146 +14926,242 @@ function Dashboard({
               borderTopLeftRadius: "var(--p-border-radius-300, 12px)",
               borderTopRightRadius: "var(--p-border-radius-300, 12px)"
             },
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
               padding: "300",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
                 gap: "200",
-                children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)("div", {
+                children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)("div", {
                   style: {
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
                     minHeight: 32
                   },
-                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
                     className: "flex-1 min-w-0",
-                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_17__.TextField, {
+                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_17__.TextField, {
                       label: "Search text",
                       labelHidden: true,
                       placeholder: "Search text\u2026",
                       value: search,
                       onChange: setSearch,
                       autoComplete: "off",
-                      focused: showSearch,
                       clearButton: true,
                       onClearButtonClick: () => setSearch("")
                     })
-                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
-                    icon: props => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(StartIcon, {
-                      ...props
-                    }),
-                    variant: "tertiary",
-                    disabled: !ai.available,
-                    accessibilityLabel: "AI translate all",
-                    size: "medium",
-                    onClick: () => setConfirm({
-                      title: "AI translate all missing text?",
-                      body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
-                      actionLabel: "Translate all",
-                      onConfirm: () => translateScope("language")
+                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_18__.Tooltip, {
+                    content: "AI translate all",
+                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                      icon: props => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(StartIcon, {
+                        ...props
+                      }),
+                      variant: "tertiary",
+                      disabled: !ai.available,
+                      accessibilityLabel: "AI translate all",
+                      size: "medium",
+                      onClick: () => setConfirm({
+                        title: "AI translate all missing text?",
+                        body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
+                        actionLabel: "Translate all",
+                        onConfirm: () => translateScope("language", {
+                          source: board
+                        })
+                      })
                     })
-                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
-                    icon: _shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_22__.S,
-                    variant: "tertiary",
-                    accessibilityLabel: "Configure",
-                    size: "medium",
-                    onClick: () => openManager(null)
+                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_14__.Popover, {
+                    active: pageMenuOpen,
+                    onClose: () => setPageMenuOpen(false),
+                    activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_18__.Tooltip, {
+                      content: "More actions",
+                      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                        variant: "tertiary",
+                        size: "medium",
+                        accessibilityLabel: "More actions",
+                        onClick: () => setPageMenuOpen(o => !o),
+                        children: "\u22EF"
+                      })
+                    }),
+                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
+                      items: [{
+                        content: "Settings",
+                        onAction: () => {
+                          setPageMenuOpen(false);
+                          setSettingsOpen(true);
+                        }
+                      }, {
+                        content: "Export / Import",
+                        onAction: () => {
+                          setPageMenuOpen(false);
+                          setExportImportOpen(true);
+                        }
+                      }, {
+                        content: "Refresh",
+                        disabled: refreshing,
+                        onAction: () => {
+                          setPageMenuOpen(false);
+                          refreshScan();
+                        }
+                      }]
+                    })
                   })]
-                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+                }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
                   className: "tl-filters",
-                  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_10__.Filters, {
+                  children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_10__.Filters, {
                     hideQueryField: true,
                     filters: filters,
                     appliedFilters: appliedFilters,
                     onQueryChange: () => {},
                     onQueryClear: () => {},
-                    onClearAll: () => setStatusFilter("all")
+                    onClearAll: clearAllFilters
                   })
                 })]
               })
             })
-          }), collections === null ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+          }), groupsQ.isPending ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
             padding: "500",
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_15__.Spinner, {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_15__.Spinner, {
               accessibilityLabel: "Loading content",
               size: "small"
             })
-          }) : filtered.length === 0 ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+          }) : groupsQ.isError && groups.length === 0 ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
             padding: "500",
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+              gap: "200",
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                as: "p",
+                tone: "critical",
+                children: "Could not load content for this language."
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                  onClick: () => groupsQ.refetch(),
+                  children: "Retry"
+                })
+              })]
+            })
+          }) : groups.length === 0 ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+            padding: "500",
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
               as: "p",
               tone: "subdued",
-              children: "No translatable content found for this language yet."
+              children: searching ? `No text matches “${query}” in this language.` : hasAnyFilter ? "No content matches the selected filters." : "No translatable content found for this language yet."
             })
-          }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
+          }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_19__.BlockStack, {
             gap: "0",
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+            children: [searching && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+              paddingInline: "300",
+              paddingBlock: "200",
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                as: "p",
+                tone: "subdued",
+                variant: "bodySm",
+                children: [totalGroups, " ", totalGroups === 1 ? "group matches" : "groups match", "."]
+              })
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
               paddingInlineStart: "1000",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
                 paddingInline: "300",
                 paddingBlock: "200",
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
                   gap: "300",
                   align: "space-between",
                   blockAlign: "center",
                   wrap: false,
-                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+                  children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
                     width: "42%",
                     minWidth: "0",
-                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
                       as: "span",
                       variant: "bodySm",
                       tone: "subdued",
                       fontWeight: "medium",
                       children: originalLabel
                     })
-                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
                     width: "42%",
                     minWidth: "0",
-                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
                       as: "span",
                       variant: "bodySm",
                       tone: "subdued",
                       fontWeight: "medium",
                       children: translationLabel
                     })
-                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+                  }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
                     width: "16%"
                   })]
                 })
               })
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Divider, {}), filtered.map(c => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(CollectionGroup, {
-              collection: c,
-              language: selectedLang,
-              open: expanded[c.id] !== undefined,
-              texts: Array.isArray(expanded[c.id]) ? expanded[c.id] : null,
-              loading: expanded[c.id] === "loading",
-              onToggle: () => toggleGroup(c.id),
-              onMutate: () => afterMutate(c.id),
-              onConfirm: setConfirm,
-              aiAvailable: ai.available,
-              onAiTranslate: translateScope,
-              onOpenOverlay: unit => setOverlay({
-                id: unit.id
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Divider, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
+              ref: listRef,
+              style: {
+                position: "relative",
+                height: v.getTotalSize()
+              },
+              children: virtualItems.map(row => {
+                const isLoaderRow = row.index >= groups.length;
+                const c = groups[row.index];
+                return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
+                  "data-index": row.index,
+                  ref: v.measureElement,
+                  style: {
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${row.start - scrollMargin}px)`
+                  },
+                  children: isLoaderRow ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+                    padding: "300",
+                    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+                      align: "center",
+                      children: groupsQ.isFetchNextPageError ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                        onClick: () => groupsQ.fetchNextPage(),
+                        children: "Retry loading more"
+                      }) : groupsQ.hasNextPage ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                        onClick: () => groupsQ.fetchNextPage(),
+                        loading: groupsQ.isFetchingNextPage,
+                        disabled: groupsQ.isFetchingNextPage,
+                        children: "Load more"
+                      }) : null
+                    })
+                  }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(CollectionGroup, {
+                    collection: c,
+                    language: selectedLang,
+                    search: query,
+                    filterKey: advancedFilters,
+                    filterParams: advancedFilterParams,
+                    collapsed: collapsedIds.has(c.id),
+                    onToggleCollapsed: () => toggleCollapsed(c.id),
+                    onMutate: patch => afterMutate(c.id, patch),
+                    onConfirm: setConfirm,
+                    aiAvailable: ai.available,
+                    onAiTranslate: translateScope,
+                    onOpenOverlay: (unit, cid) => setOverlay({
+                      id: unit.id,
+                      cid
+                    })
+                  })
+                }, row.key);
               })
-            }, c.id))]
-          }), collections !== null && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.Fragment, {
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Divider, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+            })]
+          }), !groupsQ.isPending && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.Fragment, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Divider, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
               padding: "300",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
                 as: "p",
                 alignment: "end",
                 tone: "subdued",
                 variant: "bodySm",
-                children: [totalDone, " of ", totalTexts, " translated"]
+                children: [totalDone, " of ", totalTexts, " translated", searching || hasAnyFilter ? " in filtered text" : ""]
               })
             })]
           })]
         })
       })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_LanguageManagerModal__WEBPACK_IMPORTED_MODULE_25__["default"], {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_LanguageManagerModal__WEBPACK_IMPORTED_MODULE_29__["default"], {
       open: managerOpen,
       languages: languages,
+      catalog: languageCatalog,
       defaultCode: defaultCode,
       initialCode: managerInitial,
       onClose: () => setManagerOpen(false),
@@ -14650,18 +15169,24 @@ function Dashboard({
         refreshLanguages();
         onLanguageCreated();
       }
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_SettingsModal__WEBPACK_IMPORTED_MODULE_24__["default"], {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_SettingsModal__WEBPACK_IMPORTED_MODULE_27__["default"], {
       open: settingsOpen,
       defaultLanguage: defaultCode,
       onClose: () => setSettingsOpen(false)
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_CompareOverlay__WEBPACK_IMPORTED_MODULE_27__["default"], {
-      open: !!overlayRow,
-      unit: overlayRow?.unit,
-      fieldLabel: overlayRow?.fieldLabel,
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_ExportImportModal__WEBPACK_IMPORTED_MODULE_28__["default"], {
+      open: exportImportOpen,
+      languages: languages,
+      initialLanguage: selectedLang,
+      onClose: () => setExportImportOpen(false)
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_CompareOverlay__WEBPACK_IMPORTED_MODULE_32__["default"], {
+      open: !!overlayUnit,
+      unit: overlayUnit,
+      fieldLabel: overlayFieldLabel,
       language: selectedLang,
+      collectionId: overlay?.cid,
       languages: languages,
       sourceLabel: originalLabel,
-      sourceFlag: (0,_LanguageList__WEBPACK_IMPORTED_MODULE_26__.flagEmoji)(typeof defaultLanguage === "object" && defaultLanguage ? defaultLanguage : {
+      sourceFlag: (0,_LanguageList__WEBPACK_IMPORTED_MODULE_31__.flagEmoji)(typeof defaultLanguage === "object" && defaultLanguage ? defaultLanguage : {
         code: defaultCode
       }),
       targetDir: languages.find(l => l.code === selectedLang)?.direction || "ltr",
@@ -14669,18 +15194,44 @@ function Dashboard({
       onAiTranslate: translateScope,
       onPickLanguage: setSelectedLang,
       onClose: () => setOverlay(null),
-      onSaved: () => overlayRow && afterMutate(overlayRow.cid),
-      hasPrev: overlayIndex > 0,
-      hasNext: overlayIndex >= 0 && overlayIndex < loadedRows.length - 1,
-      onPrev: () => setOverlay({
-        id: loadedRows[overlayIndex - 1].unit.id
-      }),
-      onNext: () => setOverlay({
-        id: loadedRows[overlayIndex + 1].unit.id
-      })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(ConfirmDialog, {
+      onSaved: patch => overlay && afterMutate(overlay.cid, patch),
+      hasPrev: globalIndex > 0,
+      hasNext: globalIndex >= 0 && globalIndex < orderFlat.length - 1,
+      onPrev: () => {
+        const prev = orderFlat[globalIndex - 1];
+        setOverlay({
+          id: prev.id,
+          cid: prev.cid
+        });
+      },
+      onNext: () => {
+        const next = orderFlat[globalIndex + 1];
+        setOverlay({
+          id: next.id,
+          cid: next.cid
+        });
+      }
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(ConfirmDialog, {
       confirm: confirm,
       onClose: () => setConfirm(null)
+    }), autosaveToast && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
+      role: "status",
+      "aria-live": "polite",
+      style: {
+        position: "fixed",
+        left: "50%",
+        bottom: "24px",
+        transform: "translateX(-50%)",
+        zIndex: 999999,
+        padding: "10px 14px",
+        borderRadius: "8px",
+        background: "var(--p-color-bg-fill-inverse)",
+        color: "var(--p-color-text-inverse)",
+        boxShadow: "var(--p-shadow-400)",
+        fontSize: "13px",
+        lineHeight: "20px"
+      },
+      children: "The plugin has auto save enabled."
     })]
   });
 }
@@ -14691,7 +15242,7 @@ function ConfirmDialog({
   if (!confirm) {
     return null;
   }
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_12__.Modal, {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_12__.Modal, {
     open: true,
     onClose: onClose,
     title: confirm.title,
@@ -14707,8 +15258,8 @@ function ConfirmDialog({
       content: "Cancel",
       onAction: onClose
     }],
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_12__.Modal.Section, {
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_12__.Modal.Section, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
         as: "p",
         children: confirm.body
       })
@@ -14718,10 +15269,11 @@ function ConfirmDialog({
 function CollectionGroup({
   collection,
   language,
-  open,
-  texts,
-  loading,
-  onToggle,
+  search,
+  filterKey,
+  filterParams,
+  collapsed,
+  onToggleCollapsed,
   onMutate,
   onConfirm,
   onOpenOverlay,
@@ -14729,8 +15281,60 @@ function CollectionGroup({
   onAiTranslate
 }) {
   const c = collection;
-  const [menuOpen, setMenuOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
-  const [hovered, setHovered] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
+  const open = !collapsed;
+  const searching = search !== "";
+  const [menuOpen, setMenuOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [hovered, setHovered] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [shown, setShown] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(TEXT_BATCH);
+
+  // Suppress requests for groups only flashed past during fast scroll: a
+  // collapsed/just-scrolled-past group never settles long enough to fetch.
+  const [settled, setSettled] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(() => {
+    if (collapsed) {
+      setSettled(false);
+      return;
+    }
+    const t = setTimeout(() => setSettled(true), 120);
+    return () => clearTimeout(t);
+  }, [collapsed]);
+  const textsQ = (0,_tanstack_react_query__WEBPACK_IMPORTED_MODULE_20__.useQuery)({
+    queryKey: ["texts", c.id, language, search, filterKey],
+    queryFn: async ({
+      signal
+    }) => {
+      const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.get(`/collections/${enc(c.id)}/texts?language=${enc(language)}${search ? `&search=${enc(search)}` : ""}${filterParams}`, {
+        signal
+      });
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: !collapsed && settled
+  });
+  const allTexts = textsQ.data?.texts ?? [];
+  const rows = allTexts.slice(0, shown);
+
+  // Stale tl_html rows: text nobody (marking mode or the background crawl)
+  // has re-encountered in the grace window. Html-only — staleness has no
+  // meaning for the other collection types.
+  const staleQ = (0,_tanstack_react_query__WEBPACK_IMPORTED_MODULE_20__.useQuery)({
+    queryKey: ["html-stale", c.id, language],
+    queryFn: async ({
+      signal
+    }) => {
+      const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.get(`/collections/${enc(c.id)}/stale?language=${enc(language)}`, {
+        signal
+      });
+      if (!res.ok) {
+        throw new Error(res.error || "ERR_UNREACHABLE");
+      }
+      return res;
+    },
+    enabled: c.id === "html:all" && !collapsed && settled
+  });
+  const staleCount = staleQ.data?.texts?.length ?? 0;
   function confirmAiGroup() {
     onConfirm({
       title: "AI translate this group?",
@@ -14743,11 +15347,11 @@ function CollectionGroup({
   }
   async function bulk(action) {
     setMenuOpen(false);
-    const res = await _api__WEBPACK_IMPORTED_MODULE_23__.api.post(`/collections/${enc(c.id)}/${action}`, {
+    const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.post(`/collections/${enc(c.id)}/${action}`, {
       language
     });
     if (res.ok) {
-      onMutate();
+      onMutate(res);
     }
   }
   function confirmIgnoreAll() {
@@ -14768,20 +15372,62 @@ function CollectionGroup({
       onConfirm: () => bulk("clear")
     });
   }
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
-    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+  async function deleteStale() {
+    setMenuOpen(false);
+    const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.post(`/collections/${enc(c.id)}/delete-stale`, {
+      language
+    });
+    if (res.ok) {
+      onMutate(res);
+      staleQ.refetch();
+    }
+  }
+  function confirmDeleteStale() {
+    onConfirm({
+      title: "Delete stale text?",
+      body: `${staleCount} ${staleCount === 1 ? "text hasn't" : "texts haven't"} been seen on the site in over 30 days. Deleting removes them and their translations permanently — this cannot be undone.`,
+      actionLabel: "Delete stale",
+      destructive: true,
+      onConfirm: deleteStale
+    });
+  }
+
+  // Ignore all / Clear all are whole-collection on the server. Offering them beside
+  // a filtered row list would read as "ignore these 3", so they hide during a search;
+  // the preview link is scope-free and stays.
+  const bulkItems = [...(c.preview_url ? [{
+    content: c.preview_target === "frontend" ? "Show in canvas" : "Edit in WordPress",
+    onAction: () => {
+      setMenuOpen(false);
+      openCanvas(c.preview_url, c.preview_target);
+    }
+  }] : []), ...(searching ? [] : [{
+    content: "Ignore all",
+    destructive: true,
+    onAction: confirmIgnoreAll
+  }, {
+    content: "Clear all",
+    destructive: true,
+    onAction: confirmClearAll
+  }, ...(c.id === "html:all" && staleCount > 0 ? [{
+    content: `Delete stale (${staleCount})`,
+    destructive: true,
+    onAction: confirmDeleteStale
+  }] : [])])];
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+    children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
       onMouseEnter: () => setHovered(true),
       onMouseLeave: () => setHovered(false),
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
         padding: "300",
         background: open ? "bg-surface-secondary" : undefined,
-        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
           align: "space-between",
           blockAlign: "center",
           wrap: false,
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)("button", {
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)("button", {
             type: "button",
-            onClick: onToggle,
+            onClick: onToggleCollapsed,
             style: {
               all: "unset",
               cursor: "pointer",
@@ -14790,12 +15436,12 @@ function CollectionGroup({
               alignItems: "center",
               gap: "8px"
             },
-            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
               as: "span",
               variant: "bodyMd",
               fontWeight: "medium",
               children: open ? "▾" : "▸"
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("span", {
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("span", {
               style: {
                 display: "inline-flex",
                 flexShrink: 0,
@@ -14803,119 +15449,128 @@ function CollectionGroup({
                 height: 16,
                 color: "var(--p-color-icon-subdued)"
               },
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_21__.S, {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris_icons__WEBPACK_IMPORTED_MODULE_25__.S, {
                 fill: "currentColor",
                 width: 16,
                 height: 16
               })
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
               as: "span",
               variant: "bodyMd",
               fontWeight: "medium",
               children: groupHeading(c)
+            }), searching && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+              as: "span",
+              variant: "bodySm",
+              tone: "subdued",
+              children: [c.total, " ", c.total === 1 ? "match" : "matches"]
             })]
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
             style: {
               opacity: hovered || menuOpen ? 1 : 0,
               visibility: hovered || menuOpen ? "visible" : "hidden",
               transition: "opacity 120ms ease"
             },
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
               gap: "100",
               blockAlign: "center",
               wrap: false,
-              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+              children: [!searching && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
                 variant: "tertiary",
                 size: "micro",
                 disabled: !aiAvailable,
-                icon: props => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(StartIcon, {
+                icon: props => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(StartIcon, {
                   ...props
                 }),
                 onClick: confirmAiGroup,
                 children: "Translate all"
-              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_14__.Popover, {
+              }), bulkItems.length > 0 && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_14__.Popover, {
                 active: menuOpen,
                 onClose: () => setMenuOpen(false),
-                activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
                   variant: "tertiary",
                   size: "micro",
                   onClick: () => setMenuOpen(o => !o),
                   children: "\u22EF"
                 }),
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
-                  items: [...(c.preview_url ? [{
-                    content: c.preview_target === "frontend" ? "Show in canvas" : "Edit in WordPress",
-                    onAction: () => {
-                      setMenuOpen(false);
-                      openCanvas(c.preview_url, c.preview_target);
-                    }
-                  }] : []), {
-                    content: "Ignore all",
-                    destructive: true,
-                    onAction: confirmIgnoreAll
-                  }, {
-                    content: "Clear all",
-                    destructive: true,
-                    onAction: confirmClearAll
-                  }]
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
+                  items: bulkItems
                 })
               })]
             })
           })]
         })
       })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Collapsible, {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.Collapsible, {
       open: open,
       id: `col-${c.id}`,
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
         paddingBlockEnd: "200",
         paddingInlineStart: "1000",
-        children: loading || texts === null ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+        children: textsQ.isPending ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
           padding: "300",
-          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_15__.Spinner, {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_15__.Spinner, {
             accessibilityLabel: "Loading texts",
             size: "small"
           })
-        }) : texts.map(t => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(TextUnitRow, {
-          unit: t,
-          language: language,
-          onMutate: onMutate,
-          onConfirm: onConfirm,
-          aiAvailable: aiAvailable,
-          onAiTranslate: onAiTranslate,
-          onOpenOverlay: onOpenOverlay
-        }, t.id))
+        }) : textsQ.isError ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+          padding: "300",
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+            as: "p",
+            tone: "critical",
+            variant: "bodySm",
+            children: "Could not load texts for this group."
+          })
+        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.Fragment, {
+          children: [rows.map(t => /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(TextUnitRow, {
+            unit: t,
+            language: language,
+            collectionId: c.id,
+            onMutate: onMutate,
+            onConfirm: onConfirm,
+            aiAvailable: aiAvailable,
+            onAiTranslate: onAiTranslate,
+            onOpenOverlay: unit => onOpenOverlay(unit, c.id)
+          }, t.id)), allTexts.length > shown && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+            padding: "300",
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+              onClick: () => setShown(n => Math.min(n + TEXT_BATCH, allTexts.length)),
+              children: ["Show ", Math.min(TEXT_BATCH, allTexts.length - shown), " more"]
+            })
+          })]
+        })
       })
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Divider, {})]
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_8__.Divider, {})]
   });
 }
 function TextUnitRow({
   unit,
   language,
+  collectionId,
   onMutate,
   onConfirm,
   onOpenOverlay,
   aiAvailable,
   onAiTranslate
 }) {
-  const [draft, setDraft] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(unit.translated ?? "");
-  const [menuOpen, setMenuOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
-  const [hovered, setHovered] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
-  const badge = STATUS_BADGE[unit.status];
+  const [draft, setDraft] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(unit.translated ?? "");
+  const [menuOpen, setMenuOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  const [hovered, setHovered] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
   const shown = unit.translated ?? unit.fallback;
   const hasTranslation = unit.translated !== null && unit.translated !== undefined;
+  const badge = unit.status === "needs_review" ? STATUS_BADGE.needs_review : hasTranslation ? STATUS_BADGE.translated : null;
 
   // "Long" = the original doesn't fit on one line in its cell at the current
   // width. Measured, so it adapts to screen/column size instead of a fixed
   // character count. Long text edits in the overlay; short text edits inline.
   // A composed unit carries codec markers ({1}…{/1}); it must edit in the
   // overlay's chip editor, never the plain inline input.
-  const isComposed = (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__.hasMarkers)(unit.original || "");
-  const originalText = isComposed ? (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__.stripMarkers)(unit.original) : unit.original;
-  const shownText = isComposed ? (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__.stripMarkers)(shown) : shown;
-  const originalRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useRef)(null);
-  const [isLong, setIsLong] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useState)(false);
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useLayoutEffect)(() => {
+  const isComposed = (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_34__.hasMarkers)(unit.original || "");
+  const originalText = isComposed ? (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_34__.stripMarkers)(unit.original) : unit.original;
+  const shownText = isComposed ? (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_34__.stripMarkers)(shown) : shown;
+  const originalRef = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useRef)(null);
+  const [isLong, setIsLong] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useState)(false);
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useLayoutEffect)(() => {
     const el = originalRef.current;
     if (!el) {
       return;
@@ -14933,7 +15588,7 @@ function TextUnitRow({
 
   // Keep the inline draft in sync when the translation changes elsewhere
   // (AI translate, overlay save).
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_20__.useEffect)(() => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_24__.useEffect)(() => {
     setDraft(unit.translated ?? "");
   }, [unit.translated]);
 
@@ -14942,23 +15597,25 @@ function TextUnitRow({
     if ((unit.translated ?? "") === draft) {
       return;
     }
-    const res = await _api__WEBPACK_IMPORTED_MODULE_23__.api.post("/translations", {
+    const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.post("/translations", {
       text_unit_id: unit.id,
       language,
-      text: draft
+      text: draft,
+      collection_id: collectionId
     });
     if (res.ok) {
-      onMutate();
+      onMutate(res);
     }
   }
   async function doStatus(action) {
     setMenuOpen(false);
-    const res = await _api__WEBPACK_IMPORTED_MODULE_23__.api.post(`/texts/${enc(unit.id)}/status`, {
+    const res = await _api__WEBPACK_IMPORTED_MODULE_26__.api.post(`/texts/${enc(unit.id)}/status`, {
       action,
-      language
+      language,
+      collection_id: collectionId
     });
     if (res.ok) {
-      onMutate();
+      onMutate(res);
     }
   }
   function confirmClear() {
@@ -14984,7 +15641,8 @@ function TextUnitRow({
     onAction: () => {
       setMenuOpen(false);
       onAiTranslate("text", {
-        ref: unit.id
+        ref: unit.id,
+        collection_id: collectionId
       });
     }
   }, {
@@ -14997,7 +15655,7 @@ function TextUnitRow({
     content: unit.preview_target === "frontend" ? "Preview on website" : "Edit in WordPress",
     onAction: () => {
       setMenuOpen(false);
-      openCanvas(unit.preview_url, unit.preview_target, (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_29__.stripMarkers)(unit.translated ?? unit.original ?? ""));
+      openCanvas(unit.preview_url, unit.preview_target, (0,_TranslationUnitEditor__WEBPACK_IMPORTED_MODULE_34__.stripMarkers)(unit.translated ?? unit.original ?? ""));
     }
   }, hasTranslation && {
     content: "To review",
@@ -15017,21 +15675,21 @@ function TextUnitRow({
       confirmIgnore();
     }
   }].filter(Boolean);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
     onMouseEnter: () => setHovered(true),
     onMouseLeave: () => setHovered(false),
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
       paddingInline: "300",
       paddingBlock: "200",
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
         gap: "300",
         align: "space-between",
         blockAlign: "center",
         wrap: false,
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
           width: "42%",
           minWidth: "0",
-          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("button", {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("button", {
             ref: originalRef,
             type: "button",
             onClick: clickable ? () => onOpenOverlay(unit) : undefined,
@@ -15040,26 +15698,26 @@ function TextUnitRow({
               ...oneLineStyle,
               cursor: clickable ? "pointer" : "default"
             },
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
               as: "span",
               variant: "bodySm",
               children: originalText
             })
           })
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
           width: "42%",
           minWidth: "0",
-          children: clickable ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("button", {
+          children: clickable ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("button", {
             type: "button",
             onClick: () => onOpenOverlay(unit),
             style: oneLineStyle,
-            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
+            children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_16__.Text, {
               as: "span",
               variant: "bodySm",
               tone: hasTranslation ? undefined : "subdued",
               children: shownText
             })
-          }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("input", {
+          }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("input", {
             type: "text",
             "aria-label": "Translation",
             value: draft,
@@ -15077,48 +15735,254 @@ function TextUnitRow({
               color: hasTranslation ? "var(--p-color-text)" : "var(--p-color-text-subdued)"
             }
           })
-        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Box, {
           width: "16%",
-          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_11__.InlineStack, {
             gap: "100",
             align: "end",
             blockAlign: "center",
             wrap: false,
-            children: [isComposed && (hovered || menuOpen) && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_18__.Tooltip, {
+            children: [isComposed && (hovered || menuOpen) && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_18__.Tooltip, {
               content: "This text contains inline formatting (links, bold, etc.). Open it to edit \u2014 the formatting is kept for you.",
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Badge, {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Badge, {
                 tone: "info",
                 size: "small",
                 children: "Rich text"
               })
-            }), unit.is_ai && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Badge, {
+            }), unit.is_ai && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Badge, {
               size: "small",
               children: "AI"
-            }), badge && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Badge, {
+            }), badge && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Badge, {
               tone: badge.tone,
               size: "small",
               children: badge.label
-            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)("div", {
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)("div", {
               style: {
                 opacity: hovered || menuOpen ? 1 : 0,
                 visibility: hovered || menuOpen ? "visible" : "hidden",
                 transition: "opacity 120ms ease"
               },
-              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_14__.Popover, {
+              children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_14__.Popover, {
                 active: menuOpen,
                 onClose: () => setMenuOpen(false),
-                activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
+                activator: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Button, {
                   variant: "tertiary",
                   size: "micro",
                   onClick: () => setMenuOpen(o => !o),
                   children: "\u22EF"
                 }),
-                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_30__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
+                children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_35__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.ActionList, {
                   items: menuItems
                 })
               })
             })]
           })
+        })]
+      })
+    })
+  });
+}
+
+/***/ },
+
+/***/ "./admin-ui/screens/ExportImportModal.jsx"
+/*!************************************************!*\
+  !*** ./admin-ui/screens/ExportImportModal.jsx ***!
+  \************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ ExportImportModal)
+/* harmony export */ });
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Button/Button.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/ButtonGroup/ButtonGroup.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/InlineStack/InlineStack.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Modal/Modal.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Select/Select.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_7__);
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__);
+
+
+
+const cfg = window.Translangs || {
+  rest: "",
+  nonce: ""
+};
+
+// CSV export/import for content translations (posts, post meta, terms, site
+// settings/branding) — the four tables the main workspace table renders.
+// Gettext and hardcoded-HTML strings have their own per-dependency export/
+// import elsewhere, so they're out of scope here.
+//
+// The CSV is a flat text-to-translation matrix: one row per unique source
+// text (deduplicated across every post/term/meta/option that shares it —
+// identical text always gets one shared translation), one column per
+// language. No ref/type/location/status columns — those are an
+// implementation detail the client doesn't want surfaced.
+//
+// Export triggers a plain browser navigation (native download handling,
+// `_wpnonce` in the query string authenticates the same as the header would)
+// rather than `api.get()`, which is JSON-only. Import posts multipart
+// FormData via a raw fetch for the same reason — neither goes through api.js.
+function ExportImportModal({
+  open,
+  languages,
+  initialLanguage,
+  onClose
+}) {
+  const [tab, setTab] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)("export");
+  const [exportLang, setExportLang] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(initialLanguage || "");
+  const [scope, setScope] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)("current");
+  const [file, setFile] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(null);
+  const [fileError, setFileError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)("");
+  const [importing, setImporting] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(false);
+  const [result, setResult] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_7__.useState)(null);
+  const langOptions = languages.map(l => ({
+    label: l.display_name || l.name || l.code,
+    value: l.code
+  }));
+  function close() {
+    setResult(null);
+    setFile(null);
+    setFileError("");
+    onClose();
+  }
+  function doExport() {
+    const params = new URLSearchParams({
+      scope,
+      _wpnonce: cfg.nonce
+    });
+    if (scope === "current") {
+      params.set("language", exportLang);
+    }
+    window.location.href = `${cfg.rest}/export?${params.toString()}`;
+  }
+  function onFileChange(e) {
+    const picked = e.target.files?.[0] || null;
+    if (picked && !picked.name.toLowerCase().endsWith(".csv")) {
+      setFile(null);
+      setFileError("Unsupported format — only .csv is accepted.");
+      return;
+    }
+    setFile(picked);
+    setFileError("");
+    setResult(null);
+  }
+  async function doImport() {
+    if (!file) {
+      return;
+    }
+    setImporting(true);
+    setResult(null);
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const res = await fetch(`${cfg.rest}/import`, {
+        method: "POST",
+        headers: {
+          "X-WP-Nonce": cfg.nonce
+        },
+        body
+      });
+      const data = await res.json();
+      setResult(data.ok ? data : {
+        ok: false,
+        error: data.error || "ERR_UNREACHABLE"
+      });
+    } catch {
+      setResult({
+        ok: false,
+        error: "ERR_UNREACHABLE"
+      });
+    }
+    setImporting(false);
+  }
+  const primaryAction = tab === "export" ? {
+    content: "Export",
+    onAction: doExport,
+    disabled: scope === "current" && !exportLang
+  } : {
+    content: "Import",
+    onAction: doImport,
+    loading: importing,
+    disabled: !file
+  };
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Modal, {
+    open: open,
+    onClose: close,
+    title: "Export / Import",
+    primaryAction: primaryAction,
+    secondaryActions: [{
+      content: "Close",
+      onAction: close
+    }],
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Modal.Section, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.BlockStack, {
+        gap: "400",
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.ButtonGroup, {
+          variant: "segmented",
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Button, {
+            pressed: tab === "export",
+            onClick: () => setTab("export"),
+            children: "Export"
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Button, {
+            pressed: tab === "import",
+            onClick: () => setTab("import"),
+            children: "Import"
+          })]
+        }), tab === "export" ? /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.BlockStack, {
+          gap: "300",
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+            gap: "200",
+            children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Button, {
+              pressed: scope === "current",
+              onClick: () => setScope("current"),
+              children: "Current language"
+            }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Button, {
+              pressed: scope === "all",
+              onClick: () => setScope("all"),
+              children: "All languages"
+            })]
+          }), scope === "current" && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Select, {
+            label: "Target language",
+            options: langOptions,
+            value: exportLang,
+            onChange: setExportLang,
+            placeholder: "Select a language"
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
+            as: "p",
+            tone: "subdued",
+            variant: "bodySm",
+            children: "One row per unique text, one column per language. Untranslated cells are left blank."
+          })]
+        }) : /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.BlockStack, {
+          gap: "300",
+          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
+            as: "p",
+            tone: "subdued",
+            variant: "bodySm",
+            children: "Each language column in the file is matched by its header (the same codes an export uses) \u2014 columns for languages that no longer exist are ignored, not an error."
+          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)("input", {
+            type: "file",
+            accept: ".csv",
+            onChange: onFileChange
+          }), fileError && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
+            as: "p",
+            tone: "critical",
+            variant: "bodySm",
+            children: fileError
+          }), result && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_8__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
+            as: "p",
+            tone: result.ok ? "success" : "critical",
+            variant: "bodySm",
+            children: result.ok ? `Imported ${result.applied} translation${result.applied === 1 ? "" : "s"}. ${result.skipped} skipped, ${result.errors} with errors.` : "Import failed. Please check the file and try again."
+          })]
         })]
       })
     })
@@ -15431,11 +16295,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   AI_MODELS: () => (/* binding */ AI_MODELS),
 /* harmony export */   AI_STYLE_MAX: () => (/* binding */ AI_STYLE_MAX),
 /* harmony export */   AI_STYLE_PLACEHOLDER: () => (/* binding */ AI_STYLE_PLACEHOLDER),
-/* harmony export */   LANGUAGE_CHOICES: () => (/* binding */ LANGUAGE_CHOICES),
 /* harmony export */   "default": () => (/* binding */ LanguageManagerModal)
 /* harmony export */ });
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Button/Button.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/FormLayout/FormLayout.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Divider/Divider.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/InlineStack/InlineStack.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Modal/Modal.js");
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Select/Select.js");
@@ -15454,44 +16317,26 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const enc = encodeURIComponent;
-
-// v1 addable languages. ponytail: static list mirroring SupportedLanguages —
-// swap for a backend catalog proxy when the backend offers more codes.
-const LANGUAGE_CHOICES = [{
-  label: 'French',
-  value: 'fr',
-  rtl: false
-}, {
-  label: 'Spanish',
-  value: 'es',
-  rtl: false
-}, {
-  label: 'German',
-  value: 'de',
-  rtl: false
-}, {
-  label: 'Italian',
-  value: 'it',
-  rtl: false
-}, {
-  label: 'Portuguese',
-  value: 'pt',
-  rtl: false
-}, {
-  label: 'Dutch',
-  value: 'nl',
-  rtl: false
-}, {
-  label: 'Arabic',
-  value: 'ar',
-  rtl: true
-}];
+const localeSlug = locale => locale.toLowerCase().replaceAll('_', '-');
+const regionLabel = item => {
+  let region = item.region_name || item.region || 'General';
+  if (item.region && (!item.region_name || item.region_name === item.region)) {
+    try {
+      region = new Intl.DisplayNames(undefined, {
+        type: 'region'
+      }).of(item.region) || item.region;
+    } catch {
+      region = item.region;
+    }
+  }
+  return item.variant_name ? `${region} — ${item.variant_name}` : region;
+};
 const AI_MODELS = [{
   label: 'Auto',
   value: 'auto'
 }];
 const AI_STYLE_MAX = 500;
-const AI_STYLE_PLACEHOLDER = 'e.g. Warm but professional. Use formal “vous”, keep product names in English, and prefer short, clear sentences.';
+const AI_STYLE_PLACEHOLDER = 'Professional, clear, modern, and approachable.';
 
 // Language manager: a sidebar of every language (reuses the dashboard's
 // LanguageList) + a config pane. Selecting a row edits it; "+ Add" starts a new
@@ -15499,12 +16344,14 @@ const AI_STYLE_PLACEHOLDER = 'e.g. Warm but professional. Use formal “vous”,
 function LanguageManagerModal({
   open,
   languages,
+  catalog,
   defaultCode,
   initialCode,
   onClose,
   onChanged
 }) {
   const [sel, setSel] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)('new');
+  const isFirstLanguage = languages.length === 0;
   (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useEffect)(() => {
     if (open) {
       setSel(initialCode || languages[0]?.code || 'new');
@@ -15548,12 +16395,12 @@ function LanguageManagerModal({
         className: "tl-wide-modal",
         style: {
           display: 'flex',
-          gap: 16,
+          gap: isFirstLanguage ? 0 : 16,
           minHeight: 420,
           maxWidth: '100%',
           overflowX: 'hidden'
         },
-        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
+        children: [!isFirstLanguage && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)("div", {
           style: {
             flex: '0 0 220px',
             width: 220,
@@ -15579,20 +16426,28 @@ function LanguageManagerModal({
           style: {
             flex: 1,
             minWidth: 0,
-            paddingBlockStart: 4
+            paddingBlockStart: 4,
+            paddingInline: 5
           },
           children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(LanguageForm, {
             mode: mode,
             current: current,
             defaultCode: defaultCode,
+            catalog: catalog,
             existing: languages.map(l => l.code),
+            firstLanguage: isFirstLanguage,
             onDone: code => {
+              if (isFirstLanguage && mode === 'new' && code) {
+                onClose();
+                onChanged();
+                return;
+              }
               onChanged();
               if (mode === 'new' && code) {
                 setSel(code);
               }
             }
-          }, sel)
+          }, `${sel}:${catalog?.length || 0}`)
         })]
       })
     })
@@ -15601,19 +16456,27 @@ function LanguageManagerModal({
 function LanguageForm({
   mode,
   current,
+  catalog,
   defaultCode,
   existing,
+  firstLanguage = false,
   onDone
 }) {
   const isNew = mode === 'new';
-  const available = LANGUAGE_CHOICES.filter(c => c.value !== defaultCode && !existing.includes(c.value));
-  const [code, setCode] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? available[0]?.value || '' : current.code);
+  const available = (catalog || []).filter(item => item.locale !== defaultCode && !existing.includes(item.locale));
+  const languageChoices = Array.from(new Map(available.map(item => [item.language, item.language_name])).entries()).map(([value, label]) => ({
+    label,
+    value
+  }));
+  const initialLocale = isNew ? available[0] || null : (catalog || []).find(item => item.locale === current.code) || null;
+  const [language, setLanguage] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(initialLocale?.language || '');
+  const [code, setCode] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? initialLocale?.locale || '' : current.code);
   const [displayName, setDisplayName] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? '' : current.display_name || '');
-  const [slug, setSlug] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? available[0]?.value || '' : current.slug || '');
+  const [slug, setSlug] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? localeSlug(initialLocale?.locale || '') : current.slug || '');
   const [fallback, setFallback] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? '' : current.fallback_language || '');
   const [aiModel, setAiModel] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? 'auto' : current.ai_model || 'auto');
   const [style, setStyle] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? '' : current.ai_style || '');
-  const [direction, setDirection] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? available[0]?.rtl ? 'rtl' : 'ltr' : current.direction || 'ltr');
+  const [direction, setDirection] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(isNew ? initialLocale?.direction || 'ltr' : current.direction || 'ltr');
   const [saving, setSaving] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_8__.useState)(false);
   // Snapshot of the values when the form loaded; the Save button only appears
   // once the form differs from it (and resets to the saved values after save).
@@ -15626,18 +16489,28 @@ function LanguageForm({
     style
   });
   const dirty = code !== baseline.code || displayName !== baseline.displayName || slug !== baseline.slug || fallback !== baseline.fallback || aiModel !== baseline.aiModel || style !== baseline.style;
+  const firstLanguageReady = code.trim() !== '' && displayName.trim() !== '' && slug.trim() !== '';
+  const showAction = firstLanguage || dirty;
+  const regionChoices = available.filter(item => item.language === language).map(item => ({
+    label: regionLabel(item),
+    value: item.locale
+  }));
   function pickLanguage(value) {
+    const choice = available.find(item => item.language === value);
+    setLanguage(value);
+    pickLocale(choice?.locale || '');
+  }
+  function pickLocale(value) {
+    const choice = available.find(item => item.locale === value);
     setCode(value);
-    const choice = LANGUAGE_CHOICES.find(c => c.value === value);
-    setDirection(choice?.rtl ? 'rtl' : 'ltr');
-    if (!slug) {
-      setSlug(value);
-    }
+    setDirection(choice?.direction || 'ltr');
+    setSlug(localeSlug(value));
   }
   async function submit() {
     setSaving(true);
     const res = isNew ? await _api__WEBPACK_IMPORTED_MODULE_9__.api.post('/languages', {
       code,
+      locale: code,
       slug,
       display_name: displayName,
       fallback_language: fallback,
@@ -15664,29 +16537,49 @@ function LanguageForm({
       onDone(isNew ? code : current.code);
     }
   }
-  if (isNew && available.length === 0) {
+  if (isNew && catalog === null) {
     return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
       as: "p",
       tone: "subdued",
-      children: "All available languages have been added."
+      children: "Loading WordPress languages\u2026"
+    });
+  }
+  if (isNew && available.length === 0) {
+    return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.BlockStack, {
+      gap: "200",
+      children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
+        as: "h3",
+        variant: "headingMd",
+        children: "Add a language"
+      }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
+        as: "p",
+        tone: "subdued",
+        children: "No additional WordPress languages are available. Open Settings \u2192 General \u2192 Site Language once to refresh WordPress\u2019s language catalog, then reopen this form."
+      })]
     });
   }
   return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.BlockStack, {
-    gap: "400",
+    gap: "300",
     children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
       as: "h3",
       variant: "headingMd",
       children: isNew ? 'Add a language' : `Edit ${current.display_name || current.name || current.code}`
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.FormLayout, {
-      children: [isNew && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Select, {
-        label: "Language",
-        requiredIndicator: true,
-        options: available.map(c => ({
-          label: c.label,
-          value: c.value
-        })),
-        value: code,
-        onChange: pickLanguage
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.BlockStack, {
+      gap: "300",
+      children: [isNew && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.Fragment, {
+        children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Select, {
+          label: "Language",
+          requiredIndicator: true,
+          options: languageChoices,
+          value: language,
+          onChange: pickLanguage
+        }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Select, {
+          label: "Region",
+          requiredIndicator: true,
+          options: regionChoices,
+          value: code,
+          onChange: pickLocale
+        })]
       }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.TextField, {
         label: "Name",
         requiredIndicator: true,
@@ -15705,25 +16598,26 @@ function LanguageForm({
         options: [{
           label: 'None',
           value: ''
-        }, ...LANGUAGE_CHOICES.map(c => ({
-          label: c.label,
-          value: c.value
+        }, ...(catalog || []).filter(item => existing.includes(item.locale) && item.locale !== code).map(item => ({
+          label: item.english_name,
+          value: item.locale
         }))],
         value: fallback,
         onChange: setFallback
       })]
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Divider, {}), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_5__.Text, {
       as: "h3",
       variant: "headingSm",
       children: "AI settings"
-    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.FormLayout, {
+    }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_7__.BlockStack, {
+      gap: "300",
       children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.Select, {
         label: "AI model",
         options: AI_MODELS,
         value: aiModel,
         onChange: setAiModel
       }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_6__.TextField, {
-        label: "Style",
+        label: "Website voice and style",
         multiline: 2,
         maxLength: AI_STYLE_MAX,
         showCharacterCount: true,
@@ -15731,18 +16625,58 @@ function LanguageForm({
         onChange: setStyle,
         autoComplete: "off",
         placeholder: AI_STYLE_PLACEHOLDER,
-        helpText: "Guide the tone and wording used for this language."
+        helpText: "Your website voice guides the translation, but the original text\u2019s tone and intent always take priority."
       })]
-    }), dirty && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
+    }), showAction && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.InlineStack, {
       align: "end",
       children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_11__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Button, {
         variant: "primary",
         loading: saving,
-        disabled: isNew && !code,
+        disabled: firstLanguage ? !firstLanguageReady : isNew && !code,
         onClick: submit,
-        children: isNew ? 'Add language' : 'Save'
+        children: firstLanguage ? 'Create language' : isNew ? 'Add language' : 'Save'
       })
     })]
+  });
+}
+
+/***/ },
+
+/***/ "./admin-ui/screens/OnboardingPage.jsx"
+/*!*********************************************!*\
+  !*** ./admin-ui/screens/OnboardingPage.jsx ***!
+  \*********************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ OnboardingPage)
+/* harmony export */ });
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__);
+
+
+// Shared visual shell for every post-install step. Individual screens keep
+// ownership of their cards and controls; this only fixes width and spacing.
+
+function OnboardingPage({
+  children,
+  title,
+  subtitle
+}) {
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)("div", {
+    className: "w-full max-w-3xl",
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Page, {
+      title: title,
+      subtitle: subtitle,
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_2__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.BlockStack, {
+        gap: "400",
+        children: children
+      })
+    })
   });
 }
 
@@ -15852,15 +16786,19 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (/* binding */ SettingUp)
 /* harmony export */ });
 /* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Card/Card.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Page/Page.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Spinner/Spinner.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
-/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
-/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__);
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Spinner/Spinner.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/Text/Text.js");
+/* harmony import */ var _shopify_polaris__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @shopify/polaris */ "./node_modules/@shopify/polaris/build/esm/components/BlockStack/BlockStack.js");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var motion_react__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! motion/react */ "./node_modules/motion/dist/es/react.mjs");
+/* harmony import */ var motion_react__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! motion/react */ "./node_modules/framer-motion/dist/es/components/AnimatePresence/index.mjs");
+/* harmony import */ var _api__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../api */ "./admin-ui/api.js");
+/* harmony import */ var _OnboardingPage__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./OnboardingPage */ "./admin-ui/screens/OnboardingPage.jsx");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9___default = /*#__PURE__*/__webpack_require__.n(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__);
+
+
 
 
 
@@ -15872,13 +16810,13 @@ __webpack_require__.r(__webpack_exports__);
 function SettingUp({
   onDone
 }) {
-  const [status, setStatus] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useState)('running');
+  const [status, setStatus] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_4__.useState)('running');
 
   // Light polling of scan status.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useEffect)(() => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_4__.useEffect)(() => {
     let active = true;
     const tick = () => {
-      _api__WEBPACK_IMPORTED_MODULE_6__.api.get('/scan/status').then(res => {
+      _api__WEBPACK_IMPORTED_MODULE_7__.api.get('/scan/status').then(res => {
         if (active) {
           setStatus(res.status || 'running');
         }
@@ -15894,62 +16832,82 @@ function SettingUp({
 
   // When the scan is done (completed or failed), finish onboarding and redirect.
   // A short beat lets the user read the result first.
-  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_5__.useEffect)(() => {
+  (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_4__.useEffect)(() => {
     if (status === 'running') {
       return;
     }
     const delay = status === 'failed' ? 2500 : 1200;
     const id = setTimeout(() => {
-      _api__WEBPACK_IMPORTED_MODULE_6__.api.post('/onboarding/complete').then(res => {
+      _api__WEBPACK_IMPORTED_MODULE_7__.api.post('/onboarding/complete').then(res => {
         onDone(res.next || 'dashboard_empty_language');
       });
     }, delay);
     return () => clearTimeout(id);
   }, [status]);
-  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Page, {
-    title: "Setting up your site",
-    narrowWidth: true,
-    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Card, {
-      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_4__.BlockStack, {
-        gap: "300",
-        inlineAlign: "start",
-        children: [status === 'running' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Spinner, {
-            accessibilityLabel: "Scanning",
-            size: "small"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "p",
-            variant: "bodyMd",
-            children: "We're automatically scanning your site for translatable content."
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "p",
-            tone: "subdued",
-            variant: "bodySm",
-            children: "Scanning in the background\u2026 this only takes a moment."
-          })]
-        }), status === 'completed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "h2",
-            variant: "headingMd",
-            children: "Setup is ready"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "p",
-            tone: "subdued",
-            variant: "bodyMd",
-            children: "Opening your dashboard\u2026"
-          })]
-        }), status === 'failed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.Fragment, {
-          children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "h2",
-            variant: "headingMd",
-            children: "Setup could not finish"
-          }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_7__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.Text, {
-            as: "p",
-            tone: "subdued",
-            variant: "bodyMd",
-            children: "We could not complete the automatic scan. Opening your dashboard \u2014 your setup may need support review."
-          })]
-        })]
+  return /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_OnboardingPage__WEBPACK_IMPORTED_MODULE_8__["default"], {
+    children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_0__.Card, {
+      children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(motion_react__WEBPACK_IMPORTED_MODULE_6__.AnimatePresence, {
+        initial: false,
+        mode: "wait",
+        children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(motion_react__WEBPACK_IMPORTED_MODULE_5__.motion.div, {
+          initial: {
+            opacity: 0,
+            y: 6
+          },
+          animate: {
+            opacity: 1,
+            y: 0
+          },
+          exit: {
+            opacity: 0,
+            y: -6
+          },
+          transition: {
+            duration: 0.16,
+            ease: 'easeOut'
+          },
+          children: /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_3__.BlockStack, {
+            gap: "300",
+            inlineAlign: "center",
+            children: [status === 'running' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.Fragment, {
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_1__.Spinner, {
+                accessibilityLabel: "Scanning",
+                size: "small"
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Text, {
+                alignment: "center",
+                as: "h2",
+                variant: "headingMd",
+                children: "We're automatically scanning your site for translatable content."
+              })]
+            }), status === 'completed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.Fragment, {
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Text, {
+                alignment: "center",
+                as: "h2",
+                variant: "headingMd",
+                children: "Setup is ready"
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Text, {
+                alignment: "center",
+                as: "p",
+                tone: "subdued",
+                variant: "bodyMd",
+                children: "Opening your dashboard\u2026"
+              })]
+            }), status === 'failed' && /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsxs)(react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.Fragment, {
+              children: [/*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Text, {
+                alignment: "center",
+                as: "h2",
+                variant: "headingMd",
+                children: "Setup could not finish"
+              }), /*#__PURE__*/(0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_9__.jsx)(_shopify_polaris__WEBPACK_IMPORTED_MODULE_2__.Text, {
+                alignment: "center",
+                as: "p",
+                tone: "subdued",
+                variant: "bodyMd",
+                children: "We could not complete the automatic scan. Opening your dashboard \u2014 your setup may need support review."
+              })]
+            })]
+          })
+        }, status)
       })
     })
   });
@@ -20460,38 +21418,6 @@ var SvgSelectIcon = function SvgSelectIcon(props) {
   }));
 };
 SvgSelectIcon.displayName = "SelectIcon";
-
-
-
-
-/***/ },
-
-/***/ "./node_modules/@shopify/polaris-icons/dist/icons/SettingsIcon.svg.mjs"
-/*!*****************************************************************************!*\
-  !*** ./node_modules/@shopify/polaris-icons/dist/icons/SettingsIcon.svg.mjs ***!
-  \*****************************************************************************/
-(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   S: () => (/* binding */ SvgSettingsIcon)
-/* harmony export */ });
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
-
-
-var SvgSettingsIcon = function SvgSettingsIcon(props) {
-  return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement("svg", Object.assign({
-    viewBox: "0 0 20 20"
-  }, props), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement("path", {
-    fillRule: "evenodd",
-    d: "M12.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Zm-1.5 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
-  }), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0__.createElement("path", {
-    fillRule: "evenodd",
-    d: "M9.377 2.5c-.926 0-1.676.75-1.676 1.676v.688c0 .056-.043.17-.198.251-.153.08-.303.168-.448.262-.147.097-.268.076-.318.048l-.6-.346a1.676 1.676 0 0 0-2.29.613l-.622 1.08a1.676 1.676 0 0 0 .613 2.289l.648.374c.048.028.124.12.119.29a5.484 5.484 0 0 0 .005.465c.009.175-.07.27-.119.299l-.653.377a1.676 1.676 0 0 0-.613 2.29l.623 1.08a1.676 1.676 0 0 0 2.29.613l.7-.405c.048-.028.166-.048.312.043.115.071.233.139.353.202.155.08.198.195.198.251v.811c0 .926.75 1.676 1.676 1.676h1.246c.926 0 1.676-.75 1.676-1.676v-.81c0-.057.042-.171.197-.252.121-.063.239-.13.354-.202.146-.091.264-.07.312-.043l.7.405a1.676 1.676 0 0 0 2.29-.614l.623-1.08a1.676 1.676 0 0 0-.613-2.289l-.653-.377c-.05-.029-.128-.123-.119-.3a5.494 5.494 0 0 0 .005-.463c-.005-.171.07-.263.12-.291l.647-.374a1.676 1.676 0 0 0 .613-2.29l-.623-1.079a1.676 1.676 0 0 0-2.29-.613l-.6.346c-.049.028-.17.048-.318-.048a5.4 5.4 0 0 0-.448-.262c-.155-.081-.197-.195-.197-.251v-.688c0-.926-.75-1.676-1.676-1.676h-1.246Zm-.176 1.676c0-.097.078-.176.176-.176h1.246c.097 0 .176.079.176.176v.688c0 .728.462 1.298 1.003 1.58.11.058.219.122.323.19.517.337 1.25.458 1.888.09l.6-.346a.176.176 0 0 1 .24.064l.623 1.08a.176.176 0 0 1-.064.24l-.648.374c-.623.36-.888 1.034-.868 1.638a4.184 4.184 0 0 1-.004.337c-.032.615.23 1.31.867 1.677l.653.377a.176.176 0 0 1 .064.24l-.623 1.08a.176.176 0 0 1-.24.065l-.701-.405c-.624-.36-1.341-.251-1.855.069a3.91 3.91 0 0 1-.255.145c-.54.283-1.003.853-1.003 1.581v.811a.176.176 0 0 1-.176.176h-1.246a.176.176 0 0 1-.176-.176v-.81c0-.73-.462-1.3-1.003-1.582a3.873 3.873 0 0 1-.255-.146c-.514-.32-1.23-.428-1.855-.068l-.7.405a.176.176 0 0 1-.241-.065l-.623-1.08a.176.176 0 0 1 .064-.24l.653-.377c.637-.368.899-1.062.867-1.677a3.97 3.97 0 0 1-.004-.337c.02-.604-.245-1.278-.868-1.638l-.648-.374a.176.176 0 0 1-.064-.24l.623-1.08a.176.176 0 0 1 .24-.064l.6.346c.638.368 1.37.247 1.888-.09a3.85 3.85 0 0 1 .323-.19c.54-.282 1.003-.852 1.003-1.58v-.688Z"
-  }));
-};
-SvgSettingsIcon.displayName = "SettingsIcon";
 
 
 
@@ -25526,6 +26452,4985 @@ function createMetaThemeBase(metaTheme) {
 }
 
 
+
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/environmentManager.js"
+/*!******************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/environmentManager.js ***!
+  \******************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   environmentManager: () => (/* binding */ environmentManager)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+// src/environmentManager.ts
+
+var environmentManager = /* @__PURE__ */ (() => {
+  let isServerFn = () => _utils_js__WEBPACK_IMPORTED_MODULE_0__.isServer;
+  return {
+    /**
+     * Returns whether the current runtime should be treated as a server environment.
+     */
+    isServer() {
+      return isServerFn();
+    },
+    /**
+     * Overrides the server check globally.
+     */
+    setIsServer(isServerValue) {
+      isServerFn = isServerValue;
+    }
+  };
+})();
+
+//# sourceMappingURL=environmentManager.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/focusManager.js"
+/*!************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/focusManager.js ***!
+  \************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   FocusManager: () => (/* binding */ FocusManager),
+/* harmony export */   focusManager: () => (/* binding */ focusManager)
+/* harmony export */ });
+/* harmony import */ var _subscribable_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./subscribable.js */ "./node_modules/@tanstack/query-core/build/modern/subscribable.js");
+// src/focusManager.ts
+
+var FocusManager = class extends _subscribable_js__WEBPACK_IMPORTED_MODULE_0__.Subscribable {
+  #focused;
+  #cleanup;
+  #setup;
+  constructor() {
+    super();
+    this.#setup = (onFocus) => {
+      if (typeof window !== "undefined" && window.addEventListener) {
+        const listener = () => onFocus();
+        window.addEventListener("visibilitychange", listener, false);
+        return () => {
+          window.removeEventListener("visibilitychange", listener);
+        };
+      }
+      return;
+    };
+  }
+  onSubscribe() {
+    if (!this.#cleanup) {
+      this.setEventListener(this.#setup);
+    }
+  }
+  onUnsubscribe() {
+    if (!this.hasListeners()) {
+      this.#cleanup?.();
+      this.#cleanup = void 0;
+    }
+  }
+  setEventListener(setup) {
+    this.#setup = setup;
+    this.#cleanup?.();
+    this.#cleanup = setup((focused) => {
+      if (typeof focused === "boolean") {
+        this.setFocused(focused);
+      } else {
+        this.onFocus();
+      }
+    });
+  }
+  setFocused(focused) {
+    const changed = this.#focused !== focused;
+    if (changed) {
+      this.#focused = focused;
+      this.onFocus();
+    }
+  }
+  onFocus() {
+    const isFocused = this.isFocused();
+    this.listeners.forEach((listener) => {
+      listener(isFocused);
+    });
+  }
+  isFocused() {
+    if (typeof this.#focused === "boolean") {
+      return this.#focused;
+    }
+    return globalThis.document?.visibilityState !== "hidden";
+  }
+};
+var focusManager = new FocusManager();
+
+//# sourceMappingURL=focusManager.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js"
+/*!*********************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js ***!
+  \*********************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   hasNextPage: () => (/* binding */ hasNextPage),
+/* harmony export */   hasPreviousPage: () => (/* binding */ hasPreviousPage),
+/* harmony export */   infiniteQueryBehavior: () => (/* binding */ infiniteQueryBehavior)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+// src/infiniteQueryBehavior.ts
+
+function infiniteQueryBehavior(pages) {
+  return {
+    onFetch: (context, query) => {
+      const options = context.options;
+      const direction = context.fetchOptions?.meta?.fetchMore?.direction;
+      const oldPages = context.state.data?.pages || [];
+      const oldPageParams = context.state.data?.pageParams || [];
+      let result = { pages: [], pageParams: [] };
+      let currentPage = 0;
+      const fetchFn = async () => {
+        let cancelled = false;
+        const addSignalProperty = (object) => {
+          (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.addConsumeAwareSignal)(
+            object,
+            () => context.signal,
+            () => cancelled = true
+          );
+        };
+        const queryFn = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.ensureQueryFn)(context.options, context.fetchOptions);
+        const fetchPage = async (data, param, previous) => {
+          if (cancelled) {
+            return Promise.reject(context.signal.reason);
+          }
+          if (param == null && data.pages.length) {
+            return Promise.resolve(data);
+          }
+          const createQueryFnContext = () => {
+            const queryFnContext2 = {
+              client: context.client,
+              queryKey: context.queryKey,
+              pageParam: param,
+              direction: previous ? "backward" : "forward",
+              meta: context.options.meta
+            };
+            addSignalProperty(queryFnContext2);
+            return queryFnContext2;
+          };
+          const queryFnContext = createQueryFnContext();
+          const page = await queryFn(queryFnContext);
+          const { maxPages } = context.options;
+          const addTo = previous ? _utils_js__WEBPACK_IMPORTED_MODULE_0__.addToStart : _utils_js__WEBPACK_IMPORTED_MODULE_0__.addToEnd;
+          return {
+            pages: addTo(data.pages, page, maxPages),
+            pageParams: addTo(data.pageParams, param, maxPages)
+          };
+        };
+        if (direction && oldPages.length) {
+          const previous = direction === "backward";
+          const pageParamFn = previous ? getPreviousPageParam : getNextPageParam;
+          const oldData = {
+            pages: oldPages,
+            pageParams: oldPageParams
+          };
+          const param = pageParamFn(options, oldData);
+          result = await fetchPage(oldData, param, previous);
+        } else {
+          const remainingPages = pages ?? oldPages.length;
+          do {
+            const param = currentPage === 0 ? oldPageParams[0] ?? options.initialPageParam : getNextPageParam(options, result);
+            if (currentPage > 0 && param == null) {
+              break;
+            }
+            result = await fetchPage(result, param);
+            currentPage++;
+          } while (currentPage < remainingPages);
+        }
+        return result;
+      };
+      if (context.options.persister) {
+        context.fetchFn = () => {
+          return context.options.persister?.(
+            fetchFn,
+            {
+              client: context.client,
+              queryKey: context.queryKey,
+              meta: context.options.meta,
+              signal: context.signal
+            },
+            query
+          );
+        };
+      } else {
+        context.fetchFn = fetchFn;
+      }
+    }
+  };
+}
+function getNextPageParam(options, { pages, pageParams }) {
+  const lastIndex = pages.length - 1;
+  return pages.length > 0 ? options.getNextPageParam(
+    pages[lastIndex],
+    pages,
+    pageParams[lastIndex],
+    pageParams
+  ) : void 0;
+}
+function getPreviousPageParam(options, { pages, pageParams }) {
+  return pages.length > 0 ? options.getPreviousPageParam?.(pages[0], pages, pageParams[0], pageParams) : void 0;
+}
+function hasNextPage(options, data) {
+  if (!data) return false;
+  return getNextPageParam(options, data) != null;
+}
+function hasPreviousPage(options, data) {
+  if (!data || !options.getPreviousPageParam) return false;
+  return getPreviousPageParam(options, data) != null;
+}
+
+//# sourceMappingURL=infiniteQueryBehavior.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js"
+/*!*********************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js ***!
+  \*********************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   InfiniteQueryObserver: () => (/* binding */ InfiniteQueryObserver)
+/* harmony export */ });
+/* harmony import */ var _queryObserver_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./queryObserver.js */ "./node_modules/@tanstack/query-core/build/modern/queryObserver.js");
+/* harmony import */ var _infiniteQueryBehavior_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./infiniteQueryBehavior.js */ "./node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js");
+// src/infiniteQueryObserver.ts
+
+
+var InfiniteQueryObserver = class extends _queryObserver_js__WEBPACK_IMPORTED_MODULE_0__.QueryObserver {
+  constructor(client, options) {
+    super(client, options);
+  }
+  bindMethods() {
+    super.bindMethods();
+    this.fetchNextPage = this.fetchNextPage.bind(this);
+    this.fetchPreviousPage = this.fetchPreviousPage.bind(this);
+  }
+  setOptions(options) {
+    options._type = "infinite";
+    super.setOptions(options);
+  }
+  getOptimisticResult(options) {
+    options._type = "infinite";
+    return super.getOptimisticResult(options);
+  }
+  fetchNextPage(options) {
+    return this.fetch({
+      ...options,
+      meta: {
+        fetchMore: { direction: "forward" }
+      }
+    });
+  }
+  fetchPreviousPage(options) {
+    return this.fetch({
+      ...options,
+      meta: {
+        fetchMore: { direction: "backward" }
+      }
+    });
+  }
+  createResult(query, options) {
+    const { state } = query;
+    const parentResult = super.createResult(query, options);
+    const { isFetching, isRefetching, isError, isRefetchError } = parentResult;
+    const fetchDirection = state.fetchMeta?.fetchMore?.direction;
+    const isFetchNextPageError = isError && fetchDirection === "forward";
+    const isFetchingNextPage = isFetching && fetchDirection === "forward";
+    const isFetchPreviousPageError = isError && fetchDirection === "backward";
+    const isFetchingPreviousPage = isFetching && fetchDirection === "backward";
+    const result = {
+      ...parentResult,
+      fetchNextPage: this.fetchNextPage,
+      fetchPreviousPage: this.fetchPreviousPage,
+      hasNextPage: (0,_infiniteQueryBehavior_js__WEBPACK_IMPORTED_MODULE_1__.hasNextPage)(options, state.data),
+      hasPreviousPage: (0,_infiniteQueryBehavior_js__WEBPACK_IMPORTED_MODULE_1__.hasPreviousPage)(options, state.data),
+      isFetchNextPageError,
+      isFetchingNextPage,
+      isFetchPreviousPageError,
+      isFetchingPreviousPage,
+      isRefetchError: isRefetchError && !isFetchNextPageError && !isFetchPreviousPageError,
+      isRefetching: isRefetching && !isFetchingNextPage && !isFetchingPreviousPage
+    };
+    return result;
+  }
+};
+
+//# sourceMappingURL=infiniteQueryObserver.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/mutation.js"
+/*!********************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/mutation.js ***!
+  \********************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Mutation: () => (/* binding */ Mutation),
+/* harmony export */   getDefaultState: () => (/* binding */ getDefaultState)
+/* harmony export */ });
+/* harmony import */ var _notifyManager_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./notifyManager.js */ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js");
+/* harmony import */ var _removable_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./removable.js */ "./node_modules/@tanstack/query-core/build/modern/removable.js");
+/* harmony import */ var _retryer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./retryer.js */ "./node_modules/@tanstack/query-core/build/modern/retryer.js");
+// src/mutation.ts
+
+
+
+var Mutation = class extends _removable_js__WEBPACK_IMPORTED_MODULE_1__.Removable {
+  #client;
+  #observers;
+  #mutationCache;
+  #retryer;
+  constructor(config) {
+    super();
+    this.#client = config.client;
+    this.mutationId = config.mutationId;
+    this.#mutationCache = config.mutationCache;
+    this.#observers = [];
+    this.state = config.state || getDefaultState();
+    this.setOptions(config.options);
+    this.scheduleGc();
+  }
+  setOptions(options) {
+    this.options = options;
+    this.updateGcTime(this.options.gcTime);
+  }
+  get meta() {
+    return this.options.meta;
+  }
+  addObserver(observer) {
+    if (!this.#observers.includes(observer)) {
+      this.#observers.push(observer);
+      this.clearGcTimeout();
+      this.#mutationCache.notify({
+        type: "observerAdded",
+        mutation: this,
+        observer
+      });
+    }
+  }
+  removeObserver(observer) {
+    this.#observers = this.#observers.filter((x) => x !== observer);
+    this.scheduleGc();
+    this.#mutationCache.notify({
+      type: "observerRemoved",
+      mutation: this,
+      observer
+    });
+  }
+  optionalRemove() {
+    if (!this.#observers.length) {
+      if (this.state.status === "pending") {
+        this.scheduleGc();
+      } else {
+        this.#mutationCache.remove(this);
+      }
+    }
+  }
+  continue() {
+    return this.#retryer?.continue() ?? // continuing a mutation assumes that variables are set, mutation must have been dehydrated before
+    this.execute(this.state.variables);
+  }
+  async execute(variables) {
+    const onContinue = () => {
+      this.#dispatch({ type: "continue" });
+    };
+    const mutationFnContext = {
+      client: this.#client,
+      meta: this.options.meta,
+      mutationKey: this.options.mutationKey
+    };
+    this.#retryer = (0,_retryer_js__WEBPACK_IMPORTED_MODULE_2__.createRetryer)({
+      fn: () => {
+        if (!this.options.mutationFn) {
+          return Promise.reject(new Error("No mutationFn found"));
+        }
+        return this.options.mutationFn(variables, mutationFnContext);
+      },
+      onFail: (failureCount, error) => {
+        this.#dispatch({ type: "failed", failureCount, error });
+      },
+      onPause: () => {
+        this.#dispatch({ type: "pause" });
+      },
+      onContinue,
+      retry: this.options.retry ?? 0,
+      retryDelay: this.options.retryDelay,
+      networkMode: this.options.networkMode,
+      canRun: () => this.#mutationCache.canRun(this)
+    });
+    const restored = this.state.status === "pending";
+    const isPaused = !this.#retryer.canStart();
+    try {
+      if (restored) {
+        onContinue();
+      } else {
+        this.#dispatch({ type: "pending", variables, isPaused });
+        if (this.#mutationCache.config.onMutate) {
+          await this.#mutationCache.config.onMutate(
+            variables,
+            this,
+            mutationFnContext
+          );
+        }
+        const context = await this.options.onMutate?.(
+          variables,
+          mutationFnContext
+        );
+        if (context !== this.state.context) {
+          this.#dispatch({
+            type: "pending",
+            context,
+            variables,
+            isPaused
+          });
+        }
+      }
+      const data = await this.#retryer.start();
+      await this.#mutationCache.config.onSuccess?.(
+        data,
+        variables,
+        this.state.context,
+        this,
+        mutationFnContext
+      );
+      await this.options.onSuccess?.(
+        data,
+        variables,
+        this.state.context,
+        mutationFnContext
+      );
+      await this.#mutationCache.config.onSettled?.(
+        data,
+        null,
+        this.state.variables,
+        this.state.context,
+        this,
+        mutationFnContext
+      );
+      await this.options.onSettled?.(
+        data,
+        null,
+        variables,
+        this.state.context,
+        mutationFnContext
+      );
+      this.#dispatch({ type: "success", data });
+      return data;
+    } catch (error) {
+      try {
+        await this.#mutationCache.config.onError?.(
+          error,
+          variables,
+          this.state.context,
+          this,
+          mutationFnContext
+        );
+      } catch (e) {
+        void Promise.reject(e);
+      }
+      try {
+        await this.options.onError?.(
+          error,
+          variables,
+          this.state.context,
+          mutationFnContext
+        );
+      } catch (e) {
+        void Promise.reject(e);
+      }
+      try {
+        await this.#mutationCache.config.onSettled?.(
+          void 0,
+          error,
+          this.state.variables,
+          this.state.context,
+          this,
+          mutationFnContext
+        );
+      } catch (e) {
+        void Promise.reject(e);
+      }
+      try {
+        await this.options.onSettled?.(
+          void 0,
+          error,
+          variables,
+          this.state.context,
+          mutationFnContext
+        );
+      } catch (e) {
+        void Promise.reject(e);
+      }
+      this.#dispatch({ type: "error", error });
+      throw error;
+    } finally {
+      this.#mutationCache.runNext(this);
+    }
+  }
+  #dispatch(action) {
+    const reducer = (state) => {
+      switch (action.type) {
+        case "failed":
+          return {
+            ...state,
+            failureCount: action.failureCount,
+            failureReason: action.error
+          };
+        case "pause":
+          return {
+            ...state,
+            isPaused: true
+          };
+        case "continue":
+          return {
+            ...state,
+            isPaused: false
+          };
+        case "pending":
+          return {
+            ...state,
+            context: action.context,
+            data: void 0,
+            failureCount: 0,
+            failureReason: null,
+            error: null,
+            isPaused: action.isPaused,
+            status: "pending",
+            variables: action.variables,
+            submittedAt: Date.now()
+          };
+        case "success":
+          return {
+            ...state,
+            data: action.data,
+            failureCount: 0,
+            failureReason: null,
+            error: null,
+            status: "success",
+            isPaused: false
+          };
+        case "error":
+          return {
+            ...state,
+            data: void 0,
+            error: action.error,
+            failureCount: state.failureCount + 1,
+            failureReason: action.error,
+            isPaused: false,
+            status: "error"
+          };
+      }
+    };
+    this.state = reducer(this.state);
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_0__.notifyManager.batch(() => {
+      this.#observers.forEach((observer) => {
+        observer.onMutationUpdate(action);
+      });
+      this.#mutationCache.notify({
+        mutation: this,
+        type: "updated",
+        action
+      });
+    });
+  }
+};
+function getDefaultState() {
+  return {
+    context: void 0,
+    data: void 0,
+    error: null,
+    failureCount: 0,
+    failureReason: null,
+    isPaused: false,
+    status: "idle",
+    variables: void 0,
+    submittedAt: 0
+  };
+}
+
+//# sourceMappingURL=mutation.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/mutationCache.js"
+/*!*************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/mutationCache.js ***!
+  \*************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MutationCache: () => (/* binding */ MutationCache)
+/* harmony export */ });
+/* harmony import */ var _notifyManager_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./notifyManager.js */ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js");
+/* harmony import */ var _mutation_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./mutation.js */ "./node_modules/@tanstack/query-core/build/modern/mutation.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+/* harmony import */ var _subscribable_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./subscribable.js */ "./node_modules/@tanstack/query-core/build/modern/subscribable.js");
+// src/mutationCache.ts
+
+
+
+
+var MutationCache = class extends _subscribable_js__WEBPACK_IMPORTED_MODULE_3__.Subscribable {
+  constructor(config = {}) {
+    super();
+    this.config = config;
+    this.#mutations = /* @__PURE__ */ new Set();
+    this.#scopes = /* @__PURE__ */ new Map();
+    this.#mutationId = 0;
+  }
+  #mutations;
+  #scopes;
+  #mutationId;
+  build(client, options, state) {
+    const mutation = new _mutation_js__WEBPACK_IMPORTED_MODULE_1__.Mutation({
+      client,
+      mutationCache: this,
+      mutationId: ++this.#mutationId,
+      options: client.defaultMutationOptions(options),
+      state
+    });
+    this.add(mutation);
+    return mutation;
+  }
+  add(mutation) {
+    this.#mutations.add(mutation);
+    const scope = scopeFor(mutation);
+    if (typeof scope === "string") {
+      const scopedMutations = this.#scopes.get(scope);
+      if (scopedMutations) {
+        scopedMutations.push(mutation);
+      } else {
+        this.#scopes.set(scope, [mutation]);
+      }
+    }
+    this.notify({ type: "added", mutation });
+  }
+  remove(mutation) {
+    if (this.#mutations.delete(mutation)) {
+      const scope = scopeFor(mutation);
+      if (typeof scope === "string") {
+        const scopedMutations = this.#scopes.get(scope);
+        if (scopedMutations) {
+          if (scopedMutations.length > 1) {
+            const index = scopedMutations.indexOf(mutation);
+            if (index !== -1) {
+              scopedMutations.splice(index, 1);
+            }
+          } else if (scopedMutations[0] === mutation) {
+            this.#scopes.delete(scope);
+          }
+        }
+      }
+    }
+    this.notify({ type: "removed", mutation });
+  }
+  canRun(mutation) {
+    const scope = scopeFor(mutation);
+    if (typeof scope === "string") {
+      const mutationsWithSameScope = this.#scopes.get(scope);
+      const firstPendingMutation = mutationsWithSameScope?.find(
+        (m) => m.state.status === "pending"
+      );
+      return !firstPendingMutation || firstPendingMutation === mutation;
+    } else {
+      return true;
+    }
+  }
+  runNext(mutation) {
+    const scope = scopeFor(mutation);
+    if (typeof scope === "string") {
+      const foundMutation = this.#scopes.get(scope)?.find((m) => m !== mutation && m.state.isPaused);
+      return foundMutation?.continue() ?? Promise.resolve();
+    } else {
+      return Promise.resolve();
+    }
+  }
+  clear() {
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_0__.notifyManager.batch(() => {
+      this.#mutations.forEach((mutation) => {
+        this.notify({ type: "removed", mutation });
+      });
+      this.#mutations.clear();
+      this.#scopes.clear();
+    });
+  }
+  getAll() {
+    return Array.from(this.#mutations);
+  }
+  find(filters) {
+    const defaultedFilters = { exact: true, ...filters };
+    return this.getAll().find(
+      (mutation) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.matchMutation)(defaultedFilters, mutation)
+    );
+  }
+  findAll(filters = {}) {
+    return this.getAll().filter((mutation) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.matchMutation)(filters, mutation));
+  }
+  notify(event) {
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_0__.notifyManager.batch(() => {
+      this.listeners.forEach((listener) => {
+        listener(event);
+      });
+    });
+  }
+  resumePausedMutations() {
+    const pausedMutations = this.getAll().filter((x) => x.state.isPaused);
+    return _notifyManager_js__WEBPACK_IMPORTED_MODULE_0__.notifyManager.batch(
+      () => Promise.all(
+        pausedMutations.map((mutation) => mutation.continue().catch(_utils_js__WEBPACK_IMPORTED_MODULE_2__.noop))
+      )
+    );
+  }
+};
+function scopeFor(mutation) {
+  return mutation.options.scope?.id;
+}
+
+//# sourceMappingURL=mutationCache.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js"
+/*!*************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/notifyManager.js ***!
+  \*************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createNotifyManager: () => (/* binding */ createNotifyManager),
+/* harmony export */   defaultScheduler: () => (/* binding */ defaultScheduler),
+/* harmony export */   notifyManager: () => (/* binding */ notifyManager)
+/* harmony export */ });
+/* harmony import */ var _timeoutManager_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./timeoutManager.js */ "./node_modules/@tanstack/query-core/build/modern/timeoutManager.js");
+// src/notifyManager.ts
+
+var defaultScheduler = _timeoutManager_js__WEBPACK_IMPORTED_MODULE_0__.systemSetTimeoutZero;
+function createNotifyManager() {
+  let queue = [];
+  let transactions = 0;
+  let notifyFn = (callback) => {
+    callback();
+  };
+  let batchNotifyFn = (callback) => {
+    callback();
+  };
+  let scheduleFn = defaultScheduler;
+  const schedule = (callback) => {
+    if (transactions) {
+      queue.push(callback);
+    } else {
+      scheduleFn(() => {
+        notifyFn(callback);
+      });
+    }
+  };
+  const flush = () => {
+    const originalQueue = queue;
+    queue = [];
+    if (originalQueue.length) {
+      scheduleFn(() => {
+        batchNotifyFn(() => {
+          originalQueue.forEach((callback) => {
+            notifyFn(callback);
+          });
+        });
+      });
+    }
+  };
+  return {
+    batch: (callback) => {
+      let result;
+      transactions++;
+      try {
+        result = callback();
+      } finally {
+        transactions--;
+        if (!transactions) {
+          flush();
+        }
+      }
+      return result;
+    },
+    /**
+     * All calls to the wrapped function will be batched.
+     */
+    batchCalls: (callback) => {
+      return (...args) => {
+        schedule(() => {
+          callback(...args);
+        });
+      };
+    },
+    schedule,
+    /**
+     * Use this method to set a custom notify function.
+     * This can be used to for example wrap notifications with `React.act` while running tests.
+     */
+    setNotifyFunction: (fn) => {
+      notifyFn = fn;
+    },
+    /**
+     * Use this method to set a custom function to batch notifications together into a single tick.
+     * By default React Query will use the batch function provided by ReactDOM or React Native.
+     */
+    setBatchNotifyFunction: (fn) => {
+      batchNotifyFn = fn;
+    },
+    setScheduler: (fn) => {
+      scheduleFn = fn;
+    }
+  };
+}
+var notifyManager = createNotifyManager();
+
+//# sourceMappingURL=notifyManager.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/onlineManager.js"
+/*!*************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/onlineManager.js ***!
+  \*************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   OnlineManager: () => (/* binding */ OnlineManager),
+/* harmony export */   onlineManager: () => (/* binding */ onlineManager)
+/* harmony export */ });
+/* harmony import */ var _subscribable_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./subscribable.js */ "./node_modules/@tanstack/query-core/build/modern/subscribable.js");
+// src/onlineManager.ts
+
+var OnlineManager = class extends _subscribable_js__WEBPACK_IMPORTED_MODULE_0__.Subscribable {
+  #online = true;
+  #cleanup;
+  #setup;
+  constructor() {
+    super();
+    this.#setup = (onOnline) => {
+      if (typeof window !== "undefined" && window.addEventListener) {
+        const onlineListener = () => onOnline(true);
+        const offlineListener = () => onOnline(false);
+        window.addEventListener("online", onlineListener, false);
+        window.addEventListener("offline", offlineListener, false);
+        return () => {
+          window.removeEventListener("online", onlineListener);
+          window.removeEventListener("offline", offlineListener);
+        };
+      }
+      return;
+    };
+  }
+  onSubscribe() {
+    if (!this.#cleanup) {
+      this.setEventListener(this.#setup);
+    }
+  }
+  onUnsubscribe() {
+    if (!this.hasListeners()) {
+      this.#cleanup?.();
+      this.#cleanup = void 0;
+    }
+  }
+  setEventListener(setup) {
+    this.#setup = setup;
+    this.#cleanup?.();
+    this.#cleanup = setup(this.setOnline.bind(this));
+  }
+  setOnline(online) {
+    const changed = this.#online !== online;
+    if (changed) {
+      this.#online = online;
+      this.listeners.forEach((listener) => {
+        listener(online);
+      });
+    }
+  }
+  isOnline() {
+    return this.#online;
+  }
+};
+var onlineManager = new OnlineManager();
+
+//# sourceMappingURL=onlineManager.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/query.js"
+/*!*****************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/query.js ***!
+  \*****************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Query: () => (/* binding */ Query),
+/* harmony export */   fetchState: () => (/* binding */ fetchState)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+/* harmony import */ var _notifyManager_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./notifyManager.js */ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js");
+/* harmony import */ var _retryer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./retryer.js */ "./node_modules/@tanstack/query-core/build/modern/retryer.js");
+/* harmony import */ var _removable_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./removable.js */ "./node_modules/@tanstack/query-core/build/modern/removable.js");
+/* harmony import */ var _infiniteQueryBehavior_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./infiniteQueryBehavior.js */ "./node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js");
+// src/query.ts
+
+
+
+
+
+var Query = class extends _removable_js__WEBPACK_IMPORTED_MODULE_3__.Removable {
+  #queryType;
+  #initialState;
+  #revertState;
+  #cache;
+  #client;
+  #retryer;
+  #defaultOptions;
+  #abortSignalConsumed;
+  constructor(config) {
+    super();
+    this.#abortSignalConsumed = false;
+    this.#defaultOptions = config.defaultOptions;
+    this.setOptions(config.options);
+    this.observers = [];
+    this.#client = config.client;
+    this.#cache = this.#client.getQueryCache();
+    this.queryKey = config.queryKey;
+    this.queryHash = config.queryHash;
+    this.#initialState = getDefaultState(this.options);
+    this.state = config.state ?? this.#initialState;
+    this.scheduleGc();
+  }
+  get meta() {
+    return this.options.meta;
+  }
+  get queryType() {
+    return this.#queryType;
+  }
+  get promise() {
+    return this.#retryer?.promise;
+  }
+  setOptions(options) {
+    this.options = { ...this.#defaultOptions, ...options };
+    if (options?._type) {
+      this.#queryType = options._type;
+    }
+    this.updateGcTime(this.options.gcTime);
+    if (this.state && this.state.data === void 0) {
+      const defaultState = getDefaultState(this.options);
+      if (defaultState.data !== void 0) {
+        this.setState(
+          successState(defaultState.data, defaultState.dataUpdatedAt)
+        );
+        this.#initialState = defaultState;
+      }
+    }
+  }
+  optionalRemove() {
+    if (!this.observers.length && this.state.fetchStatus === "idle") {
+      this.#cache.remove(this);
+    }
+  }
+  setData(newData, options) {
+    const data = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.replaceData)(this.state.data, newData, this.options);
+    this.#dispatch({
+      data,
+      type: "success",
+      dataUpdatedAt: options?.updatedAt,
+      manual: options?.manual
+    });
+    return data;
+  }
+  setState(state) {
+    this.#dispatch({ type: "setState", state });
+  }
+  cancel(options) {
+    const promise = this.#retryer?.promise;
+    this.#retryer?.cancel(options);
+    return promise ? promise.then(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop).catch(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop) : Promise.resolve();
+  }
+  destroy() {
+    super.destroy();
+    this.cancel({ silent: true });
+  }
+  get resetState() {
+    return this.#initialState;
+  }
+  reset() {
+    this.destroy();
+    this.setState(this.resetState);
+  }
+  isActive() {
+    return this.observers.some(
+      (observer) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.resolveQueryBoolean)(observer.options.enabled, this) !== false
+    );
+  }
+  isDisabled() {
+    if (this.getObserversCount() > 0) {
+      return !this.isActive();
+    }
+    return this.options.queryFn === _utils_js__WEBPACK_IMPORTED_MODULE_0__.skipToken || !this.isFetched();
+  }
+  isFetched() {
+    return this.state.dataUpdateCount + this.state.errorUpdateCount > 0;
+  }
+  isStatic() {
+    if (this.getObserversCount() > 0) {
+      return this.observers.some(
+        (observer) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.resolveStaleTime)(observer.options.staleTime, this) === "static"
+      );
+    }
+    return false;
+  }
+  isStale() {
+    if (this.getObserversCount() > 0) {
+      return this.observers.some(
+        (observer) => observer.getCurrentResult().isStale
+      );
+    }
+    return this.state.data === void 0 || this.state.isInvalidated;
+  }
+  isStaleByTime(staleTime = 0) {
+    if (this.state.data === void 0) {
+      return true;
+    }
+    if (staleTime === "static") {
+      return false;
+    }
+    if (this.state.isInvalidated) {
+      return true;
+    }
+    return !(0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.timeUntilStale)(this.state.dataUpdatedAt, staleTime);
+  }
+  onFocus() {
+    const observer = this.observers.find((x) => x.shouldFetchOnWindowFocus());
+    observer?.refetch({ cancelRefetch: false });
+    this.#retryer?.continue();
+  }
+  onOnline() {
+    const observer = this.observers.find((x) => x.shouldFetchOnReconnect());
+    observer?.refetch({ cancelRefetch: false });
+    this.#retryer?.continue();
+  }
+  addObserver(observer) {
+    if (!this.observers.includes(observer)) {
+      this.observers.push(observer);
+      this.clearGcTimeout();
+      this.#cache.notify({ type: "observerAdded", query: this, observer });
+    }
+  }
+  removeObserver(observer) {
+    if (this.observers.includes(observer)) {
+      this.observers = this.observers.filter((x) => x !== observer);
+      if (!this.observers.length) {
+        if (this.#retryer) {
+          if (this.#abortSignalConsumed || this.#isInitialPausedFetch()) {
+            this.#retryer.cancel({ revert: true });
+          } else {
+            this.#retryer.cancelRetry();
+          }
+        }
+        this.scheduleGc();
+      }
+      this.#cache.notify({ type: "observerRemoved", query: this, observer });
+    }
+  }
+  getObserversCount() {
+    return this.observers.length;
+  }
+  #isInitialPausedFetch() {
+    return this.state.fetchStatus === "paused" && this.state.status === "pending";
+  }
+  invalidate() {
+    if (!this.state.isInvalidated) {
+      this.#dispatch({ type: "invalidate" });
+    }
+  }
+  async fetch(options, fetchOptions) {
+    if (this.state.fetchStatus !== "idle" && // If the promise in the retryer is already rejected, we have to definitely
+    // re-start the fetch; there is a chance that the query is still in a
+    // pending state when that happens
+    this.#retryer?.status() !== "rejected") {
+      if (this.state.data !== void 0 && fetchOptions?.cancelRefetch) {
+        this.cancel({ silent: true });
+      } else if (this.#retryer) {
+        this.#retryer.continueRetry();
+        return this.#retryer.promise;
+      }
+    }
+    if (options) {
+      this.setOptions(options);
+    }
+    if (!this.options.queryFn) {
+      const observer = this.observers.find((x) => x.options.queryFn);
+      if (observer) {
+        this.setOptions(observer.options);
+      }
+    }
+    if (true) {
+      if (!Array.isArray(this.options.queryKey)) {
+        console.error(
+          `As of v4, queryKey needs to be an Array. If you are using a string like 'repoData', please change it to an Array, e.g. ['repoData']`
+        );
+      }
+    }
+    const abortController = new AbortController();
+    const addSignalProperty = (object) => {
+      Object.defineProperty(object, "signal", {
+        enumerable: true,
+        get: () => {
+          this.#abortSignalConsumed = true;
+          return abortController.signal;
+        }
+      });
+    };
+    const fetchFn = () => {
+      const queryFn = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.ensureQueryFn)(this.options, fetchOptions);
+      const createQueryFnContext = () => {
+        const queryFnContext2 = {
+          client: this.#client,
+          queryKey: this.queryKey,
+          meta: this.meta
+        };
+        addSignalProperty(queryFnContext2);
+        return queryFnContext2;
+      };
+      const queryFnContext = createQueryFnContext();
+      this.#abortSignalConsumed = false;
+      if (this.options.persister) {
+        return this.options.persister(
+          queryFn,
+          queryFnContext,
+          this
+        );
+      }
+      return queryFn(queryFnContext);
+    };
+    const createFetchContext = () => {
+      const context2 = {
+        fetchOptions,
+        options: this.options,
+        queryKey: this.queryKey,
+        client: this.#client,
+        state: this.state,
+        fetchFn
+      };
+      addSignalProperty(context2);
+      return context2;
+    };
+    const context = createFetchContext();
+    const behavior = this.#queryType === "infinite" ? (0,_infiniteQueryBehavior_js__WEBPACK_IMPORTED_MODULE_4__.infiniteQueryBehavior)(
+      this.options.pages
+    ) : this.options.behavior;
+    behavior?.onFetch(context, this);
+    this.#revertState = this.state;
+    if (this.state.fetchStatus === "idle" || this.state.fetchMeta !== context.fetchOptions?.meta) {
+      this.#dispatch({ type: "fetch", meta: context.fetchOptions?.meta });
+    }
+    this.#retryer = (0,_retryer_js__WEBPACK_IMPORTED_MODULE_2__.createRetryer)({
+      initialPromise: fetchOptions?.initialPromise,
+      fn: context.fetchFn,
+      onCancel: (error) => {
+        if (error instanceof _retryer_js__WEBPACK_IMPORTED_MODULE_2__.CancelledError && error.revert) {
+          this.setState({
+            ...this.#revertState,
+            fetchStatus: "idle"
+          });
+        }
+        abortController.abort();
+      },
+      onFail: (failureCount, error) => {
+        this.#dispatch({ type: "failed", failureCount, error });
+      },
+      onPause: () => {
+        this.#dispatch({ type: "pause" });
+      },
+      onContinue: () => {
+        this.#dispatch({ type: "continue" });
+      },
+      retry: context.options.retry,
+      retryDelay: context.options.retryDelay,
+      networkMode: context.options.networkMode,
+      canRun: () => true
+    });
+    try {
+      const data = await this.#retryer.start();
+      if (data === void 0) {
+        if (true) {
+          console.error(
+            `Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ${this.queryHash}`
+          );
+        }
+        throw new Error(`${this.queryHash} data is undefined`);
+      }
+      this.setData(data);
+      this.#cache.config.onSuccess?.(data, this);
+      this.#cache.config.onSettled?.(
+        data,
+        this.state.error,
+        this
+      );
+      return data;
+    } catch (error) {
+      if (error instanceof _retryer_js__WEBPACK_IMPORTED_MODULE_2__.CancelledError) {
+        if (error.silent) {
+          return this.#retryer.promise;
+        } else if (error.revert) {
+          if (this.state.data === void 0) {
+            throw error;
+          }
+          return this.state.data;
+        }
+      }
+      this.#dispatch({
+        type: "error",
+        error
+      });
+      this.#cache.config.onError?.(
+        error,
+        this
+      );
+      this.#cache.config.onSettled?.(
+        this.state.data,
+        error,
+        this
+      );
+      throw error;
+    } finally {
+      this.scheduleGc();
+    }
+  }
+  #dispatch(action) {
+    const reducer = (state) => {
+      switch (action.type) {
+        case "failed":
+          return {
+            ...state,
+            fetchFailureCount: action.failureCount,
+            fetchFailureReason: action.error
+          };
+        case "pause":
+          return {
+            ...state,
+            fetchStatus: "paused"
+          };
+        case "continue":
+          return {
+            ...state,
+            fetchStatus: "fetching"
+          };
+        case "fetch":
+          return {
+            ...state,
+            ...fetchState(state.data, this.options),
+            fetchMeta: action.meta ?? null
+          };
+        case "success":
+          const newState = {
+            ...state,
+            ...successState(action.data, action.dataUpdatedAt),
+            dataUpdateCount: state.dataUpdateCount + 1,
+            ...!action.manual && {
+              fetchStatus: "idle",
+              fetchFailureCount: 0,
+              fetchFailureReason: null
+            }
+          };
+          this.#revertState = action.manual ? newState : void 0;
+          return newState;
+        case "error":
+          const error = action.error;
+          return {
+            ...state,
+            error,
+            errorUpdateCount: state.errorUpdateCount + 1,
+            errorUpdatedAt: Date.now(),
+            fetchFailureCount: state.fetchFailureCount + 1,
+            fetchFailureReason: error,
+            fetchStatus: "idle",
+            status: "error",
+            // flag existing data as invalidated if we get a background error
+            // note that "no data" always means stale so we can set unconditionally here
+            isInvalidated: true
+          };
+        case "invalidate":
+          return {
+            ...state,
+            isInvalidated: true
+          };
+        case "setState":
+          return {
+            ...state,
+            ...action.state
+          };
+      }
+    };
+    this.state = reducer(this.state);
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_1__.notifyManager.batch(() => {
+      this.observers.forEach((observer) => {
+        observer.onQueryUpdate();
+      });
+      this.#cache.notify({ query: this, type: "updated", action });
+    });
+  }
+};
+function fetchState(data, options) {
+  return {
+    fetchFailureCount: 0,
+    fetchFailureReason: null,
+    fetchStatus: (0,_retryer_js__WEBPACK_IMPORTED_MODULE_2__.canFetch)(options.networkMode) ? "fetching" : "paused",
+    ...data === void 0 && {
+      error: null,
+      status: "pending"
+    }
+  };
+}
+function successState(data, dataUpdatedAt) {
+  return {
+    data,
+    dataUpdatedAt: dataUpdatedAt ?? Date.now(),
+    error: null,
+    isInvalidated: false,
+    status: "success"
+  };
+}
+function getDefaultState(options) {
+  const data = typeof options.initialData === "function" ? options.initialData() : options.initialData;
+  const hasData = data !== void 0;
+  const initialDataUpdatedAt = hasData ? typeof options.initialDataUpdatedAt === "function" ? options.initialDataUpdatedAt() : options.initialDataUpdatedAt : 0;
+  return {
+    data,
+    dataUpdateCount: 0,
+    dataUpdatedAt: hasData ? initialDataUpdatedAt ?? Date.now() : 0,
+    error: null,
+    errorUpdateCount: 0,
+    errorUpdatedAt: 0,
+    fetchFailureCount: 0,
+    fetchFailureReason: null,
+    fetchMeta: null,
+    isInvalidated: false,
+    status: hasData ? "success" : "pending",
+    fetchStatus: "idle"
+  };
+}
+
+//# sourceMappingURL=query.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/queryCache.js"
+/*!**********************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/queryCache.js ***!
+  \**********************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   QueryCache: () => (/* binding */ QueryCache)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+/* harmony import */ var _query_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./query.js */ "./node_modules/@tanstack/query-core/build/modern/query.js");
+/* harmony import */ var _notifyManager_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./notifyManager.js */ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js");
+/* harmony import */ var _subscribable_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./subscribable.js */ "./node_modules/@tanstack/query-core/build/modern/subscribable.js");
+// src/queryCache.ts
+
+
+
+
+var QueryCache = class extends _subscribable_js__WEBPACK_IMPORTED_MODULE_3__.Subscribable {
+  constructor(config = {}) {
+    super();
+    this.config = config;
+    this.#queries = /* @__PURE__ */ new Map();
+  }
+  #queries;
+  build(client, options, state) {
+    const queryKey = options.queryKey;
+    const queryHash = options.queryHash ?? (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.hashQueryKeyByOptions)(queryKey, options);
+    let query = this.get(queryHash);
+    if (!query) {
+      query = new _query_js__WEBPACK_IMPORTED_MODULE_1__.Query({
+        client,
+        queryKey,
+        queryHash,
+        options: client.defaultQueryOptions(options),
+        state,
+        defaultOptions: client.getQueryDefaults(queryKey)
+      });
+      this.add(query);
+    }
+    return query;
+  }
+  add(query) {
+    if (!this.#queries.has(query.queryHash)) {
+      this.#queries.set(query.queryHash, query);
+      this.notify({
+        type: "added",
+        query
+      });
+    }
+  }
+  remove(query) {
+    const queryInMap = this.#queries.get(query.queryHash);
+    if (queryInMap) {
+      query.destroy();
+      if (queryInMap === query) {
+        this.#queries.delete(query.queryHash);
+      }
+      this.notify({ type: "removed", query });
+    }
+  }
+  clear() {
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_2__.notifyManager.batch(() => {
+      this.getAll().forEach((query) => {
+        this.remove(query);
+      });
+    });
+  }
+  get(queryHash) {
+    return this.#queries.get(queryHash);
+  }
+  getAll() {
+    return [...this.#queries.values()];
+  }
+  find(filters) {
+    const defaultedFilters = { exact: true, ...filters };
+    return this.getAll().find(
+      (query) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.matchQuery)(defaultedFilters, query)
+    );
+  }
+  findAll(filters = {}) {
+    const queries = this.getAll();
+    return Object.keys(filters).length > 0 ? queries.filter((query) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.matchQuery)(filters, query)) : queries;
+  }
+  notify(event) {
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_2__.notifyManager.batch(() => {
+      this.listeners.forEach((listener) => {
+        listener(event);
+      });
+    });
+  }
+  onFocus() {
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_2__.notifyManager.batch(() => {
+      this.getAll().forEach((query) => {
+        query.onFocus();
+      });
+    });
+  }
+  onOnline() {
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_2__.notifyManager.batch(() => {
+      this.getAll().forEach((query) => {
+        query.onOnline();
+      });
+    });
+  }
+};
+
+//# sourceMappingURL=queryCache.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/queryClient.js"
+/*!***********************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/queryClient.js ***!
+  \***********************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   QueryClient: () => (/* binding */ QueryClient)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+/* harmony import */ var _queryCache_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./queryCache.js */ "./node_modules/@tanstack/query-core/build/modern/queryCache.js");
+/* harmony import */ var _mutationCache_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./mutationCache.js */ "./node_modules/@tanstack/query-core/build/modern/mutationCache.js");
+/* harmony import */ var _focusManager_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./focusManager.js */ "./node_modules/@tanstack/query-core/build/modern/focusManager.js");
+/* harmony import */ var _onlineManager_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./onlineManager.js */ "./node_modules/@tanstack/query-core/build/modern/onlineManager.js");
+/* harmony import */ var _notifyManager_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./notifyManager.js */ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js");
+// src/queryClient.ts
+
+
+
+
+
+
+var QueryClient = class {
+  #queryCache;
+  #mutationCache;
+  #defaultOptions;
+  #queryDefaults;
+  #mutationDefaults;
+  #mountCount;
+  #unsubscribeFocus;
+  #unsubscribeOnline;
+  constructor(config = {}) {
+    this.#queryCache = config.queryCache || new _queryCache_js__WEBPACK_IMPORTED_MODULE_1__.QueryCache();
+    this.#mutationCache = config.mutationCache || new _mutationCache_js__WEBPACK_IMPORTED_MODULE_2__.MutationCache();
+    this.#defaultOptions = config.defaultOptions || {};
+    this.#queryDefaults = /* @__PURE__ */ new Map();
+    this.#mutationDefaults = /* @__PURE__ */ new Map();
+    this.#mountCount = 0;
+  }
+  mount() {
+    this.#mountCount++;
+    if (this.#mountCount !== 1) return;
+    this.#unsubscribeFocus = _focusManager_js__WEBPACK_IMPORTED_MODULE_3__.focusManager.subscribe(async (focused) => {
+      if (focused) {
+        await this.resumePausedMutations();
+        this.#queryCache.onFocus();
+      }
+    });
+    this.#unsubscribeOnline = _onlineManager_js__WEBPACK_IMPORTED_MODULE_4__.onlineManager.subscribe(async (online) => {
+      if (online) {
+        await this.resumePausedMutations();
+        this.#queryCache.onOnline();
+      }
+    });
+  }
+  unmount() {
+    this.#mountCount--;
+    if (this.#mountCount !== 0) return;
+    this.#unsubscribeFocus?.();
+    this.#unsubscribeFocus = void 0;
+    this.#unsubscribeOnline?.();
+    this.#unsubscribeOnline = void 0;
+  }
+  isFetching(filters) {
+    return this.#queryCache.findAll({ ...filters, fetchStatus: "fetching" }).length;
+  }
+  isMutating(filters) {
+    return this.#mutationCache.findAll({ ...filters, status: "pending" }).length;
+  }
+  /**
+   * Imperative (non-reactive) way to retrieve data for a QueryKey.
+   * Should only be used in callbacks or functions where reading the latest data is necessary, e.g. for optimistic updates.
+   *
+   * Hint: Do not use this function inside a component, because it won't receive updates.
+   * Use `useQuery` to create a `QueryObserver` that subscribes to changes.
+   */
+  getQueryData(queryKey) {
+    const options = this.defaultQueryOptions({ queryKey });
+    return this.#queryCache.get(options.queryHash)?.state.data;
+  }
+  ensureQueryData(options) {
+    const defaultedOptions = this.defaultQueryOptions(options);
+    const query = this.#queryCache.build(this, defaultedOptions);
+    const cachedData = query.state.data;
+    if (cachedData === void 0) {
+      return this.fetchQuery(options);
+    }
+    if (options.revalidateIfStale && query.isStaleByTime((0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.resolveStaleTime)(defaultedOptions.staleTime, query))) {
+      void this.prefetchQuery(defaultedOptions);
+    }
+    return Promise.resolve(cachedData);
+  }
+  getQueriesData(filters) {
+    return this.#queryCache.findAll(filters).map(({ queryKey, state }) => {
+      const data = state.data;
+      return [queryKey, data];
+    });
+  }
+  setQueryData(queryKey, updater, options) {
+    const defaultedOptions = this.defaultQueryOptions({ queryKey });
+    const query = this.#queryCache.get(
+      defaultedOptions.queryHash
+    );
+    const prevData = query?.state.data;
+    const data = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.functionalUpdate)(updater, prevData);
+    if (data === void 0) {
+      return void 0;
+    }
+    return this.#queryCache.build(this, defaultedOptions).setData(data, { ...options, manual: true });
+  }
+  setQueriesData(filters, updater, options) {
+    return _notifyManager_js__WEBPACK_IMPORTED_MODULE_5__.notifyManager.batch(
+      () => this.#queryCache.findAll(filters).map(({ queryKey }) => [
+        queryKey,
+        this.setQueryData(queryKey, updater, options)
+      ])
+    );
+  }
+  getQueryState(queryKey) {
+    const options = this.defaultQueryOptions({ queryKey });
+    return this.#queryCache.get(
+      options.queryHash
+    )?.state;
+  }
+  removeQueries(filters) {
+    const queryCache = this.#queryCache;
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_5__.notifyManager.batch(() => {
+      queryCache.findAll(filters).forEach((query) => {
+        queryCache.remove(query);
+      });
+    });
+  }
+  resetQueries(filters, options) {
+    const queryCache = this.#queryCache;
+    return _notifyManager_js__WEBPACK_IMPORTED_MODULE_5__.notifyManager.batch(() => {
+      queryCache.findAll(filters).forEach((query) => {
+        query.reset();
+      });
+      return this.refetchQueries(
+        {
+          type: "active",
+          ...filters
+        },
+        options
+      );
+    });
+  }
+  cancelQueries(filters, cancelOptions = {}) {
+    const defaultedCancelOptions = { revert: true, ...cancelOptions };
+    const promises = _notifyManager_js__WEBPACK_IMPORTED_MODULE_5__.notifyManager.batch(
+      () => this.#queryCache.findAll(filters).map((query) => query.cancel(defaultedCancelOptions))
+    );
+    return Promise.all(promises).then(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop).catch(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop);
+  }
+  invalidateQueries(filters, options = {}) {
+    return _notifyManager_js__WEBPACK_IMPORTED_MODULE_5__.notifyManager.batch(() => {
+      this.#queryCache.findAll(filters).forEach((query) => {
+        query.invalidate();
+      });
+      if (filters?.refetchType === "none") {
+        return Promise.resolve();
+      }
+      return this.refetchQueries(
+        {
+          ...filters,
+          type: filters?.refetchType ?? filters?.type ?? "active"
+        },
+        options
+      );
+    });
+  }
+  refetchQueries(filters, options = {}) {
+    const fetchOptions = {
+      ...options,
+      cancelRefetch: options.cancelRefetch ?? true
+    };
+    const promises = _notifyManager_js__WEBPACK_IMPORTED_MODULE_5__.notifyManager.batch(
+      () => this.#queryCache.findAll(filters).filter((query) => !query.isDisabled() && !query.isStatic()).map((query) => {
+        let promise = query.fetch(void 0, fetchOptions);
+        if (!fetchOptions.throwOnError) {
+          promise = promise.catch(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop);
+        }
+        return query.state.fetchStatus === "paused" ? Promise.resolve() : promise;
+      })
+    );
+    return Promise.all(promises).then(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop);
+  }
+  fetchQuery(options) {
+    const defaultedOptions = this.defaultQueryOptions(options);
+    if (defaultedOptions.retry === void 0) {
+      defaultedOptions.retry = false;
+    }
+    const query = this.#queryCache.build(this, defaultedOptions);
+    return query.isStaleByTime(
+      (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.resolveStaleTime)(defaultedOptions.staleTime, query)
+    ) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
+  }
+  prefetchQuery(options) {
+    return this.fetchQuery(options).then(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop).catch(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop);
+  }
+  fetchInfiniteQuery(options) {
+    options._type = "infinite";
+    return this.fetchQuery(options);
+  }
+  prefetchInfiniteQuery(options) {
+    return this.fetchInfiniteQuery(options).then(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop).catch(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop);
+  }
+  ensureInfiniteQueryData(options) {
+    options._type = "infinite";
+    return this.ensureQueryData(options);
+  }
+  resumePausedMutations() {
+    if (_onlineManager_js__WEBPACK_IMPORTED_MODULE_4__.onlineManager.isOnline()) {
+      return this.#mutationCache.resumePausedMutations();
+    }
+    return Promise.resolve();
+  }
+  getQueryCache() {
+    return this.#queryCache;
+  }
+  getMutationCache() {
+    return this.#mutationCache;
+  }
+  getDefaultOptions() {
+    return this.#defaultOptions;
+  }
+  setDefaultOptions(options) {
+    this.#defaultOptions = options;
+  }
+  setQueryDefaults(queryKey, options) {
+    this.#queryDefaults.set((0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.hashKey)(queryKey), {
+      queryKey,
+      defaultOptions: options
+    });
+  }
+  getQueryDefaults(queryKey) {
+    const defaults = [...this.#queryDefaults.values()];
+    const result = {};
+    defaults.forEach((queryDefault) => {
+      if ((0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.partialMatchKey)(queryKey, queryDefault.queryKey)) {
+        Object.assign(result, queryDefault.defaultOptions);
+      }
+    });
+    return result;
+  }
+  setMutationDefaults(mutationKey, options) {
+    this.#mutationDefaults.set((0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.hashKey)(mutationKey), {
+      mutationKey,
+      defaultOptions: options
+    });
+  }
+  getMutationDefaults(mutationKey) {
+    const defaults = [...this.#mutationDefaults.values()];
+    const result = {};
+    defaults.forEach((queryDefault) => {
+      if ((0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.partialMatchKey)(mutationKey, queryDefault.mutationKey)) {
+        Object.assign(result, queryDefault.defaultOptions);
+      }
+    });
+    return result;
+  }
+  defaultQueryOptions(options) {
+    if (options._defaulted) {
+      return options;
+    }
+    const defaultedOptions = {
+      ...this.#defaultOptions.queries,
+      ...this.getQueryDefaults(options.queryKey),
+      ...options,
+      _defaulted: true
+    };
+    if (!defaultedOptions.queryHash) {
+      defaultedOptions.queryHash = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.hashQueryKeyByOptions)(
+        defaultedOptions.queryKey,
+        defaultedOptions
+      );
+    }
+    if (defaultedOptions.refetchOnReconnect === void 0) {
+      defaultedOptions.refetchOnReconnect = defaultedOptions.networkMode !== "always";
+    }
+    if (defaultedOptions.throwOnError === void 0) {
+      defaultedOptions.throwOnError = !!defaultedOptions.suspense;
+    }
+    if (!defaultedOptions.networkMode && defaultedOptions.persister) {
+      defaultedOptions.networkMode = "offlineFirst";
+    }
+    if (defaultedOptions.queryFn === _utils_js__WEBPACK_IMPORTED_MODULE_0__.skipToken) {
+      defaultedOptions.enabled = false;
+    }
+    return defaultedOptions;
+  }
+  defaultMutationOptions(options) {
+    if (options?._defaulted) {
+      return options;
+    }
+    return {
+      ...this.#defaultOptions.mutations,
+      ...options?.mutationKey && this.getMutationDefaults(options.mutationKey),
+      ...options,
+      _defaulted: true
+    };
+  }
+  clear() {
+    this.#queryCache.clear();
+    this.#mutationCache.clear();
+  }
+};
+
+//# sourceMappingURL=queryClient.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/queryObserver.js"
+/*!*************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/queryObserver.js ***!
+  \*************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   QueryObserver: () => (/* binding */ QueryObserver)
+/* harmony export */ });
+/* harmony import */ var _focusManager_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./focusManager.js */ "./node_modules/@tanstack/query-core/build/modern/focusManager.js");
+/* harmony import */ var _environmentManager_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./environmentManager.js */ "./node_modules/@tanstack/query-core/build/modern/environmentManager.js");
+/* harmony import */ var _notifyManager_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./notifyManager.js */ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js");
+/* harmony import */ var _query_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./query.js */ "./node_modules/@tanstack/query-core/build/modern/query.js");
+/* harmony import */ var _subscribable_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./subscribable.js */ "./node_modules/@tanstack/query-core/build/modern/subscribable.js");
+/* harmony import */ var _thenable_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./thenable.js */ "./node_modules/@tanstack/query-core/build/modern/thenable.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+/* harmony import */ var _timeoutManager_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./timeoutManager.js */ "./node_modules/@tanstack/query-core/build/modern/timeoutManager.js");
+// src/queryObserver.ts
+
+
+
+
+
+
+
+
+var QueryObserver = class extends _subscribable_js__WEBPACK_IMPORTED_MODULE_4__.Subscribable {
+  constructor(client, options) {
+    super();
+    this.options = options;
+    this.#client = client;
+    this.#selectError = null;
+    this.#currentThenable = (0,_thenable_js__WEBPACK_IMPORTED_MODULE_5__.pendingThenable)();
+    this.bindMethods();
+    this.setOptions(options);
+  }
+  #client;
+  #currentQuery = void 0;
+  #currentQueryInitialState = void 0;
+  #currentResult = void 0;
+  #currentResultState;
+  #currentResultOptions;
+  #currentThenable;
+  #selectError;
+  #selectFn;
+  #selectResult;
+  // This property keeps track of the last query with defined data.
+  // It will be used to pass the previous data and query to the placeholder function between renders.
+  #lastQueryWithDefinedData;
+  #staleTimeoutId;
+  #refetchIntervalId;
+  #currentRefetchInterval;
+  #trackedProps = /* @__PURE__ */ new Set();
+  bindMethods() {
+    this.refetch = this.refetch.bind(this);
+  }
+  onSubscribe() {
+    if (this.listeners.size === 1) {
+      this.#currentQuery.addObserver(this);
+      if (shouldFetchOnMount(this.#currentQuery, this.options)) {
+        this.#executeFetch();
+      } else {
+        this.updateResult();
+      }
+      this.#updateTimers();
+    }
+  }
+  onUnsubscribe() {
+    if (!this.hasListeners()) {
+      this.destroy();
+    }
+  }
+  shouldFetchOnReconnect() {
+    return shouldFetchOn(
+      this.#currentQuery,
+      this.options,
+      this.options.refetchOnReconnect
+    );
+  }
+  shouldFetchOnWindowFocus() {
+    return shouldFetchOn(
+      this.#currentQuery,
+      this.options,
+      this.options.refetchOnWindowFocus
+    );
+  }
+  destroy() {
+    this.listeners = /* @__PURE__ */ new Set();
+    this.#clearStaleTimeout();
+    this.#clearRefetchInterval();
+    this.#currentQuery.removeObserver(this);
+  }
+  setOptions(options) {
+    const prevOptions = this.options;
+    const prevQuery = this.#currentQuery;
+    this.options = this.#client.defaultQueryOptions(options);
+    if (this.options.enabled !== void 0 && typeof this.options.enabled !== "boolean" && typeof this.options.enabled !== "function" && typeof (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(this.options.enabled, this.#currentQuery) !== "boolean") {
+      throw new Error(
+        "Expected enabled to be a boolean or a callback that returns a boolean"
+      );
+    }
+    this.#updateQuery();
+    this.#currentQuery.setOptions(this.options);
+    if (prevOptions._defaulted && !(0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.shallowEqualObjects)(this.options, prevOptions)) {
+      this.#client.getQueryCache().notify({
+        type: "observerOptionsUpdated",
+        query: this.#currentQuery,
+        observer: this
+      });
+    }
+    const mounted = this.hasListeners();
+    if (mounted && shouldFetchOptionally(
+      this.#currentQuery,
+      prevQuery,
+      this.options,
+      prevOptions
+    )) {
+      this.#executeFetch();
+    }
+    this.updateResult();
+    if (mounted && (this.#currentQuery !== prevQuery || (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(this.options.enabled, this.#currentQuery) !== (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(prevOptions.enabled, this.#currentQuery) || (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveStaleTime)(this.options.staleTime, this.#currentQuery) !== (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveStaleTime)(prevOptions.staleTime, this.#currentQuery))) {
+      this.#updateStaleTimeout();
+    }
+    const nextRefetchInterval = this.#computeRefetchInterval();
+    if (mounted && (this.#currentQuery !== prevQuery || (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(this.options.enabled, this.#currentQuery) !== (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(prevOptions.enabled, this.#currentQuery) || nextRefetchInterval !== this.#currentRefetchInterval)) {
+      this.#updateRefetchInterval(nextRefetchInterval);
+    }
+  }
+  getOptimisticResult(options) {
+    const query = this.#client.getQueryCache().build(this.#client, options);
+    const result = this.createResult(query, options);
+    if (shouldAssignObserverCurrentProperties(this, result)) {
+      this.#currentResult = result;
+      this.#currentResultOptions = this.options;
+      this.#currentResultState = this.#currentQuery.state;
+    }
+    return result;
+  }
+  getCurrentResult() {
+    return this.#currentResult;
+  }
+  trackResult(result, onPropTracked) {
+    return new Proxy(result, {
+      get: (target, key) => {
+        this.trackProp(key);
+        onPropTracked?.(key);
+        if (key === "promise") {
+          this.trackProp("data");
+          if (!this.options.experimental_prefetchInRender && this.#currentThenable.status === "pending") {
+            this.#currentThenable.reject(
+              new Error(
+                "experimental_prefetchInRender feature flag is not enabled"
+              )
+            );
+          }
+        }
+        return Reflect.get(target, key);
+      }
+    });
+  }
+  trackProp(key) {
+    this.#trackedProps.add(key);
+  }
+  getCurrentQuery() {
+    return this.#currentQuery;
+  }
+  refetch({ ...options } = {}) {
+    return this.fetch({
+      ...options
+    });
+  }
+  fetchOptimistic(options) {
+    const defaultedOptions = this.#client.defaultQueryOptions(options);
+    const query = this.#client.getQueryCache().build(this.#client, defaultedOptions);
+    return query.fetch().then(() => this.createResult(query, defaultedOptions));
+  }
+  fetch(fetchOptions) {
+    return this.#executeFetch({
+      ...fetchOptions,
+      cancelRefetch: fetchOptions.cancelRefetch ?? true
+    }).then(() => {
+      this.updateResult();
+      return this.#currentResult;
+    });
+  }
+  #executeFetch(fetchOptions) {
+    this.#updateQuery();
+    let promise = this.#currentQuery.fetch(
+      this.options,
+      fetchOptions
+    );
+    if (!fetchOptions?.throwOnError) {
+      promise = promise.catch(_utils_js__WEBPACK_IMPORTED_MODULE_6__.noop);
+    }
+    return promise;
+  }
+  #updateStaleTimeout() {
+    this.#clearStaleTimeout();
+    const staleTime = (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveStaleTime)(
+      this.options.staleTime,
+      this.#currentQuery
+    );
+    if (_environmentManager_js__WEBPACK_IMPORTED_MODULE_1__.environmentManager.isServer() || this.#currentResult.isStale || !(0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.isValidTimeout)(staleTime)) {
+      return;
+    }
+    const time = (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.timeUntilStale)(this.#currentResult.dataUpdatedAt, staleTime);
+    const timeout = time + 1;
+    this.#staleTimeoutId = _timeoutManager_js__WEBPACK_IMPORTED_MODULE_7__.timeoutManager.setTimeout(() => {
+      if (!this.#currentResult.isStale) {
+        this.updateResult();
+      }
+    }, timeout);
+  }
+  #computeRefetchInterval() {
+    return (typeof this.options.refetchInterval === "function" ? this.options.refetchInterval(this.#currentQuery) : this.options.refetchInterval) ?? false;
+  }
+  #updateRefetchInterval(nextInterval) {
+    this.#clearRefetchInterval();
+    this.#currentRefetchInterval = nextInterval;
+    if (_environmentManager_js__WEBPACK_IMPORTED_MODULE_1__.environmentManager.isServer() || (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(this.options.enabled, this.#currentQuery) === false || !(0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.isValidTimeout)(this.#currentRefetchInterval) || this.#currentRefetchInterval === 0) {
+      return;
+    }
+    this.#refetchIntervalId = _timeoutManager_js__WEBPACK_IMPORTED_MODULE_7__.timeoutManager.setInterval(() => {
+      if (this.options.refetchIntervalInBackground || _focusManager_js__WEBPACK_IMPORTED_MODULE_0__.focusManager.isFocused()) {
+        this.#executeFetch();
+      }
+    }, this.#currentRefetchInterval);
+  }
+  #updateTimers() {
+    this.#updateStaleTimeout();
+    this.#updateRefetchInterval(this.#computeRefetchInterval());
+  }
+  #clearStaleTimeout() {
+    if (this.#staleTimeoutId !== void 0) {
+      _timeoutManager_js__WEBPACK_IMPORTED_MODULE_7__.timeoutManager.clearTimeout(this.#staleTimeoutId);
+      this.#staleTimeoutId = void 0;
+    }
+  }
+  #clearRefetchInterval() {
+    if (this.#refetchIntervalId !== void 0) {
+      _timeoutManager_js__WEBPACK_IMPORTED_MODULE_7__.timeoutManager.clearInterval(this.#refetchIntervalId);
+      this.#refetchIntervalId = void 0;
+    }
+  }
+  createResult(query, options) {
+    const prevQuery = this.#currentQuery;
+    const prevOptions = this.options;
+    const prevResult = this.#currentResult;
+    const prevResultState = this.#currentResultState;
+    const prevResultOptions = this.#currentResultOptions;
+    const queryChange = query !== prevQuery;
+    const queryInitialState = queryChange ? query.state : this.#currentQueryInitialState;
+    const { state } = query;
+    let newState = { ...state };
+    let isPlaceholderData = false;
+    let data;
+    if (options._optimisticResults) {
+      const mounted = this.hasListeners();
+      const fetchOnMount = !mounted && shouldFetchOnMount(query, options);
+      const fetchOptionally = mounted && shouldFetchOptionally(query, prevQuery, options, prevOptions);
+      if (fetchOnMount || fetchOptionally) {
+        newState = {
+          ...newState,
+          ...(0,_query_js__WEBPACK_IMPORTED_MODULE_3__.fetchState)(state.data, query.options)
+        };
+      }
+      if (options._optimisticResults === "isRestoring") {
+        newState.fetchStatus = "idle";
+      }
+    }
+    let { error, errorUpdatedAt, status } = newState;
+    data = newState.data;
+    let skipSelect = false;
+    if (options.placeholderData !== void 0 && data === void 0 && status === "pending") {
+      let placeholderData;
+      if (prevResult?.isPlaceholderData && options.placeholderData === prevResultOptions?.placeholderData) {
+        placeholderData = prevResult.data;
+        skipSelect = true;
+      } else {
+        placeholderData = typeof options.placeholderData === "function" ? options.placeholderData(
+          this.#lastQueryWithDefinedData?.state.data,
+          this.#lastQueryWithDefinedData
+        ) : options.placeholderData;
+      }
+      if (placeholderData !== void 0) {
+        status = "success";
+        data = (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.replaceData)(
+          prevResult?.data,
+          placeholderData,
+          options
+        );
+        isPlaceholderData = true;
+      }
+    }
+    if (options.select && data !== void 0 && !skipSelect) {
+      if (prevResult && data === prevResultState?.data && options.select === this.#selectFn) {
+        data = this.#selectResult;
+      } else {
+        try {
+          this.#selectFn = options.select;
+          data = options.select(data);
+          data = (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.replaceData)(prevResult?.data, data, options);
+          this.#selectResult = data;
+          this.#selectError = null;
+        } catch (selectError) {
+          this.#selectError = selectError;
+        }
+      }
+    }
+    if (this.#selectError) {
+      error = this.#selectError;
+      data = this.#selectResult;
+      errorUpdatedAt = Date.now();
+      status = "error";
+    }
+    const isFetching = newState.fetchStatus === "fetching";
+    const isPending = status === "pending";
+    const isError = status === "error";
+    const isLoading = isPending && isFetching;
+    const hasData = data !== void 0;
+    const result = {
+      status,
+      fetchStatus: newState.fetchStatus,
+      isPending,
+      isSuccess: status === "success",
+      isError,
+      isInitialLoading: isLoading,
+      isLoading,
+      data,
+      dataUpdatedAt: newState.dataUpdatedAt,
+      error,
+      errorUpdatedAt,
+      failureCount: newState.fetchFailureCount,
+      failureReason: newState.fetchFailureReason,
+      errorUpdateCount: newState.errorUpdateCount,
+      isFetched: query.isFetched(),
+      isFetchedAfterMount: newState.dataUpdateCount > queryInitialState.dataUpdateCount || newState.errorUpdateCount > queryInitialState.errorUpdateCount,
+      isFetching,
+      isRefetching: isFetching && !isPending,
+      isLoadingError: isError && !hasData,
+      isPaused: newState.fetchStatus === "paused",
+      isPlaceholderData,
+      isRefetchError: isError && hasData,
+      isStale: isStale(query, options),
+      refetch: this.refetch,
+      promise: this.#currentThenable,
+      isEnabled: (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(options.enabled, query) !== false
+    };
+    const nextResult = result;
+    if (this.options.experimental_prefetchInRender) {
+      const hasResultData = nextResult.data !== void 0;
+      const isErrorWithoutData = nextResult.status === "error" && !hasResultData;
+      const finalizeThenableIfPossible = (thenable) => {
+        if (isErrorWithoutData) {
+          thenable.reject(nextResult.error);
+        } else if (hasResultData) {
+          thenable.resolve(nextResult.data);
+        }
+      };
+      const recreateThenable = () => {
+        const pending = this.#currentThenable = nextResult.promise = (0,_thenable_js__WEBPACK_IMPORTED_MODULE_5__.pendingThenable)();
+        finalizeThenableIfPossible(pending);
+      };
+      const prevThenable = this.#currentThenable;
+      switch (prevThenable.status) {
+        case "pending":
+          if (query.queryHash === prevQuery.queryHash) {
+            finalizeThenableIfPossible(prevThenable);
+          }
+          break;
+        case "fulfilled":
+          if (isErrorWithoutData || nextResult.data !== prevThenable.value) {
+            recreateThenable();
+          }
+          break;
+        case "rejected":
+          if (!isErrorWithoutData || nextResult.error !== prevThenable.reason) {
+            recreateThenable();
+          }
+          break;
+      }
+    }
+    return nextResult;
+  }
+  updateResult() {
+    const prevResult = this.#currentResult;
+    const nextResult = this.createResult(this.#currentQuery, this.options);
+    this.#currentResultState = this.#currentQuery.state;
+    this.#currentResultOptions = this.options;
+    if (this.#currentResultState.data !== void 0) {
+      this.#lastQueryWithDefinedData = this.#currentQuery;
+    }
+    if ((0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.shallowEqualObjects)(nextResult, prevResult)) {
+      return;
+    }
+    this.#currentResult = nextResult;
+    const shouldNotifyListeners = () => {
+      if (!prevResult) {
+        return true;
+      }
+      const { notifyOnChangeProps } = this.options;
+      const notifyOnChangePropsValue = typeof notifyOnChangeProps === "function" ? notifyOnChangeProps() : notifyOnChangeProps;
+      if (notifyOnChangePropsValue === "all" || !notifyOnChangePropsValue && !this.#trackedProps.size) {
+        return true;
+      }
+      const includedProps = new Set(
+        notifyOnChangePropsValue ?? this.#trackedProps
+      );
+      if (this.options.throwOnError) {
+        includedProps.add("error");
+      }
+      return Object.keys(this.#currentResult).some((key) => {
+        const typedKey = key;
+        const changed = this.#currentResult[typedKey] !== prevResult[typedKey];
+        return changed && includedProps.has(typedKey);
+      });
+    };
+    this.#notify({ listeners: shouldNotifyListeners() });
+  }
+  #updateQuery() {
+    const query = this.#client.getQueryCache().build(this.#client, this.options);
+    if (query === this.#currentQuery) {
+      return;
+    }
+    const prevQuery = this.#currentQuery;
+    this.#currentQuery = query;
+    this.#currentQueryInitialState = query.state;
+    if (this.hasListeners()) {
+      prevQuery?.removeObserver(this);
+      query.addObserver(this);
+    }
+  }
+  onQueryUpdate() {
+    this.updateResult();
+    if (this.hasListeners()) {
+      this.#updateTimers();
+    }
+  }
+  #notify(notifyOptions) {
+    _notifyManager_js__WEBPACK_IMPORTED_MODULE_2__.notifyManager.batch(() => {
+      if (notifyOptions.listeners) {
+        this.listeners.forEach((listener) => {
+          listener(this.#currentResult);
+        });
+      }
+      this.#client.getQueryCache().notify({
+        query: this.#currentQuery,
+        type: "observerResultsUpdated"
+      });
+    });
+  }
+};
+function shouldLoadOnMount(query, options) {
+  return (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(options.enabled, query) !== false && query.state.data === void 0 && !(query.state.status === "error" && (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(options.retryOnMount, query) === false);
+}
+function shouldFetchOnMount(query, options) {
+  return shouldLoadOnMount(query, options) || query.state.data !== void 0 && shouldFetchOn(query, options, options.refetchOnMount);
+}
+function shouldFetchOn(query, options, field) {
+  if ((0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(options.enabled, query) !== false && (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveStaleTime)(options.staleTime, query) !== "static") {
+    const value = typeof field === "function" ? field(query) : field;
+    return value === "always" || value !== false && isStale(query, options);
+  }
+  return false;
+}
+function shouldFetchOptionally(query, prevQuery, options, prevOptions) {
+  return (query !== prevQuery || (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(prevOptions.enabled, query) === false) && (!options.suspense || query.state.status !== "error") && isStale(query, options);
+}
+function isStale(query, options) {
+  return (0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveQueryBoolean)(options.enabled, query) !== false && query.isStaleByTime((0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.resolveStaleTime)(options.staleTime, query));
+}
+function shouldAssignObserverCurrentProperties(observer, optimisticResult) {
+  if (!(0,_utils_js__WEBPACK_IMPORTED_MODULE_6__.shallowEqualObjects)(observer.getCurrentResult(), optimisticResult)) {
+    return true;
+  }
+  return false;
+}
+
+//# sourceMappingURL=queryObserver.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/removable.js"
+/*!*********************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/removable.js ***!
+  \*********************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Removable: () => (/* binding */ Removable)
+/* harmony export */ });
+/* harmony import */ var _timeoutManager_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./timeoutManager.js */ "./node_modules/@tanstack/query-core/build/modern/timeoutManager.js");
+/* harmony import */ var _environmentManager_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./environmentManager.js */ "./node_modules/@tanstack/query-core/build/modern/environmentManager.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+// src/removable.ts
+
+
+
+var Removable = class {
+  #gcTimeout;
+  destroy() {
+    this.clearGcTimeout();
+  }
+  scheduleGc() {
+    this.clearGcTimeout();
+    if ((0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.isValidTimeout)(this.gcTime)) {
+      this.#gcTimeout = _timeoutManager_js__WEBPACK_IMPORTED_MODULE_0__.timeoutManager.setTimeout(() => {
+        this.optionalRemove();
+      }, this.gcTime);
+    }
+  }
+  updateGcTime(newGcTime) {
+    this.gcTime = Math.max(
+      this.gcTime || 0,
+      newGcTime ?? (_environmentManager_js__WEBPACK_IMPORTED_MODULE_1__.environmentManager.isServer() ? Infinity : 5 * 60 * 1e3)
+    );
+  }
+  clearGcTimeout() {
+    if (this.#gcTimeout !== void 0) {
+      _timeoutManager_js__WEBPACK_IMPORTED_MODULE_0__.timeoutManager.clearTimeout(this.#gcTimeout);
+      this.#gcTimeout = void 0;
+    }
+  }
+};
+
+//# sourceMappingURL=removable.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/retryer.js"
+/*!*******************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/retryer.js ***!
+  \*******************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   CancelledError: () => (/* binding */ CancelledError),
+/* harmony export */   canFetch: () => (/* binding */ canFetch),
+/* harmony export */   createRetryer: () => (/* binding */ createRetryer),
+/* harmony export */   isCancelledError: () => (/* binding */ isCancelledError)
+/* harmony export */ });
+/* harmony import */ var _focusManager_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./focusManager.js */ "./node_modules/@tanstack/query-core/build/modern/focusManager.js");
+/* harmony import */ var _onlineManager_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./onlineManager.js */ "./node_modules/@tanstack/query-core/build/modern/onlineManager.js");
+/* harmony import */ var _thenable_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./thenable.js */ "./node_modules/@tanstack/query-core/build/modern/thenable.js");
+/* harmony import */ var _environmentManager_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./environmentManager.js */ "./node_modules/@tanstack/query-core/build/modern/environmentManager.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+// src/retryer.ts
+
+
+
+
+
+function defaultRetryDelay(failureCount) {
+  return Math.min(1e3 * 2 ** failureCount, 3e4);
+}
+function canFetch(networkMode) {
+  return (networkMode ?? "online") === "online" ? _onlineManager_js__WEBPACK_IMPORTED_MODULE_1__.onlineManager.isOnline() : true;
+}
+var CancelledError = class extends Error {
+  constructor(options) {
+    super("CancelledError");
+    this.revert = options?.revert;
+    this.silent = options?.silent;
+  }
+};
+function isCancelledError(value) {
+  return value instanceof CancelledError;
+}
+function createRetryer(config) {
+  let isRetryCancelled = false;
+  let failureCount = 0;
+  let continueFn;
+  const thenable = (0,_thenable_js__WEBPACK_IMPORTED_MODULE_2__.pendingThenable)();
+  const isResolved = () => thenable.status !== "pending";
+  const cancel = (cancelOptions) => {
+    if (!isResolved()) {
+      const error = new CancelledError(cancelOptions);
+      reject(error);
+      config.onCancel?.(error);
+    }
+  };
+  const cancelRetry = () => {
+    isRetryCancelled = true;
+  };
+  const continueRetry = () => {
+    isRetryCancelled = false;
+  };
+  const canContinue = () => _focusManager_js__WEBPACK_IMPORTED_MODULE_0__.focusManager.isFocused() && (config.networkMode === "always" || _onlineManager_js__WEBPACK_IMPORTED_MODULE_1__.onlineManager.isOnline()) && config.canRun();
+  const canStart = () => canFetch(config.networkMode) && config.canRun();
+  const resolve = (value) => {
+    if (!isResolved()) {
+      continueFn?.();
+      thenable.resolve(value);
+    }
+  };
+  const reject = (value) => {
+    if (!isResolved()) {
+      continueFn?.();
+      thenable.reject(value);
+    }
+  };
+  const pause = () => {
+    return new Promise((continueResolve) => {
+      continueFn = (value) => {
+        if (isResolved() || canContinue()) {
+          continueResolve(value);
+        }
+      };
+      config.onPause?.();
+    }).then(() => {
+      continueFn = void 0;
+      if (!isResolved()) {
+        config.onContinue?.();
+      }
+    });
+  };
+  const run = () => {
+    if (isResolved()) {
+      return;
+    }
+    let promiseOrValue;
+    const initialPromise = failureCount === 0 ? config.initialPromise : void 0;
+    try {
+      promiseOrValue = initialPromise ?? config.fn();
+    } catch (error) {
+      promiseOrValue = Promise.reject(error);
+    }
+    Promise.resolve(promiseOrValue).then(resolve).catch((error) => {
+      if (isResolved()) {
+        return;
+      }
+      const retry = config.retry ?? (_environmentManager_js__WEBPACK_IMPORTED_MODULE_3__.environmentManager.isServer() ? 0 : 3);
+      const retryDelay = config.retryDelay ?? defaultRetryDelay;
+      const delay = typeof retryDelay === "function" ? retryDelay(failureCount, error) : retryDelay;
+      const shouldRetry = retry === true || typeof retry === "number" && failureCount < retry || typeof retry === "function" && retry(failureCount, error);
+      if (isRetryCancelled || !shouldRetry) {
+        reject(error);
+        return;
+      }
+      failureCount++;
+      config.onFail?.(failureCount, error);
+      (0,_utils_js__WEBPACK_IMPORTED_MODULE_4__.sleep)(delay).then(() => {
+        return canContinue() ? void 0 : pause();
+      }).then(() => {
+        if (isRetryCancelled) {
+          reject(error);
+        } else {
+          run();
+        }
+      });
+    });
+  };
+  return {
+    promise: thenable,
+    status: () => thenable.status,
+    cancel,
+    continue: () => {
+      continueFn?.();
+      return thenable;
+    },
+    cancelRetry,
+    continueRetry,
+    canStart,
+    start: () => {
+      if (canStart()) {
+        run();
+      } else {
+        pause().then(run);
+      }
+      return thenable;
+    }
+  };
+}
+
+//# sourceMappingURL=retryer.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/subscribable.js"
+/*!************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/subscribable.js ***!
+  \************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Subscribable: () => (/* binding */ Subscribable)
+/* harmony export */ });
+// src/subscribable.ts
+var Subscribable = class {
+  constructor() {
+    this.listeners = /* @__PURE__ */ new Set();
+    this.subscribe = this.subscribe.bind(this);
+  }
+  subscribe(listener) {
+    this.listeners.add(listener);
+    this.onSubscribe();
+    return () => {
+      this.listeners.delete(listener);
+      this.onUnsubscribe();
+    };
+  }
+  hasListeners() {
+    return this.listeners.size > 0;
+  }
+  onSubscribe() {
+  }
+  onUnsubscribe() {
+  }
+};
+
+//# sourceMappingURL=subscribable.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/thenable.js"
+/*!********************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/thenable.js ***!
+  \********************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   pendingThenable: () => (/* binding */ pendingThenable),
+/* harmony export */   tryResolveSync: () => (/* binding */ tryResolveSync)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+// src/thenable.ts
+
+function pendingThenable() {
+  let resolve;
+  let reject;
+  const thenable = new Promise((_resolve, _reject) => {
+    resolve = _resolve;
+    reject = _reject;
+  });
+  thenable.status = "pending";
+  thenable.catch(() => {
+  });
+  function finalize(data) {
+    Object.assign(thenable, data);
+    delete thenable.resolve;
+    delete thenable.reject;
+  }
+  thenable.resolve = (value) => {
+    finalize({
+      status: "fulfilled",
+      value
+    });
+    resolve(value);
+  };
+  thenable.reject = (reason) => {
+    finalize({
+      status: "rejected",
+      reason
+    });
+    reject(reason);
+  };
+  return thenable;
+}
+function tryResolveSync(promise) {
+  let data;
+  promise.then((result) => {
+    data = result;
+    return result;
+  }, _utils_js__WEBPACK_IMPORTED_MODULE_0__.noop)?.catch(_utils_js__WEBPACK_IMPORTED_MODULE_0__.noop);
+  if (data !== void 0) {
+    return { data };
+  }
+  return void 0;
+}
+
+//# sourceMappingURL=thenable.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/timeoutManager.js"
+/*!**************************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/timeoutManager.js ***!
+  \**************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   TimeoutManager: () => (/* binding */ TimeoutManager),
+/* harmony export */   defaultTimeoutProvider: () => (/* binding */ defaultTimeoutProvider),
+/* harmony export */   systemSetTimeoutZero: () => (/* binding */ systemSetTimeoutZero),
+/* harmony export */   timeoutManager: () => (/* binding */ timeoutManager)
+/* harmony export */ });
+// src/timeoutManager.ts
+var defaultTimeoutProvider = {
+  // We need the wrapper function syntax below instead of direct references to
+  // global setTimeout etc.
+  //
+  // BAD: `setTimeout: setTimeout`
+  // GOOD: `setTimeout: (cb, delay) => setTimeout(cb, delay)`
+  //
+  // If we use direct references here, then anything that wants to spy on or
+  // replace the global setTimeout (like tests) won't work since we'll already
+  // have a hard reference to the original implementation at the time when this
+  // file was imported.
+  setTimeout: (callback, delay) => setTimeout(callback, delay),
+  clearTimeout: (timeoutId) => clearTimeout(timeoutId),
+  setInterval: (callback, delay) => setInterval(callback, delay),
+  clearInterval: (intervalId) => clearInterval(intervalId)
+};
+var TimeoutManager = class {
+  // We cannot have TimeoutManager<T> as we must instantiate it with a concrete
+  // type at app boot; and if we leave that type, then any new timer provider
+  // would need to support the default provider's concrete timer ID, which is
+  // infeasible across environments.
+  //
+  // We settle for type safety for the TimeoutProvider type, and accept that
+  // this class is unsafe internally to allow for extension.
+  #provider = defaultTimeoutProvider;
+  #providerCalled = false;
+  setTimeoutProvider(provider) {
+    if (true) {
+      if (this.#providerCalled && provider !== this.#provider) {
+        console.error(
+          `[timeoutManager]: Switching provider after calls to previous provider might result in unexpected behavior.`,
+          { previous: this.#provider, provider }
+        );
+      }
+    }
+    this.#provider = provider;
+    if (true) {
+      this.#providerCalled = false;
+    }
+  }
+  setTimeout(callback, delay) {
+    if (true) {
+      this.#providerCalled = true;
+    }
+    return this.#provider.setTimeout(callback, delay);
+  }
+  clearTimeout(timeoutId) {
+    this.#provider.clearTimeout(timeoutId);
+  }
+  setInterval(callback, delay) {
+    if (true) {
+      this.#providerCalled = true;
+    }
+    return this.#provider.setInterval(callback, delay);
+  }
+  clearInterval(intervalId) {
+    this.#provider.clearInterval(intervalId);
+  }
+};
+var timeoutManager = new TimeoutManager();
+function systemSetTimeoutZero(callback) {
+  setTimeout(callback, 0);
+}
+
+//# sourceMappingURL=timeoutManager.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/query-core/build/modern/utils.js"
+/*!*****************************************************************!*\
+  !*** ./node_modules/@tanstack/query-core/build/modern/utils.js ***!
+  \*****************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   addConsumeAwareSignal: () => (/* binding */ addConsumeAwareSignal),
+/* harmony export */   addToEnd: () => (/* binding */ addToEnd),
+/* harmony export */   addToStart: () => (/* binding */ addToStart),
+/* harmony export */   ensureQueryFn: () => (/* binding */ ensureQueryFn),
+/* harmony export */   functionalUpdate: () => (/* binding */ functionalUpdate),
+/* harmony export */   hashKey: () => (/* binding */ hashKey),
+/* harmony export */   hashQueryKeyByOptions: () => (/* binding */ hashQueryKeyByOptions),
+/* harmony export */   isPlainArray: () => (/* binding */ isPlainArray),
+/* harmony export */   isPlainObject: () => (/* binding */ isPlainObject),
+/* harmony export */   isServer: () => (/* binding */ isServer),
+/* harmony export */   isValidTimeout: () => (/* binding */ isValidTimeout),
+/* harmony export */   keepPreviousData: () => (/* binding */ keepPreviousData),
+/* harmony export */   matchMutation: () => (/* binding */ matchMutation),
+/* harmony export */   matchQuery: () => (/* binding */ matchQuery),
+/* harmony export */   noop: () => (/* binding */ noop),
+/* harmony export */   partialMatchKey: () => (/* binding */ partialMatchKey),
+/* harmony export */   replaceData: () => (/* binding */ replaceData),
+/* harmony export */   replaceEqualDeep: () => (/* binding */ replaceEqualDeep),
+/* harmony export */   resolveQueryBoolean: () => (/* binding */ resolveQueryBoolean),
+/* harmony export */   resolveStaleTime: () => (/* binding */ resolveStaleTime),
+/* harmony export */   shallowEqualObjects: () => (/* binding */ shallowEqualObjects),
+/* harmony export */   shouldThrowError: () => (/* binding */ shouldThrowError),
+/* harmony export */   skipToken: () => (/* binding */ skipToken),
+/* harmony export */   sleep: () => (/* binding */ sleep),
+/* harmony export */   timeUntilStale: () => (/* binding */ timeUntilStale)
+/* harmony export */ });
+/* harmony import */ var _timeoutManager_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./timeoutManager.js */ "./node_modules/@tanstack/query-core/build/modern/timeoutManager.js");
+// src/utils.ts
+
+var isServer = typeof window === "undefined" || "Deno" in globalThis;
+function noop() {
+}
+function functionalUpdate(updater, input) {
+  return typeof updater === "function" ? updater(input) : updater;
+}
+function isValidTimeout(value) {
+  return typeof value === "number" && value >= 0 && value !== Infinity;
+}
+function timeUntilStale(updatedAt, staleTime) {
+  return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0);
+}
+function resolveStaleTime(staleTime, query) {
+  return typeof staleTime === "function" ? staleTime(query) : staleTime;
+}
+function resolveQueryBoolean(option, query) {
+  return typeof option === "function" ? option(query) : option;
+}
+function matchQuery(filters, query) {
+  const {
+    type = "all",
+    exact,
+    fetchStatus,
+    predicate,
+    queryKey,
+    stale
+  } = filters;
+  if (queryKey) {
+    if (exact) {
+      if (query.queryHash !== hashQueryKeyByOptions(queryKey, query.options)) {
+        return false;
+      }
+    } else if (!partialMatchKey(query.queryKey, queryKey)) {
+      return false;
+    }
+  }
+  if (type !== "all") {
+    const isActive = query.isActive();
+    if (type === "active" && !isActive) {
+      return false;
+    }
+    if (type === "inactive" && isActive) {
+      return false;
+    }
+  }
+  if (typeof stale === "boolean" && query.isStale() !== stale) {
+    return false;
+  }
+  if (fetchStatus && fetchStatus !== query.state.fetchStatus) {
+    return false;
+  }
+  if (predicate && !predicate(query)) {
+    return false;
+  }
+  return true;
+}
+function matchMutation(filters, mutation) {
+  const { exact, status, predicate, mutationKey } = filters;
+  if (mutationKey) {
+    if (!mutation.options.mutationKey) {
+      return false;
+    }
+    if (exact) {
+      if (hashKey(mutation.options.mutationKey) !== hashKey(mutationKey)) {
+        return false;
+      }
+    } else if (!partialMatchKey(mutation.options.mutationKey, mutationKey)) {
+      return false;
+    }
+  }
+  if (status && mutation.state.status !== status) {
+    return false;
+  }
+  if (predicate && !predicate(mutation)) {
+    return false;
+  }
+  return true;
+}
+function hashQueryKeyByOptions(queryKey, options) {
+  const hashFn = options?.queryKeyHashFn || hashKey;
+  return hashFn(queryKey);
+}
+function hashKey(queryKey) {
+  return JSON.stringify(
+    queryKey,
+    (_, val) => isPlainObject(val) ? Object.keys(val).sort().reduce((result, key) => {
+      result[key] = val[key];
+      return result;
+    }, {}) : val
+  );
+}
+function partialMatchKey(a, b) {
+  if (a === b) {
+    return true;
+  }
+  if (typeof a !== typeof b) {
+    return false;
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    if (Array.isArray(a) && Array.isArray(b)) {
+      for (let i = 0; i < b.length; i++) {
+        if (!partialMatchKey(a[i], b[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    const bKeys = Object.keys(b);
+    for (const key of bKeys) {
+      if (!partialMatchKey(a[key], b[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+var hasOwn = Object.prototype.hasOwnProperty;
+function replaceEqualDeep(a, b, depth = 0) {
+  if (a === b) {
+    return a;
+  }
+  if (depth > 500) return b;
+  const array = isPlainArray(a) && isPlainArray(b);
+  if (!array && !(isPlainObject(a) && isPlainObject(b))) return b;
+  const aItems = array ? a : Object.keys(a);
+  const aSize = aItems.length;
+  const bItems = array ? b : Object.keys(b);
+  const bSize = bItems.length;
+  const copy = array ? new Array(bSize) : {};
+  let equalItems = 0;
+  for (let i = 0; i < bSize; i++) {
+    const key = array ? i : bItems[i];
+    const aItem = a[key];
+    const bItem = b[key];
+    if (aItem === bItem) {
+      copy[key] = aItem;
+      if (array ? i < aSize : hasOwn.call(a, key)) equalItems++;
+      continue;
+    }
+    if (aItem === null || bItem === null || typeof aItem !== "object" || typeof bItem !== "object") {
+      copy[key] = bItem;
+      continue;
+    }
+    const v = replaceEqualDeep(aItem, bItem, depth + 1);
+    copy[key] = v;
+    if (v === aItem) equalItems++;
+  }
+  return aSize === bSize && equalItems === aSize ? a : copy;
+}
+function shallowEqualObjects(a, b) {
+  if (!b || Object.keys(a).length !== Object.keys(b).length) {
+    return false;
+  }
+  for (const key in a) {
+    if (a[key] !== b[key]) {
+      return false;
+    }
+  }
+  return true;
+}
+function isPlainArray(value) {
+  return Array.isArray(value) && value.length === Object.keys(value).length;
+}
+function isPlainObject(o) {
+  if (!hasObjectPrototype(o)) {
+    return false;
+  }
+  const ctor = o.constructor;
+  if (ctor === void 0) {
+    return true;
+  }
+  const prot = ctor.prototype;
+  if (!hasObjectPrototype(prot)) {
+    return false;
+  }
+  if (!prot.hasOwnProperty("isPrototypeOf")) {
+    return false;
+  }
+  if (Object.getPrototypeOf(o) !== Object.prototype) {
+    return false;
+  }
+  return true;
+}
+function hasObjectPrototype(o) {
+  return Object.prototype.toString.call(o) === "[object Object]";
+}
+function sleep(timeout) {
+  return new Promise((resolve) => {
+    _timeoutManager_js__WEBPACK_IMPORTED_MODULE_0__.timeoutManager.setTimeout(resolve, timeout);
+  });
+}
+function replaceData(prevData, data, options) {
+  if (typeof options.structuralSharing === "function") {
+    return options.structuralSharing(prevData, data);
+  } else if (options.structuralSharing !== false) {
+    if (true) {
+      try {
+        return replaceEqualDeep(prevData, data);
+      } catch (error) {
+        console.error(
+          `Structural sharing requires data to be JSON serializable. To fix this, turn off structuralSharing or return JSON-serializable data from your queryFn. [${options.queryHash}]: ${error}`
+        );
+        throw error;
+      }
+    }
+    // removed by dead control flow
+
+  }
+  return data;
+}
+function keepPreviousData(previousData) {
+  return previousData;
+}
+function addToEnd(items, item, max = 0) {
+  const newItems = [...items, item];
+  return max && newItems.length > max ? newItems.slice(1) : newItems;
+}
+function addToStart(items, item, max = 0) {
+  const newItems = [item, ...items];
+  return max && newItems.length > max ? newItems.slice(0, -1) : newItems;
+}
+var skipToken = /* @__PURE__ */ Symbol();
+function ensureQueryFn(options, fetchOptions) {
+  if (true) {
+    if (options.queryFn === skipToken) {
+      console.error(
+        `Attempted to invoke queryFn when set to skipToken. This is likely a configuration error. Query hash: '${options.queryHash}'`
+      );
+    }
+  }
+  if (!options.queryFn && fetchOptions?.initialPromise) {
+    return () => fetchOptions.initialPromise;
+  }
+  if (!options.queryFn || options.queryFn === skipToken) {
+    return () => Promise.reject(new Error(`Missing queryFn: '${options.queryHash}'`));
+  }
+  return options.queryFn;
+}
+function shouldThrowError(throwOnError, params) {
+  if (typeof throwOnError === "function") {
+    return throwOnError(...params);
+  }
+  return !!throwOnError;
+}
+function addConsumeAwareSignal(object, getSignal, onCancelled) {
+  let consumed = false;
+  let signal;
+  Object.defineProperty(object, "signal", {
+    enumerable: true,
+    get: () => {
+      signal ??= getSignal();
+      if (consumed) {
+        return signal;
+      }
+      consumed = true;
+      if (signal.aborted) {
+        onCancelled();
+      } else {
+        signal.addEventListener("abort", onCancelled, { once: true });
+      }
+      return signal;
+    }
+  });
+  return object;
+}
+
+//# sourceMappingURL=utils.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js"
+/*!********************************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js ***!
+  \********************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   IsRestoringProvider: () => (/* binding */ IsRestoringProvider),
+/* harmony export */   useIsRestoring: () => (/* binding */ useIsRestoring)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+"use client";
+
+// src/IsRestoringProvider.ts
+
+var IsRestoringContext = react__WEBPACK_IMPORTED_MODULE_0__.createContext(false);
+var useIsRestoring = () => react__WEBPACK_IMPORTED_MODULE_0__.useContext(IsRestoringContext);
+var IsRestoringProvider = IsRestoringContext.Provider;
+
+//# sourceMappingURL=IsRestoringProvider.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js"
+/*!********************************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js ***!
+  \********************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   QueryClientContext: () => (/* binding */ QueryClientContext),
+/* harmony export */   QueryClientProvider: () => (/* binding */ QueryClientProvider),
+/* harmony export */   useQueryClient: () => (/* binding */ useQueryClient)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+"use client";
+
+// src/QueryClientProvider.tsx
+
+
+var QueryClientContext = react__WEBPACK_IMPORTED_MODULE_0__.createContext(
+  void 0
+);
+var useQueryClient = (queryClient) => {
+  const client = react__WEBPACK_IMPORTED_MODULE_0__.useContext(QueryClientContext);
+  if (queryClient) {
+    return queryClient;
+  }
+  if (!client) {
+    throw new Error("No QueryClient set, use QueryClientProvider to set one");
+  }
+  return client;
+};
+var QueryClientProvider = ({
+  client,
+  children
+}) => {
+  react__WEBPACK_IMPORTED_MODULE_0__.useEffect(() => {
+    client.mount();
+    return () => {
+      client.unmount();
+    };
+  }, [client]);
+  return /* @__PURE__ */ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)(QueryClientContext.Provider, { value: client, children });
+};
+
+//# sourceMappingURL=QueryClientProvider.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js"
+/*!************************************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js ***!
+  \************************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   QueryErrorResetBoundary: () => (/* binding */ QueryErrorResetBoundary),
+/* harmony export */   useQueryErrorResetBoundary: () => (/* binding */ useQueryErrorResetBoundary)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! react/jsx-runtime */ "react/jsx-runtime");
+"use client";
+
+// src/QueryErrorResetBoundary.tsx
+
+
+function createValue() {
+  let isReset = false;
+  return {
+    clearReset: () => {
+      isReset = false;
+    },
+    reset: () => {
+      isReset = true;
+    },
+    isReset: () => {
+      return isReset;
+    }
+  };
+}
+var QueryErrorResetBoundaryContext = react__WEBPACK_IMPORTED_MODULE_0__.createContext(createValue());
+var useQueryErrorResetBoundary = () => react__WEBPACK_IMPORTED_MODULE_0__.useContext(QueryErrorResetBoundaryContext);
+var QueryErrorResetBoundary = ({
+  children
+}) => {
+  const [value] = react__WEBPACK_IMPORTED_MODULE_0__.useState(() => createValue());
+  return /* @__PURE__ */ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)(QueryErrorResetBoundaryContext.Provider, { value, children: typeof children === "function" ? children(value) : children });
+};
+
+//# sourceMappingURL=QueryErrorResetBoundary.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js"
+/*!*******************************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js ***!
+  \*******************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ensurePreventErrorBoundaryRetry: () => (/* binding */ ensurePreventErrorBoundaryRetry),
+/* harmony export */   getHasError: () => (/* binding */ getHasError),
+/* harmony export */   useClearResetErrorBoundary: () => (/* binding */ useClearResetErrorBoundary)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var _tanstack_query_core__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @tanstack/query-core */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+"use client";
+
+// src/errorBoundaryUtils.ts
+
+
+var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
+  const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? (0,_tanstack_query_core__WEBPACK_IMPORTED_MODULE_1__.shouldThrowError)(options.throwOnError, [query.state.error, query]) : options.throwOnError;
+  if (options.suspense || options.experimental_prefetchInRender || throwOnError) {
+    if (!errorResetBoundary.isReset()) {
+      options.retryOnMount = false;
+    }
+  }
+};
+var useClearResetErrorBoundary = (errorResetBoundary) => {
+  react__WEBPACK_IMPORTED_MODULE_0__.useEffect(() => {
+    errorResetBoundary.clearReset();
+  }, [errorResetBoundary]);
+};
+var getHasError = ({
+  result,
+  errorResetBoundary,
+  throwOnError,
+  query,
+  suspense
+}) => {
+  return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || (0,_tanstack_query_core__WEBPACK_IMPORTED_MODULE_1__.shouldThrowError)(throwOnError, [result.error, query]));
+};
+
+//# sourceMappingURL=errorBoundaryUtils.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/suspense.js"
+/*!*********************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/suspense.js ***!
+  \*********************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   defaultThrowOnError: () => (/* binding */ defaultThrowOnError),
+/* harmony export */   ensureSuspenseTimers: () => (/* binding */ ensureSuspenseTimers),
+/* harmony export */   fetchOptimistic: () => (/* binding */ fetchOptimistic),
+/* harmony export */   shouldSuspend: () => (/* binding */ shouldSuspend),
+/* harmony export */   willFetch: () => (/* binding */ willFetch)
+/* harmony export */ });
+// src/suspense.ts
+var defaultThrowOnError = (_error, query) => query.state.data === void 0;
+var ensureSuspenseTimers = (defaultedOptions) => {
+  if (defaultedOptions.suspense) {
+    const MIN_SUSPENSE_TIME_MS = 1e3;
+    const clamp = (value) => value === "static" ? value : Math.max(value ?? MIN_SUSPENSE_TIME_MS, MIN_SUSPENSE_TIME_MS);
+    const originalStaleTime = defaultedOptions.staleTime;
+    defaultedOptions.staleTime = typeof originalStaleTime === "function" ? (...args) => clamp(originalStaleTime(...args)) : clamp(originalStaleTime);
+    if (typeof defaultedOptions.gcTime === "number") {
+      defaultedOptions.gcTime = Math.max(
+        defaultedOptions.gcTime,
+        MIN_SUSPENSE_TIME_MS
+      );
+    }
+  }
+};
+var willFetch = (result, isRestoring) => result.isLoading && result.isFetching && !isRestoring;
+var shouldSuspend = (defaultedOptions, result) => defaultedOptions?.suspense && result.isPending;
+var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
+  errorResetBoundary.clearReset();
+});
+
+//# sourceMappingURL=suspense.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/useBaseQuery.js"
+/*!*************************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/useBaseQuery.js ***!
+  \*************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   useBaseQuery: () => (/* binding */ useBaseQuery)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var _tanstack_query_core__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @tanstack/query-core */ "./node_modules/@tanstack/query-core/build/modern/environmentManager.js");
+/* harmony import */ var _tanstack_query_core__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @tanstack/query-core */ "./node_modules/@tanstack/query-core/build/modern/notifyManager.js");
+/* harmony import */ var _tanstack_query_core__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @tanstack/query-core */ "./node_modules/@tanstack/query-core/build/modern/utils.js");
+/* harmony import */ var _QueryClientProvider_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./QueryClientProvider.js */ "./node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js");
+/* harmony import */ var _QueryErrorResetBoundary_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./QueryErrorResetBoundary.js */ "./node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js");
+/* harmony import */ var _errorBoundaryUtils_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./errorBoundaryUtils.js */ "./node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js");
+/* harmony import */ var _IsRestoringProvider_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./IsRestoringProvider.js */ "./node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js");
+/* harmony import */ var _suspense_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./suspense.js */ "./node_modules/@tanstack/react-query/build/modern/suspense.js");
+"use client";
+
+// src/useBaseQuery.ts
+
+
+
+
+
+
+
+function useBaseQuery(options, Observer, queryClient) {
+  if (true) {
+    if (typeof options !== "object" || Array.isArray(options)) {
+      throw new Error(
+        'Bad argument type. Starting with v5, only the "Object" form is allowed when calling query related functions. Please use the error stack to find the culprit call. More info here: https://tanstack.com/query/latest/docs/react/guides/migrating-to-v5#supports-a-single-signature-one-object'
+      );
+    }
+  }
+  const isRestoring = (0,_IsRestoringProvider_js__WEBPACK_IMPORTED_MODULE_7__.useIsRestoring)();
+  const errorResetBoundary = (0,_QueryErrorResetBoundary_js__WEBPACK_IMPORTED_MODULE_5__.useQueryErrorResetBoundary)();
+  const client = (0,_QueryClientProvider_js__WEBPACK_IMPORTED_MODULE_4__.useQueryClient)(queryClient);
+  const defaultedOptions = client.defaultQueryOptions(options);
+  client.getDefaultOptions().queries?._experimental_beforeQuery?.(
+    defaultedOptions
+  );
+  const query = client.getQueryCache().get(defaultedOptions.queryHash);
+  if (true) {
+    if (!defaultedOptions.queryFn) {
+      console.error(
+        `[${defaultedOptions.queryHash}]: No queryFn was passed as an option, and no default queryFn was found. The queryFn parameter is only optional when using a default queryFn. More info here: https://tanstack.com/query/latest/docs/framework/react/guides/default-query-function`
+      );
+    }
+  }
+  const subscribed = options.subscribed !== false;
+  defaultedOptions._optimisticResults = isRestoring ? "isRestoring" : subscribed ? "optimistic" : void 0;
+  (0,_suspense_js__WEBPACK_IMPORTED_MODULE_8__.ensureSuspenseTimers)(defaultedOptions);
+  (0,_errorBoundaryUtils_js__WEBPACK_IMPORTED_MODULE_6__.ensurePreventErrorBoundaryRetry)(defaultedOptions, errorResetBoundary, query);
+  (0,_errorBoundaryUtils_js__WEBPACK_IMPORTED_MODULE_6__.useClearResetErrorBoundary)(errorResetBoundary);
+  const isNewCacheEntry = !client.getQueryCache().get(defaultedOptions.queryHash);
+  const [observer] = react__WEBPACK_IMPORTED_MODULE_0__.useState(
+    () => new Observer(
+      client,
+      defaultedOptions
+    )
+  );
+  const result = observer.getOptimisticResult(defaultedOptions);
+  const shouldSubscribe = !isRestoring && subscribed;
+  react__WEBPACK_IMPORTED_MODULE_0__.useSyncExternalStore(
+    react__WEBPACK_IMPORTED_MODULE_0__.useCallback(
+      (onStoreChange) => {
+        const unsubscribe = shouldSubscribe ? observer.subscribe(_tanstack_query_core__WEBPACK_IMPORTED_MODULE_2__.notifyManager.batchCalls(onStoreChange)) : _tanstack_query_core__WEBPACK_IMPORTED_MODULE_3__.noop;
+        observer.updateResult();
+        return unsubscribe;
+      },
+      [observer, shouldSubscribe]
+    ),
+    () => observer.getCurrentResult(),
+    () => observer.getCurrentResult()
+  );
+  react__WEBPACK_IMPORTED_MODULE_0__.useEffect(() => {
+    observer.setOptions(defaultedOptions);
+  }, [defaultedOptions, observer]);
+  if ((0,_suspense_js__WEBPACK_IMPORTED_MODULE_8__.shouldSuspend)(defaultedOptions, result)) {
+    throw (0,_suspense_js__WEBPACK_IMPORTED_MODULE_8__.fetchOptimistic)(defaultedOptions, observer, errorResetBoundary);
+  }
+  if ((0,_errorBoundaryUtils_js__WEBPACK_IMPORTED_MODULE_6__.getHasError)({
+    result,
+    errorResetBoundary,
+    throwOnError: defaultedOptions.throwOnError,
+    query,
+    suspense: defaultedOptions.suspense
+  })) {
+    throw result.error;
+  }
+  ;
+  client.getDefaultOptions().queries?._experimental_afterQuery?.(
+    defaultedOptions,
+    result
+  );
+  if (defaultedOptions.experimental_prefetchInRender && !_tanstack_query_core__WEBPACK_IMPORTED_MODULE_1__.environmentManager.isServer() && (0,_suspense_js__WEBPACK_IMPORTED_MODULE_8__.willFetch)(result, isRestoring)) {
+    const promise = isNewCacheEntry ? (
+      // Fetch immediately on render in order to ensure `.promise` is resolved even if the component is unmounted
+      (0,_suspense_js__WEBPACK_IMPORTED_MODULE_8__.fetchOptimistic)(defaultedOptions, observer, errorResetBoundary)
+    ) : (
+      // subscribe to the "cache promise" so that we can finalize the currentThenable once data comes in
+      query?.promise
+    );
+    promise?.catch(_tanstack_query_core__WEBPACK_IMPORTED_MODULE_3__.noop).finally(() => {
+      observer.updateResult();
+    });
+  }
+  return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
+}
+
+//# sourceMappingURL=useBaseQuery.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js"
+/*!*****************************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js ***!
+  \*****************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   useInfiniteQuery: () => (/* binding */ useInfiniteQuery)
+/* harmony export */ });
+/* harmony import */ var _tanstack_query_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @tanstack/query-core */ "./node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js");
+/* harmony import */ var _useBaseQuery_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./useBaseQuery.js */ "./node_modules/@tanstack/react-query/build/modern/useBaseQuery.js");
+"use client";
+
+// src/useInfiniteQuery.ts
+
+
+function useInfiniteQuery(options, queryClient) {
+  return (0,_useBaseQuery_js__WEBPACK_IMPORTED_MODULE_1__.useBaseQuery)(
+    options,
+    _tanstack_query_core__WEBPACK_IMPORTED_MODULE_0__.InfiniteQueryObserver,
+    queryClient
+  );
+}
+
+//# sourceMappingURL=useInfiniteQuery.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-query/build/modern/useQuery.js"
+/*!*********************************************************************!*\
+  !*** ./node_modules/@tanstack/react-query/build/modern/useQuery.js ***!
+  \*********************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   useQuery: () => (/* binding */ useQuery)
+/* harmony export */ });
+/* harmony import */ var _tanstack_query_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @tanstack/query-core */ "./node_modules/@tanstack/query-core/build/modern/queryObserver.js");
+/* harmony import */ var _useBaseQuery_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./useBaseQuery.js */ "./node_modules/@tanstack/react-query/build/modern/useBaseQuery.js");
+"use client";
+
+// src/useQuery.ts
+
+
+function useQuery(options, queryClient) {
+  return (0,_useBaseQuery_js__WEBPACK_IMPORTED_MODULE_1__.useBaseQuery)(options, _tanstack_query_core__WEBPACK_IMPORTED_MODULE_0__.QueryObserver, queryClient);
+}
+
+//# sourceMappingURL=useQuery.js.map
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/react-virtual/dist/esm/index.js"
+/*!****************************************************************!*\
+  !*** ./node_modules/@tanstack/react-virtual/dist/esm/index.js ***!
+  \****************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Virtualizer: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.Virtualizer),
+/* harmony export */   _resetIOSDetectionForTests: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__._resetIOSDetectionForTests),
+/* harmony export */   approxEqual: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.approxEqual),
+/* harmony export */   debounce: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.debounce),
+/* harmony export */   defaultKeyExtractor: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.defaultKeyExtractor),
+/* harmony export */   defaultRangeExtractor: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.defaultRangeExtractor),
+/* harmony export */   elementScroll: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.elementScroll),
+/* harmony export */   measureElement: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.measureElement),
+/* harmony export */   memo: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.memo),
+/* harmony export */   notUndefined: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.notUndefined),
+/* harmony export */   observeElementOffset: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeElementOffset),
+/* harmony export */   observeElementRect: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeElementRect),
+/* harmony export */   observeWindowOffset: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeWindowOffset),
+/* harmony export */   observeWindowRect: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeWindowRect),
+/* harmony export */   useVirtualizer: () => (/* binding */ useVirtualizer),
+/* harmony export */   useWindowVirtualizer: () => (/* binding */ useWindowVirtualizer),
+/* harmony export */   windowScroll: () => (/* reexport safe */ _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.windowScroll)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react_dom__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! react-dom */ "react-dom");
+/* harmony import */ var _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @tanstack/virtual-core */ "./node_modules/@tanstack/virtual-core/dist/esm/index.js");
+
+
+
+
+const useIsomorphicLayoutEffect = typeof document !== "undefined" ? react__WEBPACK_IMPORTED_MODULE_0__.useLayoutEffect : react__WEBPACK_IMPORTED_MODULE_0__.useEffect;
+function useVirtualizerBase({
+  useFlushSync = true,
+  directDomUpdates = false,
+  directDomUpdatesMode = "transform",
+  ...options
+}) {
+  const rerender = react__WEBPACK_IMPORTED_MODULE_0__.useReducer((x) => x + 1, 0)[1];
+  const directRef = react__WEBPACK_IMPORTED_MODULE_0__.useRef({
+    enabled: directDomUpdates,
+    mode: directDomUpdatesMode,
+    container: null,
+    lastSize: null,
+    // Keyed by the element itself so a remounted node (same key, new DOM
+    // node — e.g. when `enabled` is toggled off then on) is treated as fresh
+    // and gets its style written.
+    lastPositions: /* @__PURE__ */ new WeakMap(),
+    prevRange: null
+  });
+  directRef.current.enabled = directDomUpdates;
+  directRef.current.mode = directDomUpdatesMode;
+  const applyContainerSize = (instance2) => {
+    const state = directRef.current;
+    if (!state.enabled || !state.container) return;
+    const totalSize = instance2.getTotalSize();
+    if (totalSize !== state.lastSize) {
+      state.lastSize = totalSize;
+      const sizeAxis = instance2.options.horizontal ? "width" : "height";
+      state.container.style[sizeAxis] = `${totalSize}px`;
+    }
+  };
+  const applyDirectStyles = (instance2) => {
+    const state = directRef.current;
+    if (!state.enabled || !state.container) return;
+    applyContainerSize(instance2);
+    const horizontal = !!instance2.options.horizontal;
+    const useTransform = state.mode === "transform";
+    const posAxis = horizontal ? "left" : "top";
+    const scrollMargin = instance2.options.scrollMargin;
+    const items = instance2.getVirtualItems();
+    for (const item of items) {
+      const next = item.start - scrollMargin;
+      const el = instance2.elementsCache.get(item.key);
+      if (!el) continue;
+      if (state.lastPositions.get(el) === next) continue;
+      state.lastPositions.set(el, next);
+      if (useTransform) {
+        el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
+      } else {
+        el.style[posAxis] = `${next}px`;
+      }
+    }
+  };
+  const resolvedOptions = {
+    ...options,
+    onChange: (instance2, sync) => {
+      var _a;
+      const state = directRef.current;
+      let shouldRerender = true;
+      if (state.enabled) {
+        applyDirectStyles(instance2);
+        const range = instance2.range;
+        const prev = state.prevRange;
+        shouldRerender = !prev || prev.isScrolling !== instance2.isScrolling || prev.startIndex !== (range == null ? void 0 : range.startIndex) || prev.endIndex !== (range == null ? void 0 : range.endIndex);
+        if (shouldRerender) {
+          state.prevRange = range ? {
+            startIndex: range.startIndex,
+            endIndex: range.endIndex,
+            isScrolling: instance2.isScrolling
+          } : null;
+        }
+      }
+      if (shouldRerender) {
+        if (useFlushSync && sync) {
+          (0,react_dom__WEBPACK_IMPORTED_MODULE_1__.flushSync)(rerender);
+        } else {
+          rerender();
+        }
+      }
+      (_a = options.onChange) == null ? void 0 : _a.call(options, instance2, sync);
+    }
+  };
+  const [instance] = react__WEBPACK_IMPORTED_MODULE_0__.useState(() => {
+    const v = new _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.Virtualizer(resolvedOptions);
+    return Object.assign(v, {
+      containerRef: (node) => {
+        const state = directRef.current;
+        state.container = node;
+        state.lastSize = null;
+        if (node && state.enabled) {
+          const total = v.getTotalSize();
+          state.lastSize = total;
+          const axis = v.options.horizontal ? "width" : "height";
+          node.style[axis] = `${total}px`;
+        }
+      }
+    });
+  });
+  instance.setOptions(resolvedOptions);
+  useIsomorphicLayoutEffect(() => {
+    return instance._didMount();
+  }, []);
+  useIsomorphicLayoutEffect(() => {
+    applyContainerSize(instance);
+    return instance._willUpdate();
+  });
+  useIsomorphicLayoutEffect(() => {
+    applyDirectStyles(instance);
+  });
+  return instance;
+}
+function useVirtualizer(options) {
+  return useVirtualizerBase({
+    observeElementRect: _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeElementRect,
+    observeElementOffset: _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeElementOffset,
+    scrollToFn: _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.elementScroll,
+    ...options
+  });
+}
+function useWindowVirtualizer(options) {
+  return useVirtualizerBase({
+    getScrollElement: () => typeof document !== "undefined" ? window : null,
+    observeElementRect: _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeWindowRect,
+    observeElementOffset: _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.observeWindowOffset,
+    scrollToFn: _tanstack_virtual_core__WEBPACK_IMPORTED_MODULE_2__.windowScroll,
+    initialOffset: () => typeof document !== "undefined" ? window.scrollY : 0,
+    ...options
+  });
+}
+
+//# sourceMappingURL=index.js.map
+
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/virtual-core/dist/esm/index.js"
+/*!***************************************************************!*\
+  !*** ./node_modules/@tanstack/virtual-core/dist/esm/index.js ***!
+  \***************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Virtualizer: () => (/* binding */ Virtualizer),
+/* harmony export */   _resetIOSDetectionForTests: () => (/* binding */ _resetIOSDetectionForTests),
+/* harmony export */   approxEqual: () => (/* reexport safe */ _utils_js__WEBPACK_IMPORTED_MODULE_1__.approxEqual),
+/* harmony export */   debounce: () => (/* reexport safe */ _utils_js__WEBPACK_IMPORTED_MODULE_1__.debounce),
+/* harmony export */   defaultKeyExtractor: () => (/* binding */ defaultKeyExtractor),
+/* harmony export */   defaultRangeExtractor: () => (/* binding */ defaultRangeExtractor),
+/* harmony export */   elementScroll: () => (/* binding */ elementScroll),
+/* harmony export */   measureElement: () => (/* binding */ measureElement),
+/* harmony export */   memo: () => (/* reexport safe */ _utils_js__WEBPACK_IMPORTED_MODULE_1__.memo),
+/* harmony export */   notUndefined: () => (/* reexport safe */ _utils_js__WEBPACK_IMPORTED_MODULE_1__.notUndefined),
+/* harmony export */   observeElementOffset: () => (/* binding */ observeElementOffset),
+/* harmony export */   observeElementRect: () => (/* binding */ observeElementRect),
+/* harmony export */   observeWindowOffset: () => (/* binding */ observeWindowOffset),
+/* harmony export */   observeWindowRect: () => (/* binding */ observeWindowRect),
+/* harmony export */   windowScroll: () => (/* binding */ windowScroll)
+/* harmony export */ });
+/* harmony import */ var _lazy_measurements_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./lazy-measurements.js */ "./node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./utils.js */ "./node_modules/@tanstack/virtual-core/dist/esm/utils.js");
+
+
+let _isIOSResult;
+const isIOSWebKit = () => {
+  if (_isIOSResult !== void 0) return _isIOSResult;
+  if (typeof navigator === "undefined") return _isIOSResult = false;
+  if (/iP(hone|od|ad)/.test(navigator.userAgent)) return _isIOSResult = true;
+  const mtp = navigator.maxTouchPoints;
+  return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
+};
+const _resetIOSDetectionForTests = () => {
+  _isIOSResult = void 0;
+};
+const getRect = (element) => {
+  const { offsetWidth, offsetHeight } = element;
+  return { width: offsetWidth, height: offsetHeight };
+};
+const defaultKeyExtractor = (index) => index;
+const defaultRangeExtractor = (range) => {
+  const start = Math.max(range.startIndex - range.overscan, 0);
+  const end = Math.min(range.endIndex + range.overscan, range.count - 1);
+  const len = end - start + 1;
+  const arr = new Array(len);
+  for (let i = 0; i < len; i++) {
+    arr[i] = start + i;
+  }
+  return arr;
+};
+const observeElementRect = (instance, cb) => {
+  const element = instance.scrollElement;
+  if (!element) {
+    return;
+  }
+  const targetWindow = instance.targetWindow;
+  if (!targetWindow) {
+    return;
+  }
+  const handler = (rect) => {
+    const { width, height } = rect;
+    cb({ width: Math.round(width), height: Math.round(height) });
+  };
+  handler(getRect(element));
+  if (!targetWindow.ResizeObserver) {
+    return () => {
+    };
+  }
+  const observer = new targetWindow.ResizeObserver((entries) => {
+    const run = () => {
+      const entry = entries[0];
+      if (entry == null ? void 0 : entry.borderBoxSize) {
+        const box = entry.borderBoxSize[0];
+        if (box) {
+          handler({ width: box.inlineSize, height: box.blockSize });
+          return;
+        }
+      }
+      handler(getRect(element));
+    };
+    instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+  });
+  observer.observe(element, { box: "border-box" });
+  return () => {
+    observer.unobserve(element);
+  };
+};
+const addEventListenerOptions = {
+  passive: true
+};
+const observeWindowRect = (instance, cb) => {
+  const element = instance.scrollElement;
+  if (!element) {
+    return;
+  }
+  const handler = () => {
+    cb({ width: element.innerWidth, height: element.innerHeight });
+  };
+  handler();
+  element.addEventListener("resize", handler, addEventListenerOptions);
+  return () => {
+    element.removeEventListener("resize", handler);
+  };
+};
+const supportsScrollend = typeof window == "undefined" ? true : "onscrollend" in window;
+const observeOffset = (instance, cb, readOffset) => {
+  const element = instance.scrollElement;
+  if (!element) {
+    return;
+  }
+  const targetWindow = instance.targetWindow;
+  if (!targetWindow) {
+    return;
+  }
+  const registerScrollendEvent = instance.options.useScrollendEvent && supportsScrollend;
+  let offset = 0;
+  const fallback = registerScrollendEvent ? null : (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.debounce)(
+    targetWindow,
+    () => cb(offset, false),
+    instance.options.isScrollingResetDelay
+  );
+  const createHandler = (isScrolling) => () => {
+    offset = readOffset(element);
+    fallback == null ? void 0 : fallback();
+    cb(offset, isScrolling);
+  };
+  const handler = createHandler(true);
+  const endHandler = createHandler(false);
+  element.addEventListener("scroll", handler, addEventListenerOptions);
+  if (registerScrollendEvent) {
+    element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+  }
+  return () => {
+    element.removeEventListener("scroll", handler);
+    if (registerScrollendEvent) {
+      element.removeEventListener("scrollend", endHandler);
+    }
+  };
+};
+const observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
+  const { horizontal, isRtl } = instance.options;
+  return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
+});
+const observeWindowOffset = (instance, cb) => observeOffset(
+  instance,
+  cb,
+  (win) => instance.options.horizontal ? win.scrollX : win.scrollY
+);
+const measureElement = (element, entry, instance) => {
+  if (instance.options.useCachedMeasurements) {
+    const index = instance.indexFromElement(element);
+    const key = instance.options.getItemKey(index);
+    return instance.itemSizeCache.get(key) ?? instance.options.estimateSize(index);
+  }
+  if (entry == null ? void 0 : entry.borderBoxSize) {
+    const box = entry.borderBoxSize[0];
+    if (box) {
+      const size = Math.round(
+        box[instance.options.horizontal ? "inlineSize" : "blockSize"]
+      );
+      return size;
+    }
+  }
+  if (!entry) {
+    const index = instance.indexFromElement(element);
+    const key = instance.options.getItemKey(index);
+    const cachedSize = instance.itemSizeCache.get(key);
+    if (cachedSize !== void 0) {
+      return cachedSize;
+    }
+  }
+  return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
+};
+const scrollWithAdjustments = (offset, {
+  adjustments = 0,
+  behavior
+}, instance) => {
+  var _a, _b;
+  (_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null ? void 0 : _b.call(_a, {
+    [instance.options.horizontal ? "left" : "top"]: offset + adjustments,
+    behavior
+  });
+};
+const windowScroll = scrollWithAdjustments;
+const elementScroll = scrollWithAdjustments;
+class Virtualizer {
+  constructor(opts) {
+    this.unsubs = [];
+    this.scrollElement = null;
+    this.targetWindow = null;
+    this.isScrolling = false;
+    this.scrollState = null;
+    this.measurementsCache = [];
+    this._flatMeasurements = null;
+    this.itemSizeCache = /* @__PURE__ */ new Map();
+    this.itemSizeCacheVersion = 0;
+    this.laneAssignments = /* @__PURE__ */ new Map();
+    this.pendingMin = null;
+    this.prevLanes = void 0;
+    this.lanesChangedFlag = false;
+    this.lanesSettling = false;
+    this.pendingScrollAnchor = null;
+    this.scrollRect = null;
+    this.scrollOffset = null;
+    this.scrollDirection = null;
+    this.scrollAdjustments = 0;
+    this._iosDeferredAdjustment = 0;
+    this._iosTouching = false;
+    this._iosJustTouchEnded = false;
+    this._iosTouchEndTimerId = null;
+    this._intendedScrollOffset = null;
+    this.elementsCache = /* @__PURE__ */ new Map();
+    this.now = () => {
+      var _a, _b, _c;
+      return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
+    };
+    this.observer = /* @__PURE__ */ (() => {
+      let _ro = null;
+      const get = () => {
+        if (_ro) {
+          return _ro;
+        }
+        if (!this.targetWindow || !this.targetWindow.ResizeObserver) {
+          return null;
+        }
+        return _ro = new this.targetWindow.ResizeObserver((entries) => {
+          entries.forEach((entry) => {
+            const run = () => {
+              const node = entry.target;
+              const index = this.indexFromElement(node);
+              if (!node.isConnected) {
+                this.observer.unobserve(node);
+                for (const [cacheKey, cachedNode] of this.elementsCache) {
+                  if (cachedNode === node) {
+                    this.elementsCache.delete(cacheKey);
+                    break;
+                  }
+                }
+                return;
+              }
+              if (this.shouldMeasureDuringScroll(index)) {
+                this.resizeItem(
+                  index,
+                  this.options.measureElement(node, entry, this)
+                );
+              }
+            };
+            this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+          });
+        });
+      };
+      return {
+        disconnect: () => {
+          var _a;
+          (_a = get()) == null ? void 0 : _a.disconnect();
+          _ro = null;
+        },
+        observe: (target) => {
+          var _a;
+          return (_a = get()) == null ? void 0 : _a.observe(target, { box: "border-box" });
+        },
+        unobserve: (target) => {
+          var _a;
+          return (_a = get()) == null ? void 0 : _a.unobserve(target);
+        }
+      };
+    })();
+    this.range = null;
+    this.setOptions = (opts2) => {
+      var _a, _b;
+      const merged = {
+        debug: false,
+        initialOffset: 0,
+        overscan: 1,
+        paddingStart: 0,
+        paddingEnd: 0,
+        scrollPaddingStart: 0,
+        scrollPaddingEnd: 0,
+        horizontal: false,
+        getItemKey: defaultKeyExtractor,
+        rangeExtractor: defaultRangeExtractor,
+        onChange: () => {
+        },
+        measureElement,
+        initialRect: { width: 0, height: 0 },
+        scrollMargin: 0,
+        gap: 0,
+        indexAttribute: "data-index",
+        initialMeasurementsCache: [],
+        lanes: 1,
+        anchorTo: "start",
+        followOnAppend: false,
+        scrollEndThreshold: 1,
+        isScrollingResetDelay: 150,
+        enabled: true,
+        isRtl: false,
+        useScrollendEvent: false,
+        useAnimationFrameWithResizeObserver: false,
+        laneAssignmentMode: "estimate",
+        useCachedMeasurements: false
+      };
+      for (const key in opts2) {
+        const v = opts2[key];
+        if (v !== void 0) merged[key] = v;
+      }
+      const prevOptions = this.options;
+      let anchor = null;
+      let followOnAppend = null;
+      let edgeKeysChanged = false;
+      if (prevOptions !== void 0 && prevOptions.enabled && merged.enabled && merged.anchorTo === "end" && this.scrollElement !== null) {
+        const prevCount = prevOptions.count;
+        const nextCount = merged.count;
+        const measurements = this.getMeasurements();
+        const prevFirstKey = prevCount > 0 ? ((_a = measurements[0]) == null ? void 0 : _a.key) ?? prevOptions.getItemKey(0) : null;
+        const prevLastKey = prevCount > 0 ? ((_b = measurements[prevCount - 1]) == null ? void 0 : _b.key) ?? prevOptions.getItemKey(prevCount - 1) : null;
+        const didCountChange = nextCount !== prevCount;
+        const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
+        if (didEdgeKeysChange) {
+          edgeKeysChanged = true;
+          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
+          if (item) {
+            anchor = [item.key, this.getScrollOffset() - item.start];
+          }
+          const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
+          if (behavior && nextCount > prevCount && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
+            followOnAppend = behavior;
+          }
+        }
+      }
+      this.options = merged;
+      if (edgeKeysChanged) {
+        this.pendingMin = 0;
+        this.itemSizeCacheVersion++;
+      }
+      let anchorResolved = false;
+      let anchorDelta = 0;
+      if (anchor && this.scrollOffset !== null) {
+        const [anchorKey, anchorOffset] = anchor;
+        const newMeasurements = this.getMeasurements();
+        const { count, getItemKey } = this.options;
+        let idx = 0;
+        while (idx < count && getItemKey(idx) !== anchorKey) {
+          idx++;
+        }
+        if (idx < count) {
+          const anchorItem = newMeasurements[idx];
+          if (anchorItem) {
+            const newOffset = Math.max(0, anchorItem.start + anchorOffset);
+            if (newOffset !== this.scrollOffset) {
+              anchorDelta = newOffset - this.scrollOffset;
+              this.scrollOffset = newOffset;
+              anchorResolved = true;
+            }
+          }
+        }
+      }
+      if (anchorResolved || followOnAppend) {
+        this.pendingScrollAnchor = [
+          anchorResolved ? anchor[0] : null,
+          anchorResolved ? anchor[1] : 0,
+          followOnAppend,
+          anchorDelta
+        ];
+      }
+    };
+    this.notify = (sync) => {
+      var _a, _b;
+      (_b = (_a = this.options).onChange) == null ? void 0 : _b.call(_a, this, sync);
+    };
+    this.maybeNotify = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.memo)(
+      () => {
+        this.calculateRange();
+        return [
+          this.isScrolling,
+          this.range ? this.range.startIndex : null,
+          this.range ? this.range.endIndex : null
+        ];
+      },
+      (isScrolling) => {
+        this.notify(isScrolling);
+      },
+      {
+        key:  true && "maybeNotify",
+        debug: () => this.options.debug,
+        initialDeps: [
+          this.isScrolling,
+          this.range ? this.range.startIndex : null,
+          this.range ? this.range.endIndex : null
+        ]
+      }
+    );
+    this.cleanup = () => {
+      this.unsubs.filter(Boolean).forEach((d) => d());
+      this.unsubs = [];
+      this.observer.disconnect();
+      if (this.rafId != null && this.targetWindow) {
+        this.targetWindow.cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+      this.scrollState = null;
+      this._iosDeferredAdjustment = 0;
+      this._iosTouching = false;
+      this._iosJustTouchEnded = false;
+      this.scrollElement = null;
+      this.targetWindow = null;
+    };
+    this._didMount = () => {
+      return () => {
+        this.cleanup();
+      };
+    };
+    this._willUpdate = () => {
+      var _a;
+      const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
+      if (this.scrollElement !== scrollElement) {
+        this.cleanup();
+        if (!scrollElement) {
+          this.maybeNotify();
+          return;
+        }
+        this.scrollElement = scrollElement;
+        if (this.scrollElement && "ownerDocument" in this.scrollElement) {
+          this.targetWindow = this.scrollElement.ownerDocument.defaultView;
+        } else {
+          this.targetWindow = ((_a = this.scrollElement) == null ? void 0 : _a.window) ?? null;
+        }
+        this.elementsCache.forEach((cached) => {
+          this.observer.observe(cached);
+        });
+        this.unsubs.push(
+          this.options.observeElementRect(this, (rect) => {
+            this.scrollRect = rect;
+            this.maybeNotify();
+          })
+        );
+        this.unsubs.push(
+          this.options.observeElementOffset(this, (offset, isScrolling) => {
+            if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) {
+              return;
+            }
+            if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) {
+              offset = this._intendedScrollOffset;
+            }
+            this._intendedScrollOffset = null;
+            this.scrollAdjustments = 0;
+            const prevOffset = this.getScrollOffset();
+            this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
+            this.scrollOffset = offset;
+            this.isScrolling = isScrolling;
+            this._flushIosDeferredIfReady();
+            if (this.scrollState) {
+              this.scheduleScrollReconcile();
+            }
+            this.maybeNotify();
+          })
+        );
+        if ("addEventListener" in this.scrollElement) {
+          const scrollEl = this.scrollElement;
+          const onTouchStart = () => {
+            this._iosTouching = true;
+            this._iosJustTouchEnded = false;
+            if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+              this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+              this._iosTouchEndTimerId = null;
+            }
+          };
+          const onTouchEnd = () => {
+            this._iosTouching = false;
+            if (!isIOSWebKit() || this.targetWindow == null) {
+              return;
+            }
+            this._iosJustTouchEnded = true;
+            this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
+              this._iosJustTouchEnded = false;
+              this._iosTouchEndTimerId = null;
+              this._flushIosDeferredIfReady();
+            }, 150);
+          };
+          scrollEl.addEventListener(
+            "touchstart",
+            onTouchStart,
+            addEventListenerOptions
+          );
+          scrollEl.addEventListener(
+            "touchend",
+            onTouchEnd,
+            addEventListenerOptions
+          );
+          this.unsubs.push(() => {
+            scrollEl.removeEventListener("touchstart", onTouchStart);
+            scrollEl.removeEventListener("touchend", onTouchEnd);
+            if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+              this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+              this._iosTouchEndTimerId = null;
+            }
+          });
+        }
+        this._scrollToOffset(this.getScrollOffset(), {
+          adjustments: void 0,
+          behavior: void 0
+        });
+      }
+      const anchor = this.pendingScrollAnchor;
+      this.pendingScrollAnchor = null;
+      if (anchor && this.scrollElement && this.options.enabled) {
+        const [key, _offset, followOnAppend, anchorDelta] = anchor;
+        if (key !== null && !followOnAppend) {
+          if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+            if (anchorDelta !== 0) {
+              this._iosDeferredAdjustment += anchorDelta;
+            }
+          } else {
+            this._scrollToOffset(this.getScrollOffset(), {
+              adjustments: void 0,
+              behavior: void 0
+            });
+          }
+        }
+        if (followOnAppend) {
+          this.scrollToEnd({ behavior: followOnAppend });
+        }
+      }
+    };
+    this._flushIosDeferredIfReady = () => {
+      if (this._iosDeferredAdjustment === 0) return;
+      if (this.isScrolling) return;
+      if (this._iosTouching) return;
+      if (this._iosJustTouchEnded) return;
+      const cur = this.getScrollOffset();
+      const max = this.getMaxScrollOffset();
+      if (cur < 0 || cur > max) return;
+      if (this._iosDeferredAdjustment < 0 && cur >= max - 1) {
+        this._iosDeferredAdjustment = 0;
+        return;
+      }
+      const delta = this._iosDeferredAdjustment;
+      this._iosDeferredAdjustment = 0;
+      this._scrollToOffset(cur, {
+        adjustments: this.scrollAdjustments += delta,
+        behavior: void 0
+      });
+    };
+    this.rafId = null;
+    this.getSize = () => {
+      if (!this.options.enabled) {
+        this.scrollRect = null;
+        return 0;
+      }
+      this.scrollRect = this.scrollRect ?? this.options.initialRect;
+      return this.scrollRect[this.options.horizontal ? "width" : "height"];
+    };
+    this.getScrollOffset = () => {
+      if (!this.options.enabled) {
+        this.scrollOffset = null;
+        return 0;
+      }
+      this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
+      return this.scrollOffset;
+    };
+    this.getMeasurementOptions = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.memo)(
+      () => [
+        this.options.count,
+        this.options.paddingStart,
+        this.options.scrollMargin,
+        this.options.getItemKey,
+        this.options.enabled,
+        this.options.lanes,
+        this.options.laneAssignmentMode,
+        this.options.gap
+      ],
+      (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap) => {
+        const lanesChanged = this.prevLanes !== void 0 && this.prevLanes !== lanes;
+        if (lanesChanged) {
+          this.lanesChangedFlag = true;
+        }
+        this.prevLanes = lanes;
+        this.pendingMin = null;
+        return {
+          count,
+          paddingStart,
+          scrollMargin,
+          getItemKey,
+          enabled,
+          lanes,
+          laneAssignmentMode,
+          gap
+        };
+      },
+      {
+        key: false
+      }
+    );
+    this.getMeasurements = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.memo)(
+      () => [this.getMeasurementOptions(), this.itemSizeCacheVersion],
+      ({
+        count,
+        paddingStart,
+        scrollMargin,
+        getItemKey,
+        enabled,
+        lanes,
+        laneAssignmentMode,
+        gap
+      }, _itemSizeCacheVersion) => {
+        const itemSizeCache = this.itemSizeCache;
+        if (!enabled) {
+          this.measurementsCache = [];
+          this.itemSizeCache.clear();
+          this.laneAssignments.clear();
+          return [];
+        }
+        if (this.laneAssignments.size > count) {
+          for (const index of this.laneAssignments.keys()) {
+            if (index >= count) {
+              this.laneAssignments.delete(index);
+            }
+          }
+        }
+        if (this.lanesChangedFlag) {
+          this.lanesChangedFlag = false;
+          this.lanesSettling = true;
+          this.measurementsCache = [];
+          this.itemSizeCache.clear();
+          this.laneAssignments.clear();
+          this.pendingMin = null;
+        }
+        if (this.measurementsCache.length === 0 && !this.lanesSettling) {
+          this.measurementsCache = this.options.initialMeasurementsCache;
+          this.measurementsCache.forEach((item) => {
+            this.itemSizeCache.set(item.key, item.size);
+          });
+        }
+        const min = this.lanesSettling ? 0 : this.pendingMin ?? 0;
+        this.pendingMin = null;
+        if (this.lanesSettling && this.measurementsCache.length === count) {
+          this.lanesSettling = false;
+        }
+        if (lanes === 1) {
+          const need = count * 2;
+          let flat = this._flatMeasurements;
+          if (!flat || flat.length < need) {
+            const next = new Float64Array(need);
+            if (flat && min > 0) next.set(flat.subarray(0, min * 2));
+            flat = next;
+            this._flatMeasurements = flat;
+          }
+          let runningStart;
+          if (min === 0) {
+            runningStart = paddingStart + scrollMargin;
+          } else {
+            const prevIdx = min - 1;
+            runningStart = flat[prevIdx * 2] + flat[prevIdx * 2 + 1] + gap;
+          }
+          for (let i = min; i < count; i++) {
+            const key = getItemKey(i);
+            const measuredSize = itemSizeCache.get(key);
+            const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+            flat[i * 2] = runningStart;
+            flat[i * 2 + 1] = size;
+            runningStart += size + gap;
+          }
+          const view = (0,_lazy_measurements_js__WEBPACK_IMPORTED_MODULE_0__.createLazyMeasurementsView)(count, flat, getItemKey);
+          this.measurementsCache = view;
+          return view;
+        }
+        const measurements = this.measurementsCache.slice(0, min);
+        const laneLastIndex = new Array(lanes).fill(
+          void 0
+        );
+        const laneEnds = new Float64Array(lanes);
+        let filledLanes = 0;
+        for (let m = 0; m < min; m++) {
+          const item = measurements[m];
+          if (item) {
+            if (laneLastIndex[item.lane] === void 0) filledLanes++;
+            laneLastIndex[item.lane] = m;
+            laneEnds[item.lane] = item.end;
+          }
+        }
+        for (let i = min; i < count; i++) {
+          const key = getItemKey(i);
+          const cachedLane = this.laneAssignments.get(i);
+          let lane;
+          let start;
+          const shouldCacheLane = laneAssignmentMode === "estimate" || itemSizeCache.has(key);
+          if (cachedLane !== void 0 && this.options.lanes > 1) {
+            lane = cachedLane;
+            const prevIndex = laneLastIndex[lane];
+            const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
+            start = prevInLane ? prevInLane.end + gap : paddingStart + scrollMargin;
+          } else if (filledLanes === lanes) {
+            let bestLane = 0;
+            let bestEnd = laneEnds[0];
+            let bestIdx = laneLastIndex[0];
+            for (let l = 1; l < lanes; l++) {
+              const e = laneEnds[l];
+              if (e < bestEnd || e === bestEnd && laneLastIndex[l] < bestIdx) {
+                bestLane = l;
+                bestEnd = e;
+                bestIdx = laneLastIndex[l];
+              }
+            }
+            lane = bestLane;
+            start = bestEnd + gap;
+            if (shouldCacheLane) {
+              this.laneAssignments.set(i, lane);
+            }
+          } else {
+            lane = i % this.options.lanes;
+            start = paddingStart + scrollMargin;
+            if (shouldCacheLane) {
+              this.laneAssignments.set(i, lane);
+            }
+          }
+          const measuredSize = itemSizeCache.get(key);
+          const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+          const end = start + size;
+          measurements[i] = {
+            index: i,
+            start,
+            size,
+            end,
+            key,
+            lane
+          };
+          if (laneLastIndex[lane] === void 0) filledLanes++;
+          laneLastIndex[lane] = i;
+          laneEnds[lane] = end;
+        }
+        this.measurementsCache = measurements;
+        return measurements;
+      },
+      {
+        key:  true && "getMeasurements",
+        debug: () => this.options.debug
+      }
+    );
+    this.calculateRange = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.memo)(
+      () => [
+        this.getMeasurements(),
+        this.getSize(),
+        this.getScrollOffset(),
+        this.options.lanes
+      ],
+      (measurements, outerSize, scrollOffset, lanes) => {
+        if (measurements.length === 0 || outerSize === 0) {
+          this.range = null;
+          return null;
+        }
+        this.range = calculateRangeImpl(
+          measurements,
+          outerSize,
+          scrollOffset,
+          lanes,
+          // Pass the typed array so binary search + forward-walk can read
+          // start/end directly from Float64Array, skipping the Proxy traps.
+          lanes === 1 && this._flatMeasurements != null ? this._flatMeasurements : null
+        );
+        return this.range;
+      },
+      {
+        key:  true && "calculateRange",
+        debug: () => this.options.debug
+      }
+    );
+    this.getVirtualIndexes = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.memo)(
+      () => {
+        let startIndex = null;
+        let endIndex = null;
+        const range = this.calculateRange();
+        if (range) {
+          startIndex = range.startIndex;
+          endIndex = range.endIndex;
+        }
+        this.maybeNotify.updateDeps([this.isScrolling, startIndex, endIndex]);
+        return [
+          this.options.rangeExtractor,
+          this.options.overscan,
+          this.options.count,
+          startIndex,
+          endIndex
+        ];
+      },
+      (rangeExtractor, overscan, count, startIndex, endIndex) => {
+        return startIndex === null || endIndex === null ? [] : rangeExtractor({
+          startIndex,
+          endIndex,
+          overscan,
+          count
+        });
+      },
+      {
+        key:  true && "getVirtualIndexes",
+        debug: () => this.options.debug
+      }
+    );
+    this.indexFromElement = (node) => {
+      const attributeName = this.options.indexAttribute;
+      const indexStr = node.getAttribute(attributeName);
+      if (!indexStr) {
+        console.warn(
+          `Missing attribute name '${attributeName}={index}' on measured element.`
+        );
+        return -1;
+      }
+      return parseInt(indexStr, 10);
+    };
+    this.shouldMeasureDuringScroll = (index) => {
+      var _a;
+      if (!this.scrollState || this.scrollState.behavior !== "smooth") {
+        return true;
+      }
+      const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
+      if (scrollIndex !== void 0 && this.range) {
+        const bufferSize = Math.max(
+          this.options.overscan,
+          Math.ceil((this.range.endIndex - this.range.startIndex) / 2)
+        );
+        const minIndex = Math.max(0, scrollIndex - bufferSize);
+        const maxIndex = Math.min(
+          this.options.count - 1,
+          scrollIndex + bufferSize
+        );
+        return index >= minIndex && index <= maxIndex;
+      }
+      return true;
+    };
+    this.measureElement = (node) => {
+      if (!node) {
+        this.elementsCache.forEach((cached, key2) => {
+          if (!cached.isConnected) {
+            this.observer.unobserve(cached);
+            this.elementsCache.delete(key2);
+          }
+        });
+        return;
+      }
+      const index = this.indexFromElement(node);
+      const key = this.options.getItemKey(index);
+      const prevNode = this.elementsCache.get(key);
+      if (prevNode !== node) {
+        if (prevNode) {
+          this.observer.unobserve(prevNode);
+        }
+        this.observer.observe(node);
+        this.elementsCache.set(key, node);
+      }
+      if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) {
+        this.resizeItem(index, this.options.measureElement(node, void 0, this));
+      }
+    };
+    this.resizeItem = (index, size) => {
+      var _a, _b;
+      if (index < 0 || index >= this.options.count) return;
+      let cachedSize;
+      let itemStart;
+      let key;
+      const flat = this._flatMeasurements;
+      if (this.options.lanes === 1 && flat !== null) {
+        key = this.options.getItemKey(index);
+        itemStart = flat[index * 2];
+        cachedSize = flat[index * 2 + 1];
+      } else {
+        const item = this.measurementsCache[index];
+        if (!item) return;
+        key = item.key;
+        itemStart = item.start;
+        cachedSize = item.size;
+      }
+      const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
+      const delta = size - itemSize;
+      if (delta !== 0) {
+        const wasAtEnd = this.options.anchorTo === "end" && ((_a = this.scrollState) == null ? void 0 : _a.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
+        const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
+        const scrollOffsetWithAdj = this.getScrollOffset() + this.scrollAdjustments;
+        const isFirstMeasure = !this.itemSizeCache.has(key);
+        const defaultShouldAdjust = isFirstMeasure ? (
+          // First measurement: compensate any item whose top sits above the
+          // fold — the estimate→actual delta must be corrected regardless of
+          // scroll direction, since the whole estimated block was above it.
+          itemStart < scrollOffsetWithAdj
+        ) : (
+          // Re-measurement: only compensate an item that is ENTIRELY above the
+          // fold. An item that merely *spans* the fold (top above, bottom
+          // below — e.g. a streaming chat message growing at its bottom)
+          // changes size *below* the anchor point, so shifting scrollTop by the
+          // delta would drag the viewport downward on every growth (#1218).
+          // Also skip during backward scroll to avoid the "items jump while
+          // scrolling up" cascade.
+          itemStart + itemSize <= scrollOffsetWithAdj && this.scrollDirection !== "backward"
+        );
+        const shouldAdjustScroll = ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(
+          // The callback expects a VirtualItem; build one lazily only
+          // when the consumer actually supplied a custom predicate.
+          this.measurementsCache[index] ?? {
+            index,
+            key,
+            start: itemStart,
+            size: cachedSize,
+            end: itemStart + cachedSize,
+            lane: 0
+          },
+          delta,
+          this
+        ) : defaultShouldAdjust);
+        if (this.pendingMin === null || index < this.pendingMin) {
+          this.pendingMin = index;
+        }
+        this.itemSizeCache.set(key, size);
+        this.itemSizeCacheVersion++;
+        if (wasAtEnd) {
+          this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
+        } else if (shouldAdjustScroll) {
+          this.applyScrollAdjustment(delta);
+        }
+        this.notify(false);
+      }
+    };
+    this.getVirtualItems = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.memo)(
+      () => [this.getVirtualIndexes(), this.getMeasurements()],
+      (indexes, measurements) => {
+        const virtualItems = [];
+        for (let k = 0, len = indexes.length; k < len; k++) {
+          const i = indexes[k];
+          const measurement = measurements[i];
+          virtualItems.push(measurement);
+        }
+        return virtualItems;
+      },
+      {
+        key:  true && "getVirtualItems",
+        debug: () => this.options.debug
+      }
+    );
+    this.getVirtualItemForOffset = (offset) => {
+      const measurements = this.getMeasurements();
+      if (measurements.length === 0) {
+        return void 0;
+      }
+      const flat = this._flatMeasurements;
+      const useFlat = this.options.lanes === 1 && flat != null;
+      const idx = findNearestBinarySearch(
+        0,
+        measurements.length - 1,
+        useFlat ? (i) => flat[i * 2] : (i) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.notUndefined)(measurements[i]).start,
+        offset
+      );
+      return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.notUndefined)(measurements[idx]);
+    };
+    this.getMaxScrollOffset = () => {
+      if (!this.scrollElement) return 0;
+      if ("scrollHeight" in this.scrollElement) {
+        return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
+      } else {
+        const doc = this.scrollElement.document.documentElement;
+        return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
+      }
+    };
+    this.getVirtualDistanceFromEnd = () => {
+      return Math.max(
+        this.getTotalSize() - this.getSize() - this.getScrollOffset(),
+        0
+      );
+    };
+    this.getDistanceFromEnd = () => {
+      return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
+    };
+    this.isAtEnd = (threshold = this.options.scrollEndThreshold) => {
+      return this.getDistanceFromEnd() <= threshold;
+    };
+    this.getOffsetForAlignment = (toOffset, align, itemSize = 0) => {
+      if (!this.scrollElement) return 0;
+      const size = this.getSize();
+      const scrollOffset = this.getScrollOffset();
+      if (align === "auto") {
+        align = toOffset >= scrollOffset + size ? "end" : "start";
+      }
+      if (align === "center") {
+        toOffset += (itemSize - size) / 2;
+      } else if (align === "end") {
+        toOffset -= size;
+      }
+      const maxOffset = this.getMaxScrollOffset();
+      return Math.max(Math.min(maxOffset, toOffset), 0);
+    };
+    this.getOffsetForIndex = (index, align = "auto") => {
+      index = Math.max(0, Math.min(index, this.options.count - 1));
+      const size = this.getSize();
+      const scrollOffset = this.getScrollOffset();
+      const item = this.measurementsCache[index];
+      if (!item) return;
+      if (align === "auto") {
+        if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) {
+          align = "end";
+        } else if (item.start <= scrollOffset + this.options.scrollPaddingStart) {
+          align = "start";
+        } else {
+          return [scrollOffset, align];
+        }
+      }
+      if (align === "end" && index === this.options.count - 1) {
+        return [this.getMaxScrollOffset(), align];
+      }
+      const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
+      return [
+        this.getOffsetForAlignment(toOffset, align, item.size),
+        align
+      ];
+    };
+    this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
+      this._iosDeferredAdjustment = 0;
+      const offset = this.getOffsetForAlignment(toOffset, align);
+      const now = this.now();
+      this.scrollState = {
+        index: null,
+        align,
+        behavior,
+        startedAt: now,
+        lastTargetOffset: offset,
+        stableFrames: 0
+      };
+      this._scrollToOffset(offset, { adjustments: void 0, behavior });
+      this.scheduleScrollReconcile();
+    };
+    this.scrollToIndex = (index, {
+      align: initialAlign = "auto",
+      behavior = "auto"
+    } = {}) => {
+      this._iosDeferredAdjustment = 0;
+      index = Math.max(0, Math.min(index, this.options.count - 1));
+      const offsetInfo = this.getOffsetForIndex(index, initialAlign);
+      if (!offsetInfo) {
+        return;
+      }
+      const [offset, align] = offsetInfo;
+      const now = this.now();
+      this.scrollState = {
+        index,
+        align,
+        behavior,
+        startedAt: now,
+        lastTargetOffset: offset,
+        stableFrames: 0
+      };
+      this._scrollToOffset(offset, { adjustments: void 0, behavior });
+      this.scheduleScrollReconcile();
+    };
+    this.scrollBy = (delta, { behavior = "auto" } = {}) => {
+      const offset = this.getScrollOffset() + delta;
+      const now = this.now();
+      this.scrollState = {
+        index: null,
+        align: "start",
+        behavior,
+        startedAt: now,
+        lastTargetOffset: offset,
+        stableFrames: 0
+      };
+      this._scrollToOffset(offset, { adjustments: void 0, behavior });
+      this.scheduleScrollReconcile();
+    };
+    this.scrollToEnd = ({ behavior = "auto" } = {}) => {
+      if (this.options.count > 0) {
+        this.scrollToIndex(this.options.count - 1, {
+          align: "end",
+          behavior
+        });
+        return;
+      }
+      this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), {
+        behavior
+      });
+    };
+    this.getTotalSize = () => {
+      var _a;
+      const measurements = this.getMeasurements();
+      let end;
+      if (measurements.length === 0) {
+        end = this.options.paddingStart;
+      } else if (this.options.lanes === 1) {
+        const lastIdx = measurements.length - 1;
+        const flat = this._flatMeasurements;
+        if (flat != null) {
+          end = flat[lastIdx * 2] + flat[lastIdx * 2 + 1];
+        } else {
+          end = ((_a = measurements[lastIdx]) == null ? void 0 : _a.end) ?? 0;
+        }
+      } else {
+        const endByLane = Array(this.options.lanes).fill(null);
+        let endIndex = measurements.length - 1;
+        while (endIndex >= 0 && endByLane.some((val) => val === null)) {
+          const item = measurements[endIndex];
+          if (endByLane[item.lane] === null) {
+            endByLane[item.lane] = item.end;
+          }
+          endIndex--;
+        }
+        end = Math.max(...endByLane.filter((val) => val !== null));
+      }
+      return Math.max(
+        end - this.options.scrollMargin + this.options.paddingEnd,
+        0
+      );
+    };
+    this.takeSnapshot = () => {
+      const snapshot = [];
+      if (this.itemSizeCache.size === 0) return snapshot;
+      const m = this.getMeasurements();
+      for (const item of m) {
+        if (item && this.itemSizeCache.has(item.key)) {
+          snapshot.push({
+            index: item.index,
+            key: item.key,
+            start: item.start,
+            size: item.size,
+            end: item.end,
+            lane: item.lane
+          });
+        }
+      }
+      return snapshot;
+    };
+    this._scrollToOffset = (offset, {
+      adjustments,
+      behavior
+    }) => {
+      this._intendedScrollOffset = offset + (adjustments ?? 0);
+      this.options.scrollToFn(offset, { behavior, adjustments }, this);
+    };
+    this.measure = () => {
+      this.pendingMin = null;
+      this.itemSizeCache.clear();
+      this.laneAssignments.clear();
+      this.itemSizeCacheVersion++;
+      this.notify(false);
+    };
+    this.setOptions(opts);
+  }
+  applyScrollAdjustment(delta, behavior) {
+    if (delta === 0) return;
+    if ( true && this.options.debug) {
+      console.info("correction", delta);
+    }
+    if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+      this._iosDeferredAdjustment += delta;
+    } else {
+      this._scrollToOffset(this.getScrollOffset(), {
+        adjustments: this.scrollAdjustments += delta,
+        behavior
+      });
+      if (this.scrollOffset !== null) {
+        this.scrollOffset += this.scrollAdjustments;
+        if (this.scrollOffset < 0) this.scrollOffset = 0;
+        this.scrollAdjustments = 0;
+      }
+    }
+  }
+  scheduleScrollReconcile() {
+    if (!this.targetWindow) {
+      this.scrollState = null;
+      return;
+    }
+    if (this.rafId != null) return;
+    this.rafId = this.targetWindow.requestAnimationFrame(() => {
+      this.rafId = null;
+      this.reconcileScroll();
+    });
+  }
+  reconcileScroll() {
+    if (!this.scrollState) return;
+    const el = this.scrollElement;
+    if (!el) return;
+    const MAX_RECONCILE_MS = 5e3;
+    if (this.now() - this.scrollState.startedAt > MAX_RECONCILE_MS) {
+      this.scrollState = null;
+      return;
+    }
+    const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
+    const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
+    const STABLE_FRAMES = 1;
+    const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
+    if (!targetChanged && (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.approxEqual)(targetOffset, this.getScrollOffset())) {
+      this.scrollState.stableFrames++;
+      if (this.scrollState.stableFrames >= STABLE_FRAMES) {
+        if (this.getScrollOffset() !== targetOffset) {
+          this._scrollToOffset(targetOffset, {
+            adjustments: void 0,
+            behavior: "auto"
+          });
+        }
+        this.scrollState = null;
+        return;
+      }
+    } else {
+      this.scrollState.stableFrames = 0;
+      if (targetChanged) {
+        const viewport = this.getSize() || 600;
+        const distance = Math.abs(targetOffset - this.getScrollOffset());
+        const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
+        this.scrollState.lastTargetOffset = targetOffset;
+        if (!keepSmooth) {
+          this.scrollState.behavior = "auto";
+        }
+        this._scrollToOffset(targetOffset, {
+          adjustments: void 0,
+          behavior: keepSmooth ? "smooth" : "auto"
+        });
+      }
+    }
+    this.scheduleScrollReconcile();
+  }
+}
+const findNearestBinarySearch = (low, high, getCurrentValue, value) => {
+  while (low <= high) {
+    const middle = (low + high) / 2 | 0;
+    const currentValue = getCurrentValue(middle);
+    if (currentValue < value) {
+      low = middle + 1;
+    } else if (currentValue > value) {
+      high = middle - 1;
+    } else {
+      return middle;
+    }
+  }
+  if (low > 0) {
+    return low - 1;
+  } else {
+    return 0;
+  }
+};
+function findNearestBinarySearchFlat(flat, high, value) {
+  let low = 0;
+  while (low <= high) {
+    const middle = (low + high) / 2 | 0;
+    const currentValue = flat[middle * 2];
+    if (currentValue < value) {
+      low = middle + 1;
+    } else if (currentValue > value) {
+      high = middle - 1;
+    } else {
+      return middle;
+    }
+  }
+  return low > 0 ? low - 1 : 0;
+}
+function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) {
+  const lastIndex = measurements.length - 1;
+  if (measurements.length <= lanes) {
+    return { startIndex: 0, endIndex: lastIndex };
+  }
+  if (lanes === 1 && flat !== null) {
+    const startIndex2 = findNearestBinarySearchFlat(
+      flat,
+      lastIndex,
+      scrollOffset
+    );
+    let endIndex2 = startIndex2;
+    const limit = scrollOffset + outerSize;
+    while (endIndex2 < lastIndex && flat[endIndex2 * 2] + flat[endIndex2 * 2 + 1] < limit) {
+      endIndex2++;
+    }
+    return { startIndex: startIndex2, endIndex: endIndex2 };
+  }
+  const getStart = (index) => measurements[index].start;
+  let startIndex = findNearestBinarySearch(0, lastIndex, getStart, scrollOffset);
+  let endIndex = startIndex;
+  if (lanes === 1) {
+    while (endIndex < lastIndex && measurements[endIndex].end < scrollOffset + outerSize) {
+      endIndex++;
+    }
+  } else if (lanes > 1) {
+    const endPerLane = Array(lanes).fill(0);
+    while (endIndex < lastIndex && endPerLane.some((pos) => pos < scrollOffset + outerSize)) {
+      const item = measurements[endIndex];
+      endPerLane[item.lane] = item.end;
+      endIndex++;
+    }
+    const startPerLane = Array(lanes).fill(scrollOffset + outerSize);
+    while (startIndex >= 0 && startPerLane.some((pos) => pos >= scrollOffset)) {
+      const item = measurements[startIndex];
+      startPerLane[item.lane] = item.start;
+      startIndex--;
+    }
+    startIndex = Math.max(0, startIndex - startIndex % lanes);
+    endIndex = Math.min(lastIndex, endIndex + (lanes - 1 - endIndex % lanes));
+  }
+  return { startIndex, endIndex };
+}
+
+//# sourceMappingURL=index.js.map
+
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js"
+/*!***************************************************************************!*\
+  !*** ./node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js ***!
+  \***************************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createLazyMeasurementsView: () => (/* binding */ createLazyMeasurementsView)
+/* harmony export */ });
+function createLazyMeasurementsView(count, flat, getItemKey) {
+  const cache = new Array(count);
+  return new Proxy(cache, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string") {
+        const c = prop.charCodeAt(0);
+        if (c >= 48 && c <= 57) {
+          const i = +prop;
+          if (Number.isInteger(i) && i >= 0 && i < count) {
+            let v = target[i];
+            if (!v) {
+              const s = flat[i * 2];
+              v = target[i] = {
+                index: i,
+                key: getItemKey(i),
+                start: s,
+                size: flat[i * 2 + 1],
+                end: s + flat[i * 2 + 1],
+                lane: 0
+              };
+            }
+            return v;
+          }
+        }
+        if (prop === "length") return count;
+      }
+      return Reflect.get(target, prop, receiver);
+    }
+  });
+}
+
+//# sourceMappingURL=lazy-measurements.js.map
+
+
+/***/ },
+
+/***/ "./node_modules/@tanstack/virtual-core/dist/esm/utils.js"
+/*!***************************************************************!*\
+  !*** ./node_modules/@tanstack/virtual-core/dist/esm/utils.js ***!
+  \***************************************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   approxEqual: () => (/* binding */ approxEqual),
+/* harmony export */   debounce: () => (/* binding */ debounce),
+/* harmony export */   memo: () => (/* binding */ memo),
+/* harmony export */   notUndefined: () => (/* binding */ notUndefined)
+/* harmony export */ });
+function memo(getDeps, fn, opts) {
+  let deps = opts.initialDeps ?? [];
+  let result;
+  let isInitial = true;
+  function memoizedFunction() {
+    var _a;
+    const debugEnabled =  true && !!opts.key && !!((_a = opts.debug) == null ? void 0 : _a.call(opts));
+    let depTime = 0;
+    if (debugEnabled) depTime = Date.now();
+    const newDeps = getDeps();
+    const depsChanged = newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep);
+    if (!depsChanged) {
+      return result;
+    }
+    deps = newDeps;
+    let resultTime = 0;
+    if (debugEnabled) resultTime = Date.now();
+    result = fn(...newDeps);
+    if (debugEnabled) {
+      const depEndTime = Math.round((Date.now() - depTime) * 100) / 100;
+      const resultEndTime = Math.round((Date.now() - resultTime) * 100) / 100;
+      const resultFpsPercentage = resultEndTime / 16;
+      const pad = (str, num) => {
+        str = String(str);
+        while (str.length < num) {
+          str = " " + str;
+        }
+        return str;
+      };
+      console.info(
+        `%c⏱ ${pad(resultEndTime, 5)} /${pad(depEndTime, 5)} ms`,
+        `
+            font-size: .6rem;
+            font-weight: bold;
+            color: hsl(${Math.max(
+          0,
+          Math.min(120 - 120 * resultFpsPercentage, 120)
+        )}deg 100% 31%);`,
+        opts == null ? void 0 : opts.key
+      );
+    }
+    if ((opts == null ? void 0 : opts.onChange) && !(isInitial && opts.skipInitialOnChange)) {
+      opts.onChange(result);
+    }
+    isInitial = false;
+    return result;
+  }
+  memoizedFunction.updateDeps = (newDeps) => {
+    deps = newDeps;
+  };
+  return memoizedFunction;
+}
+function notUndefined(value, msg) {
+  if (value === void 0) {
+    throw new Error(`Unexpected undefined${msg ? `: ${msg}` : ""}`);
+  } else {
+    return value;
+  }
+}
+const approxEqual = (a, b) => Math.abs(a - b) < 1.01;
+const debounce = (targetWindow, fn, ms) => {
+  let timeoutId;
+  return function(...args) {
+    targetWindow.clearTimeout(timeoutId);
+    timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
+  };
+};
+
+//# sourceMappingURL=utils.js.map
 
 
 /***/ },

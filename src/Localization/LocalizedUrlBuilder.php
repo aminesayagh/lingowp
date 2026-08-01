@@ -55,9 +55,7 @@ class LocalizedUrlBuilder
             return null;
         }
 
-        $first = strtolower(explode('/', $trimmed)[0]);
-
-        return $this->resolver->isEnabledLanguage($first) ? $first : null;
+        return $this->resolver->languageForSlug(rawurldecode(explode('/', $trimmed)[0]));
     }
 
     /**
@@ -100,6 +98,8 @@ class LocalizedUrlBuilder
 
         $bare = '/' . ltrim($bare, '/');
 
-        return $bare === '/' ? '/' . $lang : '/' . $lang . $bare;
+        $slug = $this->resolver->slugForLanguage($lang);
+
+        return $bare === '/' ? '/' . $slug : '/' . $slug . $bare;
     }
 }

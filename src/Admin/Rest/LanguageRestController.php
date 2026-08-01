@@ -5,7 +5,8 @@ namespace TransLangs\Admin\Rest;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Language\Infrastructure\SupportedLanguages;
+use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
+use TransLangs\Language\Domain\LocaleNormalizer;
 use WP_REST_Request;
 use WP_REST_Response;
 
@@ -38,8 +39,8 @@ final class LanguageRestController
 
         register_rest_route(self::NS, '/languages', ['methods' => 'GET', 'callback' => [$this, 'index']] + $guard);
         register_rest_route(self::NS, '/languages', ['methods' => 'POST', 'callback' => [$this, 'create']] + $guard);
-        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update']] + $guard);
-        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
+        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update']] + $guard);
+        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
     }
 
     public function canManage(): bool
@@ -70,39 +71,47 @@ final class LanguageRestController
             'ok'               => true,
             'default_language' => $this->registry->getDefaultLanguage(),
             'languages'        => $languages,
+            'catalog'          => array_values(WordPressLanguageCatalog::all()),
         ]);
     }
 
     public function create(WP_REST_Request $request): WP_REST_Response
     {
-        $code = sanitize_key((string) $request->get_param('code'));
+        $code    = LocaleNormalizer::normalize((string) $request->get_param('code'));
+        $catalog = WordPressLanguageCatalog::get($code);
 
-        if ($code === '' || $code === $this->registry->getDefaultLanguage()) {
+        $slug = sanitize_title((string) ($request->get_param('slug') ?: $code));
+        if (
+            $code === '' || $catalog === null || $this->store->has($code)
+            || $code === $this->registry->getDefaultLanguage() || !$this->slugAvailable($slug)
+        ) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
         $status = $request->get_param('status') === 'draft' ? 'draft' : 'active';
 
-        // v1 add form: no region/locale/status inputs. Locale defaults to the code;
-        // direction is auto-derived client-side; status defaults to active.
+        // The canonical WordPress locale is the language identity and translation
+        // key; language, region, display metadata, and direction come from core's
+        // Site Language catalog rather than trusting client-supplied metadata.
         $this->store->save([
             'code'              => $code,
-            'locale'            => (string) ($request->get_param('locale') ?: $code),
-            'region'            => (string) $request->get_param('region'),
-            'name'              => SupportedLanguages::label($code),
+            'language'          => $catalog['language'],
+            'locale'            => $code,
+            'region'            => $catalog['region'],
+            'name'              => $catalog['english_name'],
             'display_name'      => (string) $request->get_param('display_name'),
-            'slug'              => sanitize_title((string) ($request->get_param('slug') ?: $code)),
-            'fallback_language' => sanitize_key((string) $request->get_param('fallback_language')),
+            'slug'              => $slug,
+            'fallback_language' => LocaleNormalizer::normalize((string) $request->get_param('fallback_language')),
             'ai_style'          => (string) $request->get_param('ai_style'),
             'ai_model'          => (string) ($request->get_param('ai_model') ?: 'auto'),
-            'direction'         => $request->get_param('direction') === 'rtl' ? 'rtl' : 'ltr',
+            'direction'         => $catalog['direction'],
         ]);
 
         // A draft language exists in metadata only; an active one is enabled for
-        // runtime routing. ponytail: enableLanguage silently ignores codes outside
-        // SupportedLanguages — expand that catalog if the backend offers more codes.
+        // runtime routing.
         if ($status === 'active') {
             $this->registry->enableLanguage($code);
+            $this->invalidateLanguageRoutes();
             do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
         }
 
@@ -121,7 +130,7 @@ final class LanguageRestController
      */
     public function update(WP_REST_Request $request): WP_REST_Response
     {
-        $code = sanitize_key((string) $request->get_param('code'));
+        $code = LocaleNormalizer::normalize((string) $request->get_param('code'));
 
         $current = $this->store->get($code);
         if ($code === '' || $current === null) {
@@ -135,12 +144,18 @@ final class LanguageRestController
         foreach ($editable as $field) {
             $value = $request->get_param($field);
             if ($value !== null) {
-                $entry[$field] = (string) $value;
+                $entry[$field] = $field === 'fallback_language'
+                    ? LocaleNormalizer::normalize((string) $value)
+                    : (string) $value;
             }
         }
         $slug = $request->get_param('slug');
         if ($slug !== null) {
-            $entry['slug'] = sanitize_title((string) $slug);
+            $slug = sanitize_title((string) $slug);
+            if ($slug === '' || !$this->slugAvailable($slug, $code)) {
+                return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+            }
+            $entry['slug'] = $slug;
         }
 
         $this->store->save($entry);
@@ -149,10 +164,14 @@ final class LanguageRestController
         $status = $request->get_param('status');
         if ($status === 'active') {
             $this->registry->enableLanguage($code);
+            $this->invalidateLanguageRoutes();
             do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
         } elseif ($status === 'draft') {
             $this->registry->disableLanguage($code);
+            $this->invalidateLanguageRoutes();
             do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
+        } elseif ($slug !== null) {
+            $this->invalidateLanguageRoutes();
         }
 
         return rest_ensure_response([
@@ -170,7 +189,7 @@ final class LanguageRestController
      */
     public function delete(WP_REST_Request $request): WP_REST_Response
     {
-        $code = sanitize_key((string) $request->get_param('code'));
+        $code = LocaleNormalizer::normalize((string) $request->get_param('code'));
 
         if ($code === '' || ! $this->store->has($code)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_NOT_FOUND'], 404);
@@ -178,8 +197,33 @@ final class LanguageRestController
 
         $this->registry->disableLanguage($code);
         $this->store->remove($code);
+        $this->invalidateLanguageRoutes();
         do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
 
         return rest_ensure_response(['ok' => true]);
+    }
+
+    private function slugAvailable(string $slug, string $exceptCode = ''): bool
+    {
+        if ($slug === '') {
+            return false;
+        }
+        $defaultSlug = sanitize_title(str_replace('_', '-', strtolower($this->registry->getDefaultLanguage())));
+        if ($slug === $defaultSlug) {
+            return false;
+        }
+        foreach ($this->store->all() as $code => $entry) {
+            if ($code !== $exceptCode && sanitize_title((string) ($entry['slug'] ?? '')) === $slug) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function invalidateLanguageRoutes(): void
+    {
+        delete_option('rewrite_rules');
+        delete_option('translangs_rewrite_rules_version');
     }
 }

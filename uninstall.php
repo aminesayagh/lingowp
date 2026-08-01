@@ -35,7 +35,7 @@ $tables = [
 ];
 
 foreach ($tables as $table) {
-    $wpdb->query('DROP TABLE IF EXISTS ' . $table); // phpcs:ignore WordPress.DB
+    $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the hardcoded $tables list above; no values interpolated
 }
 
 // Delete all plugin options.
@@ -53,6 +53,7 @@ $options = [
     'translangs_rewrite_rules_version',
     'translangs_age_out_last_run',
     'translangs_needs_initial_scan',
+    'translangs_needs_html_crawl',
     // Onboarding / backend connection.
     'translangs_languages',
     'translangs_categories',

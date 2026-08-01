@@ -5,6 +5,7 @@ namespace TransLangs\Setup;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Localization\LanguageRouteRegistrar;
+use TransLangs\Discovery\HtmlDiscoveryCrawl;
 use TransLangs\Discovery\InitialDiscoveryScan;
 use TransLangs\Database\SchemaFailure;
 use TransLangs\Database\TranslationMemorySchema;
@@ -36,13 +37,15 @@ class Activator
 
         TranslationMemorySchema::setDefaultOptions();
 
-        // Carry any previously configured languages over to the v4 code lists.
         $registry = new OptionLanguageRegistry();
-        $registry->seedFromLegacyOption();
-
         // Request a one-time initial discovery scan; the batched Action Scheduler
         // job is enqueued on the next init, once the AS store is ready.
         update_option(InitialDiscoveryScan::OPTION_FLAG, 1);
+
+        // Same lazy-enqueue pattern, for the background HTML crawl (own flag —
+        // see HtmlDiscoveryCrawl's class doc for why it isn't folded into the
+        // scan above).
+        update_option(HtmlDiscoveryCrawl::OPTION_FLAG, 1);
 
         // Register the rewrite compilation filter now, then flush so language
         // rule copies are included immediately. The normal plugin boot may not

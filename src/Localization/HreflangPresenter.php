@@ -110,7 +110,7 @@ class HreflangPresenter
 
             $out .= sprintf(
                 '<link rel="alternate" hreflang="%1$s" href="%2$s" />' . "\n",
-                esc_attr($lang),
+                esc_attr(str_replace('_', '-', $lang)),
                 esc_url($url)
             );
         }
@@ -122,7 +122,8 @@ class HreflangPresenter
             esc_url($defaultUrl)
         );
 
-        echo $out; // each piece already escaped above
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $out is built only from esc_url()'d values in fixed <link> markup; wp_kses would strip the tags.
+        echo $out;
     }
 
     // ------------------------------------------------------------------
@@ -133,7 +134,7 @@ class HreflangPresenter
      */
     private function currentBasePath(): string
     {
-        $uri  = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
+        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         if ($path === '') {
@@ -145,7 +146,7 @@ class HreflangPresenter
 
     private function currentQuery(): string
     {
-        $uri   = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';

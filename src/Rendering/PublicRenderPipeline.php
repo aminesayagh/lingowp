@@ -5,9 +5,9 @@ use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Localization\PublicLinkRewriter;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Core\Source\Type\HtmlSource;
 use TransLangs\Core\Repository\SourceTranslationRepository;
-use TransLangs\Core\Repository\OwnedStringIndex;
+use TransLangs\Discovery\HtmlDiscovery;
+use TransLangs\Seo\SeoHeadTranslator;
 
 /**
  * Frontend output buffer (v5). Structured text (post/term/meta + gettext) is
@@ -31,7 +31,8 @@ final class PublicRenderPipeline
         private PublicLinkRewriter $linkRewriter,
         private SourceTranslationRepository $repository,
         private HtmlRenderer $htmlRenderer,
-        private OwnedStringIndex $ownedIndex
+        private HtmlDiscovery $htmlDiscovery,
+        private SeoHeadTranslator $seoHead
     ) {}
 
     public function register(): void
@@ -73,7 +74,10 @@ final class PublicRenderPipeline
         // as-is. The DB write happens inside the buffer callback (before flush),
         // so it is safe on managed hosts; it is an editor-only, low-frequency pass.
         if ($this->marking) {
-            $this->discoverHtml($html);
+            // Stamp the daily throttle up front so even a page with nothing new
+            // to discover is not re-parsed on every admin view today.
+            set_transient($this->markThrottleKey(), 1, DAY_IN_SECONDS);
+            $this->htmlDiscovery->discover($html, $this->currentUrl());
 
             return $html;
         }
@@ -87,10 +91,18 @@ final class PublicRenderPipeline
         // map drives the output rewrite. The map is object-cached per language and
         // the DOM parse is skipped entirely when it is empty, so a site that uses
         // neither never pays the parse cost.
-        $map = $this->pageOutputTranslations($this->targetLang);
-        if ($map !== []) {
-            $html = $this->htmlRenderer->render($html, $map);
-        }
+        // One parse for both passes: the body replace map and the SEO <head> pass
+        // share the DOM. Note this is no longer gated on a non-empty $map — a site
+        // with no tl_html/tl_option rows still has SEO tags to translate.
+        $lang = $this->targetLang;
+        $html = $this->htmlRenderer->render(
+            $html,
+            $this->pageOutputTranslations($lang),
+            null,
+            function (\DOMDocument $dom) use ($lang): void {
+                $this->seoHead->translate($dom, $lang);
+            }
+        );
 
         // Structured text (post/term/meta + gettext) is already translated by the
         // hooks; here we only localize internal links for the translated request.
@@ -128,40 +140,6 @@ final class PublicRenderPipeline
     }
 
     /**
-     * Walk the page's block units and mint a tl_html parent for each one no
-     * structured source already owns (so the same string is never stored as both
-     * structured content and html). INSERT IGNORE makes a re-mark idempotent.
-     */
-    private function discoverHtml(string $html): void
-    {
-        $sourceUrl = $this->currentUrl();
-
-        // Stamp the daily throttle up front so even a page with nothing new to
-        // discover is not re-parsed on every admin view today.
-        set_transient($this->markThrottleKey(), 1, DAY_IN_SECONDS);
-
-        $units = [];
-
-        $this->htmlRenderer->render($html, [], static function (string $selector, string $text) use (&$units, $sourceUrl): void {
-            $units[$selector . "\0" . $text] = new HtmlSource($selector, $sourceUrl, $text);
-        });
-
-        if ($units === []) {
-            return;
-        }
-
-        $owned   = $this->ownedIndex->ownedHexes(array_map(static fn(HtmlSource $s): string => $s->originalHash(), $units));
-        $records = array_values(array_filter(
-            $units,
-            static fn(HtmlSource $s): bool => !isset($owned[bin2hex($s->originalHash())])
-        ));
-
-        if ($records !== []) {
-            $this->repository->upsertSources($records);
-        }
-    }
-
-    /**
      * Marking = a logged-in editor viewing a source-language page. It runs
      * automatically, throttled to once per day per URL (a DB-backed transient,
      * since the object cache may be non-persistent), so ordinary admin browsing
@@ -174,6 +152,7 @@ final class PublicRenderPipeline
             return false;
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- edit_posts is checked above and this only forces marking that the throttle below performs anyway; no state change is gated on it.
         if (!empty($_GET['translangs_mark'])) {
             return true;
         }
@@ -187,14 +166,12 @@ final class PublicRenderPipeline
         return 'tl_html_marked_' . md5((string) $this->currentUrl());
     }
 
+    /** Path only (no domain), so stored source_url survives a domain change (dev to prod). */
     private function currentUrl(): ?string
     {
-        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
-        if ($uri === '' || !function_exists('home_url')) {
-            return $uri === '' ? null : $uri;
-        }
+        $uri = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
 
-        return home_url($uri);
+        return $uri === '' ? null : $uri;
     }
 
     private function isHtmlResponse(): bool

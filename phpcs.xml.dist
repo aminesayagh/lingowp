@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<ruleset name="TransLangs Security">
+	<description>Security sniffs only. Style/formatting is deliberately out of scope.</description>
+
+	<file>translangs.php</file>
+	<file>uninstall.php</file>
+	<file>src</file>
+	<file>templates</file>
+
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/assets/*</exclude-pattern>
+	<exclude-pattern>*/security-reports/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="basepath" value="."/>
+	<arg name="parallel" value="8"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<config name="minimum_wp_version" value="6.2"/>
+
+	<!-- Escaping, sanitizing, nonces, capability checks. -->
+	<rule ref="WordPress.Security"/>
+
+	<!-- Exception messages are logged, never rendered to a browser. -->
+	<rule ref="WordPress.Security.EscapeOutput">
+		<exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+	</rule>
+
+	<!-- Silenced errors and clobbered WP globals hide security bugs. -->
+	<rule ref="WordPress.PHP.NoSilencedErrors"/>
+	<rule ref="WordPress.WP.GlobalVariablesOverride"/>
+
+	<!--
+		WordPress.DB.PreparedSQL* is deliberately NOT enabled.
+
+		Both sniffs only recognise a global `$wpdb`. This plugin injects the
+		connection as `$this->wpdb`, so the sniff cannot see the surrounding
+		prepare() call and reports every token of a correctly-prepared query
+		(296 findings, all false, verified 2026-07-27). PreparedSQLPlaceholders
+		is blind for a second reason: placeholder lists built with
+		implode(array_fill(...)) read as "no placeholders".
+
+		SQL coverage is provided instead by security/semgrep-wp.yml, rule
+		`wpdb-query-without-prepare`, which matches any object holding wpdb.
+		Re-enable these sniffs if the plugin ever switches to global $wpdb.
+	-->
+
+	<!-- bin/ is developer CLI tooling: echo to a terminal is not output escaping. -->
+</ruleset>

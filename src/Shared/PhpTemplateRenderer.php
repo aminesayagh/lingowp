@@ -20,7 +20,7 @@ class PhpTemplateRenderer
         if (!is_readable($file)) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 trigger_error(
-                    sprintf('TransLangs template not found: %s', $template),
+                    sprintf('TransLangs template not found: %s', esc_html($template)),
                     E_USER_WARNING
                 );
             }
