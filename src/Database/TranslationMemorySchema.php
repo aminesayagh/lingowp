@@ -296,6 +296,12 @@ class TranslationMemorySchema
             \TransLangs\Language\Infrastructure\OptionLanguageRegistry::OPTION_SOURCE_LOCALE,
             \TransLangs\Language\Domain\LocaleNormalizer::current()
         );
+
+        // Capture a stable, readable label alongside the frozen source locale.
+        // The workspace can continue displaying the original language correctly
+        // even if WordPress's WPLANG option changes later.
+        (new \TransLangs\Language\Infrastructure\OptionLanguageRegistry())
+            ->getDefaultLanguageDetails();
     }
 
     // ── Table name helpers ────────────────────────────────────────────────────

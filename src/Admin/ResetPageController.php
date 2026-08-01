@@ -154,6 +154,7 @@ class ResetPageController
         delete_option('translangs_auto_redirect');
         delete_option('translangs_rewrite_rules_version');
         delete_option(OptionLanguageRegistry::OPTION_SOURCE_LOCALE);
+        delete_option(OptionLanguageRegistry::OPTION_SOURCE_METADATA);
         delete_option(SiteMetadataProvider::OPTION_CATEGORIES);
         delete_option(LanguageMetadataStore::OPTION);
 

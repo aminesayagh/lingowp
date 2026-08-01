@@ -13,13 +13,16 @@ namespace TransLangs\Language\Domain;
  * Per-language display and routing metadata is stored in the language metadata
  * option and sourced from WordPress's Site Language catalog when created.
  *
- * Source language is never stored — it is always read from get_locale().
- * Only TARGET languages live in config.
+ * The source locale and its display metadata are captured once during setup.
+ * Only TARGET languages live in the active/existing language lists.
  */
 interface LanguageRegistry
 {
-    /** Canonical source locale from get_locale(), e.g. 'en_US'. */
+    /** Frozen canonical source locale, e.g. 'en_US'. */
     public function getDefaultLanguage(): string;
+
+    /** @return array{code: string, language: string, region: string, name: string, display_name: string, direction: string} */
+    public function getDefaultLanguageDetails(): array;
 
     /**
      * Active target language codes, in stored order.

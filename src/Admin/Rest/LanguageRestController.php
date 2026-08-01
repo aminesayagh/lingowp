@@ -80,10 +80,19 @@ final class LanguageRestController
         $code    = LocaleNormalizer::normalize((string) $request->get_param('code'));
         $catalog = WordPressLanguageCatalog::get($code);
 
+        if ($code !== '' && $code === $this->registry->getDefaultLanguage()) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_SOURCE_LANGUAGE'], 409);
+        }
+
+        // Locale is the unique translation identity. Never trust the form's
+        // disabled state: reject a duplicate canonical locale at the REST edge.
+        if ($code !== '' && $this->store->has($code)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_LANGUAGE_EXISTS'], 409);
+        }
+
         $slug = sanitize_title((string) ($request->get_param('slug') ?: $code));
         if (
-            $code === '' || $catalog === null || $this->store->has($code)
-            || $code === $this->registry->getDefaultLanguage() || !$this->slugAvailable($slug)
+            $code === '' || $catalog === null || !$this->slugAvailable($slug)
         ) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }

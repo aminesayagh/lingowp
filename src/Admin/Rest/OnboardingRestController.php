@@ -7,7 +7,6 @@ use TransLangs\Api\ConnectionRepository;
 use TransLangs\Api\ConnectionStatus;
 use TransLangs\Api\SiteMetadataProvider;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
 use WP_REST_Request;
 use WP_REST_Response;
 
@@ -182,13 +181,10 @@ final class OnboardingRestController
         return rest_ensure_response(['ok' => true, 'settings' => $this->currentSettings()]);
     }
 
-    /** @return array{code: string, direction: string} */
+    /** @return array{code: string, language: string, region: string, name: string, display_name: string, direction: string} */
     private function defaultLanguage(): array
     {
-        $code = $this->languages->getDefaultLanguage();
-        $dir  = WordPressLanguageCatalog::get($code)['direction'] ?? 'ltr';
-
-        return ['code' => $code, 'direction' => $dir];
+        return $this->languages->getDefaultLanguageDetails();
     }
 
     /** @return array<string, bool> */

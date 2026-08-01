@@ -134,18 +134,37 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 
 function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLanguage = false, onDone }) {
 	const isNew = mode === 'new';
-	const available = (catalog || []).filter(
-		(item) => item.locale !== defaultCode && !existing.includes(item.locale)
+	const localeUnavailable = (locale) => locale === defaultCode || existing.includes(locale);
+	const localeStatus = (locale) => {
+		if (locale === defaultCode) {
+			return ' — Website default';
+		}
+		return existing.includes(locale) ? ' — Already added' : '';
+	};
+	const catalogItems = catalog || [];
+	const available = catalogItems.filter((item) => !localeUnavailable(item.locale));
+	const languages = Array.from(
+		catalogItems.reduce((groups, item) => {
+			const group = groups.get(item.language) || {
+				label: item.language_name,
+				items: [],
+			};
+			group.items.push(item);
+			groups.set(item.language, group);
+			return groups;
+		}, new Map()).entries()
 	);
-	const languageChoices = Array.from(
-		new Map(available.map((item) => [item.language, item.language_name])).entries()
-	).map(([value, label]) => ({ label, value }));
+	const languageChoices = languages.map(([value, group]) => ({
+		label: group.label,
+		value,
+		disabled: group.items.every((item) => localeUnavailable(item.locale)),
+	}));
 	const initialLocale = isNew ? available[0] || null : (catalog || []).find((item) => item.locale === current.code) || null;
 	const [language, setLanguage] = useState(initialLocale?.language || '');
 	const [code, setCode] = useState(isNew ? initialLocale?.locale || '' : current.code);
 	const [displayName, setDisplayName] = useState(isNew ? '' : current.display_name || '');
 	const [slug, setSlug] = useState(isNew ? localeSlug(initialLocale?.locale || '') : current.slug || '');
-	const [fallback, setFallback] = useState(isNew ? '' : current.fallback_language || '');
+	const [fallback, setFallback] = useState(isNew ? defaultCode : current.fallback_language || '');
 	const [aiModel, setAiModel] = useState(isNew ? 'auto' : current.ai_model || 'auto');
 	const [style, setStyle] = useState(isNew ? '' : current.ai_style || '');
 	const [direction, setDirection] = useState(isNew ? initialLocale?.direction || 'ltr' : current.direction || 'ltr');
@@ -164,23 +183,46 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 	const firstLanguageReady = code.trim() !== '' && displayName.trim() !== '' && slug.trim() !== '';
 	const showAction = firstLanguage || dirty;
 
-	const regionChoices = available
+	const regionChoices = catalogItems
 		.filter((item) => item.language === language)
 		.map((item) => ({
-			label: regionLabel(item),
+			label: `${regionLabel(item)}${localeStatus(item.locale)}`,
 			value: item.locale,
+			disabled: localeUnavailable(item.locale),
 		}));
+	const defaultLanguage = catalogItems.find((item) => item.locale === defaultCode);
+	const fallbackChoices = [
+		{ label: 'None', value: '' },
+		{
+			label: `${defaultLanguage?.english_name || defaultCode} — Website default`,
+			value: defaultCode,
+		},
+		...catalogItems
+			.filter(
+				(item) =>
+					existing.includes(item.locale) &&
+					item.locale !== code &&
+					item.locale !== defaultCode
+			)
+			.map((item) => ({ label: item.english_name, value: item.locale })),
+	];
 
 	function pickLanguage(value) {
 		const choice = available.find((item) => item.language === value);
+		if (!choice) {
+			return;
+		}
 		setLanguage(value);
-		pickLocale(choice?.locale || '');
+		pickLocale(choice.locale);
 	}
 
 	function pickLocale(value) {
-		const choice = available.find((item) => item.locale === value);
+		const choice = catalogItems.find((item) => item.locale === value);
+		if (!choice || localeUnavailable(value)) {
+			return;
+		}
 		setCode(value);
-		setDirection(choice?.direction || 'ltr');
+		setDirection(choice.direction || 'ltr');
 		setSlug(localeSlug(value));
 	}
 
@@ -255,12 +297,7 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 				<Select
 					label="Fallback language"
 					requiredIndicator
-					options={[
-						{ label: 'None', value: '' },
-						...(catalog || [])
-							.filter((item) => existing.includes(item.locale) && item.locale !== code)
-							.map((item) => ({ label: item.english_name, value: item.locale })),
-					]}
+					options={fallbackChoices}
 					value={fallback}
 					onChange={setFallback}
 				/>

@@ -33,9 +33,10 @@ use TransLangs\Language\Domain\LocaleNormalizer;
  */
 final class OptionLanguageRegistry implements LanguageRegistry
 {
-    public const OPTION_ACTIVE        = 'translangs_active_lang';
-    public const OPTION_EXISTING      = 'translangs_existing_lang';
-    public const OPTION_SOURCE_LOCALE = 'translangs_source_locale';
+    public const OPTION_ACTIVE          = 'translangs_active_lang';
+    public const OPTION_EXISTING        = 'translangs_existing_lang';
+    public const OPTION_SOURCE_LOCALE   = 'translangs_source_locale';
+    public const OPTION_SOURCE_METADATA = 'translangs_source_language';
 
     public function getDefaultLanguage(): string
     {
@@ -43,6 +44,39 @@ final class OptionLanguageRegistry implements LanguageRegistry
 
         // Fallback to the live locale only until the option is seeded at setup.
         return $stored !== '' ? LocaleNormalizer::normalize($stored) : LocaleNormalizer::current();
+    }
+
+    /** @return array{code: string, language: string, region: string, name: string, display_name: string, direction: string} */
+    public function getDefaultLanguageDetails(): array
+    {
+        $code   = $this->getDefaultLanguage();
+        $stored = get_option(self::OPTION_SOURCE_METADATA, []);
+
+        if (is_array($stored) && ($stored['code'] ?? '') === $code && !empty($stored['display_name'])) {
+            return $stored;
+        }
+
+        $catalog = WordPressLanguageCatalog::get($code);
+        $languageName = (string) ($catalog['language_name'] ?? $code);
+        $regionName   = (string) ($catalog['region_name'] ?? '');
+        $name         = (string) ($catalog['english_name'] ?? '');
+
+        if ($name === '' || $name === $code) {
+            $name = $regionName !== '' ? sprintf('%s (%s)', $languageName, $regionName) : $languageName;
+        }
+
+        $details = [
+            'code'         => $code,
+            'language'     => (string) ($catalog['language'] ?? LocaleNormalizer::language($code)),
+            'region'       => (string) ($catalog['region'] ?? LocaleNormalizer::region($code)),
+            'name'         => $name,
+            'display_name' => $name,
+            'direction'    => (string) ($catalog['direction'] ?? 'ltr'),
+        ];
+
+        update_option(self::OPTION_SOURCE_METADATA, $details);
+
+        return $details;
     }
 
     /** @return string[] */
