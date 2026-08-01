@@ -7,6 +7,7 @@ use TransLangs\Api\ConnectionStatus;
 use TransLangs\Api\SiteMetadataProvider;
 use TransLangs\Discovery\InitialDiscoveryScan;
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Language\Infrastructure\SupportedLanguages;
@@ -133,7 +134,7 @@ class SettingsPageController
         // Sanitize and validate posted target languages.
         // Source language is excluded — it is never stored as a target.
         $postedRaw = isset($_POST['enabled_languages'])
-            ? array_map('sanitize_key', (array) wp_unslash($_POST['enabled_languages']))
+            ? array_map([LocaleNormalizer::class, 'normalize'], (array) wp_unslash($_POST['enabled_languages']))
             : [];
 
         $postedTargets = array_values(array_filter(

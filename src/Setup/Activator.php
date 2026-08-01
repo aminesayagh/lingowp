@@ -37,10 +37,7 @@ class Activator
 
         TranslationMemorySchema::setDefaultOptions();
 
-        // Carry any previously configured languages over to the v4 code lists.
         $registry = new OptionLanguageRegistry();
-        $registry->seedFromLegacyOption();
-
         // Request a one-time initial discovery scan; the batched Action Scheduler
         // job is enqueued on the next init, once the AS store is ready.
         update_option(InitialDiscoveryScan::OPTION_FLAG, 1);

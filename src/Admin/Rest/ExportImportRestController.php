@@ -2,6 +2,8 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Language\Domain\LocaleNormalizer;
+
 use TransLangs\Core\Parsing\UnitStructureGuard;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Source\Value\TranslationStatus;
@@ -72,7 +74,7 @@ final class ExportImportRestController
         if ($scope === 'all') {
             $languages = $targets;
         } else {
-            $lang = sanitize_key((string) $request->get_param('language'));
+            $lang = LocaleNormalizer::normalize((string) $request->get_param('language'));
             if ($lang === '' || !in_array($lang, $targets, true)) {
                 status_header(400);
                 wp_send_json(['ok' => false, 'error' => 'ERR_INVALID_INPUT']);
@@ -141,7 +143,7 @@ final class ExportImportRestController
             if ($i === 0) {
                 continue;
             }
-            $code = sanitize_key(trim((string) $name));
+            $code = LocaleNormalizer::normalize((string) $name);
             if (in_array($code, $targets, true)) {
                 $langColumns[$i] = $code;
             }

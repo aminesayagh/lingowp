@@ -2,6 +2,8 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Language\Domain\LocaleNormalizer;
+
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\SiteMetadataProvider;
 use TransLangs\Core\Parsing\TranslationSubmissionGuard;
@@ -389,7 +391,7 @@ final class AiTranslationController
 
     private function resolveLang(WP_REST_Request $request): string
     {
-        $lang = sanitize_key((string) $request->get_param('language'));
+        $lang = LocaleNormalizer::normalize((string) $request->get_param('language'));
         if ($lang !== '') {
             return $lang;
         }
