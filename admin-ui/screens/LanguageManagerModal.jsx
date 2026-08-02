@@ -189,12 +189,15 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 			return groups;
 		}, new Map()).entries()
 	);
-	const languageChoices = languages.map(([value, group]) => ({
-		label: group.label,
-		value,
-		disabled: group.items.every((item) => localeUnavailable(item.locale)),
-	}));
-	const initialLocale = isNew ? available[0] || null : (catalog || []).find((item) => item.locale === current.code) || null;
+	const languageChoices = [
+		{ label: 'Select a language', value: '', disabled: true },
+		...languages.map(([value, group]) => ({
+			label: group.label,
+			value,
+			disabled: group.items.every((item) => localeUnavailable(item.locale)),
+		})),
+	];
+	const initialLocale = isNew ? null : (catalog || []).find((item) => item.locale === current.code) || null;
 	const [language, setLanguage] = useState(initialLocale?.language || '');
 	const [code, setCode] = useState(isNew ? initialLocale?.locale || '' : current.code);
 	const [displayName, setDisplayName] = useState(isNew ? '' : current.display_name || '');
@@ -218,13 +221,20 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 	const firstLanguageReady = code.trim() !== '' && displayName.trim() !== '' && slug.trim() !== '';
 	const showAction = firstLanguage || dirty;
 
-	const regionChoices = catalogItems
-		.filter((item) => item.language === language)
-		.map((item) => ({
-			label: `${regionLabel(item)}${localeStatus(item.locale)}`,
-			value: item.locale,
-			disabled: localeUnavailable(item.locale),
-		}));
+	const regionChoices = [
+		{
+			label: language ? 'Select a region' : 'Select a language first',
+			value: '',
+			disabled: true,
+		},
+		...catalogItems
+			.filter((item) => item.language === language)
+			.map((item) => ({
+				label: `${regionLabel(item)}${localeStatus(item.locale)}`,
+				value: item.locale,
+				disabled: localeUnavailable(item.locale),
+			})),
+	];
 	const defaultLanguage = catalogItems.find((item) => item.locale === defaultCode);
 	const fallbackChoices = [
 		{ label: 'None', value: '' },
@@ -243,12 +253,14 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 	];
 
 	function pickLanguage(value) {
-		const choice = available.find((item) => item.language === value);
-		if (!choice) {
+		if (!available.some((item) => item.language === value)) {
 			return;
 		}
 		setLanguage(value);
-		pickLocale(choice.locale);
+		setCode('');
+		setDisplayName('');
+		setSlug('');
+		setDirection('ltr');
 	}
 
 	function pickLocale(value) {
@@ -257,6 +269,7 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 			return;
 		}
 		setCode(value);
+		setDisplayName(`${choice.language_name} (${regionLabel(choice)})`);
 		setDirection(choice.direction || 'ltr');
 		setSlug(localeSlug(value));
 	}
@@ -338,10 +351,18 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 							options={regionChoices}
 							value={code}
 							onChange={pickLocale}
+							disabled={!language}
 						/>
 					</>
 				)}
-				<TextField label="Name" requiredIndicator value={displayName} onChange={setDisplayName} autoComplete="off" />
+				<TextField
+					label="Name"
+					requiredIndicator
+					value={displayName}
+					onChange={setDisplayName}
+					autoComplete="off"
+					disabled={isNew && !code}
+				/>
 				<TextField label="URL slug" requiredIndicator value={slug} onChange={setSlug} autoComplete="off" />
 				<Select
 					label="Fallback language"
