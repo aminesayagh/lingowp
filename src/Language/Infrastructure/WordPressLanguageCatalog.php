@@ -23,7 +23,38 @@ final class WordPressLanguageCatalog
         // WordPress.org request when the transient is cold, which must never
         // hold the workspace response open.
         $cached = get_site_transient('available_translations');
-        $translations = is_array($cached) ? $cached : [];
+        self::$cache = self::shape(is_array($cached) ? $cached : []);
+        return self::$cache;
+    }
+
+    /**
+     * Ask WordPress for its full core-language catalog.
+     *
+     * WordPress serves a warm site transient locally and contacts WordPress.org
+     * only when that transient is cold. A null result keeps lookup failure
+     * distinct from a successfully loaded catalog.
+     *
+     * @return array<string, array<string, string>>|null
+     */
+    public static function refresh(): ?array
+    {
+        require_once ABSPATH . 'wp-admin/includes/translation-install.php';
+
+        $translations = wp_get_available_translations();
+        if ($translations === []) {
+            return null;
+        }
+
+        self::$cache = self::shape($translations);
+        return self::$cache;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $translations
+     * @return array<string, array<string, string>>
+     */
+    private static function shape(array $translations): array
+    {
         $translations['en_US'] = $translations['en_US'] ?? [
             'language' => 'en_US', 'english_name' => 'English (United States)',
             'native_name' => 'English (United States)', 'iso' => ['en'],
@@ -61,8 +92,7 @@ final class WordPressLanguageCatalog
         }
 
         uasort($catalog, static fn(array $a, array $b): int => strcasecmp($a['english_name'], $b['english_name']));
-        self::$cache = $catalog;
-        return self::$cache;
+        return $catalog;
     }
 
     /** @return array<string, string>|null */

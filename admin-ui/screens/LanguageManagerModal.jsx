@@ -35,6 +35,10 @@ export const AI_STYLE_PLACEHOLDER = 'Professional, clear, modern, and approachab
 // one. Stays open after save so several languages can be added/reconfigured.
 export default function LanguageManagerModal({ open, languages, catalog, defaultCode, initialCode, onClose, onChanged }) {
 	const [sel, setSel] = useState('new');
+	const [resolvedCatalog, setResolvedCatalog] = useState(catalog);
+	const [catalogStatus, setCatalogStatus] = useState('idle');
+	const [catalogReload, setCatalogReload] = useState(0);
+	const [catalogRevision, setCatalogRevision] = useState(0);
 	const isFirstLanguage = languages.length === 0;
 
 	useEffect(() => {
@@ -43,8 +47,37 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 		}
 	}, [open, initialCode]);
 
+	useEffect(() => {
+		setResolvedCatalog(catalog);
+	}, [catalog]);
+
 	const current = sel === 'new' ? null : languages.find((l) => l.code === sel) || null;
 	const mode = current ? 'edit' : 'new';
+
+	useEffect(() => {
+		if (!open || mode !== 'new') {
+			return undefined;
+		}
+
+		let active = true;
+		setCatalogStatus('loading');
+		api.get('/languages/catalog').then((res) => {
+			if (!active) {
+				return;
+			}
+			if (!res.ok || !Array.isArray(res.catalog)) {
+				setCatalogStatus('error');
+				return;
+			}
+			setResolvedCatalog(res.catalog);
+			setCatalogRevision((revision) => revision + 1);
+			setCatalogStatus('ready');
+		});
+
+		return () => {
+			active = false;
+		};
+	}, [open, mode, catalogReload]);
 
 	// If the selected language was deleted elsewhere, fall back to the first.
 	useEffect(() => {
@@ -106,11 +139,13 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 
 					<div style={{ flex: 1, minWidth: 0, paddingBlockStart: 4, paddingInline: 5 }}>
 						<LanguageForm
-							key={`${sel}:${catalog?.length || 0}`}
+							key={`${sel}:${catalogRevision}:${resolvedCatalog?.length || 0}`}
 							mode={mode}
 							current={current}
 							defaultCode={defaultCode}
-							catalog={catalog}
+							catalog={mode === 'new' && catalogStatus !== 'ready' ? null : resolvedCatalog}
+							catalogError={mode === 'new' && catalogStatus === 'error'}
+							onCatalogRetry={() => setCatalogReload((reload) => reload + 1)}
 							existing={languages.map((l) => l.code)}
 							firstLanguage={isFirstLanguage}
 							onDone={(code) => {
@@ -132,7 +167,7 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 	);
 }
 
-function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLanguage = false, onDone }) {
+function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogRetry, defaultCode, existing, firstLanguage = false, onDone }) {
 	const isNew = mode === 'new';
 	const localeUnavailable = (locale) => locale === defaultCode || existing.includes(locale);
 	const localeStatus = (locale) => {
@@ -253,6 +288,20 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 		}
 	}
 
+	if (isNew && catalogError) {
+		return (
+			<BlockStack gap="200">
+				<Text as="h3" variant="headingMd">Add a language</Text>
+				<Text as="p" tone="critical">
+					Could not load WordPress’s language catalog. Check the site’s outgoing connection and try again.
+				</Text>
+				<InlineStack>
+					<Button onClick={onCatalogRetry}>Retry</Button>
+				</InlineStack>
+			</BlockStack>
+		);
+	}
+
 	if (isNew && catalog === null) {
 		return <Text as="p" tone="subdued">Loading WordPress languages…</Text>;
 	}
@@ -262,7 +311,7 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingMd">Add a language</Text>
 				<Text as="p" tone="subdued">
-					No additional WordPress languages are available. Open Settings → General → Site Language once to refresh WordPress’s language catalog, then reopen this form.
+					All available WordPress languages have already been added.
 				</Text>
 			</BlockStack>
 		);

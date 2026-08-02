@@ -39,6 +39,7 @@ final class LanguageRestController
 
         register_rest_route(self::NS, '/languages', ['methods' => 'GET', 'callback' => [$this, 'index']] + $guard);
         register_rest_route(self::NS, '/languages', ['methods' => 'POST', 'callback' => [$this, 'create']] + $guard);
+        register_rest_route(self::NS, '/languages/catalog', ['methods' => 'GET', 'callback' => [$this, 'catalog']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
     }
@@ -75,6 +76,22 @@ final class LanguageRestController
         ]);
     }
 
+    public function catalog(): WP_REST_Response
+    {
+        $catalog = WordPressLanguageCatalog::refresh();
+        if ($catalog === null) {
+            return new WP_REST_Response([
+                'ok'    => false,
+                'error' => 'ERR_LANGUAGE_CATALOG_UNAVAILABLE',
+            ], 503);
+        }
+
+        return rest_ensure_response([
+            'ok'      => true,
+            'catalog' => array_values($catalog),
+        ]);
+    }
+
     public function create(WP_REST_Request $request): WP_REST_Response
     {
         $code    = LocaleNormalizer::normalize((string) $request->get_param('code'));
@@ -88,6 +105,17 @@ final class LanguageRestController
         // disabled state: reject a duplicate canonical locale at the REST edge.
         if ($code !== '' && $this->store->has($code)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_LANGUAGE_EXISTS'], 409);
+        }
+
+        if ($code !== '' && $catalog === null) {
+            $refreshed = WordPressLanguageCatalog::refresh();
+            if ($refreshed === null) {
+                return new WP_REST_Response([
+                    'ok'    => false,
+                    'error' => 'ERR_LANGUAGE_CATALOG_UNAVAILABLE',
+                ], 503);
+            }
+            $catalog = $refreshed[$code] ?? null;
         }
 
         $slug = sanitize_title((string) ($request->get_param('slug') ?: $code));
