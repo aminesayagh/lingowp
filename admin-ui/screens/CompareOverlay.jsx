@@ -92,6 +92,7 @@ export default function CompareOverlay({
   aiAvailable,
   onAiTranslate,
   onPickLanguage,
+  onOpenPreview,
   onClose,
   onSaved,
   onPrev,
@@ -237,24 +238,38 @@ export default function CompareOverlay({
           />
         </ButtonGroup>
       </div>
-      <div style={{ display: "flex", alignItems: "center", marginTop: "2px" }}>
-        <Popover
-          active={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          activator={
-            <Button
-              variant="tertiary"
-              icon={MenuHorizontalIcon}
-              onClick={() => setMenuOpen((o) => !o)}
-              accessibilityLabel="More actions"
+      {unit.preview_url && (
+        <div style={{ display: "flex", alignItems: "center", marginTop: "5px" }}>
+          <Popover
+            active={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            activator={
+              <Button
+                variant="tertiary"
+                icon={MenuHorizontalIcon}
+                onClick={() => setMenuOpen((o) => !o)}
+                accessibilityLabel="More actions"
+              />
+            }
+          >
+            <ActionList
+              items={[{
+                content: unit.preview_target === "frontend"
+                  ? "Preview on website"
+                  : "Edit in WordPress",
+                onAction: () => withFlush(() => {
+                  setMenuOpen(false);
+                  onOpenPreview(
+                    unit.preview_url,
+                    unit.preview_target,
+                    stripMarkers(text || unit.original || ""),
+                  );
+                }),
+              }]}
             />
-          }
-        >
-          <ActionList
-            items={[{ content: "View on Canvas", disabled: true }]}
-          />
-        </Popover>
-      </div>
+          </Popover>
+        </div>
+      )}
     </InlineStack>
   );
 

@@ -34,7 +34,6 @@ import {
   PageIcon
 } from "@shopify/polaris-icons";
 import { api } from "../api";
-import SettingsModal from "./SettingsModal";
 import ExportImportModal from "./ExportImportModal";
 import LanguageManagerModal from "./LanguageManagerModal";
 import OnboardingPage from "./OnboardingPage";
@@ -181,7 +180,6 @@ export default function Dashboard({
   const [overlay, setOverlay] = useState(null);
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerInitial, setManagerInitial] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportImportOpen, setExportImportOpen] = useState(false);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -217,7 +215,7 @@ export default function Dashboard({
 
   // Open the language manager, optionally focused on a specific language.
   function openManager(code) {
-    setManagerInitial(code || null);
+    setManagerInitial(code || "new");
     setManagerOpen(true);
   }
 
@@ -1159,7 +1157,7 @@ export default function Dashboard({
                             content: "Settings",
                             onAction: () => {
                               setPageMenuOpen(false);
-                              setSettingsOpen(true);
+                              openManager("configuration");
                             },
                           },
                           {
@@ -1340,11 +1338,6 @@ export default function Dashboard({
           onLanguageCreated();
         }}
       />
-      <SettingsModal
-        open={settingsOpen}
-        defaultLanguage={defaultCode}
-        onClose={() => setSettingsOpen(false)}
-      />
       <ExportImportModal
         open={exportImportOpen}
         languages={languages}
@@ -1370,6 +1363,7 @@ export default function Dashboard({
         aiAvailable={ai.available}
         onAiTranslate={translateScope}
         onPickLanguage={setSelectedLang}
+        onOpenPreview={openCanvas}
         onClose={() => setOverlay(null)}
         onSaved={(patch) => overlay && afterMutate(overlay.cid, patch)}
         hasPrev={globalIndex > 0}

@@ -10,7 +10,9 @@ import {
 } from '@shopify/polaris';
 import { useEffect, useState } from '@wordpress/element';
 import { api } from '../api';
+import GeneralConfiguration from './GeneralConfiguration';
 import LanguageList from './LanguageList';
+import SearchableLanguageSelect from './SearchableLanguageSelect';
 
 const enc = encodeURIComponent;
 const localeSlug = (locale) => locale.toLowerCase().replaceAll('_', '-');
@@ -51,8 +53,9 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 		setResolvedCatalog(catalog);
 	}, [catalog]);
 
-	const current = sel === 'new' ? null : languages.find((l) => l.code === sel) || null;
-	const mode = current ? 'edit' : 'new';
+	const isConfiguration = sel === 'configuration';
+	const current = sel === 'new' || isConfiguration ? null : languages.find((l) => l.code === sel) || null;
+	const mode = isConfiguration ? 'configuration' : current ? 'edit' : 'new';
 
 	useEffect(() => {
 		if (!open || mode !== 'new') {
@@ -81,7 +84,7 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 
 	// If the selected language was deleted elsewhere, fall back to the first.
 	useEffect(() => {
-		if (sel !== 'new' && !current) {
+		if (sel !== 'new' && sel !== 'configuration' && !current) {
 			setSel(languages[0]?.code || 'new');
 		}
 	}, [languages]);
@@ -109,7 +112,7 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 		<Modal
 			open={open}
 			onClose={onClose}
-			title="Configuration"
+			title="Languages"
 			large
 		>
 			<Modal.Section>
@@ -124,10 +127,20 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 							}}
 						>
 							<BlockStack gap="200">
+								<Button
+									fullWidth
+									textAlign="left"
+									variant={isConfiguration ? 'primary' : 'tertiary'}
+									onClick={() => setSel('configuration')}
+								>
+									Configuration
+								</Button>
+								<Divider />
 								<Text as="h3" variant="headingSm">Languages</Text>
 								<LanguageList
 									languages={languages}
 									selectedCode={current?.code}
+									showProgress={false}
 									onSelect={(lang) => setSel(lang.code)}
 									onToggleStatus={toggleStatus}
 									onDelete={del}
@@ -138,6 +151,9 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 					)}
 
 					<div style={{ flex: 1, minWidth: 0, paddingBlockStart: 4, paddingInline: 5 }}>
+						{isConfiguration ? (
+							<GeneralConfiguration defaultLanguage={defaultCode} />
+						) : (
 						<LanguageForm
 							key={`${sel}:${catalogRevision}:${resolvedCatalog?.length || 0}`}
 							mode={mode}
@@ -160,6 +176,7 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 								}
 							}}
 						/>
+						)}
 					</div>
 				</div>
 			</Modal.Section>
@@ -189,14 +206,11 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 			return groups;
 		}, new Map()).entries()
 	);
-	const languageChoices = [
-		{ label: 'Select a language', value: '', disabled: true },
-		...languages.map(([value, group]) => ({
+	const languageChoices = languages.map(([value, group]) => ({
 			label: group.label,
 			value,
 			disabled: group.items.every((item) => localeUnavailable(item.locale)),
-		})),
-	];
+		}));
 	const initialLocale = isNew ? null : (catalog || []).find((item) => item.locale === current.code) || null;
 	const [language, setLanguage] = useState(initialLocale?.language || '');
 	const [code, setCode] = useState(isNew ? initialLocale?.locale || '' : current.code);
@@ -338,12 +352,13 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 			<BlockStack gap="300">
 				{isNew && (
 					<>
-						<Select
+						<SearchableLanguageSelect
 							label="Language"
 							requiredIndicator
 							options={languageChoices}
 							value={language}
 							onChange={pickLanguage}
+							placeholder="Search languages"
 						/>
 						<Select
 							label="Region"
@@ -364,12 +379,13 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 					disabled={isNew && !code}
 				/>
 				<TextField label="URL slug" requiredIndicator value={slug} onChange={setSlug} autoComplete="off" />
-				<Select
+				<SearchableLanguageSelect
 					label="Fallback language"
 					requiredIndicator
 					options={fallbackChoices}
 					value={fallback}
 					onChange={setFallback}
+					placeholder="Search fallback languages"
 				/>
 			</BlockStack>
 

@@ -38,7 +38,19 @@ final class SourceLanguageTransition
     public function register(): void
     {
         add_action('update_option_WPLANG', [$this, 'onWplangChanged'], 10, 2);
+        add_action('add_option_WPLANG', [$this, 'onWplangAdded'], 10, 2);
         add_action('admin_notices', [$this, 'maybeRenderNotice']);
+    }
+
+    /**
+     * update_option() uses the add-option hook when WPLANG does not exist yet.
+     *
+     * @param mixed $option
+     * @param mixed $value
+     */
+    public function onWplangAdded($option, $value): void
+    {
+        $this->onWplangChanged('', $value);
     }
 
     /**
@@ -47,9 +59,12 @@ final class SourceLanguageTransition
      */
     public function onWplangChanged($old, $new): void
     {
-        $newCode = LocaleNormalizer::normalize((string) $new);
+        // WordPress stores English (United States) as an empty WPLANG option.
+        $newCode = (string) $new === ''
+            ? 'en_US'
+            : LocaleNormalizer::normalize((string) $new);
 
-        if ($newCode === '' || $newCode === $this->registry->getDefaultLanguage()) {
+        if ($newCode === $this->registry->getDefaultLanguage()) {
             return;
         }
 

@@ -4,10 +4,10 @@ import {
   ButtonGroup,
   InlineStack,
   Modal,
-  Select,
   Text,
 } from "@shopify/polaris";
 import { useState } from "@wordpress/element";
+import SearchableLanguageSelect from "./SearchableLanguageSelect";
 
 const cfg = window.Translangs || { rest: "", nonce: "" };
 
@@ -135,12 +135,12 @@ export default function ExportImportModal({ open, languages, initialLanguage, on
               </InlineStack>
 
               {scope === "current" && (
-                <Select
+                <SearchableLanguageSelect
                   label="Target language"
                   options={langOptions}
                   value={exportLang}
                   onChange={setExportLang}
-                  placeholder="Select a language"
+                  placeholder="Search languages"
                 />
               )}
 
