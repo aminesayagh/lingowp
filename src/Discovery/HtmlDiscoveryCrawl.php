@@ -67,6 +67,16 @@ final class HtmlDiscoveryCrawl
 
         add_filter('comment_text', [$this, 'skipCommentText'], 20, 1);
         add_filter('comment_class', [$this, 'skipCommentClass'], 10, 1);
+        // Unlike the other skips below, this one isn't just an optimization:
+        // DateResolver (src/Rendering/Date/DateResolver.php) never writes a
+        // date to any table, so OwnedStringIndex has no row to ever recognize
+        // a date string as owned — without this, every distinct post date
+        // would keep landing in tl_html as pure dead weight (a translation
+        // for it could never actually render, since DateResolver computes
+        // dates fresh via IntlDateFormatter and never consults tl_html).
+        // Priority 20: must run after DateResolver's own `wp_date` hook
+        // (priority 10) so it wraps whatever string DateResolver produced.
+        add_filter('wp_date', [$this, 'skipDate'], 20, 1);
         add_filter('the_title', [$this, 'skipInlineField'], 20, 1);
         add_filter('get_the_excerpt', [$this, 'skipInlineField'], 20, 1);
         add_filter('the_content', [$this, 'skipBlockField'], 20, 1);
@@ -289,6 +299,16 @@ final class HtmlDiscoveryCrawl
         $classes[] = 'notranslate';
 
         return $classes;
+    }
+
+    /** @param mixed $value */
+    public function skipDate($value): string
+    {
+        if (!CrawlRequestMarker::isCrawlRequest()) {
+            return (string) $value;
+        }
+
+        return '<span data-tl-skip="1">' . $value . '</span>';
     }
 
     /** @param mixed $value */

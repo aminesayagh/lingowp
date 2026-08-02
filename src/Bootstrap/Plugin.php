@@ -7,6 +7,7 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Application\SourceLanguageTransition;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Rendering\StaticText\GettextResolver;
+use TransLangs\Rendering\Date\DateResolver;
 use TransLangs\Localization\HreflangPresenter;
 use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
@@ -139,6 +140,13 @@ class Plugin
 
         // Branding: translate site name + tagline at display time (never at option read).
         (new OptionResolver($languageResolver, $context, $sourceRepository))->register();
+
+        // Dates: hooks wp_date() (the one function get_the_date(), date_i18n(),
+        // and a block theme's core Post Date block all funnel through) and
+        // reformats into the target language via IntlDateFormatter, so a date
+        // is never left in the source language (and never becomes discovered
+        // text a crawler would pick up as "untranslated" in the first place).
+        (new DateResolver($languageResolver, $context))->register();
 
         // Off-request writer for discovered gettext strings (Action Scheduler job,
         // Tier-2 ownership-gated).
