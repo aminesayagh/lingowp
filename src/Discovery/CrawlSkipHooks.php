@@ -21,10 +21,16 @@ final class CrawlSkipHooks
      * dedicated resolver, never stored in any table — unlike REDUNDANT, no
      * database ownership check could ever catch these, so the wrap is the
      * only thing preventing a permanently-useless row. Value is which
-     * resolver renders it — not consulted by any dispatcher yet (only one
-     * resolver exists today), recorded since it costs nothing and is
-     * self-documenting for whenever a second one exists. */
-    private const DYNAMIC = ['wp_date' => 'date'];
+     * resolver renders it — not consulted by any dispatcher yet, recorded
+     * since it costs nothing and is self-documenting.
+     *
+     * wc_price needs no priority coordination with its resolver the way
+     * wp_date does with DateResolver (see HtmlDiscoveryCrawl::register()'s
+     * comment): NumberResolver hooks the different, earlier-firing
+     * formatted_woocommerce_price filter, not wc_price itself, and
+     * WooCommerce's own linear function body already guarantees that runs
+     * before the wc_price filter this wrap catches. */
+    private const DYNAMIC = ['wp_date' => 'date', 'wc_price' => 'price'];
 
     /** Hooks whose output may contain block-level child markup — wrapped in
      * <div data-tl-skip="1"> instead (a <span> wrapping block children is

@@ -8,6 +8,7 @@ use TransLangs\Language\Application\SourceLanguageTransition;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Rendering\StaticText\GettextResolver;
 use TransLangs\Rendering\Date\DateResolver;
+use TransLangs\Rendering\Number\NumberResolver;
 use TransLangs\Localization\HreflangPresenter;
 use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
@@ -147,6 +148,12 @@ class Plugin
         // is never left in the source language (and never becomes discovered
         // text a crawler would pick up as "untranslated" in the first place).
         (new DateResolver($languageResolver, $context))->register();
+
+        // Numbers and WooCommerce prices: hooks number_format_i18n() and
+        // wc_price()'s formatted_woocommerce_price filter, both of which
+        // format using the site's own locale/settings rather than the
+        // visitor's target language — same bug shape as dates, same fix.
+        (new NumberResolver($languageResolver, $context))->register();
 
         // Off-request writer for discovered gettext strings (Action Scheduler job,
         // Tier-2 ownership-gated).
