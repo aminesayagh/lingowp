@@ -3,10 +3,11 @@
 namespace TransLangs\Admin\Rest;
 
 use TransLangs\Admin\InstalledGettextComponentDiscovery;
+use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Gettext\GettextDomainRegistry;
 use TransLangs\Language\Gettext\GettextOnlineTranslationFetcher;
 use TransLangs\Language\Gettext\GettextPoImporter;
-use TransLangs\Language\Gettext\GettextTemplateGenerator;
+use TransLangs\Language\Gettext\GettextTranslationUnitsService;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -15,16 +16,22 @@ use WP_REST_Response;
  * Gettext translation-file management (namespace translangs/v1): for every
  * installed plugin/theme domain × active target locale, find an existing
  * wordpress.org translation, import one by hand, download the one currently
- * installed, or — only when neither produced anything — generate a `.pot`
- * template from that component's own source.
+ * installed, or edit it directly in-app — one string at a time, the full
+ * scanned list merged with whatever's already translated (see
+ * GettextTranslationUnitsService).
  *
- * This is file management, not an in-app string editor: once a `.mo` is in
- * place, WordPress's own `switch_to_locale()` (see GettextResolver) serves it
- * with no further involvement from this plugin.
+ * This is still file management, not a database: every save writes straight
+ * into the domain+locale's `.mo`, the same file WordPress's own
+ * `switch_to_locale()` (see GettextResolver) serves with no further
+ * involvement from this plugin.
  */
 final class GettextDomainRestController
 {
     private const NS = 'translangs/v1';
+
+    /** Matches the Content board's own pagination shape (offset/limit/has_more). */
+    private const DEFAULT_LIMIT = 50;
+    private const MAX_LIMIT     = 100;
 
     public function __construct(
         private InstalledGettextComponentDiscovery $components,
@@ -32,7 +39,7 @@ final class GettextDomainRestController
         private OptionLanguageRegistry $languageRegistry,
         private GettextOnlineTranslationFetcher $fetcher,
         private GettextPoImporter $importer,
-        private GettextTemplateGenerator $generator
+        private GettextTranslationUnitsService $units
     ) {}
 
     public function register(): void
@@ -48,7 +55,9 @@ final class GettextDomainRestController
         register_rest_route(self::NS, '/gettext-domains/find-online', ['methods' => 'POST', 'callback' => [$this, 'findOnline']] + $guard);
         register_rest_route(self::NS, '/gettext-domains/import', ['methods' => 'POST', 'callback' => [$this, 'import']] + $guard);
         register_rest_route(self::NS, '/gettext-domains/download', ['methods' => 'GET', 'callback' => [$this, 'download']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/generate-pot', ['methods' => 'POST', 'callback' => [$this, 'generatePot']] + $guard);
+        register_rest_route(self::NS, '/gettext-domains/units', ['methods' => 'GET', 'callback' => [$this, 'units']] + $guard);
+        register_rest_route(self::NS, '/gettext-domains/save-unit', ['methods' => 'POST', 'callback' => [$this, 'saveUnit']] + $guard);
+        register_rest_route(self::NS, '/gettext-domains/ignore-unit', ['methods' => 'POST', 'callback' => [$this, 'ignoreUnit']] + $guard);
     }
 
     public function canManage(): bool
@@ -57,35 +66,58 @@ final class GettextDomainRestController
     }
 
     /**
-     * One row per (installed domain × active target locale). Stored status
-     * is reconciled against the filesystem — a manually deleted `.mo` self-
-     * heals back to "not found" instead of trusting stale option data.
+     * One row per installed domain, scoped to a single working language —
+     * same shape as CollectionRestController::index(): a `language` param
+     * (defaulting to the first active target), offset/limit pagination over
+     * an already-assembled array, `has_more`/`next_offset` in the envelope.
+     * Stored status is reconciled against the filesystem — a manually
+     * deleted `.mo` self-heals back to "not found" instead of trusting
+     * stale option data.
      */
-    public function list(): WP_REST_Response
+    public function list(WP_REST_Request $request): WP_REST_Response
     {
-        $locales = $this->languageRegistry->getTargetLanguages();
-        $rows    = [];
-
-        foreach ($this->components->all() as $domain => $component) {
-            foreach ($locales as $locale) {
-                $stored = $this->registry->get($component['kind'], $domain, $locale);
-                $status = $stored['status'] ?? null;
-
-                if ($status !== null && ! file_exists($this->importer->targetPath($component['kind'], $domain, $locale))) {
-                    $status = null;
-                }
-
-                $rows[] = [
-                    'domain' => $domain,
-                    'label'  => $component['label'],
-                    'type'   => $component['kind'],
-                    'locale' => $locale,
-                    'status' => $status,
-                ];
-            }
+        $locale = LocaleNormalizer::normalize((string) $request->get_param('language'));
+        if ($locale === '') {
+            $locale = $this->languageRegistry->getTargetLanguages()[0] ?? '';
         }
 
-        return rest_ensure_response(['ok' => true, 'rows' => $rows]);
+        $offset = max(0, (int) $request->get_param('offset'));
+        $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
+
+        $rows = [];
+        foreach ($this->components->all() as $domain => $component) {
+            $stored = $this->registry->get($component['kind'], $domain, $locale);
+            $status = $stored['status'] ?? null;
+
+            if ($status !== null && ! file_exists($this->importer->targetPath($component['kind'], $domain, $locale))) {
+                $status = null;
+            }
+
+            $rows[] = [
+                'domain' => $domain,
+                'label'  => $component['label'],
+                'type'   => $component['kind'],
+                'locale' => $locale,
+                'status' => $status,
+            ];
+        }
+
+        $total    = count($rows);
+        $page     = array_slice($rows, $offset, $limit);
+        $returned = count($page);
+        $next     = $offset + $returned;
+
+        return rest_ensure_response([
+            'ok'          => true,
+            'language'    => $locale,
+            'rows'        => array_values($page),
+            'total'       => $total,
+            'offset'      => $offset,
+            'limit'       => $limit,
+            'returned'    => $returned,
+            'next_offset' => $next,
+            'has_more'    => $next < $total,
+        ]);
     }
 
     public function findOnline(WP_REST_Request $request): WP_REST_Response
@@ -175,35 +207,108 @@ final class GettextDomainRestController
     }
 
     /**
-     * Streams a generated `.pot` — bypasses the JSON envelope, same as any
-     * file download. Not locale-specific: marks every active target locale
-     * for this domain as "template available" since there's one template
-     * per component, not per locale.
+     * The editable row list for one domain+locale: every string the source
+     * scan finds, each with its current translation (blank if none yet).
+     * Works whether a `.mo` already exists or not — this is both "expand an
+     * already-translated row" and "start translating this one manually".
+     *
+     * Paginated server-side, same offset/limit/has_more envelope as
+     * GET /gettext-domains — the response only ever carries one page's worth
+     * of strings, not the whole scanned list.
      */
-    public function generatePot(WP_REST_Request $request): void
+    public function units(WP_REST_Request $request): WP_REST_Response
     {
-        $type   = (string) $request->get_param('type');
-        $domain = (string) $request->get_param('domain');
+        [$type, $domain, $locale, $error] = $this->componentParams($request);
+        if ($error !== null) {
+            return $error;
+        }
 
         $component = $this->components->all()[$domain] ?? null;
-        $result    = $component !== null ? $this->generator->generate($component['path'], $domain) : null;
+        $result    = $component !== null ? $this->units->list($component['path'], $type, $domain, $locale) : null;
 
         if ($result === null) {
-            status_header(400);
-            wp_send_json(['ok' => false, 'error' => 'ERR_NO_SOURCE_TO_SCAN']);
-            return;
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_NO_SOURCE_TO_SCAN'], 400);
         }
 
-        foreach ($this->languageRegistry->getTargetLanguages() as $locale) {
-            $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_TEMPLATE_PENDING);
+        $offset = max(0, (int) $request->get_param('offset'));
+        $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
+
+        $total    = count($result);
+        $page     = array_slice($result, $offset, $limit);
+        $returned = count($page);
+        $next     = $offset + $returned;
+
+        return rest_ensure_response([
+            'ok'          => true,
+            'units'       => array_values($page),
+            'total'       => $total,
+            'offset'      => $offset,
+            'limit'       => $limit,
+            'returned'    => $returned,
+            'next_offset' => $next,
+            'has_more'    => $next < $total,
+        ]);
+    }
+
+    /** Save one translated string, in place, into the domain+locale's `.mo`. */
+    public function saveUnit(WP_REST_Request $request): WP_REST_Response
+    {
+        [$type, $domain, $locale, $error] = $this->componentParams($request);
+        if ($error !== null) {
+            return $error;
         }
 
-        nocache_headers();
-        header('Content-Type: text/x-gettext-translation; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $domain . '.pot"');
-        readfile($result['pot_path']);
-        unlink($result['pot_path']);
-        exit;
+        [$msgid, $context] = $this->unitIdentity($request);
+        $msgstr = (string) $request->get_param('msgstr');
+
+        if ($msgid === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        if (! $this->units->saveUnit($type, $domain, $locale, $msgid, $context, $msgstr)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_SAVE_FAILED'], 400);
+        }
+
+        // Manual edits count as "imported" — but never downgrade a domain
+        // that's already found_online/imported from a prior action.
+        if ($this->registry->get($type, $domain, $locale) === null) {
+            $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_IMPORTED);
+        }
+
+        return rest_ensure_response(['ok' => true]);
+    }
+
+    /**
+     * Exclude one string from this domain+locale's editable list going
+     * forward — the gettext equivalent of Content's "Ignore" status. There's
+     * no row to flag, so this is a standing exclusion GettextTranslationUnitsService
+     * checks on every scan, not a one-time delete.
+     */
+    public function ignoreUnit(WP_REST_Request $request): WP_REST_Response
+    {
+        [$type, $domain, $locale, $error] = $this->componentParams($request);
+        if ($error !== null) {
+            return $error;
+        }
+
+        [$msgid, $context] = $this->unitIdentity($request);
+        if ($msgid === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        $this->units->ignoreUnit($type, $domain, $locale, $msgid, $context);
+
+        return rest_ensure_response(['ok' => true]);
+    }
+
+    /** @return array{0: string, 1: ?string} [msgid, context] */
+    private function unitIdentity(WP_REST_Request $request): array
+    {
+        $msgid   = (string) $request->get_param('msgid');
+        $context = $request->get_param('context');
+        $context = $context !== null && $context !== '' ? (string) $context : null;
+
+        return [$msgid, $context];
     }
 
     /**

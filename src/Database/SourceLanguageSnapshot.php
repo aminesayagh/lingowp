@@ -39,21 +39,7 @@ final class SourceLanguageSnapshot
                 continue;
             }
 
-            // Parent-id children (tl_meta, tl_staticText): keyed (parent_id, lang_code[, form_index]).
-            if ($parentKey === 'tl_staticText') {
-                $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
-                    "INSERT IGNORE INTO {$child}
-                        (parent_id, lang_code, form_index, translated_text, status, provider, created_at, updated_at)
-                     SELECT id, %s, 0, original_text, 2, NULL, %s, %s
-                     FROM {$parent}",
-                    $langCode,
-                    $now,
-                    $now
-                ));
-
-                continue;
-            }
-
+            // Parent-id child (tl_meta): keyed (parent_id, lang_code).
             $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
                 "INSERT IGNORE INTO {$child}
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)

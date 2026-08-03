@@ -57,9 +57,11 @@ use TransLangs\Admin\Rest\ScanRestController;
 use TransLangs\Admin\Rest\ExportImportRestController;
 use TransLangs\Admin\Rest\GettextDomainRestController;
 use TransLangs\Language\Gettext\GettextDomainRegistry;
+use TransLangs\Language\Gettext\GettextIgnoredUnitsStore;
 use TransLangs\Language\Gettext\GettextOnlineTranslationFetcher;
 use TransLangs\Language\Gettext\GettextPoImporter;
 use TransLangs\Language\Gettext\GettextTemplateGenerator;
+use TransLangs\Language\Gettext\GettextTranslationUnitsService;
 
 class Plugin
 {
@@ -204,13 +206,14 @@ class Plugin
             (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController))->register();
             (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
             (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
+            $gettextImporter = new GettextPoImporter();
             (new GettextDomainRestController(
                 $gettextComponents,
                 new GettextDomainRegistry(),
                 $languageRegistry,
-                new GettextOnlineTranslationFetcher(),
-                new GettextPoImporter(),
-                new GettextTemplateGenerator()
+                new GettextOnlineTranslationFetcher($gettextImporter),
+                $gettextImporter,
+                new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore())
             ))->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).

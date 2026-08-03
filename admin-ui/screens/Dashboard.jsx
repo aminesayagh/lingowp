@@ -35,6 +35,7 @@ import {
 } from "@shopify/polaris-icons";
 import { api } from "../api";
 import ExportImportModal from "./ExportImportModal";
+import GettextBoard from "./GettextBoard";
 import LanguageManagerModal from "./LanguageManagerModal";
 import OnboardingPage from "./OnboardingPage";
 import LanguageList, { flagEmoji } from "./LanguageList";
@@ -196,7 +197,24 @@ export default function Dashboard({
   // Which board is showing: today's Content tree, or gettext grouped by
   // plugin/theme. Swaps the `source` param on the same collections/text-order
   // queries below — same load/search/pagination machinery, different data.
-  const [board, setBoard] = useState("content");
+  // Reflected in the URL (?board=plugins) so a refresh lands back on the same
+  // tab — same window.history/URLSearchParams approach App.jsx already uses
+  // for ?view=, no new dependency. replaceState (not pushState): switching
+  // tabs isn't a navigation step worth a back-button entry.
+  const [board, setBoard] = useState(
+    () => (new URLSearchParams(window.location.search).get("board") === "plugins" ? "plugins" : "content")
+  );
+
+  function selectBoard(next) {
+    setBoard(next);
+    const url = new URL(window.location.href);
+    if (next === "content") {
+      url.searchParams.delete("board");
+    } else {
+      url.searchParams.set("board", next);
+    }
+    window.history.replaceState({}, "", url);
+  }
 
   const autosaveToastTimerRef = useRef(null);
 
@@ -418,7 +436,9 @@ export default function Dashboard({
       return res;
     },
     getNextPageParam: (last) => (last.has_more ? last.next_offset : undefined),
-    enabled: !!selectedLang,
+    // Plugins & Themes has its own board (GettextBoard) now — no need to
+    // fetch the collections-count list while that tab is active.
+    enabled: !!selectedLang && board === "content",
   });
 
   function invalidateCollections() {
@@ -625,25 +645,6 @@ export default function Dashboard({
     setCollapsedIds(new Set());
   }, [selectedLang]);
 
-  // Plugins & Themes starts fully collapsed instead: its primary interaction
-  // is the row-level menu (Check online / Import / Download / Generate
-  // template), not an expanded text list. Applied once per board switch, not
-  // on every refetch, so a manual toggle isn't fought on the next render.
-  // ponytail: a group paginated in later (infinite scroll on a very large
-  // plugin/theme count) defaults open like any other board, since this reuses
-  // the same open-by-default Set rather than a separate closed-by-default
-  // model — acceptable for the realistic domain counts this board sees;
-  // revisit with a real opened-ids model if that stops being true.
-  const pluginsAutoCollapsedRef = useRef(false);
-  useEffect(() => {
-    pluginsAutoCollapsedRef.current = false;
-  }, [board]);
-  useEffect(() => {
-    if (board === "plugins" && !pluginsAutoCollapsedRef.current && groups.length > 0) {
-      setCollapsedIds(new Set(groups.map((g) => g.id)));
-      pluginsAutoCollapsedRef.current = true;
-    }
-  }, [board, groups]);
   const toggleCollapsed = useCallback((id) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
@@ -1065,7 +1066,7 @@ export default function Dashboard({
                         fullWidth
                         textAlign="left"
                         variant={board === "content" ? "primary" : "tertiary"}
-                        onClick={() => setBoard("content")}
+                        onClick={() => selectBoard("content")}
                       >
                         Content
                       </Button>
@@ -1073,7 +1074,7 @@ export default function Dashboard({
                         fullWidth
                         textAlign="left"
                         variant={board === "plugins" ? "primary" : "tertiary"}
-                        onClick={() => setBoard("plugins")}
+                        onClick={() => selectBoard("plugins")}
                       >
                         Plugins & Themes
                       </Button>
@@ -1213,7 +1214,14 @@ export default function Dashboard({
                 </BlockStack>
               </Box>
             </div>
-            {groupsQ.isPending ? (
+            {board === "plugins" ? (
+              <GettextBoard
+                language={selectedLang}
+                originalLabel={originalLabel}
+                translationLabel={translationLabel}
+                onConfirm={setConfirm}
+              />
+            ) : groupsQ.isPending ? (
               <Box padding="500">
                 <Spinner accessibilityLabel="Loading content" size="small" />
               </Box>
@@ -1331,7 +1339,7 @@ export default function Dashboard({
               </BlockStack>
             )}
 
-            {!groupsQ.isPending && (
+            {board === "content" && !groupsQ.isPending && (
               <>
                 <Divider />
                 <Box padding="300">
@@ -1471,125 +1479,6 @@ function CollectionGroup({
   const [hovered, setHovered] = useState(false);
   const [shown, setShown] = useState(TEXT_BATCH);
 
-  // Gettext translation files (`__()`, `_e()`, etc.) are served by WordPress
-  // itself once a file is in place — these actions manage that file, they
-  // don't add rows to this group's text list. Only real plugin/theme
-  // collections resolve to an installable domain (the "Other" bucket has
-  // type "other" and no single domain/slug to act on).
-  const isGettextDomain = c.type === "plugin" || c.type === "theme";
-  const gettextDomain = isGettextDomain
-    ? decodeURIComponent(c.id.slice("plugin:".length))
-    : null;
-  const [gettextBusy, setGettextBusy] = useState(false);
-  const [gettextNotice, setGettextNotice] = useState("");
-  const gettextFileInputRef = useRef(null);
-  const gettextNoticeTimerRef = useRef(null);
-
-  function noteGettext(text) {
-    setGettextNotice(text);
-    clearTimeout(gettextNoticeTimerRef.current);
-    gettextNoticeTimerRef.current = setTimeout(() => setGettextNotice(""), 4000);
-  }
-
-  async function checkGettextOnline() {
-    setMenuOpen(false);
-    setGettextBusy(true);
-    const res = await api.post("/gettext-domains/find-online", {
-      type: c.type,
-      domain: gettextDomain,
-      locale: language,
-    });
-    noteGettext(
-      res.ok && res.found
-        ? "Found and installed a translation online."
-        : "No online translation found for this language."
-    );
-    setGettextBusy(false);
-  }
-
-  function pickGettextFile() {
-    setMenuOpen(false);
-    gettextFileInputRef.current?.click();
-  }
-
-  function onGettextFileChosen(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) {
-      return;
-    }
-    if (!file.name.toLowerCase().endsWith(".po")) {
-      noteGettext("Unsupported format — only .po is accepted.");
-      return;
-    }
-    importGettextFile(file);
-  }
-
-  async function importGettextFile(file) {
-    setGettextBusy(true);
-    const body = new FormData();
-    body.append("file", file);
-    body.append("type", c.type);
-    body.append("domain", gettextDomain);
-    body.append("locale", language);
-    try {
-      const res = await fetch(`${cfg.rest}/gettext-domains/import`, {
-        method: "POST",
-        headers: { "X-WP-Nonce": cfg.nonce },
-        body,
-      });
-      const data = await res.json();
-      noteGettext(data.ok ? "Imported." : "Import failed — please check the file and try again.");
-    } catch {
-      noteGettext("Import failed — please check the file and try again.");
-    }
-    setGettextBusy(false);
-  }
-
-  function downloadGettextCurrent() {
-    setMenuOpen(false);
-    const params = new URLSearchParams({
-      type: c.type,
-      domain: gettextDomain,
-      locale: language,
-      _wpnonce: cfg.nonce,
-    });
-    window.location.href = `${cfg.rest}/gettext-domains/download?${params.toString()}`;
-  }
-
-  // Writes (records template_pending) and streams a file in one request, so
-  // it's a POST — a blob download via a synthetic click, not a plain
-  // navigation like downloadGettextCurrent() above.
-  async function generateGettextTemplate() {
-    setMenuOpen(false);
-    setGettextBusy(true);
-    try {
-      const res = await fetch(`${cfg.rest}/gettext-domains/generate-pot`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-WP-Nonce": cfg.nonce,
-        },
-        body: JSON.stringify({ type: c.type, domain: gettextDomain }),
-      });
-      if (!res.ok) {
-        noteGettext("Could not generate a template — no source to scan.");
-      } else {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${gettextDomain}.pot`;
-        a.click();
-        URL.revokeObjectURL(url);
-        noteGettext("Template generated. Translate it, then import the .po back.");
-      }
-    } catch {
-      noteGettext("Could not reach the server.");
-    }
-    setGettextBusy(false);
-  }
-
   // Suppress requests for groups only flashed past during fast scroll: a
   // collapsed/just-scrolled-past group never settles long enough to fetch.
   const [settled, setSettled] = useState(false);
@@ -1716,14 +1605,6 @@ function CollectionGroup({
         },
       ]
       : []),
-    ...(isGettextDomain
-      ? [
-        { content: "Check online", onAction: checkGettextOnline },
-        { content: "Import .po", onAction: pickGettextFile },
-        { content: "Download current .po", onAction: downloadGettextCurrent },
-        { content: "Generate template", onAction: generateGettextTemplate },
-      ]
-      : []),
     ...(searching
       ? []
       : [
@@ -1833,22 +1714,6 @@ function CollectionGroup({
               </InlineStack>
             </div>
           </InlineStack>
-          {isGettextDomain && (
-            <>
-              <input
-                ref={gettextFileInputRef}
-                type="file"
-                accept=".po"
-                hidden
-                onChange={onGettextFileChosen}
-              />
-              {(gettextBusy || gettextNotice) && (
-                <Text as="p" tone="subdued" variant="bodySm">
-                  {gettextBusy ? "Working…" : gettextNotice}
-                </Text>
-              )}
-            </>
-          )}
         </Box>
       </div>
       <Collapsible open={open} id={`col-${c.id}`}>

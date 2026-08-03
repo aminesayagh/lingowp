@@ -3,7 +3,6 @@
 namespace TransLangs\Language\Gettext;
 
 use FilesystemIterator;
-use Gettext\Generator\PoGenerator;
 use Gettext\Translations;
 use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
@@ -13,12 +12,14 @@ use TenQuality\Gettext\Scanner\WPPhpScanner;
 use Throwable;
 
 /**
- * Last-resort template generation: only reached when neither an online
- * translation nor a manual import produced anything for a domain. Scans a
- * plugin/theme's own PHP source with a real AST-based scanner
- * (`10quality/gettext-wp-scanner`, wrapping `nikic/php-parser` — the same
- * parser family WP-CLI's own i18n tooling uses) and emits a locale-independent
- * `.pot`. No WP-CLI dependency, no shell-exec.
+ * Scans a plugin/theme's own PHP source for gettext calls with a real
+ * AST-based scanner (`10quality/gettext-wp-scanner`, wrapping
+ * `nikic/php-parser` — the same parser family WP-CLI's own i18n tooling uses).
+ * No WP-CLI dependency, no shell-exec.
+ *
+ * Reached whenever the in-app translation editor needs the full list of a
+ * component's strings (see GettextTranslationUnitsService) — not just as a
+ * last resort, since it's how "translate manually" gets its row list.
  */
 final class GettextTemplateGenerator
 {
@@ -27,10 +28,10 @@ final class GettextTemplateGenerator
     private const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
     /**
-     * @return array{pot_path: string, skipped: string[]}|null Null if $path
-     *         has no source directory to scan (e.g. a single-file plugin).
+     * @return array<int, array{msgid: string, context: ?string}>|null Null if
+     *         $path has no source directory to scan (e.g. a single-file plugin).
      */
-    public function generate(string $path, string $domain): ?array
+    public function scan(string $path, string $domain): ?array
     {
         if ($path === '' || ! is_dir($path)) {
             return null;
@@ -44,9 +45,7 @@ final class GettextTemplateGenerator
         // not abort the whole scan.
         $scanner->ignoreInvalidFunctions(true);
 
-        $skipped = [];
-        $count   = 0;
-
+        $count = 0;
         foreach ($this->phpFiles($path) as $file) {
             if (++$count > self::MAX_FILES) {
                 break;
@@ -54,23 +53,22 @@ final class GettextTemplateGenerator
 
             $size = @filesize($file);
             if ($size === false || $size > self::MAX_FILE_BYTES) {
-                $skipped[] = $file;
                 continue;
             }
 
             try {
                 $scanner->scanFile($file);
             } catch (Throwable $e) {
-                $skipped[] = $file;
+                continue;
             }
         }
 
-        $staging = wp_tempnam($domain . '.pot');
-        if (! (new PoGenerator())->generateFile($translations, $staging)) {
-            return null;
+        $entries = [];
+        foreach ($translations as $translation) {
+            $entries[] = ['msgid' => $translation->getOriginal(), 'context' => $translation->getContext()];
         }
 
-        return ['pot_path' => $staging, 'skipped' => $skipped];
+        return $entries;
     }
 
     /** @return \Generator<string> */

@@ -118,21 +118,20 @@ $sweep->run();
 tl_ok('child is reclaimed once the LAST parent is gone', !$childExists($postChild, $shared));
 
 // ── 5. parent_id children are out of scope ───────────────────────────────────
+// tl_staticText/tl_staticText_translation are no longer part of this check:
+// that table is legacy (no longer created for fresh installs, see
+// TranslationMemorySchema) and isn't guaranteed to exist on a test DB.
 
 tl_section('parent_id children untouched:');
 
 $metaChild = $parents['tl_meta'] . '_translation';
-$statChild = $parents['tl_staticText'] . '_translation';
 
 $before = [
     'meta' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$metaChild}"), // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
-    'stat' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$statChild}"), // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
 ];
 $sweep->run();
 tl_ok('tl_meta_translation row count unchanged',
     (int) $wpdb->get_var("SELECT COUNT(*) FROM {$metaChild}") === $before['meta']); // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
-tl_ok('tl_staticText_translation row count unchanged',
-    (int) $wpdb->get_var("SELECT COUNT(*) FROM {$statChild}") === $before['stat']); // nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
 
 // ── 6. All four hash-link tables are actually swept ──────────────────────────
 
