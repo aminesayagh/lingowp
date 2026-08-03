@@ -18,17 +18,16 @@ use TransLangs\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '21';
+    public const DB_VERSION        = '23';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
     /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
     public const HASH_LINK_CHILDREN = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
 
-    /** parent_id children (meta/staticText): FK constraint name => parent table key. */
+    /** parent_id children (meta): FK constraint name => parent table key. */
     private const PARENT_ID_CHILD_FKS = [
-        'fk_meta_tr_parent'   => 'tl_meta',
-        'fk_static_tr_parent' => 'tl_staticText',
+        'fk_meta_tr_parent' => 'tl_meta',
     ];
 
     public static function maybeUpgrade(): void
@@ -62,17 +61,15 @@ class TranslationMemorySchema
         $p  = self::parentTables();
 
         // 1. Create the five parent tables first — they are the child FK targets.
+        // wp_tl_static_text / wp_tl_static_plural_text are deliberately NOT created
+        // here anymore: gettext is now resolved from WordPress-native translation
+        // files (see GettextResolver), and those two tables are legacy — kept
+        // as-is (not dropped) on sites that already have them, never created fresh.
         $wpdb->query(TableDefinitions::post($p['tl_post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::meta($p['tl_meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::term($p['tl_term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::staticText($p['tl_staticText'], $cc));                           // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::html($p['tl_html'], $cc));                                       // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::option($p['tl_option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
-
-        // 1b. tl_staticPluralText extends tl_staticText (FK target above) with the
-        // plural original of a gettext message; its translated forms live on the
-        // staticText child via form_index.
-        $wpdb->query(TableDefinitions::staticPluralText(self::pluralTable(), $p['tl_staticText'], $cc)); // phpcs:ignore WordPress.DB
 
         // 2a. Hash-link children (post/term/html): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
@@ -81,26 +78,24 @@ class TranslationMemorySchema
             );
         }
 
-        // 2b. parent_id children (meta/staticText): FK'd back to their parent id.
-        // The staticText child carries form_index (plural forms); meta does not.
+        // 2b. parent_id children (meta): FK'd back to their parent id.
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::parentIdTranslation(
                     $p[$parentKey] . '_translation',
                     $p[$parentKey],
                     $fkName,
-                    $cc,
-                    $parentKey === 'tl_staticText'
+                    $cc
                 )
             );
         }
 
-        // 2c. Upgrade path: an existing tl_staticText_translation (pre-v18) lacks
-        // form_index. CREATE IF NOT EXISTS cannot add it, so migrate in place.
-        self::migrateStaticTextTranslationFormIndex();
-
-        // 2d. Upgrade path: an existing wp_tl_html (pre-v21) lacks last_seen_at.
+        // 2c. Upgrade path: an existing wp_tl_html (pre-v21) lacks last_seen_at.
         self::migrateHtmlLastSeenAt();
+
+        // 2d. Upgrade path: an existing wp_tl_html (pre-v22) is keyed
+        // (selector_hash, original_hash) instead of original_hash alone.
+        self::migrateHtmlIdentityToHashOnly();
 
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
         $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
@@ -110,8 +105,6 @@ class TranslationMemorySchema
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
                 $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             }
-            // tl_staticPluralText references tl_staticText — drop it before the parents.
-            $wpdb->query('DROP TABLE IF EXISTS ' . self::pluralTable()); // phpcs:ignore WordPress.DB
             foreach ($p as $table) {
                 $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             }
@@ -124,8 +117,8 @@ class TranslationMemorySchema
     }
 
     /**
-     * Every FK this schema must contain: three parent→WordPress owners plus the
-     * two parent_id child→parent links. Hash-link children have no FK.
+     * Every FK this schema must contain: four parent→WordPress owners plus the
+     * one parent_id child→parent link. Hash-link children have no FK.
      *
      * @return array<string, string> constraint_name => table_name
      */
@@ -137,7 +130,6 @@ class TranslationMemorySchema
             'fk_meta_owner'   => $p['tl_meta'],
             'fk_term_owner'   => $p['tl_term'],
             'fk_option_owner' => $p['tl_option'],
-            'fk_plural_owner' => self::pluralTable(),
         ];
 
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
@@ -192,41 +184,6 @@ class TranslationMemorySchema
         }
     }
 
-    
-
-    /**
-     * Add form_index to an existing tl_staticText_translation (pre-v18). Guarded by
-     * an information_schema column check so it never re-runs or touches a freshly
-     * created table (which already has the column). Existing singular rows default
-     * to form_index 0, so the widened unique key keeps them unique — no data loss.
-     */
-    private static function migrateStaticTextTranslationFormIndex(): void
-    {
-        global $wpdb;
-
-        // Derived, not hardcoded, so it follows any future table-name change.
-        $table = self::parentTables()['tl_staticText'] . '_translation';
-
-        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'form_index'",
-                $table
-            )
-        );
-
-        if ($hasColumn === 'form_index') {
-            return;
-        }
-
-        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            "ALTER TABLE {$table}
-                ADD COLUMN form_index tinyint unsigned NOT NULL DEFAULT 0,
-                DROP INDEX uniq_translation,
-                ADD UNIQUE KEY uniq_translation (parent_id, lang_code, form_index)"
-        );
-    }
-
     /**
      * Add last_seen_at to an existing wp_tl_html (pre-v21). Guarded by an
      * information_schema column check so it never re-runs or touches a freshly
@@ -254,6 +211,56 @@ class TranslationMemorySchema
         }
 
         $wpdb->query("ALTER TABLE {$table} ADD COLUMN last_seen_at datetime NULL"); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+    }
+
+    /**
+     * Collapse an existing wp_tl_html (pre-v22) from identity
+     * (selector_hash, original_hash) to original_hash alone. The same text at
+     * two DOM locations used to mint two parent rows sharing one translation
+     * (the child table was always keyed by original_hash alone) — cluttering
+     * the flat html:all board without ever producing a second translation, so
+     * collapsing the parent identity loses nothing translation-wise.
+     *
+     * Guarded by an information_schema column check so it never re-runs or
+     * touches a freshly created table (which is already original_hash-only
+     * via TableDefinitions::html()). Existing duplicates are deduped — lowest
+     * id per original_hash kept — before the unique key is rebuilt, since
+     * MySQL would otherwise reject a UNIQUE KEY the current duplicate rows
+     * already violate.
+     */
+    private static function migrateHtmlIdentityToHashOnly(): void
+    {
+        global $wpdb;
+
+        $table = self::parentTables()['tl_html'];
+
+        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
+            $wpdb->prepare(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'selector_hash'",
+                $table
+            )
+        );
+
+        if ($hasColumn !== 'selector_hash') {
+            return;
+        }
+
+        // Keep the earliest row per original_hash; later duplicates are pure
+        // location clutter now that the parent identity is hash-only.
+        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            "DELETE p1 FROM {$table} p1
+                INNER JOIN {$table} p2
+                    ON p2.original_hash = p1.original_hash AND p2.id < p1.id"
+        );
+
+        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            "ALTER TABLE {$table}
+                DROP INDEX uniq_source,
+                DROP INDEX idx_hash,
+                DROP COLUMN selector_hash,
+                ADD UNIQUE KEY uniq_source (original_hash)"
+        );
     }
 
     /** Storage engine of one table per information_schema, or null if unknown. */
@@ -296,6 +303,12 @@ class TranslationMemorySchema
             \TransLangs\Language\Infrastructure\OptionLanguageRegistry::OPTION_SOURCE_LOCALE,
             \TransLangs\Language\Domain\LocaleNormalizer::current()
         );
+
+        // Capture a stable, readable label alongside the frozen source locale.
+        // The workspace can continue displaying the original language correctly
+        // even if WordPress's WPLANG option changes later.
+        (new \TransLangs\Language\Infrastructure\OptionLanguageRegistry())
+            ->getDefaultLanguageDetails();
     }
 
     // ── Table name helpers ────────────────────────────────────────────────────
@@ -306,19 +319,35 @@ class TranslationMemorySchema
         global $wpdb;
 
         return [
-            'tl_post'       => $wpdb->prefix . 'tl_post',
-            'tl_meta'       => $wpdb->prefix . 'tl_meta',
-            'tl_term'       => $wpdb->prefix . 'tl_term',
-            'tl_staticText' => $wpdb->prefix . 'tl_static_text',
-            'tl_html'       => $wpdb->prefix . 'tl_html',
-            'tl_option'     => $wpdb->prefix . 'tl_option',
+            'tl_post'   => $wpdb->prefix . 'tl_post',
+            'tl_meta'   => $wpdb->prefix . 'tl_meta',
+            'tl_term'   => $wpdb->prefix . 'tl_term',
+            'tl_html'   => $wpdb->prefix . 'tl_html',
+            'tl_option' => $wpdb->prefix . 'tl_option',
         ];
     }
 
     /**
-     * The gettext plural parent table (wp_tl_staticPluralText). Kept OUT of
-     * parentTables(): it is not a SourceRef kind and has no standard child, so the
-     * generic board UNION / fetch loops must not iterate it.
+     * wp_tl_static_text — the gettext source table. No longer created for
+     * fresh installs (gettext is resolved from WordPress-native translation
+     * files now, see GettextResolver) and kept OUT of parentTables(): it is
+     * not part of the managed/verified schema anymore. This name-only helper
+     * exists purely for legacy reads (the Plugins & Themes board, still
+     * showing whatever was captured before the pivot) and the dev-only reset
+     * tool — both must still be able to name the table without it being
+     * created, verified, or migrated.
+     */
+    public static function legacyStaticTextTable(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'tl_static_text';
+    }
+
+    /**
+     * The gettext plural parent table (wp_tl_static_plural_text). Same legacy
+     * status as legacyStaticTextTable() — kept OUT of parentTables() and no
+     * longer created/verified, name-only helper for the dev reset tool.
      */
     public static function pluralTable(): string
     {

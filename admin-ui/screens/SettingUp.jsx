@@ -58,7 +58,7 @@ export default function SettingUp( { onDone } ) {
 							{ status === 'running' && (
 								<>
 									<Spinner accessibilityLabel="Scanning" size="small" />
-									<Text alignment="center" as="h2" variant="headingMd">
+									<Text alignment="center" as="p" tone="subdued" variant="bodyMd">
 										We&#39;re automatically scanning your site for translatable content.
 									</Text>
 								</>

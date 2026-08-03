@@ -3,9 +3,13 @@
 namespace TransLangs\Bootstrap;
 
 use TransLangs\Admin\AdminAssets;
+use TransLangs\Admin\InstalledGettextComponentDiscovery;
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\Language\Application\SourceLanguageTransition;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Rendering\StaticText\GettextResolver;
+use TransLangs\Rendering\Date\DateResolver;
+use TransLangs\Rendering\Number\NumberResolver;
 use TransLangs\Localization\HreflangPresenter;
 use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
@@ -21,7 +25,6 @@ use TransLangs\Seo\SeoHeadTranslator;
 use TransLangs\Rendering\RequestContext;
 use TransLangs\Rendering\Primary\StructuredRenderResolver;
 use TransLangs\Core\Parsing\TranslationUnitCodec;
-use TransLangs\Discovery\StaticText\GettextCaptureWorker;
 use TransLangs\Discovery\HtmlDiscovery;
 use TransLangs\Discovery\HtmlDiscoveryCrawl;
 use TransLangs\Discovery\InitialDiscoveryScan;
@@ -34,6 +37,7 @@ use TransLangs\Discovery\SeoDiscoveryRescan;
 use TransLangs\Discovery\SourceLifecycleRefresher;
 use TransLangs\Discovery\StructuredSourceScanner;
 use TransLangs\Database\OrphanTranslationSweep;
+use TransLangs\Database\SourceLanguageSnapshot;
 use TransLangs\Database\TranslationMemorySchema;
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\BackendEndpointResolver;
@@ -51,6 +55,13 @@ use TransLangs\Admin\Rest\TranslationRestController;
 use TransLangs\Admin\Rest\AiTranslationController;
 use TransLangs\Admin\Rest\ScanRestController;
 use TransLangs\Admin\Rest\ExportImportRestController;
+use TransLangs\Admin\Rest\GettextDomainRestController;
+use TransLangs\Language\Gettext\GettextDomainRegistry;
+use TransLangs\Language\Gettext\GettextIgnoredUnitsStore;
+use TransLangs\Language\Gettext\GettextOnlineTranslationFetcher;
+use TransLangs\Language\Gettext\GettextPoImporter;
+use TransLangs\Language\Gettext\GettextTemplateGenerator;
+use TransLangs\Language\Gettext\GettextTranslationUnitsService;
 
 class Plugin
 {
@@ -62,6 +73,20 @@ class Plugin
         TranslationMemorySchema::maybeUpgrade();
 
         $languageRegistry = new OptionLanguageRegistry();
+
+        // Reacts to WordPress's own Site Language changing after setup. Not
+        // gated to isBackendContext()/is_admin(): WPLANG can change via
+        // wp-admin, but also WP-CLI or an importer, neither of which is
+        // is_admin(), REST_REQUEST, or wp_doing_cron() — same reasoning as
+        // SeoDiscoveryRescan/HtmlDiscoveryCrawl below being registered
+        // unconditionally.
+        (new SourceLanguageTransition(
+            $languageRegistry,
+            new LanguageMetadataStore(),
+            new SourceLanguageSnapshot($wpdb),
+            $wpdb
+        ))->register();
+
         $languageResolver = new ResolveRequestLanguage($languageRegistry);
 
         $urlBuilder = new LocalizedUrlBuilder($languageResolver);
@@ -118,15 +143,25 @@ class Plugin
         // v5 structured render: post/term by text hash, meta by location.
         (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes))->register();
 
-        // gettext: resolve + render-time discovery (Tier-1 ownership-gated).
-        (new GettextResolver($languageResolver, $context, $sourceRepository, $pageOwnedHashes))->register();
+        // gettext: WordPress-native resolution via switch_to_locale() —
+        // no filters, no DB, no runtime discovery.
+        (new GettextResolver($languageResolver, $context))->register();
 
         // Branding: translate site name + tagline at display time (never at option read).
         (new OptionResolver($languageResolver, $context, $sourceRepository))->register();
 
-        // Off-request writer for discovered gettext strings (Action Scheduler job,
-        // Tier-2 ownership-gated).
-        (new GettextCaptureWorker($sourceRepository, $ownedStringIndex))->register();
+        // Dates: hooks wp_date() (the one function get_the_date(), date_i18n(),
+        // and a block theme's core Post Date block all funnel through) and
+        // reformats into the target language via IntlDateFormatter, so a date
+        // is never left in the source language (and never becomes discovered
+        // text a crawler would pick up as "untranslated" in the first place).
+        (new DateResolver($languageResolver, $context))->register();
+
+        // Numbers and WooCommerce prices: hooks number_format_i18n() and
+        // wc_price()'s formatted_woocommerce_price filter, both of which
+        // format using the site's own locale/settings rather than the
+        // visitor's target language — same bug shape as dates, same fix.
+        (new NumberResolver($languageResolver, $context))->register();
 
         // Output buffer: hardcoded-HTML REPLACE pass (block units), the SEO <head>
         // pass (same DOM, one parse), and link rewriting.
@@ -164,12 +199,22 @@ class Plugin
             (new OnboardingRestController($backendClient, $connection, $siteMetadata, $languageRegistry, $connectionStatus))->register();
             (new ConnectionRestController($backendClient, $connection, $siteMetadata, $connectionStatus))->register();
             (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
-            $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry);
+            $gettextComponents     = new InstalledGettextComponentDiscovery();
+            $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry, $gettextComponents);
             $collectionsController->register();
             (new TranslationRestController($sourceRepository, $languageRegistry, $collectionsController))->register();
             (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController))->register();
             (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
             (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
+            $gettextImporter = new GettextPoImporter();
+            (new GettextDomainRestController(
+                $gettextComponents,
+                new GettextDomainRegistry(),
+                $languageRegistry,
+                new GettextOnlineTranslationFetcher($gettextImporter),
+                $gettextImporter,
+                new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore())
+            ))->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).
             (new SiteMetadataSyncJob($backendClient, $connection, $siteMetadata))->register();

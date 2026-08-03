@@ -7,6 +7,7 @@ use TransLangs\Api\ConnectionRepository;
 use TransLangs\Api\ConnectionStatus;
 use TransLangs\Api\SiteMetadataProvider;
 use TransLangs\Language\Domain\LanguageRegistry;
+use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -169,26 +170,55 @@ final class OnboardingRestController
         return rest_ensure_response(['ok' => true, 'next' => $next]);
     }
 
-    /** Save the WordPress-owned behavior toggles post-onboarding (settings modal). */
+    /** Save WordPress-owned behavior toggles and optionally change Site Language. */
     public function saveSettings(WP_REST_Request $request): WP_REST_Response
     {
         $browserDetection = (bool) $request->get_param('browser_detection');
+        $requestedLocale  = LocaleNormalizer::normalize((string) $request->get_param('default_language'));
+        $currentLocale    = $this->languages->getDefaultLanguage();
+
+        if ($requestedLocale !== '' && $requestedLocale !== $currentLocale) {
+            $catalog = WordPressLanguageCatalog::refresh();
+            if ($catalog === null) {
+                return new WP_REST_Response([
+                    'ok'    => false,
+                    'error' => 'ERR_LANGUAGE_CATALOG_UNAVAILABLE',
+                ], 503);
+            }
+            if (!isset($catalog[$requestedLocale])) {
+                return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_LANGUAGE'], 400);
+            }
+
+            if ($requestedLocale !== 'en_US' && !in_array($requestedLocale, get_available_languages(), true)) {
+                if (!current_user_can('install_languages')) {
+                    return new WP_REST_Response(['ok' => false, 'error' => 'ERR_LANGUAGE_PACK_PERMISSION'], 403);
+                }
+                if (!wp_can_install_language_pack() || wp_download_language_pack($requestedLocale) === false) {
+                    return new WP_REST_Response(['ok' => false, 'error' => 'ERR_LANGUAGE_PACK_INSTALL'], 500);
+                }
+            }
+
+            // Core represents en_US with an empty WPLANG option. Updating this
+            // option synchronously runs SourceLanguageTransition.
+            update_option('WPLANG', $requestedLocale === 'en_US' ? '' : $requestedLocale);
+        }
 
         update_option('translangs_prefix_default_language', (bool) $request->get_param('prefix_default_language'));
         update_option('translangs_cookie_preference', (bool) $request->get_param('cookie_preference'));
         update_option('translangs_browser_detection', $browserDetection);
         update_option('translangs_auto_redirect', (bool) $request->get_param('auto_redirect') && $browserDetection);
 
-        return rest_ensure_response(['ok' => true, 'settings' => $this->currentSettings()]);
+        return rest_ensure_response([
+            'ok'               => true,
+            'settings'         => $this->currentSettings(),
+            'default_language' => $this->defaultLanguage(),
+        ]);
     }
 
-    /** @return array{code: string, direction: string} */
+    /** @return array{code: string, language: string, region: string, name: string, display_name: string, direction: string} */
     private function defaultLanguage(): array
     {
-        $code = $this->languages->getDefaultLanguage();
-        $dir  = WordPressLanguageCatalog::get($code)['direction'] ?? 'ltr';
-
-        return ['code' => $code, 'direction' => $dir];
+        return $this->languages->getDefaultLanguageDetails();
     }
 
     /** @return array<string, bool> */

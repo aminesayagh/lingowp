@@ -94,9 +94,18 @@ class ResetPageController
             // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema's map / $wpdb prefix; no values interpolated
             $this->wpdb->query("TRUNCATE TABLE {$table}");
         }
+        // Legacy gettext tables: excluded from parentTables()/childTables() (no
+        // longer created/verified for fresh installs), but a dev reset should
+        // still wipe them like everything else if they exist on this site.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema / $wpdb prefix; no values interpolated
         $this->wpdb->query('TRUNCATE TABLE ' . TranslationMemorySchema::pluralTable());
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema / $wpdb prefix; no values interpolated
+        $this->wpdb->query('TRUNCATE TABLE ' . TranslationMemorySchema::legacyStaticTextTable() . '_translation');
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema / $wpdb prefix; no values interpolated
+        $this->wpdb->query('TRUNCATE TABLE ' . TranslationMemorySchema::legacyStaticTextTable());
         foreach (TranslationMemorySchema::parentTables() as $table) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery
             // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema's map / $wpdb prefix; no values interpolated
@@ -154,6 +163,7 @@ class ResetPageController
         delete_option('translangs_auto_redirect');
         delete_option('translangs_rewrite_rules_version');
         delete_option(OptionLanguageRegistry::OPTION_SOURCE_LOCALE);
+        delete_option(OptionLanguageRegistry::OPTION_SOURCE_METADATA);
         delete_option(SiteMetadataProvider::OPTION_CATEGORIES);
         delete_option(LanguageMetadataStore::OPTION);
 

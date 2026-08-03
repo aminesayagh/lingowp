@@ -33,15 +33,6 @@ interface SourceTranslationRepository
     public function upsertSources(array $records): int;
 
     /**
-     * Discover gettext plural messages: ensure each singular anchor exists in
-     * tl_staticText, then link the plural original via tl_staticPluralText.
-     *
-     * @param array<int, array{domain:string, context:?string, single:string, plural:string}> $candidates
-     * @return int Plural rows inserted.
-     */
-    public function upsertPluralSources(array $candidates): int;
-
-    /**
      * Render read for hash-link types (post/term/html): the produced translations
      * for a set of original hashes in one language, from that type's child table.
      * Keyed by lowercase hex(original_hash) => translated_text.
@@ -72,15 +63,6 @@ interface SourceTranslationRepository
      * @return array<string, string>
      */
     public function fetchParentTranslations(string $parentTableKey, array $lookups, string $langCode): array;
-
-    /**
-     * Render read for gettext plurals: every translated form per message in one
-     * language, keyed IdentityKey(lookup) => [form_index => translated_text].
-     *
-     * @param array<int, array<string,scalar>> $lookups singular staticText identities
-     * @return array<string, array<int, string>>
-     */
-    public function fetchPluralForms(array $lookups, string $langCode): array;
 
     // ── translation writes (admin) ─────────────────────────────────────────────
 

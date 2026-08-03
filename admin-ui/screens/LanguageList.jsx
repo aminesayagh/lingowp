@@ -94,7 +94,7 @@ export function AnimatedMenu( { open, onClose, activator, children } ) {
 						</motion.div>
 					) }
 				</AnimatePresence>,
-				document.body
+				document.getElementById( 'translangs-portals' ) || document.body
 			) }
 		</>
 	);
@@ -103,7 +103,7 @@ export function AnimatedMenu( { open, onClose, activator, children } ) {
 // One language row: flag + name, % on the right that swaps to a ⋯ menu on hover.
 // Every action is optional — only handlers that are passed produce a menu item, so
 // the same row works in the dashboard rail and inside the language manager.
-export function LanguageRow( { lang, selected, percent, aiAvailable, onSelect, onEdit, onToggleStatus, onTranslateAll, onDelete } ) {
+export function LanguageRow( { lang, selected, percent, showProgress, aiAvailable, onSelect, onEdit, onToggleStatus, onTranslateAll, onDelete } ) {
 	const [ hover, setHover ] = useState( false );
 	const [ menuOpen, setMenuOpen ] = useState( false );
 	const name = ( lang.display_name || lang.name || lang.code ) + ( lang.enabled ? '' : ' (Draft)' );
@@ -138,24 +138,26 @@ export function LanguageRow( { lang, selected, percent, aiAvailable, onSelect, o
 			<span style={ { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>
 				<Text as="span" variant="bodyMd">{ name }</Text>
 			</span>
-			<div
-				onClick={ ( e ) => e.stopPropagation() }
-				style={ { width: 36, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' } }
-			>
-				<AnimatedMenu
-					open={ menuOpen }
-					onClose={ () => setMenuOpen( false ) }
-					activator={
-						showMenu ? (
-							<Button variant="tertiary" size="micro" onClick={ () => setMenuOpen( ( o ) => ! o ) }>⋯</Button>
-						) : (
-							<Text as="span" tone="subdued" variant="bodySm">{ percent }%</Text>
-						)
-					}
+			{ ( showProgress || showMenu ) && (
+				<div
+					onClick={ ( e ) => e.stopPropagation() }
+					style={ { width: 36, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' } }
 				>
-					<ActionList items={ items } />
-				</AnimatedMenu>
-			</div>
+					<AnimatedMenu
+						open={ menuOpen }
+						onClose={ () => setMenuOpen( false ) }
+						activator={
+							showMenu ? (
+								<Button variant="tertiary" size="micro" onClick={ () => setMenuOpen( ( o ) => ! o ) }>⋯</Button>
+							) : (
+								<Text as="span" tone="subdued" variant="bodySm">{ percent }%</Text>
+							)
+						}
+					>
+						<ActionList items={ items } />
+					</AnimatedMenu>
+				</div>
+			) }
 		</div>
 	);
 }
@@ -173,6 +175,7 @@ export default function LanguageList( {
 	onDelete,
 	onAdd,
 	addLabel = '+ Add language',
+	showProgress = true,
 } ) {
 	return (
 		<BlockStack gap="300">
@@ -183,6 +186,7 @@ export default function LanguageList( {
 						lang={ lang }
 						selected={ lang.code === selectedCode }
 						percent={ lang.translated_percent ?? 0 }
+						showProgress={ showProgress }
 						aiAvailable={ aiAvailable }
 						onSelect={ onSelect ? () => onSelect( lang ) : undefined }
 						onEdit={ onEdit ? () => onEdit( lang ) : undefined }

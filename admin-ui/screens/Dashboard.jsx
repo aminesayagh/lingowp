@@ -34,8 +34,8 @@ import {
   PageIcon
 } from "@shopify/polaris-icons";
 import { api } from "../api";
-import SettingsModal from "./SettingsModal";
 import ExportImportModal from "./ExportImportModal";
+import GettextBoard from "./GettextBoard";
 import LanguageManagerModal from "./LanguageManagerModal";
 import OnboardingPage from "./OnboardingPage";
 import LanguageList, { flagEmoji } from "./LanguageList";
@@ -181,7 +181,6 @@ export default function Dashboard({
   const [overlay, setOverlay] = useState(null);
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerInitial, setManagerInitial] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportImportOpen, setExportImportOpen] = useState(false);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -198,7 +197,24 @@ export default function Dashboard({
   // Which board is showing: today's Content tree, or gettext grouped by
   // plugin/theme. Swaps the `source` param on the same collections/text-order
   // queries below — same load/search/pagination machinery, different data.
-  const [board, setBoard] = useState("content");
+  // Reflected in the URL (?board=plugins) so a refresh lands back on the same
+  // tab — same window.history/URLSearchParams approach App.jsx already uses
+  // for ?view=, no new dependency. replaceState (not pushState): switching
+  // tabs isn't a navigation step worth a back-button entry.
+  const [board, setBoard] = useState(
+    () => (new URLSearchParams(window.location.search).get("board") === "plugins" ? "plugins" : "content")
+  );
+
+  function selectBoard(next) {
+    setBoard(next);
+    const url = new URL(window.location.href);
+    if (next === "content") {
+      url.searchParams.delete("board");
+    } else {
+      url.searchParams.set("board", next);
+    }
+    window.history.replaceState({}, "", url);
+  }
 
   const autosaveToastTimerRef = useRef(null);
 
@@ -217,7 +233,7 @@ export default function Dashboard({
 
   // Open the language manager, optionally focused on a specific language.
   function openManager(code) {
-    setManagerInitial(code || null);
+    setManagerInitial(code || "new");
     setManagerOpen(true);
   }
 
@@ -420,7 +436,9 @@ export default function Dashboard({
       return res;
     },
     getNextPageParam: (last) => (last.has_more ? last.next_offset : undefined),
-    enabled: !!selectedLang,
+    // Plugins & Themes has its own board (GettextBoard) now — no need to
+    // fetch the collections-count list while that tab is active.
+    enabled: !!selectedLang && board === "content",
   });
 
   function invalidateCollections() {
@@ -626,6 +644,7 @@ export default function Dashboard({
   useEffect(() => {
     setCollapsedIds(new Set());
   }, [selectedLang]);
+
   const toggleCollapsed = useCallback((id) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
@@ -1047,7 +1066,7 @@ export default function Dashboard({
                         fullWidth
                         textAlign="left"
                         variant={board === "content" ? "primary" : "tertiary"}
-                        onClick={() => setBoard("content")}
+                        onClick={() => selectBoard("content")}
                       >
                         Content
                       </Button>
@@ -1055,7 +1074,7 @@ export default function Dashboard({
                         fullWidth
                         textAlign="left"
                         variant={board === "plugins" ? "primary" : "tertiary"}
-                        onClick={() => setBoard("plugins")}
+                        onClick={() => selectBoard("plugins")}
                       >
                         Plugins & Themes
                       </Button>
@@ -1159,7 +1178,7 @@ export default function Dashboard({
                             content: "Settings",
                             onAction: () => {
                               setPageMenuOpen(false);
-                              setSettingsOpen(true);
+                              openManager("configuration");
                             },
                           },
                           {
@@ -1195,7 +1214,14 @@ export default function Dashboard({
                 </BlockStack>
               </Box>
             </div>
-            {groupsQ.isPending ? (
+            {board === "plugins" ? (
+              <GettextBoard
+                language={selectedLang}
+                originalLabel={originalLabel}
+                translationLabel={translationLabel}
+                onConfirm={setConfirm}
+              />
+            ) : groupsQ.isPending ? (
               <Box padding="500">
                 <Spinner accessibilityLabel="Loading content" size="small" />
               </Box>
@@ -1313,7 +1339,7 @@ export default function Dashboard({
               </BlockStack>
             )}
 
-            {!groupsQ.isPending && (
+            {board === "content" && !groupsQ.isPending && (
               <>
                 <Divider />
                 <Box padding="300">
@@ -1340,11 +1366,6 @@ export default function Dashboard({
           onLanguageCreated();
         }}
       />
-      <SettingsModal
-        open={settingsOpen}
-        defaultLanguage={defaultCode}
-        onClose={() => setSettingsOpen(false)}
-      />
       <ExportImportModal
         open={exportImportOpen}
         languages={languages}
@@ -1370,6 +1391,7 @@ export default function Dashboard({
         aiAvailable={ai.available}
         onAiTranslate={translateScope}
         onPickLanguage={setSelectedLang}
+        onOpenPreview={openCanvas}
         onClose={() => setOverlay(null)}
         onSaved={(patch) => overlay && afterMutate(overlay.cid, patch)}
         hasPrev={globalIndex > 0}

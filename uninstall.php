@@ -20,18 +20,18 @@ $tables = [
     $wpdb->prefix . 'tl_post_translation',
     $wpdb->prefix . 'tl_meta_translation',
     $wpdb->prefix . 'tl_term_translation',
-    $wpdb->prefix . 'tl_static_text_translation',
     $wpdb->prefix . 'tl_html_translation',
     $wpdb->prefix . 'tl_option_translation',
-    // gettext plural (references the static text parent, so drop before it)
-    $wpdb->prefix . 'tl_static_plural_text',
     // v5 parents
     $wpdb->prefix . 'tl_post',
     $wpdb->prefix . 'tl_meta',
     $wpdb->prefix . 'tl_term',
-    $wpdb->prefix . 'tl_static_text',
     $wpdb->prefix . 'tl_html',
     $wpdb->prefix . 'tl_option',
+    // tl_static_text / tl_static_plural_text / tl_static_text_translation are
+    // deliberately NOT dropped here: gettext is now resolved from WordPress-
+    // native translation files, but existing captured data is left in place
+    // rather than destroyed.
 ];
 
 foreach ($tables as $table) {

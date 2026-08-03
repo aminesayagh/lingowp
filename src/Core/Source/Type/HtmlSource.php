@@ -6,11 +6,17 @@ use TransLangs\Core\Source\Base\SourceRecord;
 use InvalidArgumentException;
 
 /**
- * Type-5 source: a rendered-HTML unit, identified by its DOM selector and text.
- * Identity is (selector_hash, original_hash): selector_hash covers the full
- * selector so uniqueness never depends on a truncated prefix, and original_hash
- * lets the same selector hold distinct units. No WordPress content FK; source_url
- * is kept readable for administration only.
+ * Type-5 source: a rendered-HTML unit, identified by its text alone.
+ * Identity is original_hash — the same text is exactly one row regardless of
+ * how many DOM locations on the site render it, since the translation is
+ * already shared across every location via the hash-link child table; a
+ * second parent row per location would only duplicate review effort without
+ * ever producing a second translation. selector/source_url are descriptive,
+ * non-unique columns for administration (preview link, "field" display) —
+ * INSERT IGNORE leaves them at whichever location was discovered first;
+ * source_url alone is kept fresh on rediscovery (see
+ * WpDbSourceTranslationRepository::refreshHtmlSourceUrls()) so a stale
+ * preview link gets replaced rather than accumulating a second row.
  */
 final class HtmlSource extends SourceRecord
 {
@@ -90,7 +96,6 @@ final class HtmlSource extends SourceRecord
     public function identity(): array
     {
         return [
-            'selector_hash' => hash('sha256', $this->selector, true),
             'original_hash' => $this->originalHash(),
         ];
     }

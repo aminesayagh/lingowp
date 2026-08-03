@@ -50,15 +50,12 @@ foreach ((array) $rows as $r) {
 
 $expectedFks = [
     // parent -> WordPress
-    'fk_post_owner'       => $parents['tl_post'],
-    'fk_meta_owner'       => $parents['tl_meta'],
-    'fk_term_owner'       => $parents['tl_term'],
-    'fk_option_owner'     => $parents['tl_option'],
-    // parent -> parent
-    'fk_plural_owner'     => TranslationMemorySchema::pluralTable(),
+    'fk_post_owner'     => $parents['tl_post'],
+    'fk_meta_owner'     => $parents['tl_meta'],
+    'fk_term_owner'     => $parents['tl_term'],
+    'fk_option_owner'   => $parents['tl_option'],
     // child -> parent
-    'fk_meta_tr_parent'   => $parents['tl_meta'] . '_translation',
-    'fk_static_tr_parent' => $parents['tl_staticText'] . '_translation',
+    'fk_meta_tr_parent' => $parents['tl_meta'] . '_translation',
 ];
 
 foreach ($expectedFks as $name => $table) {
@@ -75,8 +72,8 @@ $verifier = new ConstraintVerifier($wpdb);
 $missing  = $verifier->findMissing(TranslationMemorySchema::expectedForeignKeys());
 tl_ok('ConstraintVerifier reports nothing missing', $missing === [], 'missing: ' . json_encode($missing));
 
-tl_ok('expectedForeignKeys() covers all seven',
-    count(TranslationMemorySchema::expectedForeignKeys()) === 7,
+tl_ok('expectedForeignKeys() covers all five',
+    count(TranslationMemorySchema::expectedForeignKeys()) === 5,
     'got ' . count(TranslationMemorySchema::expectedForeignKeys()));
 
 // ── B. Hash-link children have NO foreign key, by design ─────────────────────
@@ -114,12 +111,11 @@ function tl_index_cols(string $schema, string $table, string $index): array
 }
 
 $expectedUniq = [
-    'tl_post'       => ['post_id', 'field', 'original_hash'],
-    'tl_meta'       => ['post_id', 'meta_key_hash', 'context_hash', 'original_hash'],
-    'tl_term'       => ['term_taxonomy_id', 'field', 'original_hash'],
-    'tl_staticText' => ['source', 'reference_hash', 'original_hash'],
-    'tl_html'       => ['selector_hash', 'original_hash'],
-    'tl_option'     => ['option_id', 'option_path_hash', 'original_hash'],
+    'tl_post'   => ['post_id', 'field', 'original_hash'],
+    'tl_meta'   => ['post_id', 'meta_key_hash', 'context_hash', 'original_hash'],
+    'tl_term'   => ['term_taxonomy_id', 'field', 'original_hash'],
+    'tl_html'   => ['original_hash'],
+    'tl_option' => ['option_id', 'option_path_hash', 'original_hash'],
 ];
 
 foreach ($expectedUniq as $key => $cols) {
@@ -139,16 +135,15 @@ $metaTr = tl_index_cols($schema, $parents['tl_meta'] . '_translation', 'uniq_tra
 tl_ok('  tl_meta_translation keyed (parent_id, lang_code)', $metaTr === ['parent_id', 'lang_code'],
     'got ' . json_encode($metaTr));
 
-$statTr = tl_index_cols($schema, $parents['tl_staticText'] . '_translation', 'uniq_translation');
-tl_ok('  tl_staticText_translation includes form_index',
-    $statTr === ['parent_id', 'lang_code', 'form_index'], 'got ' . json_encode($statTr));
-
-$plural = tl_index_cols($schema, TranslationMemorySchema::pluralTable(), 'uniq_plural');
-tl_ok('  tl_staticPluralText is 1:1 with its anchor', $plural === ['static_text_id'],
-    'got ' . json_encode($plural));
-
-// idx_hash is what makes the orphan sweep's NOT EXISTS join cheap.
+// idx_hash is what makes the orphan sweep's NOT EXISTS join cheap, needed
+// wherever original_hash isn't the leftmost column of uniq_source. tl_html is
+// keyed on original_hash alone (see HtmlSource's class doc), so uniq_source
+// itself already covers the sweep's lookup there — a separate idx_hash would
+// just duplicate it.
 foreach ($expectedUniq as $key => $_) {
+    if ($key === 'tl_html') {
+        continue;
+    }
     $got = tl_index_cols($schema, $parents[$key], 'idx_hash');
     tl_ok("  {$key}.idx_hash exists (sweep depends on it)", $got === ['original_hash'],
         'got ' . json_encode($got));

@@ -10,7 +10,9 @@ import {
 } from '@shopify/polaris';
 import { useEffect, useState } from '@wordpress/element';
 import { api } from '../api';
+import GeneralConfiguration from './GeneralConfiguration';
 import LanguageList from './LanguageList';
+import SearchableLanguageSelect from './SearchableLanguageSelect';
 
 const enc = encodeURIComponent;
 const localeSlug = (locale) => locale.toLowerCase().replaceAll('_', '-');
@@ -35,6 +37,10 @@ export const AI_STYLE_PLACEHOLDER = 'Professional, clear, modern, and approachab
 // one. Stays open after save so several languages can be added/reconfigured.
 export default function LanguageManagerModal({ open, languages, catalog, defaultCode, initialCode, onClose, onChanged }) {
 	const [sel, setSel] = useState('new');
+	const [resolvedCatalog, setResolvedCatalog] = useState(catalog);
+	const [catalogStatus, setCatalogStatus] = useState('idle');
+	const [catalogReload, setCatalogReload] = useState(0);
+	const [catalogRevision, setCatalogRevision] = useState(0);
 	const isFirstLanguage = languages.length === 0;
 
 	useEffect(() => {
@@ -43,12 +49,42 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 		}
 	}, [open, initialCode]);
 
-	const current = sel === 'new' ? null : languages.find((l) => l.code === sel) || null;
-	const mode = current ? 'edit' : 'new';
+	useEffect(() => {
+		setResolvedCatalog(catalog);
+	}, [catalog]);
+
+	const isConfiguration = sel === 'configuration';
+	const current = sel === 'new' || isConfiguration ? null : languages.find((l) => l.code === sel) || null;
+	const mode = isConfiguration ? 'configuration' : current ? 'edit' : 'new';
+
+	useEffect(() => {
+		if (!open || mode !== 'new') {
+			return undefined;
+		}
+
+		let active = true;
+		setCatalogStatus('loading');
+		api.get('/languages/catalog').then((res) => {
+			if (!active) {
+				return;
+			}
+			if (!res.ok || !Array.isArray(res.catalog)) {
+				setCatalogStatus('error');
+				return;
+			}
+			setResolvedCatalog(res.catalog);
+			setCatalogRevision((revision) => revision + 1);
+			setCatalogStatus('ready');
+		});
+
+		return () => {
+			active = false;
+		};
+	}, [open, mode, catalogReload]);
 
 	// If the selected language was deleted elsewhere, fall back to the first.
 	useEffect(() => {
-		if (sel !== 'new' && !current) {
+		if (sel !== 'new' && sel !== 'configuration' && !current) {
 			setSel(languages[0]?.code || 'new');
 		}
 	}, [languages]);
@@ -76,7 +112,7 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 		<Modal
 			open={open}
 			onClose={onClose}
-			title="Configuration"
+			title="Languages"
 			large
 		>
 			<Modal.Section>
@@ -91,10 +127,20 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 							}}
 						>
 							<BlockStack gap="200">
+								<Button
+									fullWidth
+									textAlign="left"
+									variant={isConfiguration ? 'primary' : 'tertiary'}
+									onClick={() => setSel('configuration')}
+								>
+									Configuration
+								</Button>
+								<Divider />
 								<Text as="h3" variant="headingSm">Languages</Text>
 								<LanguageList
 									languages={languages}
 									selectedCode={current?.code}
+									showProgress={false}
 									onSelect={(lang) => setSel(lang.code)}
 									onToggleStatus={toggleStatus}
 									onDelete={del}
@@ -105,12 +151,17 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 					)}
 
 					<div style={{ flex: 1, minWidth: 0, paddingBlockStart: 4, paddingInline: 5 }}>
+						{isConfiguration ? (
+							<GeneralConfiguration defaultLanguage={defaultCode} />
+						) : (
 						<LanguageForm
-							key={`${sel}:${catalog?.length || 0}`}
+							key={`${sel}:${catalogRevision}:${resolvedCatalog?.length || 0}`}
 							mode={mode}
 							current={current}
 							defaultCode={defaultCode}
-							catalog={catalog}
+							catalog={mode === 'new' && catalogStatus !== 'ready' ? null : resolvedCatalog}
+							catalogError={mode === 'new' && catalogStatus === 'error'}
+							onCatalogRetry={() => setCatalogReload((reload) => reload + 1)}
 							existing={languages.map((l) => l.code)}
 							firstLanguage={isFirstLanguage}
 							onDone={(code) => {
@@ -125,6 +176,7 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 								}
 							}}
 						/>
+						)}
 					</div>
 				</div>
 			</Modal.Section>
@@ -132,20 +184,39 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 	);
 }
 
-function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLanguage = false, onDone }) {
+function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogRetry, defaultCode, existing, firstLanguage = false, onDone }) {
 	const isNew = mode === 'new';
-	const available = (catalog || []).filter(
-		(item) => item.locale !== defaultCode && !existing.includes(item.locale)
+	const localeUnavailable = (locale) => locale === defaultCode || existing.includes(locale);
+	const localeStatus = (locale) => {
+		if (locale === defaultCode) {
+			return ' — Website default';
+		}
+		return existing.includes(locale) ? ' — Already added' : '';
+	};
+	const catalogItems = catalog || [];
+	const available = catalogItems.filter((item) => !localeUnavailable(item.locale));
+	const languages = Array.from(
+		catalogItems.reduce((groups, item) => {
+			const group = groups.get(item.language) || {
+				label: item.language_name,
+				items: [],
+			};
+			group.items.push(item);
+			groups.set(item.language, group);
+			return groups;
+		}, new Map()).entries()
 	);
-	const languageChoices = Array.from(
-		new Map(available.map((item) => [item.language, item.language_name])).entries()
-	).map(([value, label]) => ({ label, value }));
-	const initialLocale = isNew ? available[0] || null : (catalog || []).find((item) => item.locale === current.code) || null;
+	const languageChoices = languages.map(([value, group]) => ({
+			label: group.label,
+			value,
+			disabled: group.items.every((item) => localeUnavailable(item.locale)),
+		}));
+	const initialLocale = isNew ? null : (catalog || []).find((item) => item.locale === current.code) || null;
 	const [language, setLanguage] = useState(initialLocale?.language || '');
 	const [code, setCode] = useState(isNew ? initialLocale?.locale || '' : current.code);
 	const [displayName, setDisplayName] = useState(isNew ? '' : current.display_name || '');
 	const [slug, setSlug] = useState(isNew ? localeSlug(initialLocale?.locale || '') : current.slug || '');
-	const [fallback, setFallback] = useState(isNew ? '' : current.fallback_language || '');
+	const [fallback, setFallback] = useState(isNew ? defaultCode : current.fallback_language || '');
 	const [aiModel, setAiModel] = useState(isNew ? 'auto' : current.ai_model || 'auto');
 	const [style, setStyle] = useState(isNew ? '' : current.ai_style || '');
 	const [direction, setDirection] = useState(isNew ? initialLocale?.direction || 'ltr' : current.direction || 'ltr');
@@ -164,23 +235,56 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 	const firstLanguageReady = code.trim() !== '' && displayName.trim() !== '' && slug.trim() !== '';
 	const showAction = firstLanguage || dirty;
 
-	const regionChoices = available
-		.filter((item) => item.language === language)
-		.map((item) => ({
-			label: regionLabel(item),
-			value: item.locale,
-		}));
+	const regionChoices = [
+		{
+			label: language ? 'Select a region' : 'Select a language first',
+			value: '',
+			disabled: true,
+		},
+		...catalogItems
+			.filter((item) => item.language === language)
+			.map((item) => ({
+				label: `${regionLabel(item)}${localeStatus(item.locale)}`,
+				value: item.locale,
+				disabled: localeUnavailable(item.locale),
+			})),
+	];
+	const defaultLanguage = catalogItems.find((item) => item.locale === defaultCode);
+	const fallbackChoices = [
+		{ label: 'None', value: '' },
+		{
+			label: `${defaultLanguage?.english_name || defaultCode} — Website default`,
+			value: defaultCode,
+		},
+		...catalogItems
+			.filter(
+				(item) =>
+					existing.includes(item.locale) &&
+					item.locale !== code &&
+					item.locale !== defaultCode
+			)
+			.map((item) => ({ label: item.english_name, value: item.locale })),
+	];
 
 	function pickLanguage(value) {
-		const choice = available.find((item) => item.language === value);
+		if (!available.some((item) => item.language === value)) {
+			return;
+		}
 		setLanguage(value);
-		pickLocale(choice?.locale || '');
+		setCode('');
+		setDisplayName('');
+		setSlug('');
+		setDirection('ltr');
 	}
 
 	function pickLocale(value) {
-		const choice = available.find((item) => item.locale === value);
+		const choice = catalogItems.find((item) => item.locale === value);
+		if (!choice || localeUnavailable(value)) {
+			return;
+		}
 		setCode(value);
-		setDirection(choice?.direction || 'ltr');
+		setDisplayName(`${choice.language_name} (${regionLabel(choice)})`);
+		setDirection(choice.direction || 'ltr');
 		setSlug(localeSlug(value));
 	}
 
@@ -211,6 +315,20 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 		}
 	}
 
+	if (isNew && catalogError) {
+		return (
+			<BlockStack gap="200">
+				<Text as="h3" variant="headingMd">Add a language</Text>
+				<Text as="p" tone="critical">
+					Could not load WordPress’s language catalog. Check the site’s outgoing connection and try again.
+				</Text>
+				<InlineStack>
+					<Button onClick={onCatalogRetry}>Retry</Button>
+				</InlineStack>
+			</BlockStack>
+		);
+	}
+
 	if (isNew && catalog === null) {
 		return <Text as="p" tone="subdued">Loading WordPress languages…</Text>;
 	}
@@ -220,7 +338,7 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingMd">Add a language</Text>
 				<Text as="p" tone="subdued">
-					No additional WordPress languages are available. Open Settings → General → Site Language once to refresh WordPress’s language catalog, then reopen this form.
+					All available WordPress languages have already been added.
 				</Text>
 			</BlockStack>
 		);
@@ -234,12 +352,13 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 			<BlockStack gap="300">
 				{isNew && (
 					<>
-						<Select
+						<SearchableLanguageSelect
 							label="Language"
 							requiredIndicator
 							options={languageChoices}
 							value={language}
 							onChange={pickLanguage}
+							placeholder="Search languages"
 						/>
 						<Select
 							label="Region"
@@ -247,22 +366,26 @@ function LanguageForm({ mode, current, catalog, defaultCode, existing, firstLang
 							options={regionChoices}
 							value={code}
 							onChange={pickLocale}
+							disabled={!language}
 						/>
 					</>
 				)}
-				<TextField label="Name" requiredIndicator value={displayName} onChange={setDisplayName} autoComplete="off" />
+				<TextField
+					label="Name"
+					requiredIndicator
+					value={displayName}
+					onChange={setDisplayName}
+					autoComplete="off"
+					disabled={isNew && !code}
+				/>
 				<TextField label="URL slug" requiredIndicator value={slug} onChange={setSlug} autoComplete="off" />
-				<Select
+				<SearchableLanguageSelect
 					label="Fallback language"
 					requiredIndicator
-					options={[
-						{ label: 'None', value: '' },
-						...(catalog || [])
-							.filter((item) => existing.includes(item.locale) && item.locale !== code)
-							.map((item) => ({ label: item.english_name, value: item.locale })),
-					]}
+					options={fallbackChoices}
 					value={fallback}
 					onChange={setFallback}
+					placeholder="Search fallback languages"
 				/>
 			</BlockStack>
 

@@ -15,14 +15,12 @@ namespace TransLangs\Discovery;
  * share one "is the scan finished?" status with a fast DB-only one.
  *
  * Each fetched URL carries CrawlRequestMarker's token, which the crawler-only
- * data-tl-skip filters registered below check for — post title/content/
- * excerpt and comments are already discovered through their own dedicated
- * paths (StructuredSourceScanner, and comments are never translatable at
- * all), so marking them to skip the HTML walk avoids re-discovering known
- * content. Gated on the crawl marker so this never touches marking-mode or
- * real visitor output. Terms are deliberately not included: get_term()/
- * get_terms() return WP_Term objects, not rendered strings, and wrapping
- * $term->name here would corrupt the value everywhere else it is used.
+ * data-tl-skip filters registered below check for — see CrawlSkipHooks for
+ * which hooks are skipped and why. Gated on the crawl marker so this never
+ * touches marking-mode or real visitor output. Terms are deliberately not
+ * included: get_term()/get_terms() return WP_Term objects, not rendered
+ * strings, and wrapping $term->name here would corrupt the value everywhere
+ * else it is used.
  */
 final class HtmlDiscoveryCrawl
 {
@@ -65,11 +63,23 @@ final class HtmlDiscoveryCrawl
         add_action('activated_plugin', [$this, 'onPluginOrThemeChanged']);
         add_action('switch_theme', [$this, 'onPluginOrThemeChanged']);
 
-        add_filter('comment_text', [$this, 'skipCommentText'], 20, 1);
         add_filter('comment_class', [$this, 'skipCommentClass'], 10, 1);
-        add_filter('the_title', [$this, 'skipInlineField'], 20, 1);
-        add_filter('get_the_excerpt', [$this, 'skipInlineField'], 20, 1);
-        add_filter('the_content', [$this, 'skipBlockField'], 20, 1);
+
+        foreach (CrawlSkipHooks::redundantWithStructuredResolvers() as $hook) {
+            add_filter($hook, [$this, 'skipInlineField'], 20, 1);
+        }
+        // Priority 20 must stay after DateResolver's own `wp_date` hook
+        // (priority 10) so this wraps whatever string DateResolver produced.
+        // Known limitation: every dynamically-computed hook shares this one
+        // priority — a future entry needing a different one would need
+        // CrawlSkipHooks::DYNAMIC to carry a priority per hook, not just a
+        // resolver name. Not worth building until a second entry needs it.
+        foreach (CrawlSkipHooks::dynamicallyComputed() as $hook) {
+            add_filter($hook, [$this, 'skipInlineField'], 20, 1);
+        }
+        foreach (CrawlSkipHooks::blockLevel() as $hook) {
+            add_filter($hook, [$this, 'skipBlockField'], 20, 1);
+        }
     }
 
     /** Kick off the first batch once, when activation requested a crawl. */
@@ -268,16 +278,6 @@ final class HtmlDiscoveryCrawl
     }
 
     // ── crawler-only skip marking ─────────────────────────────────────────────
-
-    /** @param mixed $text */
-    public function skipCommentText($text): string
-    {
-        if (!CrawlRequestMarker::isCrawlRequest()) {
-            return (string) $text;
-        }
-
-        return '<span data-tl-skip="1">' . $text . '</span>';
-    }
 
     /** @param mixed $classes */
     public function skipCommentClass($classes): array
