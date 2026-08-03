@@ -21,7 +21,7 @@ final class GettextDomainRegistry
     public const STATUS_IMPORTED         = 'imported';
     public const STATUS_TEMPLATE_PENDING = 'template_pending';
 
-    /** @return array<string, array{domain: string, type: string, locale: string, status: string, updated_at: string}> */
+    /** @return array<string, array{domain: string, type: string, locale: string, status: string, updated_at: string, source_locale: ?string}> */
     public function all(): array
     {
         $raw = json_decode((string) get_option(self::OPTION, '{}'), true);
@@ -29,22 +29,29 @@ final class GettextDomainRegistry
         return is_array($raw) ? $raw : [];
     }
 
-    /** @return array{domain: string, type: string, locale: string, status: string, updated_at: string}|null */
+    /** @return array{domain: string, type: string, locale: string, status: string, updated_at: string, source_locale: ?string}|null */
     public function get(string $type, string $domain, string $locale): ?array
     {
         return $this->all()[$this->key($type, $domain, $locale)] ?? null;
     }
 
-    public function set(string $type, string $domain, string $locale, string $status): void
+    /**
+     * $sourceLocale is set only when the installed translation came from a
+     * different locale than requested — a same-base-language fallback
+     * (fr_CA served from fr_FR) — so the admin UI can be upfront about it.
+     * Null for a native match, an import, or a manual save.
+     */
+    public function set(string $type, string $domain, string $locale, string $status, ?string $sourceLocale = null): void
     {
         $map = $this->all();
 
         $map[$this->key($type, $domain, $locale)] = [
-            'domain'     => $domain,
-            'type'       => $type,
-            'locale'     => $locale,
-            'status'     => $status,
-            'updated_at' => gmdate('Y-m-d H:i:s'),
+            'domain'        => $domain,
+            'type'          => $type,
+            'locale'        => $locale,
+            'status'        => $status,
+            'updated_at'    => gmdate('Y-m-d H:i:s'),
+            'source_locale' => $sourceLocale,
         ];
 
         update_option(self::OPTION, wp_json_encode($map));

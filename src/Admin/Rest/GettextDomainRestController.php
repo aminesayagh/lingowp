@@ -94,11 +94,12 @@ final class GettextDomainRestController
             }
 
             $rows[] = [
-                'domain' => $domain,
-                'label'  => $component['label'],
-                'type'   => $component['kind'],
-                'locale' => $locale,
-                'status' => $status,
+                'domain'        => $domain,
+                'label'         => $component['label'],
+                'type'          => $component['kind'],
+                'locale'        => $locale,
+                'status'        => $status,
+                'source_locale' => $status !== null ? ($stored['source_locale'] ?? null) : null,
             ];
         }
 
@@ -132,14 +133,17 @@ final class GettextDomainRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_UNKNOWN_DOMAIN'], 400);
         }
 
-        $found = $this->fetcher->fetch($type, $component['slug'], $component['version'], $locale);
-        if (! $found) {
+        $matchedLocale = $this->fetcher->fetch($type, $component['slug'], $component['version'], $locale);
+        if ($matchedLocale === null) {
             return rest_ensure_response(['ok' => true, 'found' => false]);
         }
 
-        $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_FOUND_ONLINE);
+        // Only recorded as a fallback when it's actually a different locale
+        // (fr_CA served from fr_FR) — a native match stores no source_locale.
+        $sourceLocale = $matchedLocale !== $locale ? $matchedLocale : null;
+        $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_FOUND_ONLINE, $sourceLocale);
 
-        return rest_ensure_response(['ok' => true, 'found' => true]);
+        return rest_ensure_response(['ok' => true, 'found' => true, 'source_locale' => $sourceLocale]);
     }
 
     public function import(WP_REST_Request $request): WP_REST_Response

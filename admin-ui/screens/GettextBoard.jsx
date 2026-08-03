@@ -229,7 +229,6 @@ export default function GettextBoard({ language, originalLabel, translationLabel
       <Divider />
       <Box padding="300">
         <InlineStack align="start" blockAlign="center">
-          <Text as="p" tone="subdued" variant="bodySm">{rows.length} of {total}</Text>
           <InlineStack align="center">
             {rowsQ.isFetchNextPageError ? (
               <Button onClick={() => rowsQ.fetchNextPage()}>Retry loading more</Button>
@@ -243,6 +242,7 @@ export default function GettextBoard({ language, originalLabel, translationLabel
               </Button>
             ) : null}
           </InlineStack>
+          <Text as="p" tone="subdued" variant="bodySm">{rows.length} of {total}</Text>
         </InlineStack>
       </Box>
     </BlockStack>
@@ -414,7 +414,6 @@ function GettextUnitList({ row, onConfirm }) {
       ))}
       <Box padding="300">
         <InlineStack align="space-between" blockAlign="center">
-          <Text as="p" tone="subdued" variant="bodySm">{units.length} of {total}</Text>
           {unitsQ.isFetchNextPageError ? (
             <Button onClick={() => unitsQ.fetchNextPage()}>Retry loading more</Button>
           ) : unitsQ.hasNextPage ? (
@@ -426,6 +425,7 @@ function GettextUnitList({ row, onConfirm }) {
               Load more
             </Button>
           ) : null}
+          <Text as="p" tone="subdued" variant="bodySm">{units.length} of {total}</Text>
         </InlineStack>
       </Box>
       <GettextOverlay

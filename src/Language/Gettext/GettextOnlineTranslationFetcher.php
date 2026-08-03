@@ -37,11 +37,19 @@ final class GettextOnlineTranslationFetcher
      * an inherent property of WordPress's own language-pack system, not
      * something this class introduces.
      *
+     * If $locale itself has no translation (a real, common case — a regional
+     * variant like fr_CA often has no dedicated community translation while
+     * fr_FR does), falls back to the same base language's most recently
+     * updated other region and installs THAT content under $locale's own
+     * target path — WordPress resolves purely by filename, so fr_CA visitors
+     * transparently get the fr_FR translation rather than the English source.
+     *
      * @param 'plugin'|'theme' $type
-     * @return bool True if a translation for this component + locale was
-     *              found and installed.
+     * @return string|null The locale whose translation was actually
+     *                      installed (== $locale, or a same-base-language
+     *                      fallback), or null if nothing was found/installed.
      */
-    public function fetch(string $type, string $slug, string $version, string $locale): bool
+    public function fetch(string $type, string $slug, string $version, string $locale): ?string
     {
         $this->maybeInstallCoreLocale($locale);
 
@@ -49,23 +57,20 @@ final class GettextOnlineTranslationFetcher
         $response = translations_api($apiType, ['slug' => $slug, 'version' => $version]);
 
         if (is_wp_error($response) || empty($response['translations']) || ! is_array($response['translations'])) {
-            return false;
+            return null;
         }
 
-        $package = '';
-        foreach ($response['translations'] as $translation) {
-            if (($translation['language'] ?? '') === $locale) {
-                $package = (string) ($translation['package'] ?? '');
-                break;
-            }
+        $match = $this->findTranslation($response['translations'], $locale);
+        if ($match === null) {
+            return null;
         }
-        if ($package === '') {
-            return false;
-        }
+        [$matchedLocale, $package] = $match;
 
-        $mo = $this->downloadMoFromPackage($package, $slug, $locale);
+        // Read the zip entry under the PACKAGE's own locale name, but write
+        // it out under the REQUESTED locale's path.
+        $mo = $this->downloadMoFromPackage($package, $slug, $matchedLocale);
         if ($mo === null) {
-            return false;
+            return null;
         }
 
         $target = $this->paths->targetPath($type, $slug, $locale);
@@ -74,10 +79,49 @@ final class GettextOnlineTranslationFetcher
         $staging = wp_tempnam(basename($target));
         if (file_put_contents($staging, $mo) === false) {
             @unlink($staging);
-            return false;
+            return null;
         }
 
-        return rename($staging, $target);
+        return rename($staging, $target) ? $matchedLocale : null;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $translations
+     * @return array{0: string, 1: string}|null [matched locale, package URL]
+     */
+    private function findTranslation(array $translations, string $locale): ?array
+    {
+        foreach ($translations as $translation) {
+            if (($translation['language'] ?? '') === $locale) {
+                return [$locale, (string) ($translation['package'] ?? '')];
+            }
+        }
+
+        // Fallback: another region of the same base language (fr_CA -> fr_FR),
+        // preferring whichever is most recently updated if more than one exists.
+        $base = $this->baseLanguage($locale);
+        $siblings = array_values(array_filter(
+            $translations,
+            fn (array $t): bool => $this->baseLanguage((string) ($t['language'] ?? '')) === $base
+        ));
+        if ($siblings === []) {
+            return null;
+        }
+
+        usort($siblings, static fn (array $a, array $b): int => strcmp(
+            (string) ($b['updated'] ?? ''),
+            (string) ($a['updated'] ?? '')
+        ));
+
+        $best = $siblings[0];
+
+        return [(string) $best['language'], (string) ($best['package'] ?? '')];
+    }
+
+    /** "fr_CA" -> "fr"; a bare "fr" stays "fr". */
+    private function baseLanguage(string $locale): string
+    {
+        return strtolower(explode('_', $locale, 2)[0]);
     }
 
     /**
