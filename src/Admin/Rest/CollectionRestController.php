@@ -2,6 +2,7 @@
 
 namespace TransLangs\Admin\Rest;
 
+use TransLangs\Admin\InstalledGettextComponentDiscovery;
 use TransLangs\Core\Source\Type\HtmlSource;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
@@ -49,7 +50,8 @@ final class CollectionRestController
 
     public function __construct(
         private SourceTranslationRepository $repo,
-        private OptionLanguageRegistry $registry
+        private OptionLanguageRegistry $registry,
+        private InstalledGettextComponentDiscovery $components
     ) {}
 
     public function register(): void
@@ -302,7 +304,7 @@ final class CollectionRestController
     private function buildPluginCollections(string $lang, string $search, array $filters = []): array
     {
         $collections = [];
-        $resolved    = $this->resolveTextDomains();
+        $resolved    = $this->components->all();
         $other       = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
 
         foreach ($this->repo->staticTextDomainSummary($lang, $search, $filters) as $row) {
@@ -946,53 +948,10 @@ final class CollectionRestController
      */
     public function unmatchedTextDomains(string $lang, string $search = ''): array
     {
-        $known   = array_keys($this->resolveTextDomains());
+        $known   = array_keys($this->components->all());
         $present = array_column($this->repo->staticTextDomainSummary($lang, $search), 'domain');
 
         return array_values(array_diff($present, $known));
-    }
-
-    /**
-     * Every installed plugin/theme's textdomain → {label, kind}, built fresh per
-     * request (cheap: a handful of plugin headers + the active theme). Domains
-     * with no match are simply absent — "Other" bucketing is the caller's job.
-     *
-     * @return array<string, array{label:string, kind:'plugin'|'theme'}>
-     */
-    private function resolveTextDomains(): array
-    {
-        if (! function_exists('get_plugins')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        }
-
-        $map = [];
-
-        foreach (get_plugins() as $pluginFile => $data) {
-            $domain = trim((string) ($data['TextDomain'] ?? ''));
-            if ($domain === '') {
-                // No TextDomain header: fall back to the plugin's own folder slug,
-                // which is what WordPress itself uses to guess a domain at load time.
-                $dir    = dirname($pluginFile);
-                $domain = $dir === '.' ? '' : $dir;
-            }
-            if ($domain === '') {
-                continue;
-            }
-            $map[$domain] = ['label' => (string) ($data['Name'] ?: $domain), 'kind' => 'plugin'];
-        }
-
-        $theme = wp_get_theme();
-        foreach (array_filter([$theme, $theme->parent()]) as $t) {
-            $domain = trim((string) $t->get('TextDomain'));
-            if ($domain === '') {
-                $domain = $t->get_stylesheet();
-            }
-            if ($domain !== '') {
-                $map[$domain] = ['label' => (string) $t->get('Name'), 'kind' => 'theme'];
-            }
-        }
-
-        return $map;
     }
 
     /**

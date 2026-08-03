@@ -17,7 +17,6 @@ use TransLangs\Core\Source\Type\OptionSource;
 use TransLangs\Core\Source\Type\PostMetaSource;
 use TransLangs\Core\Source\Type\PostSource;
 use TransLangs\Core\Source\Type\SplitPostSource;
-use TransLangs\Core\Source\Type\StaticTextSource;
 use TransLangs\Core\Source\Type\TermSource;
 use TransLangs\Core\Source\Value\SourceRef;
 use TransLangs\Core\Text\IdentityKey;
@@ -75,18 +74,22 @@ ok('locale exposes base language', LocaleNormalizer::language('pt_BR') === 'pt')
 ok('locale exposes region', LocaleNormalizer::region('pt_BR') === 'BR');
 ok('locale accepts a regionless WordPress locale', LocaleNormalizer::normalize('ar') === 'ar');
 
-// ── B. Seven classes over six kinds ──────────────────────────────────────────
+// ── B. Six classes over six kinds ────────────────────────────────────────────
 // SplitPostSource shares PostSource's kind AND its identity columns — that
 // sharing is the structural root of the post_content carry-forward gap
 // (finding A in the plan), so it is asserted here as a fact.
+//
+// staticText remains a valid SourceRef kind (tl_staticText is still read for
+// the legacy Plugins & Themes board) even though its writer value object
+// (StaticTextSource) is gone — nothing constructs new gettext rows anymore.
 
 echo "\nclass / kind counts:\n";
 
 $classes = [
     PostSource::class, SplitPostSource::class, PostMetaSource::class,
-    TermSource::class, HtmlSource::class, StaticTextSource::class, OptionSource::class,
+    TermSource::class, HtmlSource::class, OptionSource::class,
 ];
-ok('seven source classes', count($classes) === 7);
+ok('six source classes', count($classes) === 6);
 
 $kinds = ['post', 'meta', 'term', 'staticText', 'html', 'option'];
 ok('six SourceRef kinds', count($kinds) === 6);
@@ -105,7 +108,6 @@ $split = new SplitPostSource(7, 'post_content', 'Hello');
 $meta  = new PostMetaSource(7, '_yoast_wpseo_title', 'slides.0.title', 'Hello');
 $term  = new TermSource(3, 'name', 'Hello');
 $html  = new HtmlSource('body>main>h1', 'https://x.test/', 'Hello');
-$stat  = new StaticTextSource('mydomain', null, 'Hello');
 $opt   = new OptionSource(11, 'blogname', '', 'Hello');
 
 $expected = [
@@ -114,7 +116,6 @@ $expected = [
     'PostMetaSource'   => [$meta,  ['post_id', 'meta_key_hash', 'context_hash', 'original_hash']],
     'TermSource'       => [$term,  ['term_taxonomy_id', 'field', 'original_hash']],
     'HtmlSource'       => [$html,  ['original_hash']],
-    'StaticTextSource' => [$stat,  ['source', 'reference_hash', 'original_hash']],
     'OptionSource'     => [$opt,   ['option_id', 'option_path_hash', 'original_hash']],
 ];
 
@@ -153,15 +154,6 @@ ok('HtmlSource keeps an existing path-only source URL',
     (new HtmlSource('body', '/hello-world/?page=2', 'x'))->sourceUrl() === '/hello-world/?page=2');
 ok('HtmlSource converts an empty source URL to null',
     (new HtmlSource('body', '', 'x'))->sourceUrl() === null);
-
-// StaticTextSource: reference is mb-capped at 191 CHARACTERS — deliberately
-// different from HtmlSource's byte cap. Assert the asymmetry.
-ok('StaticTextSource reference = "domain|context"', $stat->reference() === 'mydomain|');
-ok('StaticTextSource empty domain becomes "default"',
-    (new StaticTextSource('', null, 'x'))->reference() === 'default|');
-$longDomain = str_repeat('é', 300);
-$ref = (new StaticTextSource($longDomain, null, 'x'))->reference();
-ok('StaticTextSource caps reference to 191 mb chars', mb_strlen($ref) === 191, 'got ' . mb_strlen($ref));
 
 // OptionSource
 ok('OptionSource option_path_hash is sha256 of the path',

@@ -3,7 +3,6 @@
 namespace TransLangs\Core\Repository;
 
 use TransLangs\Core\Source\Type\HtmlSource;
-use TransLangs\Core\Source\Type\StaticTextSource;
 use TransLangs\Core\Text\IdentityKey;
 use TransLangs\Core\Source\Base\SourceRecord;
 use TransLangs\Core\Source\Value\SourceRef;
@@ -33,6 +32,8 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     /** Parent table keys whose children are hash-linked. */
     private const HASH_LINK = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
 
+    private static ?bool $legacyStaticTextExists = null;
+
     public function __construct(private \wpdb $wpdb) {}
 
     // ── discovery write ────────────────────────────────────────────────────────
@@ -44,70 +45,6 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
             $inserted += $this->insertParents($tableKey, $group);
             if ($tableKey === 'tl_html') {
                 $this->refreshHtmlSourceUrls($group);
-            }
-        }
-
-        return $inserted;
-    }
-
-    /**
-     * Discover gettext plural messages: ensure each singular anchor exists in
-     * tl_staticText (the existing TranslatableText gate applies), then INSERT IGNORE
-     * the plural original into tl_staticPluralText, linked by static_text_id. The
-     * translated forms are written later by savePluralForm() on the anchor.
-     *
-     * @param array<int, array{domain:string, context:?string, single:string, plural:string}> $candidates
-     * @return int plural rows inserted
-     */
-    public function upsertPluralSources(array $candidates): int
-    {
-        if ($candidates === []) {
-            return 0;
-        }
-
-        // 1. Anchors first — same path (and gate) as any singular gettext string.
-        $singulars = [];
-        foreach ($candidates as $c) {
-            $single = (string) ($c['single'] ?? '');
-            if ($single !== '') {
-                $singulars[] = new StaticTextSource((string) ($c['domain'] ?? ''), $c['context'] ?? null, $single);
-            }
-        }
-        if ($singulars !== []) {
-            $this->upsertSources($singulars);
-        }
-
-        // 2. Link each plural original to its now-present anchor.
-        $plural   = TranslationMemorySchema::pluralTable();
-        $now      = current_time('mysql');
-        $inserted = 0;
-
-        foreach ($candidates as $c) {
-            $single     = (string) ($c['single'] ?? '');
-            $pluralText = (string) ($c['plural'] ?? '');
-            if ($single === '' || !TranslatableText::isTranslatable($pluralText)) {
-                continue;
-            }
-
-            $anchor   = new StaticTextSource((string) ($c['domain'] ?? ''), $c['context'] ?? null, $single);
-            $anchorId = $this->staticTextIdByIdentity($anchor->identity());
-            if ($anchorId === null) {
-                continue; // singular was rejected by the gate
-            }
-
-            $result = $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
-                "INSERT IGNORE INTO {$plural}
-                    (static_text_id, original_hash, original_text, status, created_at, updated_at)
-                 VALUES (%d, UNHEX(%s), %s, %d, %s, %s)",
-                $anchorId,
-                bin2hex(TL_Key::currentHash($pluralText)),
-                $pluralText,
-                TranslationStatus::SOURCE_DISCOVERED,
-                $now,
-                $now
-            ));
-            if (is_int($result) && $result > 0) {
-                $inserted += $result;
             }
         }
 
@@ -273,11 +210,6 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         $select  = $this->selectIdentity($columns);
         $out     = [];
 
-        // staticText children carry a form_index (gettext plurals). Singular
-        // resolution must read the base form (0); without this a msgid used as both
-        // __() and _n() could return an arbitrary plural form.
-        $formFilter = $parentTableKey === 'tl_staticText' ? ' AND tr.form_index = 0' : '';
-
         foreach (array_chunk($lookups, self::SELECT_CHUNK) as $chunk) {
             $tuples = [];
             $args   = [$langCode];
@@ -292,62 +224,13 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
 
             $sql = "SELECT {$select}, tr.translated_text AS tl_text
                     FROM {$parent} p
-                    INNER JOIN {$child} tr ON tr.parent_id = p.id AND tr.lang_code = %s{$formFilter}
-                    WHERE p.status = 0 AND {$tupleList}";
-
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
-            foreach ((array) $rows as $row) {
-                $out[$this->rowIdentityKey($columns, $row)] = (string) $row['tl_text'];
-            }
-        }
-
-        return $out;
-    }
-
-    /**
-     * Render read for gettext plurals: every translated form of each message in one
-     * language, keyed IdentityKey(lookup) => [form_index => translated_text]. The
-     * lookups are the singular staticText identities (the anchor); the caller picks
-     * the form with PluralRules::indexFor($lang, $number).
-     *
-     * @param array<int, array<string,scalar>> $lookups singular staticText identities
-     * @return array<string, array<int, string>>
-     */
-    public function fetchPluralForms(array $lookups, string $langCode): array
-    {
-        if ($lookups === [] || $langCode === '') {
-            return [];
-        }
-
-        $parent  = $this->parent('tl_staticText');
-        $child   = $parent . '_translation';
-        $columns = array_keys($lookups[0]);
-        $select  = $this->selectIdentity($columns);
-        $out     = [];
-
-        foreach (array_chunk($lookups, self::SELECT_CHUNK) as $chunk) {
-            $tuples = [];
-            $args   = [$langCode];
-            foreach ($chunk as $lookup) {
-                $cells = [];
-                foreach ($columns as $column) {
-                    $cells[] = $this->cell($column, $lookup[$column], $args);
-                }
-                $tuples[] = '(' . implode(', ', $cells) . ')';
-            }
-            $tupleList = '(' . implode(', ', $columns) . ') IN (' . implode(', ', $tuples) . ')';
-
-            $sql = "SELECT {$select}, tr.form_index AS form_index, tr.translated_text AS tl_text
-                    FROM {$parent} p
                     INNER JOIN {$child} tr ON tr.parent_id = p.id AND tr.lang_code = %s
                     WHERE p.status = 0 AND {$tupleList}";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
             $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
             foreach ((array) $rows as $row) {
-                $key                              = $this->rowIdentityKey($columns, $row);
-                $out[$key][(int) $row['form_index']] = (string) $row['tl_text'];
+                $out[$this->rowIdentityKey($columns, $row)] = (string) $row['tl_text'];
             }
         }
 
@@ -662,7 +545,11 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     /** @inheritDoc */
     public function staticTextDomainSummary(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_staticText');
+        if (! $this->legacyStaticTextExists()) {
+            return [];
+        }
+
+        $parent = TranslationMemorySchema::legacyStaticTextTable();
         $child  = $parent . '_translation';
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
@@ -699,7 +586,11 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     /** @inheritDoc */
     public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_staticText');
+        if (! $this->legacyStaticTextExists()) {
+            return [];
+        }
+
+        $parent = TranslationMemorySchema::legacyStaticTextTable();
         $child  = $parent . '_translation';
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
@@ -1777,20 +1668,23 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return in_array($tableKey, self::HASH_LINK, true);
     }
 
-    /** Resolve a tl_staticText parent id from its identity columns, or null. */
-    private function staticTextIdByIdentity(array $identity): ?int
+    /**
+     * Whether wp_tl_static_text still exists — no longer created for fresh
+     * installs (see TranslationMemorySchema), so the Plugins & Themes board's
+     * legacy read paths must not assume it's there. Memoized: the answer
+     * cannot change within a request.
+     */
+    private function legacyStaticTextExists(): bool
     {
-        $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare(
-                'SELECT id FROM ' . $this->parent('tl_staticText') . '
-                 WHERE source = %s AND reference_hash = UNHEX(%s) AND original_hash = UNHEX(%s)',
-                (string) $identity['source'],
-                bin2hex((string) $identity['reference_hash']),
-                bin2hex((string) $identity['original_hash'])
-            )
-        );
+        if (self::$legacyStaticTextExists === null) {
+            $table = TranslationMemorySchema::legacyStaticTextTable();
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            self::$legacyStaticTextExists = (bool) $this->wpdb->get_var(
+                $this->wpdb->prepare('SHOW TABLES LIKE %s', $table)
+            );
+        }
 
-        return ($value !== null && (int) $value > 0) ? (int) $value : null;
+        return self::$legacyStaticTextExists;
     }
 
     /** Lowercase hex of a parent's original_hash, or null if the parent is gone. */

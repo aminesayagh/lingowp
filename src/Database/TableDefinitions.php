@@ -120,52 +120,6 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    /** wp_tl_static_text — identity (source, reference_hash, original_hash). No content FK. */
-    public static function staticText(string $table, string $charsetCollate): string
-    {
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    source                 varchar(20)      NOT NULL,
-    reference              varchar(191)     NOT NULL,
-    reference_hash         binary(32)       NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (source, reference_hash, original_hash),
-    KEY idx_hash (original_hash),
-    KEY idx_queue (status, id)
-) ENGINE=InnoDB {$charsetCollate}";
-    }
-
-    /**
-     * wp_tl_static_plural_text — the plural form (msgid_plural) of a gettext message,
-     * 1:1 with its singular tl_staticText anchor. Holds only the plural ORIGINAL;
-     * the translated forms live on the anchor in tl_staticText_translation, keyed
-     * by form_index. Exists so the admin board can show the plural string and flag
-     * the message as plural — render never reads it (WordPress hands us $plural live
-     * on the ngettext filter).
-     */
-    public static function staticPluralText(string $table, string $staticTextTable, string $charsetCollate): string
-    {
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    static_text_id         bigint unsigned  NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_plural (static_text_id),
-    KEY idx_queue (status, id),
-    CONSTRAINT fk_plural_owner FOREIGN KEY (static_text_id)
-        REFERENCES {$staticTextTable} (id) ON DELETE CASCADE
-) ENGINE=InnoDB {$charsetCollate}";
-    }
-
     /**
      * wp_tl_html — identity is original_hash alone. No content FK.
      *
@@ -225,12 +179,8 @@ final class TableDefinitions
     }
 
     /**
-     * parent_id child (meta, staticText): one translation per (parent_id,
-     * lang_code). The position owns its translation; parent deletion cascades.
-     *
-     * The staticText child additionally carries form_index (gettext plural form
-     * 0..N-1): singular strings stay at 0, a plural message stores all its forms on
-     * the same anchor. $withFormIndex adds the column and widens the unique key.
+     * parent_id child (meta): one translation per (parent_id, lang_code). The
+     * position owns its translation; parent deletion cascades.
      *
      * @param string $fkName unique FK constraint name for this child→parent link
      */
@@ -238,27 +188,19 @@ final class TableDefinitions
         string $table,
         string $parentTable,
         string $fkName,
-        string $charsetCollate,
-        bool $withFormIndex = false
+        string $charsetCollate
     ): string {
-        $formIndexCol = $withFormIndex
-            ? "    form_index      tinyint unsigned NOT NULL DEFAULT 0,\n"
-            : '';
-        $uniqueKey = $withFormIndex
-            ? 'UNIQUE KEY uniq_translation (parent_id, lang_code, form_index)'
-            : 'UNIQUE KEY uniq_translation (parent_id, lang_code)';
-
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id              bigint unsigned  NOT NULL AUTO_INCREMENT,
     parent_id       bigint unsigned  NOT NULL,
     lang_code       varchar(20)      NOT NULL,
-{$formIndexCol}    translated_text longtext         NOT NULL,
+    translated_text longtext         NOT NULL,
     status          tinyint          NOT NULL DEFAULT 1,
     provider        varchar(50)      NULL,
     created_at      datetime         NOT NULL,
     updated_at      datetime         NOT NULL,
     PRIMARY KEY (id),
-    {$uniqueKey},
+    UNIQUE KEY uniq_translation (parent_id, lang_code),
     KEY idx_queue (lang_code, status, id),
     CONSTRAINT {$fkName} FOREIGN KEY (parent_id)
         REFERENCES {$parentTable} (id) ON DELETE CASCADE

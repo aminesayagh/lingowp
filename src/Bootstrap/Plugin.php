@@ -3,6 +3,7 @@
 namespace TransLangs\Bootstrap;
 
 use TransLangs\Admin\AdminAssets;
+use TransLangs\Admin\InstalledGettextComponentDiscovery;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Application\SourceLanguageTransition;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
@@ -24,7 +25,6 @@ use TransLangs\Seo\SeoHeadTranslator;
 use TransLangs\Rendering\RequestContext;
 use TransLangs\Rendering\Primary\StructuredRenderResolver;
 use TransLangs\Core\Parsing\TranslationUnitCodec;
-use TransLangs\Discovery\StaticText\GettextCaptureWorker;
 use TransLangs\Discovery\HtmlDiscovery;
 use TransLangs\Discovery\HtmlDiscoveryCrawl;
 use TransLangs\Discovery\InitialDiscoveryScan;
@@ -55,6 +55,11 @@ use TransLangs\Admin\Rest\TranslationRestController;
 use TransLangs\Admin\Rest\AiTranslationController;
 use TransLangs\Admin\Rest\ScanRestController;
 use TransLangs\Admin\Rest\ExportImportRestController;
+use TransLangs\Admin\Rest\GettextDomainRestController;
+use TransLangs\Language\Gettext\GettextDomainRegistry;
+use TransLangs\Language\Gettext\GettextOnlineTranslationFetcher;
+use TransLangs\Language\Gettext\GettextPoImporter;
+use TransLangs\Language\Gettext\GettextTemplateGenerator;
 
 class Plugin
 {
@@ -136,8 +141,9 @@ class Plugin
         // v5 structured render: post/term by text hash, meta by location.
         (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes))->register();
 
-        // gettext: resolve + render-time discovery (Tier-1 ownership-gated).
-        (new GettextResolver($languageResolver, $context, $sourceRepository, $pageOwnedHashes))->register();
+        // gettext: WordPress-native resolution via switch_to_locale() —
+        // no filters, no DB, no runtime discovery.
+        (new GettextResolver($languageResolver, $context))->register();
 
         // Branding: translate site name + tagline at display time (never at option read).
         (new OptionResolver($languageResolver, $context, $sourceRepository))->register();
@@ -154,10 +160,6 @@ class Plugin
         // format using the site's own locale/settings rather than the
         // visitor's target language — same bug shape as dates, same fix.
         (new NumberResolver($languageResolver, $context))->register();
-
-        // Off-request writer for discovered gettext strings (Action Scheduler job,
-        // Tier-2 ownership-gated).
-        (new GettextCaptureWorker($sourceRepository, $ownedStringIndex))->register();
 
         // Output buffer: hardcoded-HTML REPLACE pass (block units), the SEO <head>
         // pass (same DOM, one parse), and link rewriting.
@@ -195,12 +197,21 @@ class Plugin
             (new OnboardingRestController($backendClient, $connection, $siteMetadata, $languageRegistry, $connectionStatus))->register();
             (new ConnectionRestController($backendClient, $connection, $siteMetadata, $connectionStatus))->register();
             (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
-            $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry);
+            $gettextComponents     = new InstalledGettextComponentDiscovery();
+            $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry, $gettextComponents);
             $collectionsController->register();
             (new TranslationRestController($sourceRepository, $languageRegistry, $collectionsController))->register();
             (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController))->register();
             (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
             (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
+            (new GettextDomainRestController(
+                $gettextComponents,
+                new GettextDomainRegistry(),
+                $languageRegistry,
+                new GettextOnlineTranslationFetcher(),
+                new GettextPoImporter(),
+                new GettextTemplateGenerator()
+            ))->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).
             (new SiteMetadataSyncJob($backendClient, $connection, $siteMetadata))->register();
