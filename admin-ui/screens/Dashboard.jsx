@@ -31,6 +31,8 @@ import {
   useState,
 } from "@wordpress/element";
 import {
+  CheckIcon,
+  DuplicateIcon,
   PageIcon
 } from "@shopify/polaris-icons";
 import { api } from "../api";
@@ -844,6 +846,11 @@ export default function Dashboard({
     langLabel(defaultLanguage) || codeName(defaultCode) || "Original";
   const translationLabel =
     langLabel(languages.find((l) => l.code === selectedLang)) || "Translation";
+  const sourceFlag = flagEmoji(
+    typeof defaultLanguage === "object" && defaultLanguage
+      ? defaultLanguage
+      : { code: defaultCode }
+  );
 
   const choices = (items) =>
     items.map((item) => ({ label: item.label, value: item.key }));
@@ -1219,6 +1226,11 @@ export default function Dashboard({
                 language={selectedLang}
                 originalLabel={originalLabel}
                 translationLabel={translationLabel}
+                sourceLabel={originalLabel}
+                sourceFlag={sourceFlag}
+                languages={languages}
+                aiAvailable={ai.available}
+                onPickLanguage={setSelectedLang}
                 onConfirm={setConfirm}
               />
             ) : groupsQ.isPending ? (
@@ -1380,11 +1392,7 @@ export default function Dashboard({
         collectionId={overlay?.cid}
         languages={languages}
         sourceLabel={originalLabel}
-        sourceFlag={flagEmoji(
-          typeof defaultLanguage === "object" && defaultLanguage
-            ? defaultLanguage
-            : { code: defaultCode }
-        )}
+        sourceFlag={sourceFlag}
         targetDir={
           languages.find((l) => l.code === selectedLang)?.direction || "ltr"
         }
@@ -1776,6 +1784,8 @@ function TextUnitRow({
   const [draft, setDraft] = useState(unit.translated ?? "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [originalHovered, setOriginalHovered] = useState(false);
+  const [copiedOriginal, setCopiedOriginal] = useState(false);
 
   const shown = unit.translated ?? unit.fallback;
   const hasTranslation =
@@ -1833,6 +1843,12 @@ function TextUnitRow({
     if (res.ok) {
       onMutate(res);
     }
+  }
+
+  async function copyOriginal() {
+    await navigator.clipboard.writeText(originalText);
+    setCopiedOriginal(true);
+    setTimeout(() => setCopiedOriginal(false), 1500);
   }
 
   async function doStatus(action) {
@@ -1929,17 +1945,41 @@ function TextUnitRow({
           wrap={false}
         >
           <Box width="42%" minWidth="0">
-            <button
-              ref={originalRef}
-              type="button"
-              onClick={clickable ? () => onOpenOverlay(unit) : undefined}
-              disabled={!clickable}
-              style={{ ...oneLineStyle, cursor: clickable ? "pointer" : "default" }}
+            <div
+              onMouseEnter={() => setOriginalHovered(true)}
+              onMouseLeave={() => setOriginalHovered(false)}
+              style={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}
             >
-              <Text as="span" variant="bodySm">
-                {originalText}
-              </Text>
-            </button>
+              <button
+                ref={originalRef}
+                type="button"
+                onClick={clickable ? () => onOpenOverlay(unit) : undefined}
+                disabled={!clickable}
+                style={{ ...oneLineStyle, flex: 1, minWidth: 0, cursor: clickable ? "pointer" : "default" }}
+              >
+                <Text as="span" variant="bodySm">
+                  {originalText}
+                </Text>
+              </button>
+              <div
+                style={{
+                  opacity: originalHovered ? 1 : 0,
+                  visibility: originalHovered ? "visible" : "hidden",
+                  transition: "opacity 120ms ease",
+                  flexShrink: 0,
+                }}
+              >
+                <Tooltip content={copiedOriginal ? "Copied!" : "Copy to clipboard"}>
+                  <Button
+                    size="micro"
+                    variant="tertiary"
+                    icon={copiedOriginal ? CheckIcon : DuplicateIcon}
+                    accessibilityLabel="Copy original to clipboard"
+                    onClick={copyOriginal}
+                  />
+                </Tooltip>
+              </div>
+            </div>
           </Box>
 
           <Box width="42%" minWidth="0">

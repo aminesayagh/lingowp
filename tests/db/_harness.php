@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-const TL_EXPECTED_DB_VERSION = '20';
+const TL_EXPECTED_DB_VERSION = '23';
 
 $GLOBALS['tl_failed']    = 0;
 $GLOBALS['tl_total']     = 0;
@@ -37,11 +37,12 @@ function tl_guard(): void
 {
     $problems = [];
 
-    if (!defined('DB_NAME') || DB_NAME !== 'local') {
-        $problems[] = 'DB_NAME is ' . (defined('DB_NAME') ? DB_NAME : '(undefined)') . ', expected "local"';
-    }
-    if (function_exists('wp_get_environment_type') && wp_get_environment_type() === 'production') {
-        $problems[] = 'environment type is production';
+    // WP_ENVIRONMENT_TYPE, not a literal DB_NAME match: the docker-compose
+    // blueprint names the DB from .env's MYSQL_DATABASE, which varies per
+    // machine — the portable, project-provided "this is not prod" signal is
+    // the environment type, which the stack already sets to 'development'.
+    if (!function_exists('wp_get_environment_type') || wp_get_environment_type() === 'production') {
+        $problems[] = 'environment type is ' . (function_exists('wp_get_environment_type') ? wp_get_environment_type() : '(unavailable)') . ', refusing to run outside a non-production environment';
     }
 
     // maybeUpgrade() runs DDL when the stored version is lower than DB_VERSION,

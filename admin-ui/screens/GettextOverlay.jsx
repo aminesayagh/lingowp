@@ -1,19 +1,41 @@
-import { Button, ButtonGroup, InlineStack, Modal, Text } from "@shopify/polaris";
-import { ChevronLeftIcon, ChevronRightIcon } from "@shopify/polaris-icons";
+import {
+  ActionList,
+  Button,
+  ButtonGroup,
+  Icon,
+  InlineStack,
+  Modal,
+  Popover,
+  Text,
+  Tooltip,
+} from "@shopify/polaris";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DuplicateIcon,
+  MagicIcon,
+} from "@shopify/polaris-icons";
 import { useEffect, useRef, useState } from "@wordpress/element";
 import { api } from "../api";
+import { flagEmoji } from "./LanguageList";
 
 /*
  * Gettext string editor overlay — same two-pane shell as Content's
  * CompareOverlay (original read-only left, editable translation right,
- * prev/next through the current list), trimmed for what a gettext string
- * actually needs: no language picker (the board is already scoped to one
- * working language), no AI translate, no composed/chip editing (gettext
+ * prev/next through the current list), including its header chrome: a
+ * flag+name on each pane, AI translate + copy-original on the left, a
+ * language-switch popover on the right. No composed/chip editing (gettext
  * strings are plain text, never HTML with markers).
  */
 
 const PANE_HEIGHT = "min(62vh, 620px)";
 const PANE_CLASS = "flex-1 min-w-0 flex flex-col gap-2 px-4 py-3";
+// Polaris' Modal dialog sits at a z-index (519) above a Tooltip's own portal
+// (400) — inside a Modal a Tooltip renders but paints behind it unless
+// explicitly overridden higher than the dialog.
+const TOOLTIP_Z_INDEX = 1000;
 
 const textareaStyle = (muted) => ({
   all: "unset",
@@ -28,10 +50,13 @@ const textareaStyle = (muted) => ({
   color: muted ? "var(--p-color-text-subdued)" : "var(--p-color-text)",
 });
 
-function PaneHeader({ children }) {
+function PaneHeader({ left, right }) {
   return (
     <div style={{ display: "grid", alignItems: "center", height: "24px", minHeight: "24px", flex: "0 0 24px" }}>
-      {children}
+      <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
+        {left}
+        {right}
+      </InlineStack>
     </div>
   );
 }
@@ -42,6 +67,11 @@ export default function GettextOverlay({
   row,
   domainLabel,
   locale,
+  sourceLabel = "Original",
+  sourceFlag = "",
+  languages = [],
+  aiAvailable,
+  onPickLanguage,
   onClose,
   onSaved,
   onPrev,
@@ -52,6 +82,9 @@ export default function GettextOverlay({
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(0);
+  const [translating, setTranslating] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const savedRef = useRef("");
 
   useEffect(() => {
@@ -66,8 +99,8 @@ export default function GettextOverlay({
     return null;
   }
 
-  async function flush() {
-    if (text === savedRef.current) {
+  async function persist(value) {
+    if (value === savedRef.current) {
       return;
     }
     setSaving(true);
@@ -77,20 +110,53 @@ export default function GettextOverlay({
       locale,
       msgid: unit.msgid,
       context: unit.context,
-      msgstr: text,
+      msgstr: value,
     });
     setSaving(false);
     if (res.ok) {
-      savedRef.current = text;
+      savedRef.current = value;
       setSavedTick((t) => t + 1);
-      onSaved(text);
+      onSaved(value);
     }
+  }
+
+  async function flush() {
+    await persist(text);
   }
 
   async function withFlush(fn) {
     await flush();
     fn();
   }
+
+  async function translate() {
+    setTranslating(true);
+    const res = await api.post("/gettext-domains/translate-unit", {
+      type: row.type,
+      domain: row.domain,
+      locale,
+      msgid: unit.msgid,
+      context: unit.context,
+    });
+    setTranslating(false);
+    if (res.ok) {
+      setText(res.msgstr);
+      savedRef.current = res.msgstr;
+      setSavedTick((t) => t + 1);
+      onSaved(res.msgstr);
+    }
+  }
+
+  async function copyOriginal() {
+    await navigator.clipboard.writeText(unit.msgid);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const targetLang = languages.find((l) => l.code === locale);
+  const targetLabel = targetLang?.display_name || targetLang?.name || locale;
+  const targetFlag = flagEmoji(targetLang || { code: locale, locale });
+  const matchesOriginal = text === unit.msgid;
 
   const header = (
     <InlineStack align="center" gap="300" blockAlign="center" wrap={false}>
@@ -118,27 +184,110 @@ export default function GettextOverlay({
     <Modal open={open} onClose={() => withFlush(onClose)} title={header} size="large" noScroll>
       <div style={{ display: "flex", height: PANE_HEIGHT, alignItems: "stretch" }}>
         <div className={PANE_CLASS}>
-          <PaneHeader>
-            <Text as="span" variant="headingXs" tone="subdued">Original</Text>
-          </PaneHeader>
+          <PaneHeader
+            left={
+              <InlineStack gap="150" blockAlign="center" wrap={false}>
+                <span className="text-base leading-none">{sourceFlag}</span>
+                <Text as="span" variant="headingXs" tone="subdued">
+                  {sourceLabel}
+                </Text>
+              </InlineStack>
+            }
+            right={
+              <InlineStack gap="100" blockAlign="center" wrap={false}>
+                <Tooltip
+                  zIndexOverride={TOOLTIP_Z_INDEX}
+                  content={aiAvailable ? "Translate with AI" : "AI translation is not available"}
+                >
+                  <Button
+                    size="micro"
+                    icon={MagicIcon}
+                    disabled={!aiAvailable}
+                    loading={translating}
+                    onClick={translate}
+                  >
+                    Translate
+                  </Button>
+                </Tooltip>
+                <Tooltip
+                  zIndexOverride={TOOLTIP_Z_INDEX}
+                  content={
+                    copied
+                      ? "Copied!"
+                      : matchesOriginal
+                        ? "Translation already matches the original"
+                        : "Copy original to clipboard"
+                  }
+                >
+                  <Button
+                    size="micro"
+                    variant="tertiary"
+                    icon={copied ? CheckIcon : DuplicateIcon}
+                    disabled={matchesOriginal}
+                    accessibilityLabel="Copy original to clipboard"
+                    onClick={copyOriginal}
+                  />
+                </Tooltip>
+              </InlineStack>
+            }
+          />
           <div style={textareaStyle(false)}>{unit.msgid}</div>
         </div>
 
         <div style={{ width: 1, background: "var(--p-color-border)" }} />
 
         <div className={PANE_CLASS}>
-          <PaneHeader>
-            <InlineStack align="space-between" blockAlign="center" wrap={false}>
-              <Text as="span" variant="headingXs" tone="subdued">{locale}</Text>
+          <PaneHeader
+            left={
+              <Popover
+                active={langOpen}
+                onClose={() => setLangOpen(false)}
+                activator={
+                  <button
+                    type="button"
+                    onClick={() => setLangOpen((o) => !o)}
+                    style={{
+                      all: "unset",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span className="text-base leading-none">{targetFlag}</span>
+                    <Text as="span" variant="headingXs" tone="subdued">
+                      {targetLabel}
+                    </Text>
+                    <span className="w-3.5 h-3.5">
+                      <Icon source={ChevronDownIcon} tone="subdued" />
+                    </span>
+                  </button>
+                }
+              >
+                <ActionList
+                  items={languages.map((l) => ({
+                    content: l.display_name || l.name || l.code,
+                    active: l.code === locale,
+                    onAction: () =>
+                      withFlush(() => {
+                        setLangOpen(false);
+                        onPickLanguage(l.code);
+                      }),
+                  }))}
+                />
+              </Popover>
+            }
+            right={
               <Text as="span" variant="bodyXs" tone="subdued">
                 {saving ? "Saving…" : savedTick > 0 ? "Saved" : ""}
               </Text>
-            </InlineStack>
-          </PaneHeader>
+            }
+          />
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             onBlur={flush}
+            placeholder={unit.msgid}
             aria-label="Translation"
             style={{ ...textareaStyle(false), resize: "none" }}
           />

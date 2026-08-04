@@ -32,6 +32,7 @@
             "@php tests/option_gate_check.php",
             "@php tests/unit_structure_guard_check.php",
             "@php tests/seo_var_guard_check.php",
+            "@php tests/fallback_chain_check.php",
             "@php bin/check-split-field.php"
         ],
         "test:db": [
@@ -39,7 +40,8 @@
             "wp eval-file tests/db/option_pipeline_it.php",
             "wp eval-file tests/db/reconcile_it.php",
             "wp eval-file tests/db/board_search_it.php",
-            "wp eval-file tests/db/orphan_sweep_it.php"
+            "wp eval-file tests/db/orphan_sweep_it.php",
+            "wp eval-file tests/db/fallback_language_it.php"
         ],
         "security": "sh -c 'rc=0; for t in phpcs deps secrets semgrep; do echo \"--- $t ---\"; composer run --no-interaction security:$t || rc=1; done; exit $rc'",
         "security:phpcs": "phpcs --report-summary --report-full=security-reports/phpcs-full.log --report-source=security-reports/phpcs-sniffs.log --report-json=security-reports/phpcs.json --no-colors",

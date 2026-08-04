@@ -118,9 +118,11 @@ final class LanguageRestController
             $catalog = $refreshed[$code] ?? null;
         }
 
-        $slug = sanitize_title((string) ($request->get_param('slug') ?: $code));
+        $slug     = sanitize_title((string) ($request->get_param('slug') ?: $code));
+        $fallback = LocaleNormalizer::normalize((string) $request->get_param('fallback_language'));
         if (
             $code === '' || $catalog === null || !$this->slugAvailable($slug)
+            || !$this->fallbackAvailable($fallback, $code)
         ) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
@@ -138,7 +140,7 @@ final class LanguageRestController
             'name'              => $catalog['english_name'],
             'display_name'      => (string) $request->get_param('display_name'),
             'slug'              => $slug,
-            'fallback_language' => LocaleNormalizer::normalize((string) $request->get_param('fallback_language')),
+            'fallback_language' => $fallback,
             'ai_style'          => (string) $request->get_param('ai_style'),
             'ai_model'          => (string) ($request->get_param('ai_model') ?: 'auto'),
             'direction'         => $catalog['direction'],
@@ -180,10 +182,17 @@ final class LanguageRestController
         $entry['code'] = $code;
         foreach ($editable as $field) {
             $value = $request->get_param($field);
-            if ($value !== null) {
-                $entry[$field] = $field === 'fallback_language'
-                    ? LocaleNormalizer::normalize((string) $value)
-                    : (string) $value;
+            if ($value === null) {
+                continue;
+            }
+            if ($field === 'fallback_language') {
+                $fallback = LocaleNormalizer::normalize((string) $value);
+                if (!$this->fallbackAvailable($fallback, $code)) {
+                    return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+                }
+                $entry[$field] = $fallback;
+            } else {
+                $entry[$field] = (string) $value;
             }
         }
         $slug = $request->get_param('slug');
@@ -238,6 +247,17 @@ final class LanguageRestController
         do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
 
         return rest_ensure_response(['ok' => true]);
+    }
+
+    /** A fallback is valid if empty, or if it points at the default language or an already-added one, and not at itself. */
+    private function fallbackAvailable(string $fallback, string $code): bool
+    {
+        if ($fallback === '') {
+            return true;
+        }
+
+        return $fallback !== $code
+            && ($fallback === $this->registry->getDefaultLanguage() || $this->store->has($fallback));
     }
 
     private function slugAvailable(string $slug, string $exceptCode = ''): bool

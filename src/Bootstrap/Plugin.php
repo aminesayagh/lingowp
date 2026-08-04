@@ -39,6 +39,7 @@ use TransLangs\Discovery\StructuredSourceScanner;
 use TransLangs\Database\OrphanTranslationSweep;
 use TransLangs\Database\SourceLanguageSnapshot;
 use TransLangs\Database\TranslationMemorySchema;
+use TransLangs\Api\AiQuotaService;
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\BackendEndpointResolver;
 use TransLangs\Api\ConnectionRepository;
@@ -141,14 +142,14 @@ class Plugin
         $htmlCrawl->register();
 
         // v5 structured render: post/term by text hash, meta by location.
-        (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes))->register();
+        (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes, $languageRegistry))->register();
 
         // gettext: WordPress-native resolution via switch_to_locale() —
         // no filters, no DB, no runtime discovery.
         (new GettextResolver($languageResolver, $context))->register();
 
         // Branding: translate site name + tagline at display time (never at option read).
-        (new OptionResolver($languageResolver, $context, $sourceRepository))->register();
+        (new OptionResolver($languageResolver, $context, $sourceRepository, $languageRegistry))->register();
 
         // Dates: hooks wp_date() (the one function get_the_date(), date_i18n(),
         // and a block theme's core Post Date block all funnel through) and
@@ -172,7 +173,8 @@ class Plugin
             $sourceRepository,
             $htmlRenderer,
             $htmlDiscovery,
-            new SeoHeadTranslator($sourceRepository)
+            new SeoHeadTranslator($sourceRepository),
+            $languageRegistry
         ))->register();
 
         // Onboarding / backend connection. Never loaded on a public visitor page
@@ -191,6 +193,7 @@ class Plugin
             $siteMetadata     = new SiteMetadataProvider($languageRegistry);
             $languageMetadata = new LanguageMetadataStore();
             $connectionStatus = new ConnectionStatus($backendClient, $connection);
+            $aiQuota          = new AiQuotaService($backendClient);
 
             // Active AI-availability health check (recurring while connected).
             $connectionStatus->register();
@@ -203,7 +206,7 @@ class Plugin
             $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry, $gettextComponents);
             $collectionsController->register();
             (new TranslationRestController($sourceRepository, $languageRegistry, $collectionsController))->register();
-            (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController))->register();
+            (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController, $aiQuota))->register();
             (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
             (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
             $gettextImporter = new GettextPoImporter();
@@ -213,7 +216,10 @@ class Plugin
                 $languageRegistry,
                 new GettextOnlineTranslationFetcher($gettextImporter),
                 $gettextImporter,
-                new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore())
+                new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore()),
+                $backendClient,
+                $languageMetadata,
+                $aiQuota
             ))->register();
 
             // Background site-metadata sync (job runs off-request via Action Scheduler).
