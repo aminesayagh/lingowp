@@ -2,7 +2,6 @@
 
 namespace TransLangs\Discovery;
 
-use TransLangs\Core\Parsing\SeoTemplateVariables;
 use TransLangs\Core\Source\Type\TranslatableMetaKeys;
 
 /**
@@ -38,6 +37,28 @@ final class SeoDiscoveryRescan
         'wordpress-seo-premium/wp-seo-premium.php',
         'seo-by-rank-math/rank-math.php',
         'seo-by-rank-math-pro/rank-math-pro.php',
+        'wp-seopress/seopress.php',
+        'wp-seopress-pro/seopress-pro.php',
+    ];
+
+    /**
+     * The SEO subset of the translatable allow-list, named explicitly rather
+     * than derived from SeoTemplateVariables::supports() — that predicate means
+     * "has a known template grammar", not "is an SEO key". Focus-keyword keys
+     * are SEO but never templated, so filtering on supports() would silently
+     * drop them from this rescan while leaving the normal save-hook discovery
+     * path (which reads TranslatableMetaKeys::keys() directly) unaffected.
+     */
+    private const SEO_KEYS = [
+        '_yoast_wpseo_title',
+        '_yoast_wpseo_metadesc',
+        '_yoast_wpseo_focuskw',
+        'rank_math_title',
+        'rank_math_description',
+        'rank_math_focus_keyword',
+        '_seopress_titles_title',
+        '_seopress_titles_desc',
+        '_seopress_analysis_target_kw',
     ];
 
     public function __construct(
@@ -136,17 +157,16 @@ final class SeoDiscoveryRescan
     }
 
     /**
-     * The SEO subset of the translatable allow-list — never the whole list. A
-     * rescan of every allow-listed key would sweep WooCommerce and site custom
-     * fields for no reason.
+     * SEO_KEYS narrowed to what's actually still allow-listed — never the whole
+     * list. A rescan of every allow-listed key would sweep WooCommerce and site
+     * custom fields for no reason; intersecting (rather than using SEO_KEYS
+     * directly) also respects a site removing one of these via the
+     * `translangs_translatable_meta_keys` filter.
      *
      * @return string[]
      */
     private static function seoKeys(): array
     {
-        return array_values(array_filter(
-            TranslatableMetaKeys::keys(),
-            [SeoTemplateVariables::class, 'supports']
-        ));
+        return array_values(array_intersect(TranslatableMetaKeys::keys(), self::SEO_KEYS));
     }
 }

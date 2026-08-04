@@ -26,8 +26,13 @@ final class TranslatableMetaKeys
     private const DEFAULTS = [
         '_yoast_wpseo_title',
         '_yoast_wpseo_metadesc',
+        '_yoast_wpseo_focuskw',
         'rank_math_title',
         'rank_math_description',
+        'rank_math_focus_keyword',
+        '_seopress_titles_title',
+        '_seopress_titles_desc',
+        '_seopress_analysis_target_kw',
         '_wc_product_short_description',
     ];
 

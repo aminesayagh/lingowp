@@ -22,10 +22,12 @@ final class SeoTemplateVariables
 {
     /** Which SEO field a key holds, and whose variable syntax it uses. */
     private const DESCRIPTORS = [
-        '_yoast_wpseo_title'    => ['field' => 'title',       'grammar' => 'yoast'],
-        '_yoast_wpseo_metadesc' => ['field' => 'description', 'grammar' => 'yoast'],
-        'rank_math_title'       => ['field' => 'title',       'grammar' => 'rankmath'],
-        'rank_math_description' => ['field' => 'description', 'grammar' => 'rankmath'],
+        '_yoast_wpseo_title'     => ['field' => 'title',       'grammar' => 'yoast'],
+        '_yoast_wpseo_metadesc'  => ['field' => 'description', 'grammar' => 'yoast'],
+        'rank_math_title'        => ['field' => 'title',       'grammar' => 'rankmath'],
+        'rank_math_description'  => ['field' => 'description', 'grammar' => 'rankmath'],
+        '_seopress_titles_title' => ['field' => 'title',       'grammar' => 'yoast'],
+        '_seopress_titles_desc'  => ['field' => 'description', 'grammar' => 'yoast'],
     ];
 
     /**
