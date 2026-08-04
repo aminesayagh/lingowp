@@ -7,12 +7,14 @@ import {
   Modal,
   Popover,
   Text,
+  Tooltip,
 } from "@shopify/polaris";
 import {
+  CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ClipboardIcon,
+  DuplicateIcon,
   MagicIcon,
   MenuHorizontalIcon,
 } from "@shopify/polaris-icons";
@@ -23,6 +25,7 @@ import {
   useState,
 } from "@wordpress/element";
 import { api } from "../api";
+import { flagEmoji } from "./LanguageList";
 import { ChipField, SourceChips, hasMarkers } from "./TranslationUnitEditor";
 
 /*
@@ -37,6 +40,10 @@ import { ChipField, SourceChips, hasMarkers } from "./TranslationUnitEditor";
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 const PANE_HEIGHT = "min(62vh, 620px)";
+// Polaris' Modal dialog sits at a z-index (519) above a Tooltip's own portal
+// (400) — inside a Modal a Tooltip renders but paints behind it unless
+// explicitly overridden higher than the dialog.
+const TOOLTIP_Z_INDEX = 1000;
 
 const PANE_CLASS = "flex-1 min-w-0 flex flex-col gap-2 px-4 py-3";
 
@@ -107,6 +114,7 @@ export default function CompareOverlay({
   const [translating, setTranslating] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [filled, setFilled] = useState(false);
 
   const savedRef = useRef(""); // last value known to be persisted
   const validRef = useRef(true); // chip-structure validity (composed only)
@@ -216,9 +224,17 @@ export default function CompareOverlay({
     setTranslating(false);
   }
 
+  function fillFromOriginal() {
+    setDraft(unit.original ?? "");
+    setFilled(true);
+    setTimeout(() => setFilled(false), 1500);
+  }
+
   const targetLang = languages.find((l) => l.code === language);
   const targetLabel =
     targetLang?.display_name || targetLang?.name || language || "Translation";
+  const targetFlag = flagEmoji(targetLang || { code: language, locale: language });
+  const matchesOriginal = text === (unit.original ?? "");
 
   const header = (
     <InlineStack align="center" gap="300" blockAlign="center" wrap={false}>
@@ -301,22 +317,39 @@ export default function CompareOverlay({
             }
             right={
               <InlineStack gap="100" blockAlign="center" wrap={false}>
-                <Button
-                  size="micro"
-                  icon={MagicIcon}
-                  disabled={!aiAvailable}
-                  loading={translating}
-                  onClick={translate}
+                <Tooltip
+                  zIndexOverride={TOOLTIP_Z_INDEX}
+                  content={aiAvailable ? "Translate with AI" : "AI translation is not available"}
                 >
-                  Translate
-                </Button>
-                <Button
-                  size="micro"
-                  variant="tertiary"
-                  icon={ClipboardIcon}
-                  accessibilityLabel="Copy the original into the translation"
-                  onClick={() => setDraft(unit.original ?? "")}
-                />
+                  <Button
+                    size="micro"
+                    icon={MagicIcon}
+                    disabled={!aiAvailable}
+                    loading={translating}
+                    onClick={translate}
+                  >
+                    Translate
+                  </Button>
+                </Tooltip>
+                <Tooltip
+                  zIndexOverride={TOOLTIP_Z_INDEX}
+                  content={
+                    filled
+                      ? "Copied!"
+                      : matchesOriginal
+                        ? "Translation already matches the original"
+                        : "Copy the original into the translation"
+                  }
+                >
+                  <Button
+                    size="micro"
+                    variant="tertiary"
+                    icon={filled ? CheckIcon : DuplicateIcon}
+                    disabled={matchesOriginal}
+                    accessibilityLabel="Copy the original into the translation"
+                    onClick={fillFromOriginal}
+                  />
+                </Tooltip>
               </InlineStack>
             }
           />
@@ -348,6 +381,7 @@ export default function CompareOverlay({
                       gap: "6px",
                     }}
                   >
+                    <span className="text-base leading-none">{targetFlag}</span>
                     <Text as="span" variant="headingXs" tone="subdued">
                       {targetLabel}
                     </Text>

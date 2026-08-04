@@ -10,8 +10,9 @@ import {
   Popover,
   Spinner,
   Text,
+  Tooltip,
 } from "@shopify/polaris";
-import { PageIcon } from "@shopify/polaris-icons";
+import { CheckIcon, DuplicateIcon, PageIcon } from "@shopify/polaris-icons";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "@wordpress/element";
 import { api } from "../api";
@@ -44,17 +45,21 @@ const oneLineStyle = {
 //     inline input, and ⋯ menu (Open in overlay / Ignore) as the Content tab.
 const PAGE_SIZE = 50;
 
-const STATUS_LABELS = {
-  found_online: { label: "Found online", tone: "success" },
-  imported: { label: "Translated", tone: "success" },
-  template_pending: { label: "In progress", tone: "attention" },
-};
-
 function rowKey(row) {
   return `${row.type}:${row.domain}:${row.locale}`;
 }
 
-export default function GettextBoard({ language, originalLabel, translationLabel, onConfirm }) {
+export default function GettextBoard({
+  language,
+  originalLabel,
+  translationLabel,
+  sourceLabel,
+  sourceFlag,
+  languages,
+  aiAvailable,
+  onPickLanguage,
+  onConfirm,
+}) {
   const queryClient = useQueryClient();
   const [openKeys, setOpenKeys] = useState(() => new Set());
   const [manualKeys, setManualKeys] = useState(() => new Set());
@@ -183,7 +188,6 @@ export default function GettextBoard({ language, originalLabel, translationLabel
         const key = rowKey(row);
         const open = openKeys.has(key);
         const showEditor = row.status !== null || manualKeys.has(key);
-        const info = STATUS_LABELS[row.status] || { label: "Not found", tone: undefined };
 
         return (
           <Box key={key}>
@@ -209,15 +213,25 @@ export default function GettextBoard({ language, originalLabel, translationLabel
                 <Text as="span" variant="bodyMd" fontWeight="medium">
                   {row.label} <Text as="span" tone="subdued">({row.type})</Text>
                 </Text>
-                <Box paddingInlineStart="200">
-                  <Badge tone={info.tone}>{info.label}</Badge>
-                </Box>
+                {row.status === null && (
+                  <Box paddingInlineStart="200">
+                    <Badge>Not found</Badge>
+                  </Box>
+                )}
               </button>
             </Box>
             <Collapsible open={open}>
               <Box paddingInlineStart="1000" paddingBlockEnd="300">
                 {showEditor ? (
-                  <GettextUnitList row={row} onConfirm={onConfirm} />
+                  <GettextUnitList
+                    row={row}
+                    onConfirm={onConfirm}
+                    sourceLabel={sourceLabel}
+                    sourceFlag={sourceFlag}
+                    languages={languages}
+                    aiAvailable={aiAvailable}
+                    onPickLanguage={onPickLanguage}
+                  />
                 ) : (
                   <GettextRowActions row={row} onImported={reload} onManual={() => startManual(key)} />
                 )}
@@ -317,7 +331,7 @@ function unitKey(u) {
   return `${u.context || ""}\x04${u.msgid}`;
 }
 
-function GettextUnitList({ row, onConfirm }) {
+function GettextUnitList({ row, onConfirm, sourceLabel, sourceFlag, languages, aiAvailable, onPickLanguage }) {
   const queryClient = useQueryClient();
   const queryKey = ["gettext-units", row.type, row.domain, row.locale];
   const [overlayIndex, setOverlayIndex] = useState(null);
@@ -434,6 +448,11 @@ function GettextUnitList({ row, onConfirm }) {
         row={row}
         domainLabel={row.label}
         locale={row.locale}
+        sourceLabel={sourceLabel}
+        sourceFlag={sourceFlag}
+        languages={languages}
+        aiAvailable={aiAvailable}
+        onPickLanguage={onPickLanguage}
         onClose={() => setOverlayIndex(null)}
         onSaved={(msgstr) => updateUnit(overlayIndex, msgstr)}
         onPrev={() => setOverlayIndex((i) => Math.max(0, i - 1))}
@@ -449,6 +468,8 @@ function GettextUnitRow({ unit, row, onSaved, onOpenOverlay, onIgnore }) {
   const [draft, setDraft] = useState(unit.msgstr);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [originalHovered, setOriginalHovered] = useState(false);
+  const [copiedOriginal, setCopiedOriginal] = useState(false);
 
   const hasTranslation = unit.msgstr !== "";
 
@@ -487,6 +508,12 @@ function GettextUnitRow({ unit, row, onSaved, onOpenOverlay, onIgnore }) {
     }
   }
 
+  async function copyOriginal() {
+    await navigator.clipboard.writeText(unit.msgid);
+    setCopiedOriginal(true);
+    setTimeout(() => setCopiedOriginal(false), 1500);
+  }
+
   const menuItems = [
     {
       content: "Open in overlay",
@@ -513,15 +540,39 @@ function GettextUnitRow({ unit, row, onSaved, onOpenOverlay, onIgnore }) {
       <Box paddingInline="300" paddingBlock="200">
         <InlineStack gap="300" align="space-between" blockAlign="center" wrap={false}>
           <Box width="42%" minWidth="0">
-            <button
-              ref={originalRef}
-              type="button"
-              onClick={isLong ? onOpenOverlay : undefined}
-              disabled={!isLong}
-              style={{ ...oneLineStyle, cursor: isLong ? "pointer" : "default" }}
+            <div
+              onMouseEnter={() => setOriginalHovered(true)}
+              onMouseLeave={() => setOriginalHovered(false)}
+              style={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}
             >
-              <Text as="span" variant="bodySm">{unit.msgid}</Text>
-            </button>
+              <button
+                ref={originalRef}
+                type="button"
+                onClick={isLong ? onOpenOverlay : undefined}
+                disabled={!isLong}
+                style={{ ...oneLineStyle, flex: 1, minWidth: 0, cursor: isLong ? "pointer" : "default" }}
+              >
+                <Text as="span" variant="bodySm">{unit.msgid}</Text>
+              </button>
+              <div
+                style={{
+                  opacity: originalHovered ? 1 : 0,
+                  visibility: originalHovered ? "visible" : "hidden",
+                  transition: "opacity 120ms ease",
+                  flexShrink: 0,
+                }}
+              >
+                <Tooltip content={copiedOriginal ? "Copied!" : "Copy to clipboard"}>
+                  <Button
+                    size="micro"
+                    variant="tertiary"
+                    icon={copiedOriginal ? CheckIcon : DuplicateIcon}
+                    accessibilityLabel="Copy original to clipboard"
+                    onClick={copyOriginal}
+                  />
+                </Tooltip>
+              </div>
+            </div>
           </Box>
 
           <Box width="42%" minWidth="0">

@@ -203,6 +203,28 @@ final class OptionLanguageRegistry implements LanguageRegistry
     }
 
     /** @return string[] */
+    public function fallbackChain(string $code): array
+    {
+        $default = $this->getDefaultLanguage();
+        $store   = new LanguageMetadataStore();
+        $chain   = [];
+        $seen    = [$code => true, $default => true];
+        $current = $code;
+
+        while (true) {
+            $next = (string) ($store->get($current)['fallback_language'] ?? '');
+            if ($next === '' || isset($seen[$next])) {
+                break;
+            }
+            $chain[]     = $next;
+            $seen[$next] = true;
+            $current     = $next;
+        }
+
+        return $chain;
+    }
+
+    /** @return string[] */
     private function readList(string $option): array
     {
         $raw = (string) get_option($option, '');

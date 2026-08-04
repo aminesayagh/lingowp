@@ -5,6 +5,7 @@ use TransLangs\Rendering\PageOwnedHashes;
 use TransLangs\Rendering\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Core\Text\IdentityKey;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
 use TransLangs\Core\Repository\SourceTranslationRepository;
@@ -31,6 +32,9 @@ final class StructuredRenderResolver
     private bool $activating = false;
     private string $lang = '';
 
+    /** @var string[] requested language followed by its fallback chain */
+    private array $langsToTry = [];
+
     /** @var array<string, string> "tableKey|hex(original_hash)" => translated_text (post/term) */
     private array $hashMap = [];
 
@@ -51,7 +55,8 @@ final class StructuredRenderResolver
         private RequestContext $context,
         private SourceTranslationRepository $repository,
         private HtmlUnitExtractor $unitExtractor,
-        private PageOwnedHashes $pageOwned
+        private PageOwnedHashes $pageOwned,
+        private LanguageRegistry $languageRegistry
     ) {}
 
     public function register(): void
@@ -307,14 +312,23 @@ final class StructuredRenderResolver
             return;
         }
 
-        $fetched = $this->repository->fetchHashTranslations($tableKey, array_values($todo), $this->lang);
+        $remaining = $todo;
+        foreach ($this->langsToTry as $lang) {
+            if ($remaining === []) {
+                break;
+            }
+            $fetched = $this->repository->fetchHashTranslations($tableKey, array_values($remaining), $lang);
+            foreach ($remaining as $key => $hash) {
+                $hex = bin2hex($hash);
+                if (isset($fetched[$hex])) {
+                    $this->hashMap[$key] = $fetched[$hex];
+                    unset($remaining[$key]);
+                }
+            }
+        }
 
         foreach ($todo as $key => $hash) {
             $this->hashLoaded[$key] = true;
-            $hex                    = bin2hex($hash);
-            if (isset($fetched[$hex])) {
-                $this->hashMap[$key] = $fetched[$hex];
-            }
         }
     }
 
@@ -336,13 +350,22 @@ final class StructuredRenderResolver
             return;
         }
 
-        $fetched = $this->repository->fetchParentTranslations('tl_meta', array_values($todo), $this->lang);
+        $remaining = $todo;
+        foreach ($this->langsToTry as $lang) {
+            if ($remaining === []) {
+                break;
+            }
+            $fetched = $this->repository->fetchParentTranslations('tl_meta', array_values($remaining), $lang);
+            foreach ($remaining as $key => $lookup) {
+                if (isset($fetched[$key])) {
+                    $this->metaMap[$key] = $fetched[$key];
+                    unset($remaining[$key]);
+                }
+            }
+        }
 
         foreach ($todo as $key => $lookup) {
             $this->metaLoaded[$key] = true;
-            if (isset($fetched[$key])) {
-                $this->metaMap[$key] = $fetched[$key];
-            }
         }
     }
 
@@ -378,7 +401,8 @@ final class StructuredRenderResolver
 
         $this->active = $active;
         if ($active) {
-            $this->lang = $this->language->resolve();
+            $this->lang       = $this->language->resolve();
+            $this->langsToTry = array_merge([$this->lang], $this->languageRegistry->fallbackChain($this->lang));
         }
 
         return $this->active;

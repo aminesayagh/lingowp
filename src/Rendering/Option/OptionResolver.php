@@ -4,6 +4,7 @@ namespace TransLangs\Rendering\Option;
 use TransLangs\Rendering\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Core\Text\TL_Key;
 
@@ -33,7 +34,8 @@ final class OptionResolver
     public function __construct(
         private ResolveRequestLanguage $language,
         private RequestContext $context,
-        private SourceTranslationRepository $repository
+        private SourceTranslationRepository $repository,
+        private LanguageRegistry $languageRegistry
     ) {}
 
     public function register(): void
@@ -63,7 +65,11 @@ final class OptionResolver
     private function map(): array
     {
         if ($this->map === null) {
-            $this->map = $this->repository->fetchAllHashTranslations('tl_option', $this->lang);
+            $map = [];
+            foreach (array_merge([$this->lang], $this->languageRegistry->fallbackChain($this->lang)) as $lang) {
+                $map += $this->repository->fetchAllHashTranslations('tl_option', $lang);
+            }
+            $this->map = $map;
         }
 
         return $this->map;

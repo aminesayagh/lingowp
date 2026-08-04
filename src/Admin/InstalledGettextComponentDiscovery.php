@@ -26,6 +26,11 @@ final class InstalledGettextComponentDiscovery
         $map = [];
 
         foreach (get_plugins() as $pluginFile => $data) {
+            // Translangs itself is never a translation target on its own board.
+            if ($pluginFile === TRANSLANGS_BASENAME) {
+                continue;
+            }
+
             // No TextDomain header: fall back to the plugin's own folder slug,
             // which is what WordPress itself uses to guess a domain at load time.
             $dir    = dirname($pluginFile);

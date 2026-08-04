@@ -3,11 +3,15 @@
 namespace TransLangs\Admin\Rest;
 
 use TransLangs\Admin\InstalledGettextComponentDiscovery;
+use TransLangs\Api\AiQuotaService;
+use TransLangs\Api\BackendClient;
+use TransLangs\Api\SiteMetadataProvider;
 use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Gettext\GettextDomainRegistry;
 use TransLangs\Language\Gettext\GettextOnlineTranslationFetcher;
 use TransLangs\Language\Gettext\GettextPoImporter;
 use TransLangs\Language\Gettext\GettextTranslationUnitsService;
+use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -39,7 +43,10 @@ final class GettextDomainRestController
         private OptionLanguageRegistry $languageRegistry,
         private GettextOnlineTranslationFetcher $fetcher,
         private GettextPoImporter $importer,
-        private GettextTranslationUnitsService $units
+        private GettextTranslationUnitsService $units,
+        private BackendClient $backend,
+        private LanguageMetadataStore $langStore,
+        private AiQuotaService $quota
     ) {}
 
     public function register(): void
@@ -58,6 +65,7 @@ final class GettextDomainRestController
         register_rest_route(self::NS, '/gettext-domains/units', ['methods' => 'GET', 'callback' => [$this, 'units']] + $guard);
         register_rest_route(self::NS, '/gettext-domains/save-unit', ['methods' => 'POST', 'callback' => [$this, 'saveUnit']] + $guard);
         register_rest_route(self::NS, '/gettext-domains/ignore-unit', ['methods' => 'POST', 'callback' => [$this, 'ignoreUnit']] + $guard);
+        register_rest_route(self::NS, '/gettext-domains/translate-unit', ['methods' => 'POST', 'callback' => [$this, 'translateUnit']] + $guard);
     }
 
     public function canManage(): bool
@@ -280,6 +288,74 @@ final class GettextDomainRestController
         }
 
         return rest_ensure_response(['ok' => true]);
+    }
+
+    /**
+     * AI-translate one gettext string and save it, in place, same as
+     * saveUnit() — the overlay's "Translate" button. Same quota gate as
+     * Content's AiTranslationController::translate() (shared AiQuotaService),
+     * one string at a time rather than a batch, so a plugin/theme with 500
+     * strings never blocks the UI on a single all-or-nothing request.
+     */
+    public function translateUnit(WP_REST_Request $request): WP_REST_Response
+    {
+        [$type, $domain, $locale, $error] = $this->componentParams($request);
+        if ($error !== null) {
+            return $error;
+        }
+
+        [$msgid, $context] = $this->unitIdentity($request);
+        if ($msgid === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        $estimate = str_word_count(wp_strip_all_tags($msgid));
+        $quota    = $this->quota->data();
+        if ($quota !== null && $quota['words_remaining'] < $estimate) {
+            return rest_ensure_response([
+                'ok'              => false,
+                'error'           => 'ERR_QUOTA',
+                'estimated_words' => $estimate,
+                'words_remaining' => $quota['words_remaining'],
+            ]);
+        }
+
+        $payload = [
+            'source_language' => $this->languageRegistry->getDefaultLanguage(),
+            'target_language' => $locale,
+            'ai_style'        => (string) ($this->langStore->get($locale)['ai_style'] ?? ''),
+            'categories'      => array_values((array) get_option(SiteMetadataProvider::OPTION_CATEGORIES, [])),
+            'texts'           => [['id' => 'unit', 'text' => $msgid]],
+        ];
+
+        $res = $this->backend->translate($payload);
+        if (! $res['ok']) {
+            return rest_ensure_response(['ok' => false, 'error' => $res['error']]);
+        }
+
+        $data = is_array($res['data']) ? $res['data'] : [];
+        $text = '';
+        foreach ((array) ($data['translations'] ?? []) as $t) {
+            if (($t['id'] ?? '') === 'unit') {
+                $text = (string) ($t['text'] ?? '');
+                break;
+            }
+        }
+        if ($text === '') {
+            return rest_ensure_response(['ok' => false, 'error' => 'ERR_EMPTY_RESULT']);
+        }
+
+        if (! $this->units->saveUnit($type, $domain, $locale, $msgid, $context, $text)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_SAVE_FAILED'], 400);
+        }
+
+        if ($this->registry->get($type, $domain, $locale) === null) {
+            $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_IMPORTED);
+        }
+
+        $this->quota->invalidate();
+
+        return rest_ensure_response(['ok' => true, 'msgstr' => $text]);
     }
 
     /**

@@ -5,6 +5,7 @@ use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Localization\PublicLinkRewriter;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
+use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Core\Repository\SourceTranslationRepository;
 use TransLangs\Discovery\HtmlDiscovery;
 use TransLangs\Seo\SeoHeadTranslator;
@@ -32,7 +33,8 @@ final class PublicRenderPipeline
         private SourceTranslationRepository $repository,
         private HtmlRenderer $htmlRenderer,
         private HtmlDiscovery $htmlDiscovery,
-        private SeoHeadTranslator $seoHead
+        private SeoHeadTranslator $seoHead,
+        private LanguageRegistry $languageRegistry
     ) {}
 
     public function register(): void
@@ -129,8 +131,11 @@ final class PublicRenderPipeline
             }
         }
 
-        $map = $this->repository->fetchAllHashTranslations('tl_html', $lang)
-            + $this->repository->fetchAllHashTranslations('tl_option', $lang);
+        $map = [];
+        foreach (array_merge([$lang], $this->languageRegistry->fallbackChain($lang)) as $tryLang) {
+            $map += $this->repository->fetchAllHashTranslations('tl_html', $tryLang)
+                + $this->repository->fetchAllHashTranslations('tl_option', $tryLang);
+        }
 
         if (function_exists('wp_cache_set')) {
             wp_cache_set($cacheKey, $map, 'translangs', 300);

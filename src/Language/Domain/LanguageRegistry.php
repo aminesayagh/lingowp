@@ -77,4 +77,15 @@ interface LanguageRegistry
      * keyed by code, are untouched). No-op if the code is not active.
      */
     public function disableLanguage(string $code): void;
+
+    /**
+     * Ordered fallback languages to try after $code when a translation is
+     * missing, before falling back to the untranslated source content.
+     * Follows each language's configured fallback_language pointer; stops at
+     * an empty pointer, a repeat (cycle/self-reference guard), or the
+     * default/source language (which has no translation rows of its own).
+     *
+     * @return string[]
+     */
+    public function fallbackChain(string $code): array;
 }

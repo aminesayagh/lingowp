@@ -4,6 +4,7 @@ namespace TransLangs\Admin\Rest;
 
 use TransLangs\Language\Domain\LocaleNormalizer;
 
+use TransLangs\Api\AiQuotaService;
 use TransLangs\Api\BackendClient;
 use TransLangs\Api\SiteMetadataProvider;
 use TransLangs\Core\Parsing\TranslationSubmissionGuard;
@@ -30,18 +31,17 @@ use WP_REST_Response;
  */
 final class AiTranslationController
 {
-    private const NS          = 'translangs/v1';
-    private const BATCH        = 50;
-    private const PROVIDER      = 'ai';
-    private const QUOTA_CACHE    = 'translangs_quota_cache';
-    private const QUOTA_TTL       = 60;
+    private const NS       = 'translangs/v1';
+    private const BATCH     = 50;
+    private const PROVIDER  = 'ai';
 
     public function __construct(
         private BackendClient $backend,
         private SourceTranslationRepository $repo,
         private OptionLanguageRegistry $registry,
         private LanguageMetadataStore $langStore,
-        private CollectionRestController $collections
+        private CollectionRestController $collections,
+        private AiQuotaService $quota
     ) {}
 
     public function register(): void
@@ -85,7 +85,7 @@ final class AiTranslationController
         foreach ($units as $u) {
             $estimate += str_word_count(wp_strip_all_tags($u['original']));
         }
-        $quota = $this->quotaData();
+        $quota = $this->quota->data();
         if ($quota !== null && $quota['words_remaining'] < $estimate) {
             return rest_ensure_response([
                 'ok'              => false,
@@ -159,7 +159,7 @@ final class AiTranslationController
             $words += (int) ($data['words_used'] ?? 0);
         }
 
-        delete_transient(self::QUOTA_CACHE); // usage changed; force a fresh read next time.
+        $this->quota->invalidate(); // usage changed; force a fresh read next time.
 
         // `failed`/`failures` are only present when something was rejected, so the
         // existing client shape is unchanged on a clean run.
@@ -217,38 +217,12 @@ final class AiTranslationController
     /** Current AI word quota snapshot (cached ~60s), proxied from the backend. */
     public function quota(WP_REST_Request $request): WP_REST_Response
     {
-        $data = $this->quotaData();
+        $data = $this->quota->data();
         if ($data === null) {
             return rest_ensure_response(['ok' => false, 'error' => 'ERR_BACKEND']);
         }
 
         return rest_ensure_response(['ok' => true, 'quota' => $data]);
-    }
-
-    /** @return array{plan_name:string, word_limit:int, words_used:int, words_remaining:int, renewal_date:string}|null */
-    private function quotaData(): ?array
-    {
-        $cached = get_transient(self::QUOTA_CACHE);
-        if (is_array($cached)) {
-            return $cached;
-        }
-
-        $res = $this->backend->usage();
-        if (! $res['ok'] || ! is_array($res['data'])) {
-            return null;
-        }
-
-        $d    = $res['data'];
-        $data = [
-            'plan_name'       => (string) ($d['plan_name'] ?? ''),
-            'word_limit'      => (int) ($d['word_limit'] ?? 0),
-            'words_used'      => (int) ($d['words_used'] ?? 0),
-            'words_remaining' => (int) ($d['words_remaining'] ?? 0),
-            'renewal_date'    => (string) ($d['renewal_date'] ?? ''),
-        ];
-        set_transient(self::QUOTA_CACHE, $data, self::QUOTA_TTL);
-
-        return $data;
     }
 
     /**
