@@ -214,6 +214,7 @@ final class GettextDomainRestController
         nocache_headers();
         header('Content-Type: text/x-gettext-translation; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $domain . '-' . $locale . '.po"');
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- raw .po file download (Content-Disposition: attachment), not HTML; escaping would corrupt the gettext PO format.
         echo $po->export();
         exit;
     }

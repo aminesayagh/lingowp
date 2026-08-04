@@ -30,7 +30,7 @@ final class CrawlRequestMarker
     public static function isCrawlRequest(): bool
     {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- this is an HMAC bearer token, not a nonce; hash_equals() is the verification.
-        $given = isset($_GET[self::QUERY_ARG]) ? (string) wp_unslash($_GET[self::QUERY_ARG]) : '';
+        $given = isset($_GET[self::QUERY_ARG]) ? sanitize_text_field(wp_unslash($_GET[self::QUERY_ARG])) : '';
 
         return $given !== '' && hash_equals(self::token(), $given);
     }

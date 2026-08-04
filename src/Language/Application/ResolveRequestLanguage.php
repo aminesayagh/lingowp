@@ -127,7 +127,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->validate(wp_unslash($_GET['translangs_preview']));
+        return $this->validate(sanitize_text_field(wp_unslash($_GET['translangs_preview'])));
         // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
@@ -169,7 +169,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->validate(wp_unslash($_COOKIE[self::COOKIE_NAME]));
+        return $this->validate(sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE_NAME])));
     }
 
     /**
@@ -249,7 +249,7 @@ class ResolveRequestLanguage
         }
 
         $current = isset($_COOKIE[self::COOKIE_NAME])
-            ? LocaleNormalizer::normalize(wp_unslash($_COOKIE[self::COOKIE_NAME]))
+            ? LocaleNormalizer::normalize(sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE_NAME])))
             : '';
 
         if ($current === $lang) {
