@@ -191,7 +191,7 @@ final class StructuredSourceScanner
             return false;
         }
         if ($post->post_type === 'attachment') {
-            return $metaKey === '_wp_attachment_image_alt';
+            return $metaKey === TranslatableMetaKeys::ATTACHMENT_ALT;
         }
 
         return in_array($metaKey, $this->translatableMetaKeys(), true);
@@ -203,7 +203,7 @@ final class StructuredSourceScanner
     private function metaKeysForPost(\WP_Post $post): array
     {
         $keys = $post->post_type === 'attachment'
-            ? ['_wp_attachment_image_alt']
+            ? [TranslatableMetaKeys::ATTACHMENT_ALT]
             : $this->translatableMetaKeys();
 
         return array_values(array_filter(
