@@ -1,2 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?><!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
-<svg width="800px" height="800px" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--emojione" preserveAspectRatio="xMidYMid meet"><path d="M62 32c0-13.1-8.3-24.2-20-28.3v56.6C53.7 56.2 62 45.1 62 32" fill="#ed4c5c"></path><path d="M2 32c0 13.1 8.4 24.2 20 28.3V3.7C10.4 7.8 2 18.9 2 32z" fill="#699635"></path><path d="M42 3.7C38.9 2.6 35.5 2 32 2s-6.9.6-10 1.7v56.6c3.1 1.1 6.5 1.7 10 1.7s6.9-.6 10-1.7V3.7" fill="#ffe62e"></path><path fill="#699635" d="M32 36.2l5.3 3.8l-2-6.1l5.2-3.8H34L32 24l-2 6.1h-6.5l5.2 3.8l-2 6.1z"></path></svg>
+<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-sn" viewBox="0 0 640 480">
+  <g fill-rule="evenodd" stroke-width="1pt">
+    <path fill="#0b7226" d="M0 0h213.3v480H0z"/>
+    <path fill="#ff0" d="M213.3 0h213.3v480H213.3z"/>
+    <path fill="#bc0000" d="M426.6 0H640v480H426.6z"/>
+  </g>
+  <path fill="#0b7226" d="M342 218.8h71.8l-56.6 43.6 20.7 69.3-56.6-43.6-56.6 41.6 20.7-67.3-56.6-43.6h69.8l22.7-71.3z"/>
+</svg>

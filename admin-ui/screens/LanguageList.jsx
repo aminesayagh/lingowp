@@ -7,26 +7,7 @@ import {
 	useState,
 } from '@wordpress/element';
 import { AnimatePresence, motion } from 'motion/react';
-
-// Country code → flag emoji (regional indicator letters). Falls back per language
-// code, then a globe.
-const REGION_FALLBACK = { fr: 'FR', es: 'ES', de: 'DE', it: 'IT', pt: 'PT', nl: 'NL', ar: 'MA', en: 'US' };
-
-export function flagEmoji( lang ) {
-	let cc = ( lang.region || '' ).trim();
-	if ( cc.length !== 2 && lang.locale ) {
-		cc = ( lang.locale.split( /[_-]/ )[ 1 ] || '' ).trim();
-	}
-	if ( cc.length !== 2 ) {
-		cc = REGION_FALLBACK[ lang.code ] || '';
-	}
-	if ( cc.length !== 2 ) {
-		return '🌐';
-	}
-	const base = 0x1f1e6;
-	const up = cc.toUpperCase();
-	return String.fromCodePoint( base + up.charCodeAt( 0 ) - 65, base + up.charCodeAt( 1 ) - 65 );
-}
+import { flagIconUrl, FlagIcon } from './FlagIcon';
 
 // Animated dropdown (motion): a gap below the activator + a fade/slide on open,
 // with click-outside to close. Portaled to <body> and fixed-positioned off the
@@ -134,7 +115,7 @@ export function LanguageRow( { lang, selected, percent, showProgress, aiAvailabl
 				background: selected ? 'var(--p-color-bg-surface-selected, rgba(0,0,0,0.06))' : 'transparent',
 			} }
 		>
-			<span style={ { fontSize: 16, lineHeight: 1 } }>{ flagEmoji( lang ) }</span>
+			<FlagIcon src={ flagIconUrl( lang ) } size={ 16 } />
 			<span style={ { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>
 				<Text as="span" variant="bodyMd">{ name }</Text>
 			</span>

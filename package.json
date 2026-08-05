@@ -12,6 +12,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@wordpress/scripts": "^30.0.0",
+    "flag-icons": "^7.5.0",
     "tailwindcss": "^4.3.3"
   },
   "dependencies": {

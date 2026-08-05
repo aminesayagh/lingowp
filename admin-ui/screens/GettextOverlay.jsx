@@ -19,7 +19,7 @@ import {
 } from "@shopify/polaris-icons";
 import { useEffect, useRef, useState } from "@wordpress/element";
 import { api } from "../api";
-import { flagEmoji } from "./LanguageList";
+import { flagIconUrl, FlagIcon } from "./FlagIcon";
 
 /*
  * Gettext string editor overlay — same two-pane shell as Content's
@@ -155,7 +155,7 @@ export default function GettextOverlay({
 
   const targetLang = languages.find((l) => l.code === locale);
   const targetLabel = targetLang?.display_name || targetLang?.name || locale;
-  const targetFlag = flagEmoji(targetLang || { code: locale, locale });
+  const targetFlag = flagIconUrl(targetLang || { code: locale, locale });
   const matchesOriginal = text === unit.msgid;
 
   const header = (
@@ -187,7 +187,7 @@ export default function GettextOverlay({
           <PaneHeader
             left={
               <InlineStack gap="150" blockAlign="center" wrap={false}>
-                <span className="text-base leading-none">{sourceFlag}</span>
+                <FlagIcon src={sourceFlag} />
                 <Text as="span" variant="headingXs" tone="subdued">
                   {sourceLabel}
                 </Text>
@@ -254,7 +254,7 @@ export default function GettextOverlay({
                       gap: "6px",
                     }}
                   >
-                    <span className="text-base leading-none">{targetFlag}</span>
+                    <FlagIcon src={targetFlag} />
                     <Text as="span" variant="headingXs" tone="subdued">
                       {targetLabel}
                     </Text>

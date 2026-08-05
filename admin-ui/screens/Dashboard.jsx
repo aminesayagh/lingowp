@@ -41,7 +41,8 @@ import ExportImportModal from "./ExportImportModal";
 import GettextBoard from "./GettextBoard";
 import LanguageManagerModal from "./LanguageManagerModal";
 import OnboardingPage from "./OnboardingPage";
-import LanguageList, { flagEmoji } from "./LanguageList";
+import LanguageList from "./LanguageList";
+import { flagIconUrl } from "./FlagIcon";
 import CompareOverlay from "./CompareOverlay";
 import QuotaCard from "./QuotaCard";
 import { hasMarkers, stripMarkers } from "./TranslationUnitEditor";
@@ -870,7 +871,7 @@ export default function Dashboard({
     langLabel(defaultLanguage) || codeName(defaultCode) || "Original";
   const translationLabel =
     langLabel(languages.find((l) => l.code === selectedLang)) || "Translation";
-  const sourceFlag = flagEmoji(
+  const sourceFlag = flagIconUrl(
     typeof defaultLanguage === "object" && defaultLanguage
       ? defaultLanguage
       : { code: defaultCode }

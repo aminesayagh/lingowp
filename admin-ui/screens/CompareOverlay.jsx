@@ -25,7 +25,7 @@ import {
   useState,
 } from "@wordpress/element";
 import { api } from "../api";
-import { flagEmoji } from "./LanguageList";
+import { flagIconUrl, FlagIcon } from "./FlagIcon";
 import { ChipField, SourceChips, hasMarkers, stripMarkers } from "./TranslationUnitEditor";
 import { lengthWarningMessage } from "./lengthWarning.mjs";
 
@@ -243,7 +243,7 @@ export default function CompareOverlay({
   const targetLang = languages.find((l) => l.code === language);
   const targetLabel =
     targetLang?.display_name || targetLang?.name || language || "Translation";
-  const targetFlag = flagEmoji(targetLang || { code: language, locale: language });
+  const targetFlag = flagIconUrl(targetLang || { code: language, locale: language });
   const matchesOriginal = text === (unit.original ?? "");
 
   const header = (
@@ -319,7 +319,7 @@ export default function CompareOverlay({
           <PaneHeader
             left={
               <InlineStack gap="150" blockAlign="center" wrap={false}>
-                <span className="text-base leading-none">{sourceFlag}</span>
+                <FlagIcon src={sourceFlag} />
                 <Text as="span" variant="headingXs" tone="subdued">
                   {sourceLabel}
                 </Text>
@@ -391,7 +391,7 @@ export default function CompareOverlay({
                       gap: "6px",
                     }}
                   >
-                    <span className="text-base leading-none">{targetFlag}</span>
+                    <FlagIcon src={targetFlag} />
                     <Text as="span" variant="headingXs" tone="subdued">
                       {targetLabel}
                     </Text>
