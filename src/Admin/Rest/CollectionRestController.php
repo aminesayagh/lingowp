@@ -4,6 +4,7 @@ namespace TransLangs\Admin\Rest;
 
 use TransLangs\Admin\InstalledGettextComponentDiscovery;
 use TransLangs\Core\Source\Type\HtmlSource;
+use TransLangs\Core\Source\Type\TranslatableMetaKeys;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
 use TransLangs\Core\Repository\SourceTranslationRepository;
@@ -765,6 +766,7 @@ final class CollectionRestController
         return [
             'id'            => SourceRef::make($kind, (int) $row['id'])->format(),
             'field'         => $field,
+            'seo_field'     => TranslatableMetaKeys::seoFieldType($field),
             'original'      => $original,
             'translated'    => $translated,
             // v1: fallback shows the source text; fallback-language lookup is later.

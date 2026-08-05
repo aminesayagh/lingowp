@@ -44,6 +44,7 @@ import LanguageList, { flagEmoji } from "./LanguageList";
 import CompareOverlay from "./CompareOverlay";
 import QuotaCard from "./QuotaCard";
 import { hasMarkers, stripMarkers } from "./TranslationUnitEditor";
+import { lengthWarningMessage } from "./lengthWarning.mjs";
 
 const StartIcon = ({ color = "currentColor", ...props }) => (
   <svg
@@ -70,6 +71,15 @@ const STATUS_BADGE = {
   needs_review: { tone: "warning", label: "Needs review" },
   reviewed: { tone: "success", label: "Done" },
   translated: { tone: "success", label: "Done" },
+};
+
+// Which SEO field a meta row represents — shown as a small badge alongside the
+// status pill so title/description/keyword rows for the same post are
+// distinguishable at a glance.
+const SEO_FIELD_BADGE = {
+  title: "SEO title",
+  description: "Meta description",
+  keyword: "Focus keyword",
 };
 
 // Truncate a cell to a single line with an ellipsis; the whole cell is a
@@ -191,6 +201,7 @@ export default function Dashboard({
   const [quota, setQuota] = useState(null);
   const [notice, setNotice] = useState(null);
   const [autosaveToast, setAutosaveToast] = useState(false);
+  const [lengthToast, setLengthToast] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [originFilter, setOriginFilter] = useState([]);
   const [contentTypeFilter, setContentTypeFilter] = useState([]);
@@ -219,6 +230,17 @@ export default function Dashboard({
   }
 
   const autosaveToastTimerRef = useRef(null);
+  const lengthToastTimerRef = useRef(null);
+
+  // Warning-toast for goal 4.8 (length warnings) — manual saves only, from
+  // TextUnitRow's inline edit and CompareOverlay's autosave. A longer dismiss
+  // than the autosave toast: a warning needs more time to read than a "saved" blip.
+  function showLengthWarning(message) {
+    setLengthToast(message);
+    clearTimeout(lengthToastTimerRef.current);
+    lengthToastTimerRef.current = setTimeout(() => setLengthToast(""), 5000);
+  }
+  useEffect(() => () => clearTimeout(lengthToastTimerRef.current), []);
 
   const defaultCode = defaultLanguage?.code || defaultLanguage;
   const advancedFilters = {
@@ -1342,6 +1364,7 @@ export default function Dashboard({
                             aiAvailable={ai.available}
                             onAiTranslate={translateScope}
                             onOpenOverlay={(unit, cid) => setOverlay({ id: unit.id, cid })}
+                            onLengthWarning={showLengthWarning}
                           />
                         )}
                       </div>
@@ -1402,6 +1425,7 @@ export default function Dashboard({
         onOpenPreview={openCanvas}
         onClose={() => setOverlay(null)}
         onSaved={(patch) => overlay && afterMutate(overlay.cid, patch)}
+        onLengthWarning={showLengthWarning}
         hasPrev={globalIndex > 0}
         hasNext={globalIndex >= 0 && globalIndex < orderFlat.length - 1}
         onPrev={() => {
@@ -1434,6 +1458,30 @@ export default function Dashboard({
           }}
         >
           The plugin has auto save enabled.
+        </div>
+      )}
+      {lengthToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: "24px",
+            transform: "translateX(-50%)",
+            zIndex: 999999,
+            padding: "10px 14px",
+            borderRadius: "8px",
+            maxWidth: "420px",
+            textAlign: "center",
+            background: "var(--p-color-bg-fill-caution)",
+            color: "var(--p-color-text-caution-on-bg-fill)",
+            boxShadow: "var(--p-shadow-400)",
+            fontSize: "13px",
+            lineHeight: "20px",
+          }}
+        >
+          {lengthToast}
         </div>
       )}
     </Page>
@@ -1479,6 +1527,7 @@ function CollectionGroup({
   onOpenOverlay,
   aiAvailable,
   onAiTranslate,
+  onLengthWarning,
 }) {
   const c = collection;
   const open = !collapsed;
@@ -1749,6 +1798,7 @@ function CollectionGroup({
                   aiAvailable={aiAvailable}
                   onAiTranslate={onAiTranslate}
                   onOpenOverlay={(unit) => onOpenOverlay(unit, c.id)}
+                  onLengthWarning={onLengthWarning}
                 />
               ))}
               {allTexts.length > shown && (
@@ -1780,6 +1830,7 @@ function TextUnitRow({
   onOpenOverlay,
   aiAvailable,
   onAiTranslate,
+  onLengthWarning,
 }) {
   const [draft, setDraft] = useState(unit.translated ?? "");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1842,6 +1893,10 @@ function TextUnitRow({
     });
     if (res.ok) {
       onMutate(res);
+      const warning = lengthWarningMessage(unit.original, draft);
+      if (warning) {
+        onLengthWarning(warning);
+      }
     }
   }
 
@@ -2029,6 +2084,11 @@ function TextUnitRow({
                     Rich text
                   </Badge>
                 </Tooltip>
+              )}
+              {SEO_FIELD_BADGE[unit.seo_field] && (
+                <Badge tone="info" size="small">
+                  {SEO_FIELD_BADGE[unit.seo_field]}
+                </Badge>
               )}
               {unit.is_ai && <Badge size="small">AI</Badge>}
               {badge && (
