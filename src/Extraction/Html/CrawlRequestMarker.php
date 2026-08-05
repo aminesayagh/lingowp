@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace TransLangs\Extraction\Html;
 
 /**
  * Marks and recognises the background crawler's own loopback requests, so the

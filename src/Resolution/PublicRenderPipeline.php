@@ -6,9 +6,9 @@ use TransLangs\Resolution\PublicLinkRewriter;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Database\SourceRepository;
-use TransLangs\Extraction\HtmlDiscovery;
-use TransLangs\Resolution\SeoHeadTranslator;
+use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Extraction\Html\HtmlDiscovery;
+use TransLangs\Resolution\Seo\SeoHeadTranslator;
 
 /**
  * Frontend output buffer. Structured text (post/term/meta + gettext) is

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace TransLangs\Resolution\Seo;
 use TransLangs\Resolution\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;

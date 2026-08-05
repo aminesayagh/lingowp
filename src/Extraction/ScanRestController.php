@@ -2,9 +2,9 @@
 
 namespace TransLangs\Extraction;
 
-use TransLangs\Extraction\HtmlDiscoveryCrawl;
-use TransLangs\Extraction\InitialDiscoveryScan;
-use TransLangs\Extraction\SeoDiscoveryRescan;
+use TransLangs\Extraction\Html\HtmlDiscoveryCrawl;
+use TransLangs\Extraction\Structured\InitialDiscoveryScan;
+use TransLangs\Extraction\Structured\SeoDiscoveryRescan;
 use WP_REST_Response;
 
 /**

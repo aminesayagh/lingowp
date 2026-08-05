@@ -6,7 +6,7 @@ use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Board\CollectionBoard;
 
 use TransLangs\Backend\AiQuotaService;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;

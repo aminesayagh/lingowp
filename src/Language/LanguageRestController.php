@@ -2,7 +2,7 @@
 
 namespace TransLangs\Language;
 
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;

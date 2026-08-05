@@ -19,7 +19,7 @@ require __DIR__ . '/_harness.php';
 
 use TransLangs\Database\ConstraintVerifier;
 use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Database\WpDbSourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 
 global $wpdb;
 

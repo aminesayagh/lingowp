@@ -2,9 +2,9 @@
 
 namespace TransLangs\Board;
 
-use TransLangs\Shared\Source\HtmlSource;
+use TransLangs\Shared\Source\Type\HtmlSource;
 use TransLangs\Shared\Source\TranslatableMetaKeys;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 

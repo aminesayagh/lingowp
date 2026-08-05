@@ -1,8 +1,8 @@
 <?php
 
 namespace TransLangs\Shared\Source;
-use TransLangs\Shared\Source\PostSource;
-use TransLangs\Shared\Source\PostMetaSource;
+use TransLangs\Shared\Source\Type\PostSource;
+use TransLangs\Shared\Source\Type\PostMetaSource;
 use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Shared\Text\IdentityKey;
 

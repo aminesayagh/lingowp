@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace TransLangs\Extraction\Html;
 
 /**
  * Background sweep of every known public URL (posts/pages, term archives,

@@ -12,12 +12,12 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use TransLangs\Shared\Source\HtmlSource;
-use TransLangs\Shared\Source\OptionSource;
-use TransLangs\Shared\Source\PostMetaSource;
-use TransLangs\Shared\Source\PostSource;
-use TransLangs\Shared\Source\SplitPostSource;
-use TransLangs\Shared\Source\TermSource;
+use TransLangs\Shared\Source\Type\HtmlSource;
+use TransLangs\Shared\Source\Type\OptionSource;
+use TransLangs\Shared\Source\Type\PostMetaSource;
+use TransLangs\Shared\Source\Type\PostSource;
+use TransLangs\Shared\Source\Type\SplitPostSource;
+use TransLangs\Shared\Source\Type\TermSource;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Text\IdentityKey;
 use TransLangs\Language\Domain\LocaleNormalizer;

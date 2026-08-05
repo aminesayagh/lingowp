@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Database;
+namespace TransLangs\Database\Repository;
 
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;

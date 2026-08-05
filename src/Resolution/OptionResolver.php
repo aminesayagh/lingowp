@@ -5,7 +5,7 @@ use TransLangs\Resolution\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Text\TL_Key;
 
 /**

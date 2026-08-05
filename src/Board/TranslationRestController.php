@@ -5,7 +5,7 @@ namespace TransLangs\Board;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
 use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;

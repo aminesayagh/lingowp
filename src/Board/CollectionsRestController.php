@@ -4,7 +4,7 @@ namespace TransLangs\Board;
 
 use TransLangs\Language\Domain\LocaleNormalizer;
 
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;

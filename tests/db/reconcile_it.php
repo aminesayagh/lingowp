@@ -11,11 +11,11 @@
 
 require __DIR__ . '/_harness.php';
 
-use TransLangs\Database\WpDbSourceRepository;
-use TransLangs\Database\WpDbBoardQueries;
-use TransLangs\Shared\Source\PostMetaSource;
-use TransLangs\Shared\Source\PostSource;
-use TransLangs\Shared\Source\SplitPostSource;
+use TransLangs\Database\Repository\WpDbSourceRepository;
+use TransLangs\Database\Repository\WpDbBoardQueries;
+use TransLangs\Shared\Source\Type\PostMetaSource;
+use TransLangs\Shared\Source\Type\PostSource;
+use TransLangs\Shared\Source\Type\SplitPostSource;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Shared\Text\TL_Key;

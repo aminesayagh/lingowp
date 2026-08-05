@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace TransLangs\Extraction\Structured;
 
 /**
  * Wires save-time structured discovery to WordPress lifecycle hooks (data

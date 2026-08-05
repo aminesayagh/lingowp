@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Source;
+namespace TransLangs\Shared\Source\Type;
 use TransLangs\Shared\Source\SourceRecord;
 
 use InvalidArgumentException;

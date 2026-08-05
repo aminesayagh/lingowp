@@ -1,12 +1,12 @@
 <?php
 
-namespace TransLangs\Database;
+namespace TransLangs\Database\Repository;
 
-use TransLangs\Shared\Source\HtmlSource;
+use TransLangs\Shared\Source\Type\HtmlSource;
 use TransLangs\Shared\Text\IdentityKey;
 use TransLangs\Shared\Source\SourceRecord;
 use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Shared\Text\TranslatableText;
 use TransLangs\Shared\Source\TranslationStatus;

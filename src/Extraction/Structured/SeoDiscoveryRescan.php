@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace TransLangs\Extraction\Structured;
 
 use TransLangs\Shared\Source\TranslatableMetaKeys;
 

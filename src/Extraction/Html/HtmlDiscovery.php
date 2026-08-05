@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace TransLangs\Extraction\Html;
 
-use TransLangs\Shared\Source\HtmlSource;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Shared\Source\Type\HtmlSource;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Extraction\OwnedStringIndex;
 use TransLangs\Resolution\HtmlRenderer;
 

@@ -2,8 +2,8 @@
 
 namespace TransLangs\Extraction;
 
-use TransLangs\Shared\Source\OptionSource;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Shared\Source\Type\OptionSource;
+use TransLangs\Database\Repository\SourceRepository;
 
 /**
  * Options discovery (Path E): extract the small subset of visitor-facing text

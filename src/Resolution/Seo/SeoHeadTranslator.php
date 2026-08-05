@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace TransLangs\Resolution\Seo;
 
 use TransLangs\Shared\Parsing\SeoTemplateVariables;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Source\TranslatableMetaKeys;
 use TransLangs\Shared\Text\TL_Key;
 

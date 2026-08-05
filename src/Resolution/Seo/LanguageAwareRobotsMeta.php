@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace TransLangs\Resolution\Seo;
 
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Resolution\RequestContext;
 

@@ -13,8 +13,8 @@
  * Re-runnable — it deletes and recreates its own fixture post.
  */
 
-use TransLangs\Database\WpDbSourceRepository;
-use TransLangs\Database\WpDbBoardQueries;
+use TransLangs\Database\Repository\WpDbSourceRepository;
+use TransLangs\Database\Repository\WpDbBoardQueries;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Database\TranslationMemorySchema;

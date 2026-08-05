@@ -3,7 +3,7 @@
 namespace TransLangs\Resolution;
 
 use Masterminds\HTML5;
-use TransLangs\Shared\Source\HtmlSource;
+use TransLangs\Shared\Source\Type\HtmlSource;
 use TransLangs\Shared\Parsing\HtmlUnitExtractor;
 use TransLangs\Shared\Text\TL_Key;
 

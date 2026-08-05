@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Source;
+namespace TransLangs\Shared\Source\Type;
 
 /**
  * One block-level piece of a split rich-HTML post field (post_content).

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace TransLangs\Extraction\Html;
 
 /**
  * The single source of truth for which WordPress hooks HtmlDiscoveryCrawl

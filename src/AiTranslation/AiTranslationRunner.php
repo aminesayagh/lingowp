@@ -4,7 +4,7 @@ namespace TransLangs\AiTranslation;
 
 use TransLangs\Backend\BackendClient;
 use TransLangs\Backend\SiteMetadataProvider;
-use TransLangs\Database\SourceRepository;
+use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;

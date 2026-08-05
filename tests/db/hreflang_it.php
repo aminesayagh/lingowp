@@ -24,7 +24,7 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Resolution\HreflangPresenter;
+use TransLangs\Resolution\Seo\HreflangPresenter;
 use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
 use TransLangs\Resolution\RequestContext;
 

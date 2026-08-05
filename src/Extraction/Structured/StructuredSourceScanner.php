@@ -1,15 +1,15 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace TransLangs\Extraction\Structured;
 
 use TransLangs\Shared\Parsing\HtmlUnitExtractor;
-use TransLangs\Shared\Source\PostMetaSource;
+use TransLangs\Shared\Source\Type\PostMetaSource;
 use TransLangs\Shared\Source\PostMetaValuePaths;
-use TransLangs\Shared\Source\PostSource;
+use TransLangs\Shared\Source\Type\PostSource;
 use TransLangs\Shared\Source\SourceRecord;
-use TransLangs\Database\SourceRepository;
-use TransLangs\Shared\Source\SplitPostSource;
-use TransLangs\Shared\Source\TermSource;
+use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Shared\Source\Type\SplitPostSource;
+use TransLangs\Shared\Source\Type\TermSource;
 use TransLangs\Shared\Parsing\SeoTemplateVariables;
 use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Shared\Source\TranslatableMetaKeys;
