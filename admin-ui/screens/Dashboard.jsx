@@ -18,6 +18,7 @@ import {
   Spinner,
   Text,
   TextField,
+  Thumbnail,
   Tooltip,
 } from "@shopify/polaris";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -139,6 +140,7 @@ const CONTENT_TYPE_FILTERS = [
   { key: "post", label: "Posts" },
   { key: "cpt", label: "Custom post types" },
   { key: "taxonomy", label: "Taxonomies" },
+  { key: "media", label: "Media" },
   { key: "site_settings", label: "Site settings" },
   { key: "html", label: "Template content" },
   { key: "plugin", label: "Plugin text" },
@@ -2005,6 +2007,11 @@ function TextUnitRow({
               onMouseLeave={() => setOriginalHovered(false)}
               style={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}
             >
+              {unit.image_url && (
+                <div style={{ flexShrink: 0 }}>
+                  <Thumbnail source={unit.image_url} alt="" size="extraSmall" />
+                </div>
+              )}
               <button
                 ref={originalRef}
                 type="button"

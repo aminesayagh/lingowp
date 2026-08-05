@@ -250,6 +250,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         // hash-link child is unique per (original_hash, lang_code), so the LEFT JOIN
         // yields at most one translation per source position — no COUNT fan-out.
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
+                       wp.post_mime_type AS post_mime_type,
                        COUNT(*)              AS total,
                        SUM(t.status > 0)     AS translated,
                        SUM(t.status = %d)    AS needs_review,
@@ -258,7 +259,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}
-                GROUP BY p.post_id, wp.post_type, wp.post_title
+                GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -271,13 +272,14 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ), ARRAY_A);
 
         return array_map(static fn (array $r): array => [
-            'post_id'      => (int) $r['post_id'],
-            'post_type'    => (string) $r['post_type'],
-            'post_title'   => (string) $r['post_title'],
-            'total'        => (int) $r['total'],
-            'translated'   => (int) $r['translated'],
-            'needs_review' => (int) $r['needs_review'],
-            'missing'      => (int) $r['missing'],
+            'post_id'        => (int) $r['post_id'],
+            'post_type'      => (string) $r['post_type'],
+            'post_title'     => (string) $r['post_title'],
+            'post_mime_type' => (string) $r['post_mime_type'],
+            'total'          => (int) $r['total'],
+            'translated'     => (int) $r['translated'],
+            'needs_review'   => (int) $r['needs_review'],
+            'missing'        => (int) $r['missing'],
         ], (array) $rows);
     }
 
@@ -481,6 +483,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
 
         // meta is a parent_id child: join on parent_id, not original_hash.
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
+                       wp.post_mime_type AS post_mime_type,
                        COUNT(*)              AS total,
                        SUM(t.status > 0)     AS translated,
                        SUM(t.status = %d)    AS needs_review,
@@ -489,7 +492,7 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.status = %d{$match}
-                GROUP BY p.post_id, wp.post_type, wp.post_title
+                GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -502,13 +505,14 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         ), ARRAY_A);
 
         return array_map(static fn (array $r): array => [
-            'post_id'      => (int) $r['post_id'],
-            'post_type'    => (string) $r['post_type'],
-            'post_title'   => (string) $r['post_title'],
-            'total'        => (int) $r['total'],
-            'translated'   => (int) $r['translated'],
-            'needs_review' => (int) $r['needs_review'],
-            'missing'      => (int) $r['missing'],
+            'post_id'        => (int) $r['post_id'],
+            'post_type'      => (string) $r['post_type'],
+            'post_title'     => (string) $r['post_title'],
+            'post_mime_type' => (string) $r['post_mime_type'],
+            'total'          => (int) $r['total'],
+            'translated'     => (int) $r['translated'],
+            'needs_review'   => (int) $r['needs_review'],
+            'missing'        => (int) $r['missing'],
         ], (array) $rows);
     }
 
@@ -538,6 +542,73 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return array_map(function (array $r): array {
             $unit          = $this->textUnitRow($r);
             $unit['field'] = (string) $r['meta_key'];
+            return $unit;
+        }, (array) $rows);
+    }
+
+    /** @inheritDoc */
+    public function listMediaPostTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('tl_post');
+        $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT p.id AS id, p.field AS field, p.post_id AS post_id, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                JOIN {$posts} wp ON wp.ID = p.post_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE wp.post_type = 'attachment' AND wp.post_mime_type LIKE 'image/%%'
+                      AND p.status = %d{$match}
+                ORDER BY wp.post_title, p.field, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit             = $this->textUnitRow($r);
+            $unit['post_id']  = (int) $r['post_id'];
+            return $unit;
+        }, (array) $rows);
+    }
+
+    /** @inheritDoc */
+    public function listMediaAltTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('tl_meta');
+        $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.post_id AS post_id, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                FROM {$parent} p
+                JOIN {$posts} wp ON wp.ID = p.post_id
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                WHERE wp.post_type = 'attachment' AND wp.post_mime_type LIKE 'image/%%'
+                      AND p.status = %d{$match}
+                ORDER BY wp.post_title, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit            = $this->textUnitRow($r);
+            $unit['field']   = (string) $r['meta_key'];
+            $unit['post_id'] = (int) $r['post_id'];
             return $unit;
         }, (array) $rows);
     }
