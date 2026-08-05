@@ -10,13 +10,13 @@
  * If this file fails, every assertion in the DB integration scripts is lying.
  */
 
-require __DIR__ . '/../src/Core/Text/StringNormalizer.php';
-require __DIR__ . '/../src/Core/Text/TL_Key.php';
-require __DIR__ . '/../src/Core/Text/TranslatableText.php';
+require __DIR__ . '/../src/Shared/Text/StringNormalizer.php';
+require __DIR__ . '/../src/Shared/Text/TL_Key.php';
+require __DIR__ . '/../src/Shared/Text/TranslatableText.php';
 
-use TransLangs\Core\Text\StringNormalizer;
-use TransLangs\Core\Text\TL_Key;
-use TransLangs\Core\Text\TranslatableText;
+use TransLangs\Shared\Text\StringNormalizer;
+use TransLangs\Shared\Text\TL_Key;
+use TransLangs\Shared\Text\TranslatableText;
 
 $failed = 0;
 $total  = 0;

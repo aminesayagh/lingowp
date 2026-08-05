@@ -36,9 +36,9 @@ require __DIR__ . '/_harness.php';
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Localization\LocalizedUrlBuilder;
-use TransLangs\Localization\MultilingualRedirects;
-use TransLangs\Rendering\RequestContext;
+use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
+use TransLangs\LocalizationRouting\MultilingualRedirects;
+use TransLangs\Resolution\RequestContext;
 
 tl_guard();
 tl_begin();

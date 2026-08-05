@@ -2,12 +2,13 @@
 
 namespace TransLangs\Admin;
 
-use TransLangs\Api\BackendEndpointResolver;
-use TransLangs\Api\ConnectionRepository;
-use TransLangs\Api\ConnectionStatus;
-use TransLangs\Api\SiteMetadataProvider;
-use TransLangs\Discovery\HtmlDiscoveryCrawl;
-use TransLangs\Discovery\InitialDiscoveryScan;
+use TransLangs\Backend\BackendEndpointResolver;
+use TransLangs\Backend\ConnectionRepository;
+use TransLangs\Backend\ConnectionStatus;
+use TransLangs\Backend\SiteMetadataProvider;
+use TransLangs\Backend\SiteMetadataSyncJob;
+use TransLangs\Extraction\HtmlDiscoveryCrawl;
+use TransLangs\Extraction\InitialDiscoveryScan;
 use TransLangs\Database\TranslationMemorySchema;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
@@ -37,8 +38,16 @@ class ResetPageController
     public const SLUG       = 'translangs-reset';
     private const PARENT    = 'translangs';
 
-    public function __construct(private \wpdb $wpdb)
-    {
+    public function __construct(
+        private \wpdb $wpdb,
+        private ConnectionRepository $connection,
+        private BackendEndpointResolver $endpointResolver,
+        private ConnectionStatus $connectionStatus,
+        private SiteMetadataSyncJob $siteMetadataSyncJob,
+        private SiteMetadataProvider $siteMetadata,
+        private OptionLanguageRegistry $languageRegistry,
+        private LanguageMetadataStore $languageMetadata
+    ) {
     }
 
     public function register(): void
@@ -89,16 +98,7 @@ class ResetPageController
             wp_die(esc_html__('Security check failed. Please try again.', 'translangs'));
         }
 
-        foreach (TranslationMemorySchema::childTables() as $table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- TRUNCATE cannot be parameterized
-            // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema's map / $wpdb prefix; no values interpolated
-            $this->wpdb->query("TRUNCATE TABLE {$table}");
-        }
-        foreach (TranslationMemorySchema::parentTables() as $table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-            // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema's map / $wpdb prefix; no values interpolated
-            $this->wpdb->query("TRUNCATE TABLE {$table}");
-        }
+        TranslationMemorySchema::truncateAllTables($this->wpdb);
 
         $this->resetConnection();
         $this->resetConfiguration();
@@ -121,42 +121,27 @@ class ResetPageController
      */
     private function resetConnection(): void
     {
-        delete_option(ConnectionRepository::OPTION_TOKEN);
-        delete_option(ConnectionRepository::OPTION_SITE_ID);
-        delete_option(ConnectionRepository::OPTION_COMPLETED);
-        delete_option(BackendEndpointResolver::OPTION_ORIGIN);
-        delete_transient('translangs_backend_status');
-        delete_transient('translangs_last_site_sync_error');
-
-        if (function_exists('as_unschedule_all_actions')) {
-            as_unschedule_all_actions(ConnectionStatus::HOOK, [], ConnectionStatus::GROUP);
-        }
+        $this->connection->forgetAll();
+        $this->endpointResolver->resetOrigin();
+        $this->connectionStatus->unschedule();
+        $this->siteMetadataSyncJob->clearError();
     }
 
     /**
      * Reset Settings-page configuration to its just-activated defaults:
      * language roster, source locale, behavior toggles, categories, language
-     * metadata. Mirrors SettingsPageController::handleRestart()'s exact
-     * treatment of the language roster (reset to '', not deleted), and
-     * reuses TranslationMemorySchema::setDefaultOptions() to reinstate every
-     * default this deleted — including re-arming onboarding-incomplete,
-     * since resetConnection() above already deleted that flag too.
+     * metadata. Reuses TranslationMemorySchema::setDefaultOptions() to
+     * reinstate every default this deleted — including re-arming
+     * onboarding-incomplete, since resetConnection() above already deleted
+     * that flag too.
      */
     private function resetConfiguration(): void
     {
-        delete_option('translangs_enabled_languages');
-        delete_option('translangs_prefix_default_language');
-        delete_option('translangs_cookie_preference');
-        delete_option('translangs_browser_detection');
-        delete_option('translangs_auto_redirect');
+        TranslationMemorySchema::deleteConfigOptions();
         delete_option('translangs_rewrite_rules_version');
-        delete_option(OptionLanguageRegistry::OPTION_SOURCE_LOCALE);
-        delete_option(OptionLanguageRegistry::OPTION_SOURCE_METADATA);
-        delete_option(SiteMetadataProvider::OPTION_CATEGORIES);
-        delete_option(LanguageMetadataStore::OPTION);
-
-        update_option(OptionLanguageRegistry::OPTION_ACTIVE, '');
-        update_option(OptionLanguageRegistry::OPTION_EXISTING, '');
+        $this->languageRegistry->resetToDefaults();
+        $this->siteMetadata->resetCategories();
+        $this->languageMetadata->reset();
 
         // Re-add every default this (and resetConnection()) deleted.
         TranslationMemorySchema::setDefaultOptions();

@@ -8,7 +8,7 @@
  * the two runs is the evidence for or against finding (A).
  */
 
-use TransLangs\Core\Source\Value\TranslationStatus;
+use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Database\TranslationMemorySchema;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 

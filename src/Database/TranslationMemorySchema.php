@@ -7,14 +7,14 @@ use TransLangs\Database\SchemaFailure;
 use TransLangs\Database\TableDefinitions;
 
 /**
- * Schema orchestrator — install, verify, and version-gate the v5 TransLangs tables.
+ * Schema orchestrator — install, verify, and version-gate the TransLangs tables.
  *
- * v5 splits the single packed table into ten content tables: five readable
- * PARENT source tables and five CHILD per-language translation tables. Created
- * with raw DDL — never dbDelta() (D13). Parent engines are checked first (§10)
- * and every FK is verified after creation; version is bumped only once
- * verification passes. There is no data migration here: pre-existing tables are
- * assumed dropped out of band, and CREATE TABLE IF NOT EXISTS is idempotent.
+ * Ten content tables: five readable PARENT source tables and five CHILD
+ * per-language translation tables. Created with raw DDL — never dbDelta().
+ * Parent engines are checked first, and every FK is verified after creation;
+ * version is bumped only once verification passes. There is no data migration
+ * here: pre-existing tables are assumed dropped out of band, and
+ * CREATE TABLE IF NOT EXISTS is idempotent.
  */
 class TranslationMemorySchema
 {
@@ -47,7 +47,7 @@ class TranslationMemorySchema
      * children → verify every FK → bump version.
      *
      * @throws SchemaFailure if a WordPress parent table is not InnoDB, or if any
-     *                       FK constraint is absent after creation. Created v5
+     *                       FK constraint is absent after creation. Created
      *                       tables are dropped before throwing on FK failure.
      */
     public static function install(): void
@@ -100,7 +100,7 @@ class TranslationMemorySchema
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
         $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
 
-        // 4. On any missing FK: drop v5 tables (children first), then fail.
+        // 4. On any missing FK: drop the tables (children first), then fail.
         if ($missing !== []) {
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
                 $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
@@ -281,7 +281,7 @@ class TranslationMemorySchema
 
     /**
      * Set behavior options on first activation only (add_option is a no-op if they exist).
-     * The source language is captured ONCE here (v5 §1.1): the normalized site
+     * The source language is captured ONCE here: the normalized site
      * locale is frozen into translangs_source_locale so runtime never reads the
      * filtered, mid-request-switchable get_locale().
      */
@@ -295,8 +295,8 @@ class TranslationMemorySchema
 
         // Onboarding: not yet completed. Credentials (token/site_id) are written on
         // connect with autoload=false and are deliberately not seeded here.
-        add_option(\TransLangs\Api\ConnectionRepository::OPTION_COMPLETED, false);
-        add_option(\TransLangs\Api\SiteMetadataProvider::OPTION_CATEGORIES, []);
+        add_option(\TransLangs\Backend\ConnectionRepository::OPTION_COMPLETED, false);
+        add_option(\TransLangs\Backend\SiteMetadataProvider::OPTION_CATEGORIES, []);
         add_option(\TransLangs\Language\Infrastructure\LanguageMetadataStore::OPTION, []);
 
         add_option(
@@ -337,5 +337,33 @@ class TranslationMemorySchema
         }
 
         return $children;
+    }
+
+    /**
+     * Dev-only reset tool: wipe every content table, children before parents
+     * (FK-safe, same order as uninstall.php's DROP).
+     */
+    public static function truncateAllTables(\wpdb $wpdb): void
+    {
+        foreach (self::childTables() as $table) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- TRUNCATE cannot be parameterized
+            // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
+            $wpdb->query("TRUNCATE TABLE {$table}");
+        }
+        foreach (self::parentTables() as $table) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
+            $wpdb->query("TRUNCATE TABLE {$table}");
+        }
+    }
+
+    /** Dev-only reset tool: the reciprocal of setDefaultOptions() above. */
+    public static function deleteConfigOptions(): void
+    {
+        delete_option('translangs_enabled_languages');
+        delete_option('translangs_prefix_default_language');
+        delete_option('translangs_cookie_preference');
+        delete_option('translangs_browser_detection');
+        delete_option('translangs_auto_redirect');
     }
 }

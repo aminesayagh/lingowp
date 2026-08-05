@@ -3,16 +3,15 @@
 namespace TransLangs\Database;
 
 /**
- * Pure DDL definitions for the v5 TransLangs tables (parent_child_unique_review_v5).
+ * Pure DDL definitions for the TransLangs content tables.
  *
- * Thirteen content tables: six readable PARENT source tables (post, meta, term,
- * staticText, html, option), six CHILD translation tables in TWO key variants,
- * plus tl_staticPluralText which extends its staticText anchor:
+ * Ten content tables: five readable PARENT source tables (post, meta, term,
+ * html, option), each with its own CHILD translation table, in TWO key variants:
  *   - hash-link children (post, term, html, option): keyed (original_hash, lang_code),
  *     no parent_id. original_hash is the SHA-256 of the normalized original text
  *     (the same value stored on the parent), so identical text shares one
  *     translation across every position that has it.
- *   - parent_id children (meta, staticText): keyed (parent_id, lang_code) —
+ *   - parent_id children (meta): keyed (parent_id, lang_code) —
  *     context can make identical text translate differently, so the translation
  *     is owned by the specific position.
  *

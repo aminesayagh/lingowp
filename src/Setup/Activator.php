@@ -4,9 +4,9 @@ namespace TransLangs\Setup;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Localization\LanguageRouteRegistrar;
-use TransLangs\Discovery\HtmlDiscoveryCrawl;
-use TransLangs\Discovery\InitialDiscoveryScan;
+use TransLangs\LocalizationRouting\LanguageRouteRegistrar;
+use TransLangs\Extraction\HtmlDiscoveryCrawl;
+use TransLangs\Extraction\InitialDiscoveryScan;
 use TransLangs\Database\SchemaFailure;
 use TransLangs\Database\TranslationMemorySchema;
 

@@ -3,8 +3,8 @@
 namespace TransLangs\Language\Application;
 
 use TransLangs\Database\SourceLanguageSnapshot;
-use TransLangs\Discovery\HtmlDiscoveryCrawl;
-use TransLangs\Discovery\InitialDiscoveryScan;
+use TransLangs\Extraction\HtmlDiscoveryCrawl;
+use TransLangs\Extraction\InitialDiscoveryScan;
 use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;

@@ -5,7 +5,7 @@ namespace TransLangs\Language\Infrastructure;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
 /**
- * Local source of truth for target-language metadata (v1 §P3).
+ * Local source of truth for target-language metadata.
  *
  * A single JSON option `translangs_languages` holds a map keyed by language code.
  * Each entry carries the display/routing metadata the SPA and workspace need:
@@ -92,5 +92,11 @@ final class LanguageMetadataStore
             unset($map[$code]);
             update_option(self::OPTION, $map);
         }
+    }
+
+    /** Dev-only reset tool: drop every language's metadata. */
+    public function reset(): void
+    {
+        delete_option(self::OPTION);
     }
 }

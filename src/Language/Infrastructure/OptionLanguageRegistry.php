@@ -6,10 +6,10 @@ use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
 /**
- * Option-backed language registry (architecture §3, code-based variant).
+ * Option-backed language registry.
  *
- * v4 has no languages table: there is no FK, join, or SQL integrity rule a
- * table would satisfy. Config is two autoloaded, pipe-delimited code lists:
+ * There is no languages table: no FK, join, or SQL integrity rule a table
+ * would satisfy. Config is two autoloaded, pipe-delimited code lists:
  *
  *   translangs_active_lang    'fr_FR|ar'       currently enabled targets
  *   translangs_existing_lang  'fr_FR|ar|es_ES' every target ever added (append-only)
@@ -24,7 +24,7 @@ use TransLangs\Language\Domain\LocaleNormalizer;
  * catalog, so runtime requests do not depend on fetching that catalog again.
  *
  * Source language is the normalized site locale, captured ONCE into the
- * translangs_source_locale option at setup (v5 §1.1). It is read from that option
+ * translangs_source_locale option at setup. It is read from that option
  * at runtime — never live from get_locale(), which is filtered and can switch
  * mid-request, which would silently re-key everything. Never stored as a target.
  *
@@ -222,6 +222,19 @@ final class OptionLanguageRegistry implements LanguageRegistry
         }
 
         return $chain;
+    }
+
+    /**
+     * Dev-only reset tool: wipe the target roster and the frozen source locale,
+     * back to the just-activated state. Call TranslationMemorySchema::setDefaultOptions()
+     * afterward to re-seed the source locale, same as a fresh activation.
+     */
+    public function resetToDefaults(): void
+    {
+        delete_option(self::OPTION_SOURCE_LOCALE);
+        delete_option(self::OPTION_SOURCE_METADATA);
+        $this->writeList(self::OPTION_ACTIVE, []);
+        $this->writeList(self::OPTION_EXISTING, []);
     }
 
     /** @return string[] */

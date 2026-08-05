@@ -5,12 +5,9 @@
  * Run:  php bin/check-split-field.php   (needs composer vendor/ for Masterminds)
  * Exits non-zero if any case fails. No WordPress, no DB.
  *
- * Ported to v5: the old requires pointed at src/TranslationMemory/Domain and
- * src/PublicSite/Infrastructure, which the v5 reorganisation removed, so this
- * file had been unrunnable. The two key-shape assertions were dropped with it —
- * TL_Key::make()/makeSplit()/TYPE_POST are gone; v5 keys a record by its
- * identity() columns and hashes the text with currentHash(). The determinism
- * those assertions protected is now covered by tests/normalizer_gate_check.php.
+ * A record is keyed by its identity() columns and hashes the text with
+ * currentHash(); determinism of that hash is covered by
+ * tests/normalizer_gate_check.php, not here.
  */
 
 declare(strict_types=1);
@@ -18,9 +15,9 @@ declare(strict_types=1);
 $base = dirname(__DIR__);
 require $base . '/vendor/autoload.php';
 
-use TransLangs\Core\Parsing\HtmlUnitExtractor;
-use TransLangs\Core\Parsing\TranslationUnitCodec;
-use TransLangs\Core\Text\TL_Key;
+use TransLangs\Shared\Parsing\HtmlUnitExtractor;
+use TransLangs\Shared\Parsing\TranslationUnitCodec;
+use TransLangs\Shared\Text\TL_Key;
 
 $failed = 0;
 $total  = 0;

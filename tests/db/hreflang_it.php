@@ -24,9 +24,9 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Localization\HreflangPresenter;
-use TransLangs\Localization\LocalizedUrlBuilder;
-use TransLangs\Rendering\RequestContext;
+use TransLangs\Resolution\HreflangPresenter;
+use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
+use TransLangs\Resolution\RequestContext;
 
 tl_guard();
 tl_begin();

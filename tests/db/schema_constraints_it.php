@@ -19,7 +19,7 @@ require __DIR__ . '/_harness.php';
 
 use TransLangs\Database\ConstraintVerifier;
 use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
+use TransLangs\Database\WpDbSourceRepository;
 
 global $wpdb;
 
@@ -175,8 +175,8 @@ foreach ($parents as $key => $table) {
 
 tl_section('duplicated constants:');
 
-$repoHashLink = (new ReflectionClass(WpDbSourceTranslationRepository::class))->getConstant('HASH_LINK');
-tl_ok('HASH_LINK_CHILDREN === WpDbSourceTranslationRepository::HASH_LINK',
+$repoHashLink = (new ReflectionClass(WpDbSourceRepository::class))->getConstant('HASH_LINK');
+tl_ok('HASH_LINK_CHILDREN === WpDbSourceRepository::HASH_LINK',
     TranslationMemorySchema::HASH_LINK_CHILDREN === $repoHashLink,
     'schema=' . json_encode(TranslationMemorySchema::HASH_LINK_CHILDREN) . ' repo=' . json_encode($repoHashLink));
 

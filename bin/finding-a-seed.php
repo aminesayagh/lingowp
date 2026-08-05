@@ -13,9 +13,10 @@
  * Re-runnable — it deletes and recreates its own fixture post.
  */
 
-use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
-use TransLangs\Core\Source\Value\SourceRef;
-use TransLangs\Core\Source\Value\TranslationStatus;
+use TransLangs\Database\WpDbSourceRepository;
+use TransLangs\Database\WpDbBoardQueries;
+use TransLangs\Shared\Source\SourceRef;
+use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Database\TranslationMemorySchema;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 
@@ -103,7 +104,7 @@ if ($count < 3) {
 
 // ── Translate every unit ────────────────────────────────────────────────────
 
-$repo = new WpDbSourceTranslationRepository($wpdb);
+$repo = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
 
 foreach ($rows as $i => $row) {
     $n = $i + 1;

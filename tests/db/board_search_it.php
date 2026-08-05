@@ -16,15 +16,16 @@
 
 require __DIR__ . '/_harness.php';
 
-use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
-use TransLangs\Core\Source\Type\HtmlSource;
-use TransLangs\Core\Source\Type\OptionSource;
-use TransLangs\Core\Source\Type\PostMetaSource;
-use TransLangs\Core\Source\Type\PostSource;
-use TransLangs\Core\Source\Type\TermSource;
-use TransLangs\Core\Source\Value\SourceRef;
-use TransLangs\Core\Source\Value\TranslationStatus;
-use TransLangs\Core\Text\TL_Key;
+use TransLangs\Database\WpDbSourceRepository;
+use TransLangs\Database\WpDbBoardQueries;
+use TransLangs\Shared\Source\HtmlSource;
+use TransLangs\Shared\Source\OptionSource;
+use TransLangs\Shared\Source\PostMetaSource;
+use TransLangs\Shared\Source\PostSource;
+use TransLangs\Shared\Source\TermSource;
+use TransLangs\Shared\Source\SourceRef;
+use TransLangs\Shared\Source\TranslationStatus;
+use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Database\TranslationMemorySchema;
 
 global $wpdb;
@@ -32,7 +33,7 @@ global $wpdb;
 tl_guard();
 tl_begin();
 
-$repo    = new WpDbSourceTranslationRepository($wpdb);
+$repo    = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
 $parents = TranslationMemorySchema::parentTables();
 $PP      = $parents['tl_post'];
 $LANG    = 'fr';

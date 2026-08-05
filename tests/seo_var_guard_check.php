@@ -7,12 +7,12 @@
  * plan-seo-integration-layer.md.
  */
 
-require __DIR__ . '/../src/Core/Parsing/UnitStructureGuard.php';
-require __DIR__ . '/../src/Core/Parsing/SeoTemplateVariables.php';
-require __DIR__ . '/../src/Core/Parsing/TranslationSubmissionGuard.php';
+require __DIR__ . '/../src/Shared/Parsing/UnitStructureGuard.php';
+require __DIR__ . '/../src/Shared/Parsing/SeoTemplateVariables.php';
+require __DIR__ . '/../src/Shared/Parsing/TranslationSubmissionGuard.php';
 
-use TransLangs\Core\Parsing\SeoTemplateVariables;
-use TransLangs\Core\Parsing\TranslationSubmissionGuard;
+use TransLangs\Shared\Parsing\SeoTemplateVariables;
+use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
 
 $YT = '_yoast_wpseo_title';
 $RT = 'rank_math_title';

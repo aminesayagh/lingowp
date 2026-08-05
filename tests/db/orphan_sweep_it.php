@@ -12,7 +12,7 @@
 
 require __DIR__ . '/_harness.php';
 
-use TransLangs\Core\Source\Value\TranslationStatus;
+use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Database\OrphanTranslationSweep;
 use TransLangs\Database\TranslationMemorySchema;
 

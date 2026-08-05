@@ -16,19 +16,20 @@
 
 require __DIR__ . '/_harness.php';
 
-use TransLangs\Core\Repository\WpDbSourceTranslationRepository;
-use TransLangs\Core\Source\Value\SourceRef;
-use TransLangs\Core\Source\Value\TranslationStatus;
-use TransLangs\Core\Text\TL_Key;
+use TransLangs\Database\WpDbSourceRepository;
+use TransLangs\Database\WpDbBoardQueries;
+use TransLangs\Shared\Source\SourceRef;
+use TransLangs\Shared\Source\TranslationStatus;
+use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Discovery\Option\OptionSourceScanner;
+use TransLangs\Extraction\OptionSourceScanner;
 
 global $wpdb;
 
 tl_guard();
 tl_begin();
 
-$repo    = new WpDbSourceTranslationRepository($wpdb);
+$repo    = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
 $scanner = new OptionSourceScanner($repo, $wpdb);
 $parents = TranslationMemorySchema::parentTables();
 $P       = $parents['tl_option'];
