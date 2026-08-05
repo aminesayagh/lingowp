@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Bootstrap;
+namespace TransLangs\Setup;
 
 use TransLangs\Admin\AdminAssets;
 use TransLangs\GettextDomains\InstalledGettextComponentDiscovery;

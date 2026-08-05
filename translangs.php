@@ -63,5 +63,5 @@ register_deactivation_hook(__FILE__, [\TransLangs\Setup\Deactivator::class, 'run
     * Boot the plugin after all plugins are loaded.
     */
 add_action('plugins_loaded', function (): void {
-    (new \TransLangs\Bootstrap\Plugin())->boot();
+    (new \TransLangs\Setup\Plugin())->boot();
 });
