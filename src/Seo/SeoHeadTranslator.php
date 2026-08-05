@@ -8,19 +8,23 @@ use TransLangs\Core\Source\Type\TranslatableMetaKeys;
 use TransLangs\Core\Text\TL_Key;
 
 /**
- * Translates the SEO <title> and meta description in the already-parsed page DOM
- * (plan-seo-integration-layer §3).
+ * Translates the SEO <title>, meta description, and Open Graph/Twitter Card
+ * tags in the already-parsed page DOM (plan-seo-integration-layer §3;
+ * goals-seo-overview.md §5.1/§5.2 for OG/Twitter).
  *
  * This is the ENTIRE output layer, and it registers no filters. Rather than an
  * adapter per SEO plugin — each with its own hook names, argument counts and
  * variable-expansion order — it reads what was actually rendered. Native
- * WordPress, Yoast, Rank Math and SEOPress all emit the same two tags, so one
+ * WordPress, Yoast, Rank Math and SEOPress all emit the same tags, so one
  * implementation covers them, and Yoast's indexable bypass stops mattering
  * because we never ask Yoast what it stored.
  *
  * Nothing is guessed: a string is replaced only when it matches a source we
  * already discovered. Anything unrecognised is left exactly as the plugin wrote
- * it.
+ * it. The one exception is Open Graph tags when NONE exist at all (no SEO
+ * plugin, no theme) — see insertMissingOpenGraphTags(), which only ever adds
+ * nodes when the rendered head genuinely has none, so it can never duplicate
+ * a plugin's own output.
  */
 final class SeoHeadTranslator
 {
@@ -52,9 +56,12 @@ final class SeoHeadTranslator
 
         $changes = [];
 
-        $title = $dom->getElementsByTagName('title')->item(0);
+        $title      = $dom->getElementsByTagName('title')->item(0);
+        $finalTitle = null;
         if ($title instanceof \DOMElement) {
-            $replacement = $this->resolve($title->textContent, $postId, $lang, 'title');
+            $rendered    = trim($title->textContent);
+            $replacement = $this->resolve($rendered, $postId, $lang, 'title');
+            $finalTitle  = $replacement ?? $rendered;
             if ($replacement !== null) {
                 $changes[] = static function () use ($title, $replacement): void {
                     $title->textContent = $replacement;
@@ -62,8 +69,11 @@ final class SeoHeadTranslator
             }
         }
 
-        foreach ($this->descriptionNodes($dom) as $meta) {
-            $replacement = $this->resolve($meta->getAttribute('content'), $postId, $lang, 'description');
+        $finalDescription = null;
+        foreach ($this->metaNodes($dom, 'name', 'description') as $meta) {
+            $rendered          = trim($meta->getAttribute('content'));
+            $replacement       = $this->resolve($rendered, $postId, $lang, 'description');
+            $finalDescription ??= $replacement ?? $rendered;
             if ($replacement !== null) {
                 $changes[] = static function () use ($meta, $replacement): void {
                     $meta->setAttribute('content', $replacement);
@@ -71,32 +81,132 @@ final class SeoHeadTranslator
             }
         }
 
+        // Open Graph + Twitter Card overrides — same resolve() engine, just a
+        // different (attribute, value, field) triple per tag. og:title/
+        // og:description use `property`; Twitter Card tags conventionally use
+        // `name`, not `property`.
+        foreach ([
+            ['property', 'og:title', 'og_title'],
+            ['property', 'og:description', 'og_description'],
+            ['name', 'twitter:title', 'twitter_title'],
+            ['name', 'twitter:description', 'twitter_description'],
+        ] as [$attribute, $value, $field]) {
+            foreach ($this->metaNodes($dom, $attribute, $value) as $meta) {
+                $replacement = $this->resolve(trim($meta->getAttribute('content')), $postId, $lang, $field);
+                if ($replacement !== null) {
+                    $changes[] = static function () use ($meta, $replacement): void {
+                        $meta->setAttribute('content', $replacement);
+                    };
+                }
+            }
+        }
+
         foreach ($changes as $apply) {
             $apply();
         }
+
+        $this->insertMissingOpenGraphTags($dom, $postId, $lang, $finalTitle, $finalDescription);
     }
 
     /**
-     * Every <meta name="description">. Plugins occasionally emit more than one;
-     * translating only the first would leave the head in two languages. The
-     * attribute VALUE is compared case-insensitively (the parser normalises
-     * attribute names, not their values).
+     * Every <meta> tag whose $attribute value case-insensitively equals $value.
+     * Plugins occasionally emit more than one instance of a tag; translating
+     * only the first would leave the head in two languages. The attribute
+     * VALUE is compared case-insensitively (the parser normalises attribute
+     * names, not their values).
      *
      * @return \DOMElement[]
      */
-    private function descriptionNodes(\DOMDocument $dom): array
+    private function metaNodes(\DOMDocument $dom, string $attribute, string $value): array
     {
         $out = [];
         foreach ($dom->getElementsByTagName('meta') as $meta) {
             if (!$meta instanceof \DOMElement) {
                 continue;
             }
-            if (strcasecmp(trim($meta->getAttribute('name')), 'description') === 0) {
+            if (strcasecmp(trim($meta->getAttribute($attribute)), $value) === 0) {
                 $out[] = $meta;
             }
         }
 
         return $out;
+    }
+
+    /**
+     * Insert basic, translated Open Graph tags when NONE exist at all — no SEO
+     * plugin active, and the theme doesn't add its own. Gated purely on
+     * absence in the actual rendered DOM (never on "which plugin is active",
+     * which this codebase deliberately never checks anywhere) — so it can
+     * never produce a duplicate tag set for any current or future plugin.
+     *
+     * $title/$description are the FINAL (possibly-already-translated) values
+     * translate() just computed for the <title>/meta-description tags — reused
+     * here rather than re-resolved, so og:title always agrees with <title>.
+     */
+    private function insertMissingOpenGraphTags(
+        \DOMDocument $dom,
+        int $postId,
+        string $lang,
+        ?string $title,
+        ?string $description
+    ): void {
+        if ($this->metaNodes($dom, 'property', 'og:title') !== []) {
+            return; // a plugin or theme already provides Open Graph tags
+        }
+
+        $head = $dom->getElementsByTagName('head')->item(0);
+        if (!$head instanceof \DOMElement) {
+            return;
+        }
+
+        // No <meta name="description"> existed at all (the common no-plugin
+        // case) — fall back to the post's own excerpt, same source SEOPress's
+        // own native description fallback uses.
+        if ($description === null) {
+            $post   = get_post($postId);
+            $source = $post instanceof \WP_Post ? trim((string) $post->post_excerpt) : '';
+            if ($source !== '') {
+                $description = $this->translatedHash('tl_post', $source, $lang) ?? $source;
+            }
+        }
+
+        if ($title !== null && $title !== '') {
+            $this->appendMetaTag($dom, $head, 'og:title', $title);
+        }
+        if ($description !== null && $description !== '') {
+            $this->appendMetaTag($dom, $head, 'og:description', $description);
+        }
+
+        $this->appendMetaTag($dom, $head, 'og:type', get_post_type($postId) === 'post' ? 'article' : 'website');
+
+        // wp_get_canonical_url() applies core's own 'get_canonical_url' filter,
+        // which HreflangPresenter::filterCanonical() already hooks — so this
+        // already comes back correctly language-prefixed, no new logic needed.
+        $canonical = function_exists('wp_get_canonical_url') ? wp_get_canonical_url($postId) : false;
+        if (is_string($canonical) && $canonical !== '') {
+            $this->appendMetaTag($dom, $head, 'og:url', $canonical);
+        }
+
+        // get_option() (not get_bloginfo()), same reason substituteKnownParts()
+        // uses it: OptionResolver translates only at the bloginfo DISPLAY
+        // filter, never at retrieval, so this is deliberately the source value.
+        $siteName = (string) get_option('blogname');
+        if ($siteName !== '') {
+            $this->appendMetaTag(
+                $dom,
+                $head,
+                'og:site_name',
+                $this->translatedHash('tl_option', $siteName, $lang) ?? $siteName
+            );
+        }
+    }
+
+    private function appendMetaTag(\DOMDocument $dom, \DOMElement $head, string $property, string $content): void
+    {
+        $meta = $dom->createElement('meta');
+        $meta->setAttribute('property', $property);
+        $meta->setAttribute('content', $content);
+        $head->appendChild($meta);
     }
 
     /**
@@ -163,11 +273,13 @@ final class SeoHeadTranslator
             return null;
         }
 
-        // 4. Nothing explicit matched: generated output. Known-part substitution is
-        //    TITLE ONLY — a description is prose, and replacing a post title that
-        //    appears in it as an ordinary word is exactly the guessing this design
-        //    avoids.
-        return $field === 'title'
+        // 4. Nothing explicit matched: generated output. Known-part substitution
+        //    is TITLE-TYPED FIELDS ONLY — og_title/twitter_title are exactly as
+        //    short/structural as the main title (frequently just ARE the main
+        //    title, per each plugin's own fallback chain). A description is
+        //    prose, and replacing a post title that appears in it as an
+        //    ordinary word is exactly the guessing this design avoids.
+        return in_array($field, ['title', 'og_title', 'twitter_title'], true)
             ? $this->substituteKnownParts($rendered, $postId, $lang)
             : null;
     }

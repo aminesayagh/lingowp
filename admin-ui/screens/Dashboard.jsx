@@ -82,6 +82,10 @@ const SEO_FIELD_BADGE = {
   title: "SEO title",
   description: "Meta description",
   keyword: "Focus keyword",
+  og_title: "OG title",
+  og_description: "OG description",
+  twitter_title: "Twitter title",
+  twitter_description: "Twitter description",
 };
 
 // Truncate a cell to a single line with an ellipsis; the whole cell is a

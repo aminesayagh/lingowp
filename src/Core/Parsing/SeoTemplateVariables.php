@@ -20,14 +20,31 @@ namespace TransLangs\Core\Parsing;
  */
 final class SeoTemplateVariables
 {
-    /** Which SEO field a key holds, and whose variable syntax it uses. */
+    /**
+     * Which SEO field a key holds, and whose variable syntax it uses.
+     *
+     * SEOPress's OG/Twitter override fields (_seopress_social_fb_title etc.)
+     * are deliberately absent — confirmed plain strings against the plugin's
+     * own source, no %%..%% template syntax at all, unlike its title/
+     * description fields. They don't need an entry here: Layer 1's
+     * get_post_metadata short-circuit already handles them end to end, and
+     * they don't need SeoHeadTranslator candidacy either.
+     */
     private const DESCRIPTORS = [
-        '_yoast_wpseo_title'     => ['field' => 'title',       'grammar' => 'yoast'],
-        '_yoast_wpseo_metadesc'  => ['field' => 'description', 'grammar' => 'yoast'],
-        'rank_math_title'        => ['field' => 'title',       'grammar' => 'rankmath'],
-        'rank_math_description'  => ['field' => 'description', 'grammar' => 'rankmath'],
-        '_seopress_titles_title' => ['field' => 'title',       'grammar' => 'yoast'],
-        '_seopress_titles_desc'  => ['field' => 'description', 'grammar' => 'yoast'],
+        '_yoast_wpseo_title'                => ['field' => 'title',               'grammar' => 'yoast'],
+        '_yoast_wpseo_metadesc'              => ['field' => 'description',         'grammar' => 'yoast'],
+        '_yoast_wpseo_opengraph-title'       => ['field' => 'og_title',            'grammar' => 'yoast'],
+        '_yoast_wpseo_opengraph-description' => ['field' => 'og_description',      'grammar' => 'yoast'],
+        '_yoast_wpseo_twitter-title'         => ['field' => 'twitter_title',       'grammar' => 'yoast'],
+        '_yoast_wpseo_twitter-description'   => ['field' => 'twitter_description', 'grammar' => 'yoast'],
+        'rank_math_title'                   => ['field' => 'title',               'grammar' => 'rankmath'],
+        'rank_math_description'             => ['field' => 'description',         'grammar' => 'rankmath'],
+        'rank_math_facebook_title'          => ['field' => 'og_title',            'grammar' => 'rankmath'],
+        'rank_math_facebook_description'    => ['field' => 'og_description',      'grammar' => 'rankmath'],
+        'rank_math_twitter_title'           => ['field' => 'twitter_title',       'grammar' => 'rankmath'],
+        'rank_math_twitter_description'     => ['field' => 'twitter_description', 'grammar' => 'rankmath'],
+        '_seopress_titles_title'            => ['field' => 'title',               'grammar' => 'yoast'],
+        '_seopress_titles_desc'              => ['field' => 'description',         'grammar' => 'yoast'],
     ];
 
     /**
@@ -139,7 +156,11 @@ final class SeoTemplateVariables
         return isset(self::DESCRIPTORS[$metaKey]);
     }
 
-    /** 'title' | 'description' | null — used by the output layer to pick a target tag. */
+    /**
+     * 'title' | 'description' | 'og_title' | 'og_description' | 'twitter_title'
+     * | 'twitter_description' | null — used by the output layer to pick a
+     * target tag.
+     */
     public static function fieldFor(string $metaKey): ?string
     {
         return self::DESCRIPTORS[$metaKey]['field'] ?? null;
