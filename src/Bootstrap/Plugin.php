@@ -11,6 +11,7 @@ use TransLangs\Rendering\StaticText\GettextResolver;
 use TransLangs\Rendering\Date\DateResolver;
 use TransLangs\Rendering\Number\NumberResolver;
 use TransLangs\Localization\HreflangPresenter;
+use TransLangs\Localization\MultilingualRedirects;
 use TransLangs\Rendering\Html\HtmlRenderer;
 use TransLangs\Core\Parsing\HtmlUnitExtractor;
 use TransLangs\Rendering\Option\OptionResolver;
@@ -121,6 +122,7 @@ class Plugin
         (new LanguageRouteRegistrar($languageResolver))->register();
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
+        (new MultilingualRedirects($languageResolver, $urlBuilder, $context))->register();
         (new SourceLifecycleRefresher($structuredScanner))->register();
         // Kept as a named instance (not built inline) so the backend-context block
         // below can reuse it for the manual "refresh" REST action.
