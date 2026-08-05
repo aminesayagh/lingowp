@@ -68,7 +68,19 @@ class MultilingualRedirects
             return $location;
         }
 
-        $active  = $this->resolver->resolve();
+        $active = $this->resolver->resolve();
+
+        // Already correctly prefixed — leave it exactly as the caller built
+        // it. Don't round-trip an already-correct path through
+        // addPrefix()/stripPrefix(): stripping a language-HOME path down to
+        // just its prefix ('/fr-ca/' -> '') and rebuilding drops the trailing
+        // slash ('/fr-ca/' -> '/fr-ca'), which then fights core's own
+        // trailing-slash canonicalization into a redirect loop (core wants
+        // '/fr-ca/', this filter kept reverting it to '/fr-ca').
+        if ($this->prefixer->detectPrefix($path) === $active) {
+            return $location;
+        }
+
         $newPath = $this->prefixer->addPrefix($path, $active);
 
         if ($newPath === $path) {

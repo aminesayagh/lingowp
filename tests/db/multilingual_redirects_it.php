@@ -127,6 +127,25 @@ tl_ok(
         === '/zz/tltest-old-slug/?foo=bar#baz'
 );
 
+// Regression: a redirect target that's ALREADY correctly prefixed at the
+// language-HOME root ('/zz/', nothing after the prefix) must pass through
+// completely untouched — including its exact trailing-slash formatting. This
+// exact case caused a live infinite redirect loop: core's own trailing-slash
+// canonicalization sends '/fr-ca' -> '/fr-ca/', and rewriting an
+// already-correct target via strip-then-rebuild silently dropped the
+// trailing slash back off ('/fr-ca/' -> '/fr-ca'), so the two redirects
+// fought forever. Bailing as soon as the existing prefix already matches the
+// active language — before ever calling addPrefix()/stripPrefix() — is what
+// prevents the round trip that loses the slash.
+tl_ok(
+    'an already-correctly-prefixed language-home path (with trailing slash) is untouched',
+    tl_redirects($registry, $context)->preserveLanguagePrefix('/zz/', 301) === '/zz/'
+);
+tl_ok(
+    'an already-correctly-prefixed language-home path (no trailing slash) is untouched either way',
+    tl_redirects($registry, $context)->preserveLanguagePrefix('/zz', 301) === '/zz'
+);
+
 // LocalizedUrlBuilder::stripPrefix() drops the trailing slash when it strips
 // an EXISTING prefix (trim() takes both ends, the rebuild only re-adds a
 // leading slash) — unlike the no-existing-prefix case above, which preserves
