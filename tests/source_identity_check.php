@@ -74,14 +74,10 @@ ok('locale exposes base language', LocaleNormalizer::language('pt_BR') === 'pt')
 ok('locale exposes region', LocaleNormalizer::region('pt_BR') === 'BR');
 ok('locale accepts a regionless WordPress locale', LocaleNormalizer::normalize('ar') === 'ar');
 
-// ── B. Six classes over six kinds ────────────────────────────────────────────
+// ── B. Six classes over five kinds ───────────────────────────────────────────
 // SplitPostSource shares PostSource's kind AND its identity columns — that
 // sharing is the structural root of the post_content carry-forward gap
 // (finding A in the plan), so it is asserted here as a fact.
-//
-// staticText remains a valid SourceRef kind (tl_staticText is still read for
-// the legacy Plugins & Themes board) even though its writer value object
-// (StaticTextSource) is gone — nothing constructs new gettext rows anymore.
 
 echo "\nclass / kind counts:\n";
 
@@ -91,8 +87,8 @@ $classes = [
 ];
 ok('six source classes', count($classes) === 6);
 
-$kinds = ['post', 'meta', 'term', 'staticText', 'html', 'option'];
-ok('six SourceRef kinds', count($kinds) === 6);
+$kinds = ['post', 'meta', 'term', 'html', 'option'];
+ok('five SourceRef kinds', count($kinds) === 5);
 foreach ($kinds as $kind) {
     ok("  kind '$kind' parses", SourceRef::parse($kind . ':1') !== null);
 }

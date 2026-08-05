@@ -251,8 +251,7 @@ final class AiTranslationController
         }
 
         if ($scope === 'language') {
-            $source = sanitize_key((string) $request->get_param('source')) ?: 'content';
-            return $this->pending($this->languageUnits($lang, $source));
+            return $this->pending($this->languageUnits($lang));
         }
 
         return null;
@@ -293,42 +292,15 @@ final class AiTranslationController
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
             return $this->unitsFromRows('term', $this->repo->listTaxonomyTexts($m[1], $lang));
         }
-        if (preg_match('/^plugin:(.+)$/', $id, $m)) {
-            $token   = rawurldecode($m[1]);
-            $domains = $token === '__other__' ? $this->collections->unmatchedTextDomains($lang) : [$token];
-            $units   = [];
-            foreach ($domains as $domain) {
-                $units = array_merge(
-                    $units,
-                    $this->unitsFromRows('staticText', $this->repo->listStaticTextDomainTexts($domain, $lang))
-                );
-            }
-            return $units;
-        }
-
         return null;
     }
 
     /**
-     * Every unit for a language, scoped by board: 'content' (default, unchanged
-     * behavior) is posts/meta/terms/options/html — the sidebar's per-language
-     * "Translate All" always uses this default. 'plugins' is every gettext
-     * string across every textdomain (Other bucket included; a language-wide
-     * translate doesn't need the known/unmatched split the board UI uses).
+     * Every unit for a language: posts/meta/terms/options/html — the sidebar's
+     * per-language "Translate All" always uses this.
      */
-    private function languageUnits(string $lang, string $source = 'content'): array
+    private function languageUnits(string $lang): array
     {
-        if ($source === 'plugins') {
-            $units = [];
-            foreach ($this->repo->staticTextDomainSummary($lang) as $d) {
-                $units = array_merge(
-                    $units,
-                    $this->unitsFromRows('staticText', $this->repo->listStaticTextDomainTexts($d['domain'], $lang))
-                );
-            }
-            return $units;
-        }
-
         $units = array_merge(
             $this->unitsFromRows('option', $this->repo->listOptionTexts($lang)),
             $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang))

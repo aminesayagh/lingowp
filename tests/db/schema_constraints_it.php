@@ -180,7 +180,4 @@ tl_ok('HASH_LINK_CHILDREN === WpDbSourceTranslationRepository::HASH_LINK',
     TranslationMemorySchema::HASH_LINK_CHILDREN === $repoHashLink,
     'schema=' . json_encode(TranslationMemorySchema::HASH_LINK_CHILDREN) . ' repo=' . json_encode($repoHashLink));
 
-tl_ok('pluralTable() is NOT in parentTables()',
-    !in_array(TranslationMemorySchema::pluralTable(), $parents, true));
-
 tl_done();

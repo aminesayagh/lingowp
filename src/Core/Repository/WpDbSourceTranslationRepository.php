@@ -32,8 +32,6 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     /** Parent table keys whose children are hash-linked. */
     private const HASH_LINK = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
 
-    private static ?bool $legacyStaticTextExists = null;
-
     public function __construct(private \wpdb $wpdb) {}
 
     // ── discovery write ────────────────────────────────────────────────────────
@@ -613,85 +611,6 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         }, (array) $rows);
     }
 
-    /** @inheritDoc */
-    public function staticTextDomainSummary(string $langCode, string $search = '', array $filters = []): array
-    {
-        if (! $this->legacyStaticTextExists()) {
-            return [];
-        }
-
-        $parent = TranslationMemorySchema::legacyStaticTextTable();
-        $child  = $parent . '_translation';
-
-        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
-
-        $sql = "SELECT SUBSTRING_INDEX(p.reference, '|', 1) AS domain,
-                       COUNT(*)              AS total,
-                       SUM(t.status > 0)     AS translated,
-                       SUM(t.status = %d)    AS needs_review,
-                       SUM(t.id IS NULL)     AS missing
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s AND t.form_index = 0
-                WHERE p.status = %d{$match}
-                GROUP BY domain
-                ORDER BY domain";
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $rows = $this->wpdb->get_results($this->wpdb->prepare(
-            $sql,
-            TranslationStatus::NEEDS_REVIEW,
-            $langCode,
-            TranslationStatus::SOURCE_DISCOVERED,
-            ...$matchArgs
-        ), ARRAY_A);
-
-        return array_map(static fn (array $r): array => [
-            'domain'       => (string) $r['domain'],
-            'total'        => (int) $r['total'],
-            'translated'   => (int) $r['translated'],
-            'needs_review' => (int) $r['needs_review'],
-            'missing'      => (int) $r['missing'],
-        ], (array) $rows);
-    }
-
-    /** @inheritDoc */
-    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = '', array $filters = []): array
-    {
-        if (! $this->legacyStaticTextExists()) {
-            return [];
-        }
-
-        $parent = TranslationMemorySchema::legacyStaticTextTable();
-        $child  = $parent . '_translation';
-
-        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
-
-        $sql = "SELECT p.id AS id, p.reference AS reference, p.original_text AS original_text,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s AND t.form_index = 0
-                WHERE SUBSTRING_INDEX(p.reference, '|', 1) = %s AND p.status = %d{$match}
-                ORDER BY p.id";
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $rows = $this->wpdb->get_results($this->wpdb->prepare(
-            $sql,
-            $langCode,
-            $domain,
-            TranslationStatus::SOURCE_DISCOVERED,
-            ...$matchArgs
-        ), ARRAY_A);
-
-        // parent_id kinds never share a translation row across parents, so no
-        // original_hash is selected — presentText()'s original_hash stays null,
-        // exactly like tl_meta.
-        return array_map(function (array $r): array {
-            $unit = $this->textUnitRow($r);
-            $reference = (string) $r['reference'];
-            $unit['field'] = (string) substr($reference, strpos($reference, '|') + 1);
-            return $unit;
-        }, (array) $rows);
-    }
 
 
     /** @inheritDoc */
@@ -1139,6 +1058,35 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         return [(int) ($row['total'] ?? 0), (int) ($row['done'] ?? 0)];
     }
 
+    /** @inheritDoc */
+    public function hasAnyTranslation(int $postId, string $langCode): bool
+    {
+        return $this->existsTranslatedChild('tl_post', false, $postId, $langCode)
+            || $this->existsTranslatedChild('tl_meta', true, $postId, $langCode);
+    }
+
+    /** Cheap EXISTS check: does $postId have at least one translated child row in $langCode for this table? */
+    private function existsTranslatedChild(string $tableKey, bool $parentId, int $postId, string $langCode): bool
+    {
+        $parent = $this->parent($tableKey);
+        $child  = $parent . '_translation';
+        $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
+
+        $sql = "SELECT EXISTS(
+                    SELECT 1 FROM {$parent} p
+                    JOIN {$child} t ON {$join} AND t.lang_code = %s
+                    WHERE p.post_id = %d AND p.status = %d
+                )";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        return (bool) $this->wpdb->get_var($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $postId,
+            TranslationStatus::SOURCE_DISCOVERED
+        ));
+    }
+
     /**
      * The board search predicate + its bound args, or ['', []] for no search — so an
      * unsearched board runs byte-for-byte the query it has always run.
@@ -1370,80 +1318,6 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
         if (($ref->kind === 'html' || $ref->kind === 'option') && $langCode !== '' && function_exists('wp_cache_delete')) {
             wp_cache_delete('tl:html:' . $langCode, 'translangs');
         }
-    }
-
-    /**
-     * Create or update one gettext plural FORM for the message anchored by $ref
-     * (a staticText ref), keyed (parent_id, lang_code, form_index). Singular saves
-     * keep using saveTranslation() (form_index defaults to 0).
-     */
-    public function savePluralForm(SourceRef $ref, string $langCode, int $formIndex, string $text, int $status, ?string $provider): void
-    {
-        $parentTable = $this->parent($ref->parentTableKey());
-        $child       = $parentTable . '_translation';
-        $now         = current_time('mysql');
-
-        $update = 'ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
-                       status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at)';
-
-        $providerExpr = $provider === null ? 'NULL' : '%s';
-        $args         = [$formIndex, $langCode, $text, $status];
-        if ($provider !== null) {
-            $args[] = $provider;
-        }
-        $args[] = $now;
-        $args[] = $now;
-        $args[] = $ref->id;
-
-        $sql = "INSERT INTO {$child}
-                    (parent_id, form_index, lang_code, translated_text, status, provider, created_at, updated_at)
-                SELECT p.id, %d, %s, %s, %d, {$providerExpr}, %s, %s
-                FROM {$parentTable} p WHERE p.id = %d {$update}";
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
-    }
-
-    /** Remove a single gettext plural FORM for $ref + language. */
-    public function deletePluralForm(SourceRef $ref, string $langCode, int $formIndex): void
-    {
-        $child = $this->parent($ref->parentTableKey()) . '_translation';
-
-        $this->wpdb->query( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare(
-                "DELETE FROM {$child} WHERE parent_id = %d AND lang_code = %s AND form_index = %d",
-                $ref->id,
-                $langCode,
-                $formIndex
-            )
-        );
-    }
-
-    /**
-     * The translated plural forms of $ref (a staticText message) for one language,
-     * keyed form_index => translated_text. For the admin plural editor.
-     *
-     * @return array<int, string>
-     */
-    public function loadPluralForms(SourceRef $ref, string $langCode): array
-    {
-        $child = $this->parent($ref->parentTableKey()) . '_translation';
-
-        $rows = $this->wpdb->get_results( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare(
-                "SELECT form_index, translated_text FROM {$child} WHERE parent_id = %d AND lang_code = %s",
-                $ref->id,
-                $langCode
-            ),
-            ARRAY_A
-        );
-
-        $out = [];
-        foreach ((array) $rows as $row) {
-            $out[(int) $row['form_index']] = (string) $row['translated_text'];
-        }
-
-        return $out;
     }
 
     public function ignoreSource(SourceRef $ref): void
@@ -1737,25 +1611,6 @@ final class WpDbSourceTranslationRepository implements SourceTranslationReposito
     private function isHashLink(string $tableKey): bool
     {
         return in_array($tableKey, self::HASH_LINK, true);
-    }
-
-    /**
-     * Whether wp_tl_static_text still exists — no longer created for fresh
-     * installs (see TranslationMemorySchema), so the Plugins & Themes board's
-     * legacy read paths must not assume it's there. Memoized: the answer
-     * cannot change within a request.
-     */
-    private function legacyStaticTextExists(): bool
-    {
-        if (self::$legacyStaticTextExists === null) {
-            $table = TranslationMemorySchema::legacyStaticTextTable();
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            self::$legacyStaticTextExists = (bool) $this->wpdb->get_var(
-                $this->wpdb->prepare('SHOW TABLES LIKE %s', $table)
-            );
-        }
-
-        return self::$legacyStaticTextExists;
     }
 
     /** Lowercase hex of a parent's original_hash, or null if the parent is gone. */

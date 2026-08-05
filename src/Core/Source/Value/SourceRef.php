@@ -6,8 +6,8 @@ use InvalidArgumentException;
 
 /**
  * Opaque identifier for one parent source row as it travels over the REST wire
- * and through the repository: `{kind}:{parent_id}`, e.g. `post:123`, `meta:45`,
- * `staticText:9`. This replaces the v4 hex source_key.
+ * and through the repository: `{kind}:{parent_id}`, e.g. `post:123`, `meta:45`.
+ * This replaces the v4 hex source_key.
  *
  * The kind token selects the parent/child table pair (there is no numeric type);
  * the id is the parent row's auto-increment primary key (always present once a
@@ -17,12 +17,11 @@ final class SourceRef
 {
     /** kind token => parent table key (TranslationMemorySchema::parentTables() index). */
     private const TABLES = [
-        'post'       => 'tl_post',
-        'meta'       => 'tl_meta',
-        'term'       => 'tl_term',
-        'staticText' => 'tl_staticText',
-        'html'       => 'tl_html',
-        'option'     => 'tl_option',
+        'post'   => 'tl_post',
+        'meta'   => 'tl_meta',
+        'term'   => 'tl_term',
+        'html'   => 'tl_html',
+        'option' => 'tl_option',
     ];
 
     private function __construct(

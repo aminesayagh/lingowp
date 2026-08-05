@@ -2,7 +2,6 @@
 
 namespace TransLangs\Admin\Rest;
 
-use TransLangs\Admin\InstalledGettextComponentDiscovery;
 use TransLangs\Core\Source\Type\HtmlSource;
 use TransLangs\Core\Source\Type\TranslatableMetaKeys;
 use TransLangs\Language\Domain\LocaleNormalizer;
@@ -37,8 +36,8 @@ final class CollectionRestController
     /** Accepted `status` filter values; anything else is a 400, not a silent no-op. */
     private const VALID_STATUSES = ['all', 'untranslated', 'needs_review', 'translated'];
 
-    /** Accepted `source` board values: today's Content board, or Plugins & Themes (gettext). */
-    private const VALID_SOURCES = ['content', 'plugins'];
+    /** Accepted `source` board values. */
+    private const VALID_SOURCES = ['content'];
 
     private const VALID_ORIGINS       = ['manual', 'ai', 'not_translated'];
     private const VALID_CONTENT_TYPES = ['page', 'post', 'cpt', 'taxonomy', 'media', 'site_settings', 'html', 'plugin', 'theme'];
@@ -51,8 +50,7 @@ final class CollectionRestController
 
     public function __construct(
         private SourceTranslationRepository $repo,
-        private OptionLanguageRegistry $registry,
-        private InstalledGettextComponentDiscovery $components
+        private OptionLanguageRegistry $registry
     ) {}
 
     public function register(): void
@@ -178,16 +176,11 @@ final class CollectionRestController
      * building the full filtered list once and slicing it is cheaper than trying
      * to paginate at the SQL layer.
      *
-     * $source picks the board: 'content' (default) is today's Site settings /
-     * Template content / posts / taxonomies tree. 'plugins' is the gettext board,
-     * grouped by textdomain, with unmatched domains collapsed into one "Other" row.
+     * $source picks the board: 'content' (default, currently the only value)
+     * is today's Site settings / Template content / posts / taxonomies tree.
      */
     private function buildCollections(string $lang, string $search, string $source = 'content', array $filters = []): array
     {
-        if ($source === 'plugins') {
-            return $this->buildPluginCollections($lang, $search, $filters);
-        }
-
         $collections = [];
 
         // With a search active every count describes the MATCHING subset, and a
@@ -327,47 +320,6 @@ final class CollectionRestController
         return $collections;
     }
 
-    /**
-     * The Plugins & Themes board: one collection per textdomain that resolves to
-     * an installed plugin/theme, plus one "Other" collection merging every domain
-     * that doesn't (WordPress core's `default` domain, or a since-removed plugin).
-     */
-    private function buildPluginCollections(string $lang, string $search, array $filters = []): array
-    {
-        $collections = [];
-        $resolved    = $this->components->all();
-        $other       = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
-
-        foreach ($this->repo->staticTextDomainSummary($lang, $search, $filters) as $row) {
-            $domain = $row['domain'];
-            if (isset($resolved[$domain])) {
-                $collections[] = [
-                    'id'             => 'plugin:' . rawurlencode($domain),
-                    'label'          => $resolved[$domain]['label'],
-                    'type'           => $resolved[$domain]['kind'], // 'plugin' | 'theme'
-                    'preview_url'    => null,
-                    'preview_target' => null,
-                ] + $row;
-                continue;
-            }
-            foreach (['total', 'translated', 'needs_review', 'missing'] as $k) {
-                $other[$k] += $row[$k];
-            }
-        }
-
-        if ($other['total'] > 0) {
-            $collections[] = [
-                'id'             => 'plugin:__other__',
-                'label'          => __('Other', 'translangs'),
-                'type'           => 'other',
-                'preview_url'    => null,
-                'preview_target' => null,
-            ] + $other;
-        }
-
-        return $collections;
-    }
-
     /** Text units of one collection for the selected language. */
     public function texts(WP_REST_Request $request): WP_REST_Response
     {
@@ -471,44 +423,8 @@ final class CollectionRestController
             );
         }
 
-        if (preg_match('/^plugin:(.+)$/', $id, $m)) {
-            $rows = [];
-            foreach ($this->pluginIdDomains($m[1], $lang, $search) as $domain) {
-                $rows = array_merge(
-                    $rows,
-                    $this->repo->listStaticTextDomainTexts($domain, $lang, $search, $filters)
-                );
-            }
-            return array_map(
-                fn (array $r): array => $this->presentText('staticText', $r, (string) $r['field']) + [
-                    'preview_url'    => null,
-                    'preview_target' => null,
-                ],
-                $rows
-            );
-        }
-
         return null;
     }
-
-    /**
-     * Resolve a `plugin:{token}` collection-id token to the raw domain(s) it
-     * covers: `__other__` expands to every domain not matching an installed
-     * plugin/theme (the merged "Other" bucket); anything else is one literal,
-     * rawurldecode()'d domain.
-     *
-     * @return string[]
-     */
-    private function pluginIdDomains(string $token, string $lang, string $search): array
-    {
-        $token = rawurldecode($token);
-        if ($token === '__other__') {
-            return $this->unmatchedTextDomains($lang, $search);
-        }
-
-        return [$token];
-    }
-
 
     /**
      * Recomputed total/translated/needs_review/missing for one collection,
@@ -783,16 +699,6 @@ final class CollectionRestController
                 $this->repo->listTaxonomyTexts($m[1], $lang)
             );
         }
-        if (preg_match('/^plugin:(.+)$/', $id, $m)) {
-            $refs = [];
-            foreach ($this->pluginIdDomains($m[1], $lang, '') as $domain) {
-                foreach ($this->repo->listStaticTextDomainTexts($domain, $lang) as $u) {
-                    $refs[] = SourceRef::make('staticText', (int) $u['id']);
-                }
-            }
-            return $refs;
-        }
-
         return null;
     }
 
@@ -977,7 +883,7 @@ final class CollectionRestController
         return $status === '' ? 'all' : $status;
     }
 
-    /** Which board: 'content' (default) or 'plugins'. Validity is the caller's job. */
+    /** Which board: 'content' (default, currently the only value). Validity is the caller's job. */
     private function resolveSource(WP_REST_Request $request): string
     {
         $source = sanitize_key((string) $request->get_param('source'));
@@ -1007,23 +913,6 @@ final class CollectionRestController
         }
 
         return 'cpt';
-    }
-
-    /**
-     * Domains present in tl_staticText that don't resolve to an installed
-     * plugin/theme (WordPress core's `default` domain, or a removed plugin) —
-     * the raw domains merged into the Plugins & Themes board's "Other" bucket.
-     * Public so AiTranslationController can reuse it instead of re-implementing
-     * plugin/theme resolution for its own `plugin:__other__` handling.
-     *
-     * @return string[]
-     */
-    public function unmatchedTextDomains(string $lang, string $search = ''): array
-    {
-        $known   = array_keys($this->components->all());
-        $present = array_column($this->repo->staticTextDomainSummary($lang, $search), 'domain');
-
-        return array_values(array_diff($present, $known));
     }
 
     /**

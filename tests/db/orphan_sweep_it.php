@@ -117,11 +117,6 @@ $wpdb->query($wpdb->prepare("DELETE FROM {$postPar} WHERE post_id = %d AND origi
 $sweep->run();
 tl_ok('child is reclaimed once the LAST parent is gone', !$childExists($postChild, $shared));
 
-// ── 5. parent_id children are out of scope ───────────────────────────────────
-// tl_staticText/tl_staticText_translation are no longer part of this check:
-// that table is legacy (no longer created for fresh installs, see
-// TranslationMemorySchema) and isn't guaranteed to exist on a test DB.
-
 tl_section('parent_id children untouched:');
 
 $metaChild = $parents['tl_meta'] . '_translation';

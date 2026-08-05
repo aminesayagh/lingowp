@@ -189,27 +189,6 @@ interface SourceTranslationRepository
     public function listMediaAltTexts(string $langCode, string $search = '', array $filters = []): array;
 
     /**
-     * Gettext collections grouped by textdomain (the plugin/theme slug) for one
-     * language: one row per raw domain string found in tl_staticText.reference
-     * (`domain|context`). For the Plugins & Themes board.
-     *
-     * @return array<int, array{domain:string, total:int, translated:int,
-     *   needs_review:int, missing:int}>
-     */
-    public function staticTextDomainSummary(string $langCode, string $search = '', array $filters = []): array;
-
-    /**
-     * The discovered tl_staticText units for one textdomain, one language.
-     * `field` is the gettext context half of `reference` (may be empty). For
-     * expanding a Plugins & Themes group.
-     *
-     * @return array<int, array{id:int, field:string, original_text:string,
-     *   translated_text:?string, status:?int, provider:?string}>
-     */
-    public function listStaticTextDomainTexts(string $domain, string $langCode, string $search = '', array $filters = []): array;
-
-
-    /**
      * Every unique content text (post/meta/term/option) across the whole
      * site, deduplicated GLOBALLY by original_hash — NOT per table. CSV
      * export is a flat text-to-translation matrix: the client explicitly
@@ -339,28 +318,21 @@ interface SourceTranslationRepository
     public function languageProgress(string $langCode): array;
 
     /**
+     * Whether this post has AT LEAST ONE translated unit (post field or meta)
+     * in this language — any status counts (machine/reviewed/needs_review all
+     * render, per the same "any child renders" rule the rest of the render
+     * path already follows). For goals-seo-overview.md §5.3: a page with zero
+     * translated content in the visitor's language is treated as not-yet-
+     * started; the moment this returns true, it's "normal" again.
+     */
+    public function hasAnyTranslation(int $postId, string $langCode): bool;
+
+    /**
      * Create or update one translation for the parent addressed by $ref.
      * hash-link: keyed (parent.original_hash, lang) — shared across positions.
      * parent_id: keyed (parent.id, lang). No-op if the parent row is gone.
      */
     public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): void;
-
-    /**
-     * Create or update one gettext plural FORM for the message anchored by $ref,
-     * keyed (parent_id, lang_code, form_index). Singular saves use saveTranslation.
-     */
-    public function savePluralForm(SourceRef $ref, string $langCode, int $formIndex, string $text, int $status, ?string $provider): void;
-
-    /** Remove a single gettext plural FORM for $ref + language. */
-    public function deletePluralForm(SourceRef $ref, string $langCode, int $formIndex): void;
-
-    /**
-     * The translated plural forms of $ref for one language, keyed
-     * form_index => translated_text. For the admin plural editor.
-     *
-     * @return array<int, string>
-     */
-    public function loadPluralForms(SourceRef $ref, string $langCode): array;
 
     /** Remove the translation for $ref + language (hash-link delete is text-global). */
     public function deleteTranslation(SourceRef $ref, string $langCode): void;

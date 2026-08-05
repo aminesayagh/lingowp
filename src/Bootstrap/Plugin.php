@@ -23,6 +23,7 @@ use TransLangs\Localization\LocalizedUrlBuilder;
 use TransLangs\Localization\PublicLinkRewriter;
 use TransLangs\Rendering\PublicRenderPipeline;
 use TransLangs\Seo\SeoHeadTranslator;
+use TransLangs\Seo\LanguageAwareRobotsMeta;
 use TransLangs\Rendering\RequestContext;
 use TransLangs\Rendering\Primary\StructuredRenderResolver;
 use TransLangs\Core\Parsing\TranslationUnitCodec;
@@ -123,6 +124,7 @@ class Plugin
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder))->register();
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         (new MultilingualRedirects($languageResolver, $urlBuilder, $context))->register();
+        (new LanguageAwareRobotsMeta($languageResolver, $context, $sourceRepository))->register();
         (new SourceLifecycleRefresher($structuredScanner))->register();
         // Kept as a named instance (not built inline) so the backend-context block
         // below can reuse it for the manual "refresh" REST action.
@@ -205,7 +207,7 @@ class Plugin
             (new ConnectionRestController($backendClient, $connection, $siteMetadata, $connectionStatus))->register();
             (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
             $gettextComponents     = new InstalledGettextComponentDiscovery();
-            $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry, $gettextComponents);
+            $collectionsController = new CollectionRestController($sourceRepository, $languageRegistry);
             $collectionsController->register();
             (new TranslationRestController($sourceRepository, $languageRegistry, $collectionsController))->register();
             (new AiTranslationController($backendClient, $sourceRepository, $languageRegistry, $languageMetadata, $collectionsController, $aiQuota))->register();

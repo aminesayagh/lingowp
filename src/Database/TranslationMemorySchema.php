@@ -327,34 +327,6 @@ class TranslationMemorySchema
         ];
     }
 
-    /**
-     * wp_tl_static_text — the gettext source table. No longer created for
-     * fresh installs (gettext is resolved from WordPress-native translation
-     * files now, see GettextResolver) and kept OUT of parentTables(): it is
-     * not part of the managed/verified schema anymore. This name-only helper
-     * exists purely for legacy reads (the Plugins & Themes board, still
-     * showing whatever was captured before the pivot) and the dev-only reset
-     * tool — both must still be able to name the table without it being
-     * created, verified, or migrated.
-     */
-    public static function legacyStaticTextTable(): string
-    {
-        global $wpdb;
-
-        return $wpdb->prefix . 'tl_static_text';
-    }
-
-    /**
-     * The gettext plural parent table (wp_tl_static_plural_text). Same legacy
-     * status as legacyStaticTextTable() — kept OUT of parentTables() and no
-     * longer created/verified, name-only helper for the dev reset tool.
-     */
-    public static function pluralTable(): string
-    {
-        global $wpdb;
-
-        return $wpdb->prefix . 'tl_static_plural_text';
-    }
 
     /** The five prefixed child (translation) table names, keyed by parent suffix. */
     public static function childTables(): array
