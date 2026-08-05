@@ -26,12 +26,43 @@ final class TranslatableMetaKeys
     private const DEFAULTS = [
         '_yoast_wpseo_title',
         '_yoast_wpseo_metadesc',
+        '_yoast_wpseo_focuskw',
         'rank_math_title',
         'rank_math_description',
+        'rank_math_focus_keyword',
+        '_seopress_titles_title',
+        '_seopress_titles_desc',
+        '_seopress_analysis_target_kw',
         '_wc_product_short_description',
     ];
 
+    /**
+     * Which SEO field a key represents, for dashboard display only — title vs.
+     * description vs. keyword. Deliberately separate from
+     * SeoTemplateVariables::DESCRIPTORS, which answers a different question
+     * (does this key have replacement-variable syntax to guard); folding
+     * keyword keys in there would wrongly turn on that guard for a plain
+     * phrase with no template variables at all.
+     */
+    private const SEO_FIELD_TYPES = [
+        '_yoast_wpseo_title'           => 'title',
+        '_yoast_wpseo_metadesc'        => 'description',
+        '_yoast_wpseo_focuskw'         => 'keyword',
+        'rank_math_title'              => 'title',
+        'rank_math_description'        => 'description',
+        'rank_math_focus_keyword'      => 'keyword',
+        '_seopress_titles_title'       => 'title',
+        '_seopress_titles_desc'        => 'description',
+        '_seopress_analysis_target_kw' => 'keyword',
+    ];
+
     private function __construct() {}
+
+    /** 'title' | 'description' | 'keyword' | null — unknown/non-SEO keys get null. */
+    public static function seoFieldType(string $key): ?string
+    {
+        return self::SEO_FIELD_TYPES[$key] ?? null;
+    }
 
     /**
      * @return string[] Allow-listed meta keys (slug-like keys excluded).

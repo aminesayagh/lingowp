@@ -134,6 +134,7 @@ class SettingsPageController
         // Sanitize and validate posted target languages.
         // Source language is excluded — it is never stored as a target.
         $postedRaw = isset($_POST['enabled_languages'])
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- every element is normalized by LocaleNormalizer::normalize() via array_map and re-validated by SupportedLanguages::exists() below.
             ? array_map([LocaleNormalizer::class, 'normalize'], (array) wp_unslash($_POST['enabled_languages']))
             : [];
 

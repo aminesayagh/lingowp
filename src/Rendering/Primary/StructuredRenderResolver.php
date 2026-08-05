@@ -65,6 +65,13 @@ final class StructuredRenderResolver
         add_filter('the_title', [$this, 'title'], 10, 2);
         add_filter('the_content', [$this, 'content'], 10, 1);
         add_filter('get_the_excerpt', [$this, 'excerpt'], 10, 2);
+        // wp_get_attachment_caption() reads post_excerpt directly and fires this
+        // filter instead of get_the_excerpt — the gallery/[caption] shortcode paths
+        // never call get_the_excerpt(), so without this an attachment caption
+        // translation is stored but never rendered. excerpt() already resolves
+        // purely from its first argument (it ignores $post entirely), so it is
+        // plug-compatible with this filter's (string $caption, int $post_id) shape.
+        add_filter('wp_get_attachment_caption', [$this, 'excerpt'], 10, 2);
         add_filter('get_post_metadata', [$this, 'metadata'], 10, 4);
         add_filter('get_term', [$this, 'term'], 10, 2);
         add_filter('get_terms', [$this, 'terms'], 10, 1);

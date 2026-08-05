@@ -4,6 +4,7 @@ namespace TransLangs\Admin\Rest;
 
 use TransLangs\Admin\InstalledGettextComponentDiscovery;
 use TransLangs\Core\Source\Type\HtmlSource;
+use TransLangs\Core\Source\Type\TranslatableMetaKeys;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
 use TransLangs\Core\Repository\SourceTranslationRepository;
@@ -40,7 +41,7 @@ final class CollectionRestController
     private const VALID_SOURCES = ['content', 'plugins'];
 
     private const VALID_ORIGINS       = ['manual', 'ai', 'not_translated'];
-    private const VALID_CONTENT_TYPES = ['page', 'post', 'cpt', 'taxonomy', 'site_settings', 'html', 'plugin', 'theme'];
+    private const VALID_CONTENT_TYPES = ['page', 'post', 'cpt', 'taxonomy', 'media', 'site_settings', 'html', 'plugin', 'theme'];
     private const VALID_TEXT_LENGTHS = ['short', 'medium', 'long'];
     private const VALID_PROGRESS     = ['not_started', 'in_progress', 'complete', 'has_review'];
 
@@ -220,11 +221,26 @@ final class CollectionRestController
             }
         }
         $contentRows = [];
+        $mediaTotals = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
         foreach ($byPost as $pid => $c) {
-            $pid       = (int) $pid;
-            $isFront   = $this->isFrontPage($pid, (string) $c['post_type'], (string) get_post_field('post_name', $pid));
-            $isMedia   = $c['post_type'] === 'attachment';
-            $permalink = get_permalink($pid);
+            $pid = (int) $pid;
+
+            // Image attachments get folded into the single media:all collection
+            // below instead of their own card — see that block for why.
+            $isImageAttachment = $c['post_type'] === 'attachment'
+                && str_starts_with((string) ($c['post_mime_type'] ?? ''), 'image/');
+            if ($isImageAttachment) {
+                foreach (array_keys($mediaTotals) as $k) {
+                    $mediaTotals[$k] += $c[$k];
+                }
+                continue;
+            }
+
+            $isFront    = $this->isFrontPage($pid, (string) $c['post_type'], (string) get_post_field('post_name', $pid));
+            // A non-image attachment (PDF, audio, video) has no alt-text/caption
+            // concept and stays an ordinary individual card, same as before.
+            $isMedia    = $c['post_type'] === 'attachment';
+            $permalink  = get_permalink($pid);
 
             if ($isFront) {
                 $previewUrl    = $this->frontendPreviewUrl(home_url('/'), $lang);
@@ -257,6 +273,21 @@ final class CollectionRestController
         }
         foreach ($contentRows as $row) {
             $collections[] = $row;
+        }
+
+        // One collection for every image attachment's alt/title/caption/description,
+        // positioned right after the individual page/post/cpt cards — mirrors the
+        // option:site/html:all pattern (one id aggregating many underlying rows)
+        // rather than content:{postId}'s one-card-per-post pattern, since these
+        // rows span many different attachment posts.
+        if ($mediaTotals['total'] > 0) {
+            $collections[] = [
+                'id'             => 'media:all',
+                'label'          => __('Media', 'translangs'),
+                'type'           => 'media',
+                'preview_url'    => admin_url('upload.php'),
+                'preview_target' => 'admin',
+            ] + $mediaTotals;
         }
 
         // Terms group by their taxonomy: one collection per taxonomy (all post
@@ -413,6 +444,18 @@ final class CollectionRestController
                 $this->repo->listMetaTexts($postId, $lang, $search, $filters)
             );
             return array_merge($posts, $metas);
+        }
+
+        if ($id === 'media:all') {
+            $posts = array_map(
+                fn (array $r): array => $this->presentText('post', $r, (string) $r['field']) + $this->mediaPreview($r),
+                $this->repo->listMediaPostTexts($lang, $search, $filters)
+            );
+            $alts = array_map(
+                fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']) + $this->mediaPreview($r),
+                $this->repo->listMediaAltTexts($lang, $search, $filters)
+            );
+            return array_merge($posts, $alts);
         }
 
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
@@ -723,6 +766,17 @@ final class CollectionRestController
             );
             return array_merge($posts, $metas);
         }
+        if ($id === 'media:all') {
+            $posts = array_map(
+                static fn (array $u): SourceRef => SourceRef::make('post', (int) $u['id']),
+                $this->repo->listMediaPostTexts($lang)
+            );
+            $alts = array_map(
+                static fn (array $u): SourceRef => SourceRef::make('meta', (int) $u['id']),
+                $this->repo->listMediaAltTexts($lang)
+            );
+            return array_merge($posts, $alts);
+        }
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
             return array_map(
                 static fn (array $u): SourceRef => SourceRef::make('term', (int) $u['id']),
@@ -765,6 +819,7 @@ final class CollectionRestController
         return [
             'id'            => SourceRef::make($kind, (int) $row['id'])->format(),
             'field'         => $field,
+            'seo_field'     => TranslatableMetaKeys::seoFieldType($field),
             'original'      => $original,
             'translated'    => $translated,
             // v1: fallback shows the source text; fallback-language lookup is later.
@@ -780,6 +835,23 @@ final class CollectionRestController
             // the client patch every other visible occurrence of this exact
             // text after a save, instead of only the one just edited.
             'original_hash' => $row['original_hash'] ?? null,
+        ];
+    }
+
+    /**
+     * Thumbnail + admin edit-link for one Media-collection row, keyed by the
+     * underlying attachment's post_id (carried through by listMediaPostTexts()/
+     * listMediaAltTexts() since these rows span many different images, unlike
+     * every other collection where the post is already known from context).
+     */
+    private function mediaPreview(array $row): array
+    {
+        $postId = (int) $row['post_id'];
+
+        return [
+            'image_url'      => wp_get_attachment_image_url($postId, 'thumbnail') ?: null,
+            'preview_url'    => admin_url('post.php?post=' . $postId . '&action=edit'),
+            'preview_target' => 'admin',
         ];
     }
 

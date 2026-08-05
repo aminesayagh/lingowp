@@ -88,7 +88,7 @@ interface SourceTranslationRepository
      * post_type + title. For the workspace group list (Pages/Posts/CPT).
      *
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
-     *   total:int, translated:int, needs_review:int, missing:int}>
+     *   post_mime_type:string, total:int, translated:int, needs_review:int, missing:int}>
      */
     public function listPostCollections(string $langCode, string $search = '', array $filters = []): array;
 
@@ -153,7 +153,7 @@ interface SourceTranslationRepository
      * language. Merged into each post's content collection alongside tl_post.
      *
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
-     *   total:int, translated:int, needs_review:int, missing:int}>
+     *   post_mime_type:string, total:int, translated:int, needs_review:int, missing:int}>
      */
     public function postMetaCounts(string $langCode, string $search = '', array $filters = []): array;
 
@@ -164,6 +164,29 @@ interface SourceTranslationRepository
      *   translated_text:?string, status:?int, provider:?string}>
      */
     public function listMetaTexts(int $postId, string $langCode, string $search = '', array $filters = []): array;
+
+    /**
+     * The discovered tl_post text units (title, and post_content's
+     * paragraph-level units) of every image attachment for one language,
+     * across ALL matching posts at once — unlike listPostTexts(), which is
+     * scoped to one post. Each row carries post_id, since the Media
+     * collection has no other way to resolve which image a row belongs to
+     * (for the thumbnail).
+     *
+     * @return array<int, array{id:int, field:string, post_id:int, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listMediaPostTexts(string $langCode, string $search = '', array $filters = []): array;
+
+    /**
+     * The discovered tl_meta ALT text of every image attachment for one
+     * language, across ALL matching posts at once — the meta counterpart of
+     * listMediaPostTexts().
+     *
+     * @return array<int, array{id:int, field:string, post_id:int, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listMediaAltTexts(string $langCode, string $search = '', array $filters = []): array;
 
     /**
      * Gettext collections grouped by textdomain (the plugin/theme slug) for one

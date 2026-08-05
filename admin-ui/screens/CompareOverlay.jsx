@@ -26,7 +26,8 @@ import {
 } from "@wordpress/element";
 import { api } from "../api";
 import { flagEmoji } from "./LanguageList";
-import { ChipField, SourceChips, hasMarkers } from "./TranslationUnitEditor";
+import { ChipField, SourceChips, hasMarkers, stripMarkers } from "./TranslationUnitEditor";
+import { lengthWarningMessage } from "./lengthWarning.mjs";
 
 /*
  * Text-editor overlay (DSL: overlay#text_editor) — one shell for both variants:
@@ -102,6 +103,7 @@ export default function CompareOverlay({
   onOpenPreview,
   onClose,
   onSaved,
+  onLengthWarning,
   onPrev,
   onNext,
   hasPrev,
@@ -150,6 +152,14 @@ export default function CompareOverlay({
         setError("");
         setSavedTick((t) => t + 1);
         onSaved(res);
+        const originalForCompare = composed
+          ? stripMarkers(unit.original || "")
+          : unit.original || "";
+        const translatedForCompare = composed ? stripMarkers(value) : value;
+        const warning = lengthWarningMessage(originalForCompare, translatedForCompare);
+        if (warning) {
+          onLengthWarning(warning);
+        }
         return;
       }
       setError(
@@ -158,7 +168,7 @@ export default function CompareOverlay({
           : "Could not save. Please try again."
       );
     },
-    [unitId, language, composed, collectionId, onSaved]
+    [unitId, language, composed, collectionId, onSaved, unit, onLengthWarning]
   );
 
   const flush = useCallback(() => {
