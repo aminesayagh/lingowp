@@ -170,9 +170,13 @@ final class CollectionsRestController
     {
         $lang    = $this->resolveLang($request);
         $search  = $this->resolveSearch($request);
+        $status  = $this->resolveStatus($request);
         $id      = urldecode((string) $request->get_param('id'));
         $filters = $this->resolveFilters($request);
 
+        if (! in_array($status, self::VALID_STATUSES, true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_STATUS'], 400);
+        }
         if ($filters === null) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_FILTER'], 400);
         }
@@ -182,10 +186,21 @@ final class CollectionsRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
+        if ($status !== 'all') {
+            // presentText() labels a text 'missing' | 'needs_review' | 'reviewed' | 'translated';
+            // 'reviewed' shares the "translated" bucket everywhere else (see summaryFor()).
+            $texts = array_values(array_filter($texts, static fn (array $t): bool => match ($status) {
+                'untranslated' => $t['status'] === 'missing',
+                'needs_review' => $t['status'] === 'needs_review',
+                'translated'   => $t['status'] === 'translated' || $t['status'] === 'reviewed',
+            }));
+        }
+
         return rest_ensure_response([
             'ok'       => true,
             'language' => $lang,
             'search'   => $search,
+            'status'   => $status,
             'filters'  => $filters,
             'texts'    => $texts,
         ]);

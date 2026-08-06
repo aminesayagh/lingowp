@@ -739,10 +739,10 @@ export default function Dashboard({
   // CollectionGroup uses, so opening a neighbor group is just a query-key
   // change (shares cache with that group's own row if it's mounted).
   const overlayTextsQ = useQuery({
-    queryKey: ["texts", overlay?.cid, selectedLang, query, advancedFilters],
+    queryKey: ["texts", overlay?.cid, selectedLang, query, statusFilter, advancedFilters],
     queryFn: async ({ signal }) => {
       const res = await api.get(
-        `/collections/${enc(overlay.cid)}/texts?language=${enc(selectedLang)}${searchParam(query)}${advancedFilterParams}`,
+        `/collections/${enc(overlay.cid)}/texts?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}${advancedFilterParams}`,
         { signal }
       );
       if (!res.ok) {
@@ -1362,6 +1362,7 @@ export default function Dashboard({
                             collection={c}
                             language={selectedLang}
                             search={query}
+                            status={statusFilter}
                             filterKey={advancedFilters}
                             filterParams={advancedFilterParams}
                             collapsed={collapsedIds.has(c.id)}
@@ -1525,6 +1526,7 @@ function CollectionGroup({
   collection,
   language,
   search,
+  status,
   filterKey,
   filterParams,
   collapsed,
@@ -1556,10 +1558,10 @@ function CollectionGroup({
   }, [collapsed]);
 
   const textsQ = useQuery({
-    queryKey: ["texts", c.id, language, search, filterKey],
+    queryKey: ["texts", c.id, language, search, status, filterKey],
     queryFn: async ({ signal }) => {
       const res = await api.get(
-        `/collections/${enc(c.id)}/texts?language=${enc(language)}${search ? `&search=${enc(search)}` : ""}${filterParams}`,
+        `/collections/${enc(c.id)}/texts?language=${enc(language)}${search ? `&search=${enc(search)}` : ""}&status=${enc(status)}${filterParams}`,
         { signal }
       );
       if (!res.ok) {
