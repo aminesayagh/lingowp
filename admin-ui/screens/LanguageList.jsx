@@ -9,6 +9,10 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { flagIconUrl, FlagIcon } from './FlagIcon';
 
+// Below this translated percentage, publishing a language asks for confirmation
+// first (Dashboard.jsx / LanguageManagerModal.jsx).
+export const PUBLISH_MIN_PERCENT = 90;
+
 // Animated dropdown (motion): a gap below the activator + a fade/slide on open,
 // with click-outside to close. Portaled to <body> and fixed-positioned off the
 // activator so no ancestor (e.g. a Polaris Card's overflow) can clip it.
@@ -115,7 +119,7 @@ export function LanguageRow( { lang, selected, percent, showProgress, aiAvailabl
 				background: selected ? 'var(--p-color-bg-surface-selected, rgba(0,0,0,0.06))' : 'transparent',
 			} }
 		>
-			<FlagIcon src={ flagIconUrl( lang ) } size={ 16 } />
+			<FlagIcon src={ flagIconUrl( lang ) } size={ 16 } grayscale={ ! lang.enabled } />
 			<span style={ { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>
 				<Text as="span" variant="bodyMd">{ name }</Text>
 			</span>

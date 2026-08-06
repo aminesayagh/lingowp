@@ -11,7 +11,7 @@ import {
 import { useEffect, useState } from '@wordpress/element';
 import { api } from '../api';
 import GeneralConfiguration from './GeneralConfiguration';
-import LanguageList from './LanguageList';
+import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList';
 import SearchableLanguageSelect from './SearchableLanguageSelect';
 
 const enc = encodeURIComponent;
@@ -35,7 +35,7 @@ export const AI_STYLE_PLACEHOLDER = 'Professional, clear, modern, and approachab
 // Language manager: a sidebar of every language (reuses the dashboard's
 // LanguageList) + a config pane. Selecting a row edits it; "+ Add" starts a new
 // one. Stays open after save so several languages can be added/reconfigured.
-export default function LanguageManagerModal({ open, languages, catalog, defaultCode, initialCode, onClose, onChanged }) {
+export default function LanguageManagerModal({ open, languages, catalog, defaultCode, initialCode, onClose, onChanged, onConfirm }) {
 	const [sel, setSel] = useState('new');
 	const [resolvedCatalog, setResolvedCatalog] = useState(catalog);
 	const [catalogStatus, setCatalogStatus] = useState('idle');
@@ -89,11 +89,31 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 		}
 	}, [languages]);
 
-	function toggleStatus(lang) {
-		api.patch(`/languages/${enc(lang.code)}`, { status: lang.enabled ? 'draft' : 'active' }).then((r) => {
+	function patchStatus(code, status) {
+		api.patch(`/languages/${enc(code)}`, { status }).then((r) => {
 			if (r.ok) {
 				onChanged();
 			}
+		});
+	}
+
+	// Draft → active is "publish"; below PUBLISH_MIN_PERCENT it asks for
+	// confirmation first, since visitors would see mostly-fallback content.
+	function toggleStatus(lang) {
+		if (lang.enabled) {
+			patchStatus(lang.code, 'draft');
+			return;
+		}
+		const percent = lang.translated_percent ?? 0;
+		if (percent >= PUBLISH_MIN_PERCENT) {
+			patchStatus(lang.code, 'active');
+			return;
+		}
+		onConfirm({
+			title: `Publish ${lang.display_name || lang.name || lang.code} at ${percent}% translated?`,
+			body: 'Visitors will see untranslated content in its fallback until translation is complete. You can keep translating after publishing.',
+			actionLabel: 'Publish anyway',
+			onConfirm: () => patchStatus(lang.code, 'active'),
 		});
 	}
 

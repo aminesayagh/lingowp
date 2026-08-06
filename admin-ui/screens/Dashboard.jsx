@@ -41,7 +41,7 @@ import ExportImportModal from "./ExportImportModal";
 import GettextBoard from "./GettextBoard";
 import LanguageManagerModal from "./LanguageManagerModal";
 import OnboardingPage from "./OnboardingPage";
-import LanguageList from "./LanguageList";
+import LanguageList, { PUBLISH_MIN_PERCENT } from "./LanguageList";
 import { flagIconUrl } from "./FlagIcon";
 import CompareOverlay from "./CompareOverlay";
 import QuotaCard from "./QuotaCard";
@@ -401,6 +401,26 @@ export default function Dashboard({
       actionLabel: "Delete",
       destructive: true,
       onConfirm: () => deleteLang(lang.code),
+    });
+  }
+
+  // Draft → active is "publish"; below PUBLISH_MIN_PERCENT it asks for
+  // confirmation first, since visitors would see mostly-fallback content.
+  function togglePublishStatus(lang) {
+    if (lang.enabled) {
+      patchLangStatus(lang.code, "draft");
+      return;
+    }
+    const percent = lang.translated_percent ?? 0;
+    if (percent >= PUBLISH_MIN_PERCENT) {
+      patchLangStatus(lang.code, "active");
+      return;
+    }
+    setConfirm({
+      title: `Publish ${lang.display_name || lang.name || lang.code} at ${percent}% translated?`,
+      body: "Visitors will see untranslated content in its fallback until translation is complete. You can keep translating after publishing.",
+      actionLabel: "Publish anyway",
+      onConfirm: () => patchLangStatus(lang.code, "active"),
     });
   }
 
@@ -847,6 +867,7 @@ export default function Dashboard({
           defaultCode={defaultCode}
           initialCode={managerInitial}
           onClose={() => setManagerOpen(false)}
+          onConfirm={setConfirm}
           onChanged={() => {
             refreshLanguages();
             onLanguageCreated();
@@ -1079,12 +1100,7 @@ export default function Dashboard({
                       aiAvailable={ai.available}
                       onSelect={(lang) => setSelectedLang(lang.code)}
                       onEdit={(lang) => openManager(lang.code)}
-                      onToggleStatus={(lang) =>
-                        patchLangStatus(
-                          lang.code,
-                          lang.enabled ? "draft" : "active",
-                        )
-                      }
+                      onToggleStatus={togglePublishStatus}
                       onTranslateAll={(lang) => translateLanguageAll(lang)}
                       onDelete={(lang) => confirmDeleteLang(lang)}
                       onAdd={() => openManager(null)}
@@ -1404,6 +1420,7 @@ export default function Dashboard({
         defaultCode={defaultCode}
         initialCode={managerInitial}
         onClose={() => setManagerOpen(false)}
+        onConfirm={setConfirm}
         onChanged={() => {
           refreshLanguages();
           onLanguageCreated();

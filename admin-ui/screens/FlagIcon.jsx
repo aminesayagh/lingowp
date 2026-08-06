@@ -28,7 +28,9 @@ export function flagIconUrl(lang) {
 
 // Flags are 4:3, not square — a fixed height with width derived from it avoids
 // squashing them into a square box.
-export function FlagIcon({ src, size = 16 }) {
+// `grayscale`: draft languages show a desaturated flag so their unpublished
+// state is visible at a glance, without a separate badge.
+export function FlagIcon({ src, size = 16, grayscale = false }) {
   const [broken, setBroken] = useState(false);
 
   if (!src || broken) {
@@ -50,6 +52,7 @@ export function FlagIcon({ src, size = 16 }) {
         borderRadius: 2,
         objectFit: "cover",
         flexShrink: 0,
+        filter: grayscale ? "grayscale(1)" : undefined,
       }}
     />
   );

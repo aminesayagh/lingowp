@@ -127,7 +127,7 @@ final class LanguageRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
-        $status = $request->get_param('status') === 'draft' ? 'draft' : 'active';
+        $status = $request->get_param('status') === 'active' ? 'active' : 'draft';
 
         // The canonical WordPress locale is the language identity and translation
         // key; language, region, display metadata, and direction come from core's
