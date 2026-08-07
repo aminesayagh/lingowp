@@ -42,6 +42,8 @@ use TransLangs\Resolution\RequestContext;
  */
 final class DateResolver
 {
+    use DeferredTranslationActivation;
+
     /** PHP date() token => ICU pattern for the same field. */
     private const TOKEN_PATTERNS = [
         'F' => 'MMMM', // full month name
@@ -51,10 +53,6 @@ final class DateResolver
         'a' => 'a',    // am/pm, lowercase
         'A' => 'a',    // am/pm, uppercase
     ];
-
-    private ?bool $active = null;
-    private bool $activating = false;
-    private string $lang = '';
 
     /** @var array<string, \IntlDateFormatter|null> "lang|pattern" => formatter, memoized per request */
     private array $formatters = [];
@@ -191,36 +189,5 @@ final class DateResolver
         }
 
         return $this->formatters[$key] = $formatter;
-    }
-
-    /**
-     * Deferred, memoized verdict — copied from OptionResolver::isActive().
-     * shouldTranslate()/isTranslatedRequest() read conditional query tags
-     * (is_feed(), etc.) that don't exist before the `wp` action fires, so a
-     * verdict computed any earlier would wrongly memoize "untranslated" for
-     * the whole request.
-     */
-    private function isActive(): bool
-    {
-        if ($this->active !== null) {
-            return $this->active;
-        }
-        if (!did_action('wp') || $this->activating) {
-            return false;
-        }
-
-        $this->activating = true;
-        try {
-            $active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
-        } finally {
-            $this->activating = false;
-        }
-
-        $this->active = $active;
-        if ($active) {
-            $this->lang = $this->language->resolve();
-        }
-
-        return $this->active;
     }
 }

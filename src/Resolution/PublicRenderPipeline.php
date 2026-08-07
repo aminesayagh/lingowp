@@ -132,7 +132,7 @@ final class PublicRenderPipeline
         }
 
         $map = [];
-        foreach (array_merge([$lang], $this->languageRegistry->fallbackChain($lang)) as $tryLang) {
+        foreach ($this->languageRegistry->resolutionChain($lang) as $tryLang) {
             $map += $this->repository->fetchAllHashTranslations('tl_html', $tryLang)
                 + $this->repository->fetchAllHashTranslations('tl_option', $tryLang);
         }

@@ -4,6 +4,7 @@ namespace TransLangs\Resolution;
 
 use Masterminds\HTML5;
 use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
+use TransLangs\Shared\StaticAssetExtensions;
 
 final class PublicLinkRewriter
 {
@@ -17,38 +18,6 @@ final class PublicLinkRewriter
     private const SKIPPED_FILES = [
         'wp-login.php' => true,
         'xmlrpc.php'  => true,
-    ];
-
-    private const STATIC_EXTENSIONS = [
-        'avif'  => true,
-        'bmp'   => true,
-        'css'   => true,
-        'eot'   => true,
-        'gif'   => true,
-        'gz'    => true,
-        'ico'   => true,
-        'jpeg'  => true,
-        'jpg'   => true,
-        'js'    => true,
-        'json'  => true,
-        'map'   => true,
-        'mjs'   => true,
-        'mp3'   => true,
-        'mp4'   => true,
-        'ogg'   => true,
-        'otf'   => true,
-        'pdf'   => true,
-        'png'   => true,
-        'svg'   => true,
-        'ttf'   => true,
-        'txt'   => true,
-        'wav'   => true,
-        'webm'  => true,
-        'webp'  => true,
-        'woff'  => true,
-        'woff2' => true,
-        'xml'   => true,
-        'zip'   => true,
     ];
 
     public function __construct(private LocalizedUrlBuilder $urlBuilder) {}
@@ -229,7 +198,7 @@ final class PublicLinkRewriter
 
         $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
 
-        return $extension === '' || !isset(self::STATIC_EXTENSIONS[$extension]);
+        return $extension === '' || !isset(StaticAssetExtensions::LIST[$extension]);
     }
 
     /**

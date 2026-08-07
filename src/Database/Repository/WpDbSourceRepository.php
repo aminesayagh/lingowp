@@ -331,7 +331,9 @@ final class WpDbSourceRepository
     /**
      * Post-content collections for one language: one row per WP post that has
      * discovered tl_post sources, with per-status counts. Joined to wp_posts for
-     * post_type + title. For the workspace group list (Pages/Posts/CPT).
+     * post_type + title — also load-bearing for search: a term matching the post's
+     * own title/slug widens the match to the whole post, not just post_type/title
+     * display. For the workspace group list (Pages/Posts/CPT).
      *
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
      *   post_mime_type:string, total:int, translated:int, needs_review:int, missing:int}>
@@ -416,7 +418,8 @@ final class WpDbSourceRepository
 
     /**
      * Post-meta per-status counts grouped by WP post (joined to wp_posts) for one
-     * language. Merged into each post's content collection alongside tl_post.
+     * language. Merged into each post's content collection alongside tl_post — the
+     * wp_posts join is also load-bearing for search, same as listPostCollections().
      *
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
      *   post_mime_type:string, total:int, translated:int, needs_review:int, missing:int}>

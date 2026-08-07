@@ -2,6 +2,8 @@
 
 namespace TransLangs\Resolution;
 
+use TransLangs\Shared\StaticAssetExtensions;
+
 /**
  * Answers questions about the current request.
  *
@@ -20,51 +22,17 @@ class RequestContext
      */
     public function shouldTranslate(): bool
     {
-        if ($this->isAdmin()) {
-            return false;
-        }
-
-        if ($this->isAdminPath()) {
-            return false;
-        }
-
-        if ($this->isAjax()) {
-            return false;
-        }
-
-        if ($this->isRest()) {
-            return false;
-        }
-
-        if ($this->isCron()) {
-            return false;
-        }
-
-        if ($this->isLogin()) {
-            return false;
-        }
-
-        if ($this->isXmlRpc()) {
-            return false;
-        }
-
-        if ($this->isFeed()) {
-            return false;
-        }
-
-        if ($this->isSitemap()) {
-            return false;
-        }
-
-        if ($this->isStaticAsset()) {
-            return false;
-        }
-
-        if (!$this->isGetRequest()) {
-            return false;
-        }
-
-        return true;
+        return !$this->isAdmin()
+            && !$this->isAdminPath()
+            && !$this->isAjax()
+            && !$this->isRest()
+            && !$this->isCron()
+            && !$this->isLogin()
+            && !$this->isXmlRpc()
+            && !$this->isFeed()
+            && !$this->isSitemap()
+            && !$this->isStaticAsset()
+            && $this->isGetRequest();
     }
 
     /**
@@ -185,46 +153,13 @@ class RequestContext
     public function isStaticAsset(): bool
     {
         $path = $this->path();
-
         if ($path === '') {
             return false;
         }
 
-        $extensions = [
-            'css',
-            'js',
-            'mjs',
-            'json',
-            'xml',
-            'txt',
-            'map',
-            'jpg',
-            'jpeg',
-            'png',
-            'gif',
-            'webp',
-            'avif',
-            'svg',
-            'ico',
-            'bmp',
-            'woff',
-            'woff2',
-            'ttf',
-            'otf',
-            'eot',
-            'mp4',
-            'webm',
-            'mp3',
-            'wav',
-            'ogg',
-            'pdf',
-            'zip',
-            'gz',
-        ];
-
         $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
 
-        return $ext !== '' && in_array($ext, $extensions, true);
+        return $ext !== '' && isset(StaticAssetExtensions::LIST[$ext]);
     }
 
     public function isGetRequest(): bool

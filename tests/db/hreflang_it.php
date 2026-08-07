@@ -140,6 +140,7 @@ $singleLangRegistry = new class ($default) implements LanguageRegistry {
     public function enableLanguage(string $code): void {}
     public function disableLanguage(string $code): void {}
     public function fallbackChain(string $code): array { return []; }
+    public function resolutionChain(string $code): array { return [$code]; }
 };
 $singleResolver  = new ResolveRequestLanguage($singleLangRegistry);
 $singlePresenter = new HreflangPresenter($singleResolver, new LocalizedUrlBuilder($singleResolver), $context);

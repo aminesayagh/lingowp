@@ -224,6 +224,11 @@ final class OptionLanguageRegistry implements LanguageRegistry
         return $chain;
     }
 
+    public function resolutionChain(string $code): array
+    {
+        return array_merge([$code], $this->fallbackChain($code));
+    }
+
     /**
      * Dev-only reset tool: wipe the target roster and the frozen source locale,
      * back to the just-activated state. Call TranslationMemorySchema::setDefaultOptions()

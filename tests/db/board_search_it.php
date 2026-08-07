@@ -149,6 +149,16 @@ $postColl = static function (string $search) use ($repo, $LANG, $postId): ?array
     return null;
 };
 
+/** Same as $postColl, for the second fixture post. */
+$post2Coll = static function (string $search) use ($repo, $LANG, $postId2): ?array {
+    foreach ($repo->listPostCollections($LANG, $search) as $c) {
+        if ($c['post_id'] === $postId2) {
+            return $c;
+        }
+    }
+    return null;
+};
+
 // ── 2. Empty search is a no-op ───────────────────────────────────────────────
 // The single most valuable guard here: it proves the unsearched board still runs
 // exactly the query it ran before search existed.
@@ -209,8 +219,12 @@ tl_ok('  total is the match count', $c2 !== null && $c2['total'] === 1, 'total='
 tl_ok('  counted as translated', $c2 !== null && $c2['translated'] === 1);
 tl_ok('  not counted as missing', $c2 !== null && $c2['missing'] === 0, 'missing=' . ($c2['missing'] ?? 'n/a'));
 
+// "TLTEST" is also a substring of the post's own title, so once board name search
+// (§10 below) matches it, every one of the post's 4 tl_post rows passes the WHERE —
+// not just the title row that used to be the only content-level match. total 1 → 4;
+// translated stays 1 (only the title row has a saved translation).
 $c3 = $postColl('TLTEST');
-tl_ok('a broader term widens the subset', $c3 !== null && $c3['total'] === 1 && $c3['translated'] === 1);
+tl_ok('a broader term widens the subset', $c3 !== null && $c3['total'] === 4 && $c3['translated'] === 1);
 
 // ── 6. Groups with no hits disappear ─────────────────────────────────────────
 // The GROUP BY emits no row for a collection with no matches, which is how the
@@ -259,5 +273,90 @@ tl_ok('text before a marker matches',
     count($repo->listPostTexts($postId, $LANG, 'Read ')) === 1);
 tl_ok('KNOWN LIMIT: a phrase crossing a marker boundary does not match',
     count($repo->listPostTexts($postId, $LANG, 'Read the manual carefully')) === 0);
+
+// ── 10. Board name search — post title/slug widen the match to the whole post ──
+// wp.post_title/wp.post_name don't vary per row, so once they match, every row
+// belonging to that post passes the WHERE — not just the one row whose own text
+// happens to contain the term. Deliberate: found the page by name, now show
+// everything on it (an ordinary content-only match still just filters to the
+// matching rows, unchanged — see §5 above).
+
+tl_section('board name search (post title / slug widen the match):');
+
+tl_ok('slug-only match returns the full post via listPostCollections',
+    ($c4 = $post2Coll('tltest-wildcard-post')) !== null && $c4['total'] === 2,
+    'total=' . ($c4['total'] ?? 'n/a'));
+tl_ok('slug-only match returns the full post via listPostTexts',
+    count($repo->listPostTexts($postId2, $LANG, 'tltest-wildcard-post')) === 2);
+tl_ok('non-prefix title substring also widens to the full post',
+    count($repo->listPostTexts($postId, $LANG, 'Needle Page')) === 4);
+tl_ok('name match folds case too (not yet exercised against a wp_posts column)',
+    count($repo->listPostTexts($postId, $LANG, 'needle page')) === 4);
+tl_ok('slug match also widens listMetaTexts',
+    count($repo->listMetaTexts($postId, $LANG, 'tltest-needle-page')) === 1);
+$metaRow = null;
+foreach ($repo->postMetaCounts($LANG, 'tltest-needle-page') as $countRow) {
+    if ($countRow['post_id'] === $postId) {
+        $metaRow = $countRow;
+    }
+}
+tl_ok('slug match also widens postMetaCounts', $metaRow !== null && $metaRow['total'] === 1,
+    'total=' . ($metaRow['total'] ?? 'n/a'));
+tl_ok('a genuine miss still returns nothing from listMetaTexts', $repo->listMetaTexts($postId, $LANG, $MISS) === []);
+
+// ── 11. Board name search excludes attachments — no Media leak ──────────────
+// listPostCollections()/postMetaCounts() don't filter by post_type on their own —
+// CollectionBoard is what separates image attachments into the aggregated Media
+// board, in PHP, AFTER these queries already decided which rows exist. Without an
+// explicit post_type guard on the new name-match clauses (postNameClauses()), an
+// attachment whose filename/title matches the search term would pull ALL its own
+// rows into the result purely from that match, inflating Media's totals from a
+// board this feature is explicitly not meant to touch.
+
+tl_section('board name search excludes attachments (no Media leak):');
+
+$attachmentId = tl_insert($wpdb->posts, [
+    'post_author'       => 1,
+    'post_date'         => $now,
+    'post_date_gmt'     => $now,
+    'post_content'      => '',
+    'post_title'        => 'TLTESTATTACH photo',
+    'post_excerpt'      => '',
+    'post_status'       => 'inherit',
+    'comment_status'    => 'closed',
+    'ping_status'       => 'closed',
+    'post_name'         => 'tltestattach-photo',
+    'post_modified'     => $now,
+    'post_modified_gmt' => $now,
+    'post_type'         => 'attachment',
+    'post_mime_type'    => 'image/jpeg',
+]);
+tl_ok('fixture attachment created', $attachmentId > 0, "attachment_id=$attachmentId");
+
+$repo->upsertSources([
+    new PostMetaSource($attachmentId, '_wp_attachment_image_alt', null, 'A scenic mountain view'),
+]);
+
+tl_ok('attachment title match does not surface it via listPostCollections',
+    ! in_array($attachmentId, array_column($repo->listPostCollections($LANG, 'TLTESTATTACH'), 'post_id'), true));
+tl_ok('attachment title match does not surface it via postMetaCounts',
+    ! in_array($attachmentId, array_column($repo->postMetaCounts($LANG, 'TLTESTATTACH'), 'post_id'), true));
+tl_ok("ordinary content match on the attachment's own alt text still works",
+    count($repo->listMetaTexts($attachmentId, $LANG, 'scenic mountain')) === 1);
+
+// ── 12. A filter still ANDs against a name-only match ────────────────────────
+// The riskiest part of this change: searchPredicate()'s whole OR-group (content
+// clauses + name clauses) must stay one contiguous parenthesized group before
+// textFilterPredicate() appends its own " AND (...)" for filters. If that
+// wrapping ever loosens, SQL's AND-binds-tighter-than-OR precedence would apply a
+// filter to only the last disjunct instead of the whole predicate, silently
+// over-broadening every filtered search on the board — not just name searches.
+
+tl_section('a filter still ANDs against a name-only match:');
+
+tl_ok('slug match, no filter: all 4 rows',
+    count($repo->listPostTexts($postId, $LANG, 'tltest-needle-page')) === 4);
+tl_ok('slug match + not_translated filter: intersects down to the 3 untranslated rows',
+    count($repo->listPostTexts($postId, $LANG, 'tltest-needle-page', ['origin' => ['not_translated']])) === 3);
 
 tl_done();

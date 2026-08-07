@@ -22,7 +22,7 @@ final class WpDbBoardQueries
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
-        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
 
         // hash-link child is unique per (original_hash, lang_code), so the LEFT JOIN
         // yields at most one translation per source position — no COUNT fan-out.
@@ -55,13 +55,17 @@ final class WpDbBoardQueries
     {
         $parent = $this->parent('tl_post');
         $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
 
-        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
 
+        // LEFT (not INNER): a leftover row for a since-deleted post must still show up via
+        // ordinary content matching — wp.* is just NULL then, and NULL LIKE %s is falsy.
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
+                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.post_id = %d AND p.status = %d{$match}
                 ORDER BY p.field, p.id";
@@ -242,7 +246,7 @@ final class WpDbBoardQueries
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
-        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
 
         // meta is a parent_id child: join on parent_id, not original_hash.
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
@@ -274,12 +278,16 @@ final class WpDbBoardQueries
     {
         $parent = $this->parent('tl_meta');
         $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
 
-        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
 
+        // LEFT (not INNER): see listPostTexts() — a leftover row for a since-deleted post
+        // must still show up via ordinary content matching.
         $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider
                 FROM {$parent} p
+                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.post_id = %d AND p.status = %d{$match}
                 ORDER BY p.meta_key, p.id";
@@ -626,18 +634,48 @@ final class WpDbBoardQueries
      * phrases inside one segment do. Fixing it needs REGEXP_REPLACE (MySQL 8+) or a
      * marker-stripped shadow column (DDL + DB_VERSION bump). Revisit only if users hit it.
      *
+     * $extraClauses are additional full `"... LIKE %s"` boolean expressions (each with
+     * exactly one placeholder) OR'd in alongside the two above — e.g. postNameClauses()
+     * for matching a post's own title/slug. Every entry must be a compile-time-constant
+     * string from this class, never request-derived input: it's spliced into the query,
+     * not bound.
+     *
+     * @param string[] $extraClauses
      * @return array{0:string, 1:array<int,string>}
      */
-    private function searchPredicate(string $search): array
+    private function searchPredicate(string $search, array $extraClauses = []): array
     {
         if ($search === '') {
             return ['', []];
         }
 
         // esc_like neutralizes % _ \ in the TERM; prepare() quotes the whole value.
-        $like = '%' . $this->wpdb->esc_like($search) . '%';
+        $like    = '%' . $this->wpdb->esc_like($search) . '%';
+        $clauses = array_merge(['p.original_text LIKE %s', 't.translated_text LIKE %s'], $extraClauses);
 
-        return [' AND (p.original_text LIKE %s OR t.translated_text LIKE %s)', [$like, $like]];
+        return [' AND (' . implode(' OR ', $clauses) . ')', array_fill(0, count($clauses), $like)];
+    }
+
+    /**
+     * A post's own title/slug, matched alongside its text content — so searching a page's
+     * name finds it even when no individual row's own text contains the term. Since
+     * wp.post_title/wp.post_name don't vary per row, once they match every row belonging to
+     * that post passes the WHERE, not just one — the whole post's texts show up, which is the
+     * point (found the page by name, now show me everything on it). Excludes attachments:
+     * they're folded into the separate Media board by CollectionBoard, which this predicate
+     * runs ahead of, so a filename match here would otherwise inflate Media's totals despite
+     * Media being out of scope for this feature.
+     *
+     * Callers must already JOIN {$this->wpdb->posts} AS wp ON wp.ID = p.post_id.
+     *
+     * @return string[]
+     */
+    private function postNameClauses(): array
+    {
+        return [
+            "(wp.post_type <> 'attachment' AND wp.post_title LIKE %s)",
+            "(wp.post_type <> 'attachment' AND wp.post_name LIKE %s)",
+        ];
     }
 
     /**
@@ -647,11 +685,12 @@ final class WpDbBoardQueries
      * each other and with search. Callers validate values before they reach here.
      *
      * @param array{origin?:string[], text_length?:string[]} $filters
+     * @param string[] $extraClauses see searchPredicate()
      * @return array{0:string, 1:array<int,string>}
      */
-    private function textFilterPredicate(string $search, array $filters): array
+    private function textFilterPredicate(string $search, array $filters, array $extraClauses = []): array
     {
-        [$predicate, $args] = $this->searchPredicate($search);
+        [$predicate, $args] = $this->searchPredicate($search, $extraClauses);
 
         $originClauses = [];
         foreach ($filters['origin'] ?? [] as $origin) {

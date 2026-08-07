@@ -28,12 +28,10 @@ use TransLangs\Shared\Source\TranslatableMetaKeys;
  */
 final class StructuredRenderResolver
 {
-    private ?bool $active = null;
-    private bool $activating = false;
-    private string $lang = '';
+    use DeferredTranslationActivation;
 
-    /** @var string[] requested language followed by its fallback chain */
-    private array $langsToTry = [];
+    /** @var string[]|null memoized: requested language followed by its fallback chain */
+    private ?array $langsToTry = null;
 
     /** @var array<string, string> "tableKey|hex(original_hash)" => translated_text (post/term) */
     private array $hashMap = [];
@@ -320,7 +318,7 @@ final class StructuredRenderResolver
         }
 
         $remaining = $todo;
-        foreach ($this->langsToTry as $lang) {
+        foreach ($this->langsToTry() as $lang) {
             if ($remaining === []) {
                 break;
             }
@@ -358,7 +356,7 @@ final class StructuredRenderResolver
         }
 
         $remaining = $todo;
-        foreach ($this->langsToTry as $lang) {
+        foreach ($this->langsToTry() as $lang) {
             if ($remaining === []) {
                 break;
             }
@@ -381,38 +379,10 @@ final class StructuredRenderResolver
         return $tableKey . '|' . bin2hex($rawHash);
     }
 
-    private function isActive(): bool
+    /** @return string[] */
+    private function langsToTry(): array
     {
-        if ($this->active !== null) {
-            return $this->active;
-        }
-
-        // shouldTranslate()/isTranslatedRequest() read the main query (conditional
-        // tags, the resolved language) which does not exist until the `wp` action.
-        // Structured filters fire earlier — the MAIN query's `the_posts` runs
-        // inside WP::main() BEFORE `wp`, and get_term(s) fire during menu/widget
-        // setup. Returning a verdict then would memoize "untranslated" for the
-        // whole request. Defer without memoizing until the query is up (mirrors
-        // GettextResolver); the re-entrancy guard covers a filter firing while we
-        // are still deciding.
-        if (!did_action('wp') || $this->activating) {
-            return false;
-        }
-
-        $this->activating = true;
-        try {
-            $active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
-        } finally {
-            $this->activating = false;
-        }
-
-        $this->active = $active;
-        if ($active) {
-            $this->lang       = $this->language->resolve();
-            $this->langsToTry = array_merge([$this->lang], $this->languageRegistry->fallbackChain($this->lang));
-        }
-
-        return $this->active;
+        return $this->langsToTry ??= $this->languageRegistry->resolutionChain($this->lang);
     }
 
     private function isResolvableMetaKey(string $metaKey): bool

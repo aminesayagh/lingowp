@@ -88,4 +88,12 @@ interface LanguageRegistry
      * @return string[]
      */
     public function fallbackChain(string $code): array;
+
+    /**
+     * $code followed by its fallbackChain() — the full, ordered set of
+     * languages a lookup should try before falling back to source content.
+     *
+     * @return string[]
+     */
+    public function resolutionChain(string $code): array;
 }

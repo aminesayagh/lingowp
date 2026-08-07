@@ -64,9 +64,7 @@ use TransLangs\Resolution\RequestContext;
  */
 final class NumberResolver
 {
-    private ?bool $active = null;
-    private bool $activating = false;
-    private string $lang = '';
+    use DeferredTranslationActivation;
 
     /** @var array<string, \NumberFormatter|null> "lang|decimals" => formatter, memoized per request */
     private array $formatters = [];
@@ -128,36 +126,5 @@ final class NumberResolver
         }
 
         return $this->formatters[$key] = $formatter;
-    }
-
-    /**
-     * Deferred, memoized verdict — copied from DateResolver::isActive() /
-     * OptionResolver::isActive(). shouldTranslate()/isTranslatedRequest()
-     * read conditional query tags that don't exist before the `wp` action
-     * fires, so a verdict computed any earlier would wrongly memoize
-     * "untranslated" for the whole request.
-     */
-    private function isActive(): bool
-    {
-        if ($this->active !== null) {
-            return $this->active;
-        }
-        if (!did_action('wp') || $this->activating) {
-            return false;
-        }
-
-        $this->activating = true;
-        try {
-            $active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
-        } finally {
-            $this->activating = false;
-        }
-
-        $this->active = $active;
-        if ($active) {
-            $this->lang = $this->language->resolve();
-        }
-
-        return $this->active;
     }
 }

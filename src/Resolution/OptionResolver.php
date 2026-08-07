@@ -21,12 +21,10 @@ use TransLangs\Shared\Text\TL_Key;
  */
 final class OptionResolver
 {
+    use DeferredTranslationActivation;
+
     /** bloginfo `$show` values that carry translatable branding text. */
     private const TRANSLATABLE_SHOWS = ['name' => true, 'description' => true];
-
-    private ?bool $active = null;
-    private bool $activating = false;
-    private string $lang = '';
 
     /** @var array<string, string>|null hex(original_hash) => translated_text */
     private ?array $map = null;
@@ -66,42 +64,12 @@ final class OptionResolver
     {
         if ($this->map === null) {
             $map = [];
-            foreach (array_merge([$this->lang], $this->languageRegistry->fallbackChain($this->lang)) as $lang) {
+            foreach ($this->languageRegistry->resolutionChain($this->lang) as $lang) {
                 $map += $this->repository->fetchAllHashTranslations('tl_option', $lang);
             }
             $this->map = $map;
         }
 
         return $this->map;
-    }
-
-    /**
-     * Act only on a real, translated frontend request. Deferred until `wp` (the
-     * conditional tags shouldTranslate() reads need the main query); the
-     * re-entrancy guard mirrors GettextResolver — shouldTranslate() can itself
-     * emit bloginfo while we are still deciding.
-     */
-    private function isActive(): bool
-    {
-        if ($this->active !== null) {
-            return $this->active;
-        }
-        if (!did_action('wp') || $this->activating) {
-            return false;
-        }
-
-        $this->activating = true;
-        try {
-            $active = $this->context->shouldTranslate() && $this->language->isTranslatedRequest();
-        } finally {
-            $this->activating = false;
-        }
-
-        $this->active = $active;
-        if ($active) {
-            $this->lang = $this->language->resolve();
-        }
-
-        return $this->active;
     }
 }
