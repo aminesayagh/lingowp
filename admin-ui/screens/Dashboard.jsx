@@ -1,7 +1,6 @@
 import {
 	ActionList,
 	Badge,
-	Banner,
 	BlockStack,
 	Box,
 	Button,
@@ -74,6 +73,27 @@ const STATUS_BADGE = {
 	needs_review: { tone: 'warning', label: 'Needs review' },
 	reviewed: { tone: 'success', label: 'Done' },
 	translated: { tone: 'success', label: 'Done' },
+}
+
+// Toast tone → colors, using Polaris's own design tokens so it themes with
+// the rest of the admin (light/dark) instead of a hardcoded palette.
+const TOAST_TONE_STYLE = {
+	success: {
+		background: 'var(--p-color-bg-fill-success)',
+		color: 'var(--p-color-text-success-on-bg-fill)',
+	},
+	warning: {
+		background: 'var(--p-color-bg-fill-caution)',
+		color: 'var(--p-color-text-caution-on-bg-fill)',
+	},
+	critical: {
+		background: 'var(--p-color-bg-fill-critical)',
+		color: 'var(--p-color-text-critical-on-bg-fill)',
+	},
+	info: {
+		background: 'var(--p-color-bg-fill-inverse)',
+		color: 'var(--p-color-text-inverse)',
+	},
 }
 
 // Which SEO field a meta row represents — shown as a small badge alongside the
@@ -235,9 +255,11 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
-	const [ notice, setNotice ] = useState( null )
-	const [ autosaveToast, setAutosaveToast ] = useState( false )
-	const [ lengthToast, setLengthToast ] = useState( '' )
+	// Bottom-center toast — every "action complete" message (AI translate,
+	// rescan, fallback copy, autosave hint, length warning, share link, …)
+	// goes through this one. Never a top-of-page Banner: that shifted the
+	// whole board down every time it appeared/disappeared.
+	const [ toast, setToast ] = useState( null ) // { tone, content } | null
 	const [ statusFilter, setStatusFilter ] = useState( 'all' )
 	const [ originFilter, setOriginFilter ] = useState( [] )
 	const [ contentTypeFilter, setContentTypeFilter ] = useState( [] )
@@ -266,21 +288,23 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- one-time on mount
 	}, [] )
 
-	const autosaveToastTimerRef = useRef( null )
-	const lengthToastTimerRef = useRef( null )
+	const toastTimerRef = useRef( null )
 
-	// Warning-toast for goal 4.8 (length warnings) — manual saves only, from
-	// TextUnitRow's inline edit and CompareOverlay's autosave. A longer dismiss
-	// than the autosave toast: a warning needs more time to read than a "saved" blip.
-	function showLengthWarning( message ) {
-		setLengthToast( message )
-		clearTimeout( lengthToastTimerRef.current )
-		lengthToastTimerRef.current = setTimeout(
-			() => setLengthToast( '' ),
-			5000
+	// tone: 'success' | 'warning' | 'critical' | 'info'. Warnings/errors stay
+	// up longer — more to read than a plain confirmation blip.
+	function showToast( tone, content ) {
+		setToast( { tone, content } )
+		clearTimeout( toastTimerRef.current )
+		toastTimerRef.current = setTimeout(
+			() => setToast( null ),
+			tone === 'success' || tone === 'info' ? 3000 : 5000
 		)
 	}
-	useEffect( () => () => clearTimeout( lengthToastTimerRef.current ), [] )
+	useEffect( () => () => clearTimeout( toastTimerRef.current ), [] )
+
+	// TextUnitRow's inline edit and CompareOverlay's autosave both report length
+	// warnings up through this same prop.
+	const showLengthWarning = ( message ) => showToast( 'warning', message )
 
 	const defaultCode = defaultLanguage?.code || defaultLanguage
 	const advancedFilters = {
@@ -318,40 +342,28 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	}, [] )
 
 	useEffect( () => {
-		function showAutosaveToast() {
-			setAutosaveToast( true )
-			clearTimeout( autosaveToastTimerRef.current )
-			autosaveToastTimerRef.current = setTimeout( () => {
-				setAutosaveToast( false )
-			}, 3000 )
-		}
-
 		function handleShortcut( event ) {
 			if (
 				( event.ctrlKey || event.metaKey ) &&
 				event.key.toLowerCase() === 's'
 			) {
 				event.preventDefault()
-				showAutosaveToast()
+				showToast( 'info', 'Auto save is on.' )
 			}
 		}
 
 		window.addEventListener( 'keydown', handleShortcut )
-		return () => {
-			window.removeEventListener( 'keydown', handleShortcut )
-			clearTimeout( autosaveToastTimerRef.current )
-		}
+		return () => window.removeEventListener( 'keydown', handleShortcut )
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- showToast is stable across renders
 	}, [] )
 
 	// AI translate a scope (text | collection | language), then refresh views + quota.
 	async function translateScope( scope, opts = {} ) {
 		if ( ! ai.available ) {
-			setNotice( {
-				tone: 'warning',
-				content:
-					ai.error ||
-					'AI is unavailable. Connect Translangs to enable AI translation.',
-			} )
+			showToast(
+				'warning',
+				ai.error || 'AI unavailable — connect Translangs to enable it.'
+			)
 			return
 		}
 		const res = await api.post( '/translate', {
@@ -360,17 +372,14 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 			...opts,
 		} )
 		if ( res.error === 'ERR_QUOTA' ) {
-			setNotice( {
-				tone: 'warning',
-				content: `Not enough words remaining (needs ~${ res.estimated_words }, ${ res.words_remaining } left). Upgrade to run this.`,
-			} )
+			showToast(
+				'warning',
+				`Needs ~${ res.estimated_words } words, ${ res.words_remaining } left.`
+			)
 			return
 		}
 		if ( ! res.ok ) {
-			setNotice( {
-				tone: 'critical',
-				content: 'AI translation failed. Please try again.',
-			} )
+			showToast( 'critical', 'AI translation failed. Try again.' )
 			return
 		}
 		// Some items can be rejected while the rest save (a translation that dropped
@@ -378,18 +387,12 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 		// run still succeeded, so this is a warning, not a failure — but it must be
 		// visible, or the user just sees rows that silently stayed untranslated.
 		const failed = res.failed || 0
-		setNotice( {
-			tone: failed > 0 ? 'warning' : 'success',
-			content:
-				`Translated ${ res.translated } text${
-					res.translated === 1 ? '' : 's'
-				}.` +
-				( failed > 0
-					? ` ${ failed } ${
-							failed === 1 ? 'was' : 'were'
-					  } rejected because protected variables or formatting changed.`
-					: '' ),
-		} )
+		showToast(
+			failed > 0 ? 'warning' : 'success',
+			`Translated ${ res.translated } text${
+				res.translated === 1 ? '' : 's'
+			}.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
+		)
 		if ( res.collection_summary ) {
 			patchCollectionSummary( res.collection_summary )
 		} else {
@@ -499,19 +502,15 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 					`/languages/${ enc( lang.code ) }/use-fallback`
 				)
 				if ( ! res.ok ) {
-					setNotice( {
-						tone: 'critical',
-						content:
-							'Could not copy fallback translations. Please try again.',
-					} )
+					showToast( 'critical', 'Could not copy translations.' )
 					return
 				}
-				setNotice( {
-					tone: 'success',
-					content: `Copied ${ res.copied } translation${
+				showToast(
+					'success',
+					`Copied ${ res.copied } translation${
 						res.copied === 1 ? '' : 's'
-					} from ${ fbLabel }.`,
-				} )
+					} from ${ fbLabel }.`
+				)
 				invalidateCollections()
 				queryClient.invalidateQueries( {
 					predicate: ( q ) =>
@@ -626,7 +625,7 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 			return
 		}
 		setRefreshing( true )
-		setNotice( { tone: 'info', content: 'Rescanning your site…' } )
+		showToast( 'info', 'Rescanning your site…' )
 		api.post( '/scan/refresh' ).then( ( res ) => {
 			pollScanStatus( res.html_status === 'running' )
 		} )
@@ -641,18 +640,15 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 			}
 			setRefreshing( false )
 			if ( status === 'completed' ) {
-				setNotice( {
-					tone: 'success',
-					content: htmlCrawlRunning
-						? "Scan complete. We're still looking for more text on your site — check back soon."
-						: 'Scan complete.',
-				} )
+				showToast(
+					'success',
+					htmlCrawlRunning
+						? 'Scan complete — still scanning for more text.'
+						: 'Scan complete.'
+				)
 				invalidateCollections()
 			} else {
-				setNotice( {
-					tone: 'critical',
-					content: 'Scan could not finish. Please try again.',
-				} )
+				showToast( 'critical', 'Scan failed. Try again.' )
 			}
 		} )
 	}
@@ -667,7 +663,7 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 		url.searchParams.set( 'lang', selectedLang )
 		url.hash = `collection=${ enc( c.id ) }`
 		await navigator.clipboard.writeText( url.toString() )
-		setNotice( { tone: 'success', content: 'Link copied.' } )
+		showToast( 'success', 'Link copied.' )
 	}
 
 	// A mutation response that resolved to one collection's fresh counts
@@ -923,11 +919,7 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 			}
 			return
 		}
-		setNotice( {
-			tone: 'warning',
-			content:
-				"Could not find that collection — it may have been removed or doesn't exist in this language.",
-		} )
+		showToast( 'warning', 'Collection not found.' )
 		setPendingScrollId( null )
 	}, [
 		pendingScrollId,
@@ -1295,16 +1287,6 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 
 	return (
 		<Page fullWidth>
-			{ notice && (
-				<Box paddingBlockEnd="300">
-					<Banner
-						tone={ notice.tone }
-						onDismiss={ () => setNotice( null ) }
-					>
-						{ notice.content }
-					</Banner>
-				</Box>
-			) }
 			<InlineStack
 				gap="200"
 				align="start"
@@ -1904,29 +1886,7 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 				confirm={ confirm }
 				onClose={ () => setConfirm( null ) }
 			/>
-			{ autosaveToast && (
-				<div
-					role="status"
-					aria-live="polite"
-					style={ {
-						position: 'fixed',
-						left: '50%',
-						bottom: '24px',
-						transform: 'translateX(-50%)',
-						zIndex: 999999,
-						padding: '10px 14px',
-						borderRadius: '8px',
-						background: 'var(--p-color-bg-fill-inverse)',
-						color: 'var(--p-color-text-inverse)',
-						boxShadow: 'var(--p-shadow-400)',
-						fontSize: '13px',
-						lineHeight: '20px',
-					} }
-				>
-					The plugin has auto save enabled.
-				</div>
-			) }
-			{ lengthToast && (
+			{ toast && (
 				<div
 					role="status"
 					aria-live="polite"
@@ -1940,14 +1900,13 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 						borderRadius: '8px',
 						maxWidth: '420px',
 						textAlign: 'center',
-						background: 'var(--p-color-bg-fill-caution)',
-						color: 'var(--p-color-text-caution-on-bg-fill)',
 						boxShadow: 'var(--p-shadow-400)',
 						fontSize: '13px',
 						lineHeight: '20px',
+						...TOAST_TONE_STYLE[ toast.tone ],
 					} }
 				>
-					{ lengthToast }
+					{ toast.content }
 				</div>
 			) }
 		</Page>
