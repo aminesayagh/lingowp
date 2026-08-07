@@ -1285,30 +1285,43 @@ export default function Dashboard( {
 										<Text as="h2" variant="headingSm">
 											Target language
 										</Text>
-										<LanguageList
-											languages={ languages }
-											selectedCode={ selectedLang }
-											aiAvailable={ ai.available }
-											onSelect={ ( lang ) =>
-												setSelectedLang( lang.code )
-											}
-											onEdit={ ( lang ) =>
-												openManager( lang.code )
-											}
-											onToggleStatus={
-												togglePublishStatus
-											}
-											onTranslateAll={ ( lang ) =>
-												translateLanguageAll( lang )
-											}
-											onUseFallback={ ( lang ) =>
-												applyFallbackTranslation( lang )
-											}
-											onDelete={ ( lang ) =>
-												confirmDeleteLang( lang )
-											}
-											onAdd={ () => openManager( null ) }
-										/>
+										{ languagesLoaded ? (
+											<LanguageList
+												languages={ languages }
+												selectedCode={ selectedLang }
+												aiAvailable={ ai.available }
+												onSelect={ ( lang ) =>
+													setSelectedLang( lang.code )
+												}
+												onEdit={ ( lang ) =>
+													openManager( lang.code )
+												}
+												onToggleStatus={
+													togglePublishStatus
+												}
+												onTranslateAll={ ( lang ) =>
+													translateLanguageAll( lang )
+												}
+												onUseFallback={ ( lang ) =>
+													applyFallbackTranslation(
+														lang
+													)
+												}
+												onDelete={ ( lang ) =>
+													confirmDeleteLang( lang )
+												}
+												onAdd={ () =>
+													openManager( null )
+												}
+											/>
+										) : (
+											<InlineStack align="center">
+												<Spinner
+													accessibilityLabel="Loading languages"
+													size="small"
+												/>
+											</InlineStack>
+										) }
 									</BlockStack>
 								</Card>
 
