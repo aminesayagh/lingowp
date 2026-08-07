@@ -5,7 +5,7 @@ namespace TransLangs\Board;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
 use TransLangs\Shared\Parsing\UnitStructureGuard;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
@@ -22,7 +22,7 @@ use WP_REST_Response;
  *
  * The CSV is a flat text-to-translation matrix, not a row-per-source dump:
  * one row per unique source text (deduplicated GLOBALLY across all four
- * tables — see SourceRepository::exportTextsForLanguages()), one
+ * tables — see WpDbSourceRepository::exportTextsForLanguages()), one
  * column per language. No ref/type/location/status columns: the client does
  * not want to know or reason about which post/term/meta a string came from,
  * only that identical text needs one translation per language. Import writes
@@ -39,7 +39,7 @@ final class ExportImportRestController
     private const NS = 'translangs/v1';
 
     public function __construct(
-        private SourceRepository $repo,
+        private WpDbSourceRepository $repo,
         private OptionLanguageRegistry $registry
     ) {
     }

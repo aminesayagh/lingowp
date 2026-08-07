@@ -7,7 +7,7 @@ use TransLangs\Shared\Source\Type\PostMetaSource;
 use TransLangs\Shared\Source\PostMetaValuePaths;
 use TransLangs\Shared\Source\Type\PostSource;
 use TransLangs\Shared\Source\SourceRecord;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Source\Type\SplitPostSource;
 use TransLangs\Shared\Source\Type\TermSource;
 use TransLangs\Shared\Parsing\SeoTemplateVariables;
@@ -36,12 +36,16 @@ final class StructuredSourceScanner
     /** Post statuses eligible for discovery (publish, plus inherit for attachments). */
     private const SCANNABLE_STATUSES = ['publish', 'inherit'];
 
+    /** Built-in post types scanned by name rather than via the public-custom-type filter. */
+    private const BUILTIN_TYPES = [
+        'attachment', 'nav_menu_item', 'wp_navigation', 'wp_block',
+        'wp_template_part', 'wp_template', 'page', 'post',
+    ];
+
     public function __construct(
-        private SourceRepository $repository,
+        private WpDbSourceRepository $repository,
         private HtmlUnitExtractor $unitExtractor
     ) {}
-
-    
 
     /**
      * Save-time discovery for one post (types 1 + 2). Upserts current strings
@@ -175,8 +179,7 @@ final class StructuredSourceScanner
 
     private function shouldScanPost(\WP_Post $post): bool
     {
-        return array_key_exists($post->post_type, $this->scannablePostTypes())
-            || in_array($post->post_type, $this->publicCustomPostTypes(), true);
+        return array_key_exists($post->post_type, $this->scannablePostTypes());
     }
 
     private function isScannableStatus(\WP_Post $post): bool
@@ -187,14 +190,7 @@ final class StructuredSourceScanner
     /** Attachments expose only ALT text; other post types use the meta allow-list. */
     private function isDiscoverableMetaKey(\WP_Post $post, string $metaKey): bool
     {
-        if ($this->isSlugKey($metaKey)) {
-            return false;
-        }
-        if ($post->post_type === 'attachment') {
-            return $metaKey === TranslatableMetaKeys::ATTACHMENT_ALT;
-        }
-
-        return in_array($metaKey, $this->translatableMetaKeys(), true);
+        return in_array($metaKey, $this->metaKeysForPost($post), true);
     }
 
     /**
@@ -224,16 +220,11 @@ final class StructuredSourceScanner
      */
     private function scannablePostTypes(): array
     {
-        $types = [
-            'attachment'       => ['inherit', 'publish'],
-            'nav_menu_item'    => ['publish'],
-            'wp_navigation'    => ['publish'],
-            'wp_block'         => ['publish'],
-            'wp_template_part' => ['publish'],
-            'wp_template'      => ['publish'],
-            'page'             => ['publish'],
-            'post'             => ['publish'],
-        ];
+        $types = ['attachment' => ['inherit', 'publish']];
+
+        foreach (self::BUILTIN_TYPES as $postType) {
+            $types[$postType] ??= ['publish'];
+        }
 
         foreach ($this->publicCustomPostTypes() as $postType) {
             $types[$postType] = ['publish'];
@@ -241,10 +232,6 @@ final class StructuredSourceScanner
 
         return $types;
     }
-
-    
-
-    
 
     /**
      * @return string[]
@@ -255,16 +242,7 @@ final class StructuredSourceScanner
             return [];
         }
 
-        $excluded = [
-            'attachment'       => true,
-            'nav_menu_item'    => true,
-            'wp_navigation'    => true,
-            'wp_block'         => true,
-            'wp_template_part' => true,
-            'wp_template'      => true,
-            'page'             => true,
-            'post'             => true,
-        ];
+        $excluded = array_fill_keys(self::BUILTIN_TYPES, true);
 
         return array_values(array_filter(
             get_post_types(['public' => true], 'names'),
@@ -326,6 +304,4 @@ final class StructuredSourceScanner
 
         return $unique;
     }
-
-    
 }

@@ -37,6 +37,8 @@ final class CrawlRequestMarker
 
     private static function token(): string
     {
-        return hash_hmac('sha256', 'translangs_html_crawl', wp_salt('auth'));
+        static $token = null;
+
+        return $token ??= hash_hmac('sha256', 'translangs_html_crawl', wp_salt('auth'));
     }
 }

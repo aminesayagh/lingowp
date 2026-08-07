@@ -21,7 +21,6 @@ class TranslationMemorySchema
     public const DB_VERSION        = '23';
     public const OPTION_DB_VERSION = 'translangs_db_version';
 
-    /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
     public const HASH_LINK_CHILDREN = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
 
@@ -170,15 +169,7 @@ class TranslationMemorySchema
 
         $child = $wpdb->prefix . 'tl_option_translation';
 
-        $hasParentId = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'parent_id'",
-                $child
-            )
-        );
-
-        if ($hasParentId === 'parent_id') {
+        if (self::columnExists($child, 'parent_id')) {
             $wpdb->query('DROP TABLE IF EXISTS ' . $child);                       // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_option');  // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
         }
@@ -198,15 +189,7 @@ class TranslationMemorySchema
 
         $table = self::parentTables()['tl_html'];
 
-        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'last_seen_at'",
-                $table
-            )
-        );
-
-        if ($hasColumn === 'last_seen_at') {
+        if (self::columnExists($table, 'last_seen_at')) {
             return;
         }
 
@@ -234,15 +217,7 @@ class TranslationMemorySchema
 
         $table = self::parentTables()['tl_html'];
 
-        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'selector_hash'",
-                $table
-            )
-        );
-
-        if ($hasColumn !== 'selector_hash') {
+        if (!self::columnExists($table, 'selector_hash')) {
             return;
         }
 
@@ -277,6 +252,23 @@ class TranslationMemorySchema
         );
 
         return is_string($engine) ? $engine : null;
+    }
+
+    /** Whether $table currently has a column named $column, per information_schema. */
+    private static function columnExists(string $table, string $column): bool
+    {
+        global $wpdb;
+
+        $found = $wpdb->get_var( // phpcs:ignore WordPress.DB
+            $wpdb->prepare(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                $table,
+                $column
+            )
+        );
+
+        return $found === $column;
     }
 
     /**

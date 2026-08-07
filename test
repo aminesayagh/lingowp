@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# ponytail: runs every check/it script; add new test files and they're picked up automatically
+set -Eeuo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+status=0
+
+for f in tests/*_check.php; do
+  echo "== php $f =="
+  php "$f" || status=1
+done
+
+if [ -f tests/inline_chip_grouping_check.mjs ]; then
+  echo "== node tests/inline_chip_grouping_check.mjs =="
+  node tests/inline_chip_grouping_check.mjs || status=1
+fi
+
+for f in tests/db/*_it.php; do
+  echo "== wp eval-file $f =="
+  ./wp eval-file "$f" || status=1
+done
+
+exit $status

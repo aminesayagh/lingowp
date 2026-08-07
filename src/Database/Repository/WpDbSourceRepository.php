@@ -6,36 +6,51 @@ use TransLangs\Shared\Source\Type\HtmlSource;
 use TransLangs\Shared\Text\IdentityKey;
 use TransLangs\Shared\Source\SourceRecord;
 use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Database\Repository\SourceRepository;
 use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Shared\Text\TranslatableText;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Database\TranslationMemorySchema;
 
 /**
- * $wpdb implementation of the per-type persistence contract.
+ * $wpdb persistence for the per-type content tables — the sole implementation
+ * of the translation persistence contract (writes, render reads, board reads,
+ * discovery reconciliation), backed by TWO child-key models:
  *
- * Two child-key models live behind one class but never share a code path:
- *   hash-link (tl_post/tl_term/tl_html): child keyed (original_hash, lang_code).
- *   parent_id (tl_meta):                 child keyed (parent_id, lang_code).
+ *   hash-link (tl_post/tl_term/tl_html/tl_option): child keyed
+ *     (original_hash, lang_code); a translation is shared by every parent
+ *     position with the same text. Render reads it by hash (no parent join);
+ *     ignore/delete are text-global.
+ *   parent_id (tl_meta): child keyed (parent_id, lang_code); the position
+ *     owns its translation. Render reads it by joining the parent.
  *
  * Binary identity columns (every *_hash) travel as hex via UNHEX(%s). Parent
  * rows are addressed for writes by SourceRef ({kind}:{id}); for hash-link types
  * the parent's original_hash is resolved from that id, since the translation is
  * keyed by text, not position.
+ *
+ * There is no translated_against_hash and no stale parent status: a source-text
+ * change deletes the stale parent and seeds the new translation as
+ * needs_review. Ignore sets parent.status=-1 AND deletes the children, so render's
+ * "no child ⇒ original" covers untranslated and ignored alike. Adding a language
+ * creates zero rows. Languages stay option-backed (lang_code is a plain column).
  */
-final class WpDbSourceRepository implements SourceRepository
+final class WpDbSourceRepository
 {
     private const INSERT_CHUNK = 100;
     private const SELECT_CHUNK = 200;
-
-    /** Parent table keys whose children are hash-linked. */
-    private const HASH_LINK = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
 
     public function __construct(private \wpdb $wpdb, private WpDbBoardQueries $board) {}
 
     // ── discovery write ────────────────────────────────────────────────────────
 
+    /**
+     * Upsert parent rows (INSERT IGNORE on uniq_source), grouped by table. A new
+     * identity inserts; an existing one is left as-is (identity includes
+     * original_hash, so same identity = same text). No child rows are touched.
+     *
+     * @param SourceRecord[] $records
+     * @return int Rows inserted.
+     */
     public function upsertSources(array $records): int
     {
         $inserted = 0;
@@ -146,6 +161,15 @@ final class WpDbSourceRepository implements SourceRepository
 
     // ── render reads ───────────────────────────────────────────────────────────
 
+    /**
+     * Render read for hash-link types (post/term/html): the produced translations
+     * for a set of original hashes in one language, from that type's child table.
+     * Keyed by lowercase hex(original_hash) => translated_text.
+     *
+     * @param string   $parentTableKey TranslationMemorySchema key, e.g. 'tl_post'
+     * @param string[] $hashes         raw 32-byte original hashes
+     * @return array<string, string>
+     */
     public function fetchHashTranslations(string $parentTableKey, array $hashes, string $langCode): array
     {
         if ($hashes === [] || $langCode === '') {
@@ -174,6 +198,13 @@ final class WpDbSourceRepository implements SourceRepository
         return $out;
     }
 
+    /**
+     * Every produced translation for a hash-link type in one language, keyed by
+     * lowercase hex(original_hash) => translated_text. For the HTML fallback,
+     * where the lookup hashes are only known after walking the page DOM.
+     *
+     * @return array<string, string>
+     */
     public function fetchAllHashTranslations(string $parentTableKey, string $langCode): array
     {
         if ($langCode === '') {
@@ -196,6 +227,15 @@ final class WpDbSourceRepository implements SourceRepository
     }
 
 
+    /**
+     * Render read for parent_id types (meta): join each parent lookup
+     * (parent.status = 0) to its child for $langCode. Keyed by
+     * IdentityKey::of(lookup) => translated_text.
+     *
+     * @param string                           $parentTableKey e.g. 'tl_meta'
+     * @param array<int, array<string,scalar>> $lookups        list of identity-column maps
+     * @return array<string, string>
+     */
     public function fetchParentTranslations(string $parentTableKey, array $lookups, string $langCode): array
     {
         if ($lookups === [] || $langCode === '') {
@@ -235,6 +275,15 @@ final class WpDbSourceRepository implements SourceRepository
         return $out;
     }
 
+    /**
+     * Fallback-chain lookup for parent_id types (meta): unlike hash-link
+     * children, tl_meta_translation has no original_hash column (meta
+     * translations are never hash-shared), so a fallback probe needs the
+     * parent row ids directly rather than a hash set.
+     *
+     * @param int[] $parentIds
+     * @return array<int, string> parent_id => translated_text
+     */
     public function fetchTranslationsByParentIds(array $parentIds, string $langCode): array
     {
         if ($parentIds === [] || $langCode === '') {
@@ -264,106 +313,244 @@ final class WpDbSourceRepository implements SourceRepository
     }
 
     // ── board reads (admin dashboard) — delegated to WpDbBoardQueries ───────────
-    // Same interface contract, same tables; split out because this class had
-    // grown to mix write persistence with board-shaped read/presentation logic.
+    // Same tables, board-shaped read/presentation logic; split out because this
+    // class had grown to mix write persistence with that.
+    //
+    // Board search (the `$search` argument on every read below): a non-empty
+    // term matches the source text OR its translation in `$langCode`, case- and
+    // accent-insensitively (utf8mb4_unicode_520_ci), with % and _ taken
+    // literally. Empty string means no search, and runs exactly the query that
+    // shipped before search existed.
+    //
+    // IMPORTANT — while searching, the counts describe the MATCHING SUBSET, not
+    // the collection: `total` is the match count, and translated/needs_review/
+    // missing are the status breakdown of the matching rows only. A collection
+    // with no matches produces no row at all, which is how the board hides
+    // empty groups.
 
-    /** @inheritDoc */
+    /**
+     * Post-content collections for one language: one row per WP post that has
+     * discovered tl_post sources, with per-status counts. Joined to wp_posts for
+     * post_type + title. For the workspace group list (Pages/Posts/CPT).
+     *
+     * @return array<int, array{post_id:int, post_type:string, post_title:string,
+     *   post_mime_type:string, total:int, translated:int, needs_review:int, missing:int}>
+     */
     public function listPostCollections(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listPostCollections($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_post text units of one WP post for one language, each with
+     * its translation (or null when untranslated). For expanding a content group.
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listPostTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listPostTexts($postId, $langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The single Site-settings collection (all discovered tl_option sources) with
+     * per-status counts for one language.
+     *
+     * @return array{total:int, translated:int, needs_review:int, missing:int}
+     */
     public function optionCollectionSummary(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->optionCollectionSummary($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_option text units for one language, each with its
+     * translation (or null). For expanding the Site-settings group.
+     *
+     * @return array<int, array{id:int, option_name:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listOptionTexts(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listOptionTexts($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * Taxonomy collections (grouped by term) with per-status counts for one
+     * language, joined to wp_term_taxonomy + wp_terms for the term name.
+     *
+     * @return array<int, array{term_taxonomy_id:int, taxonomy:string, name:string,
+     *   total:int, translated:int, needs_review:int, missing:int}>
+     */
     public function listTermCollections(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listTermCollections($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_term text units of one term for one language.
+     *
+     * Takes no `$search`: the board expands taxonomies whole via listTaxonomyTexts,
+     * and this one exists only to feed AI translation of a single term.
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listTermTexts(int $termTaxonomyId, string $langCode): array
     {
         return $this->board->listTermTexts($termTaxonomyId, $langCode);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_term text units of every term in one taxonomy for one
+     * language, ordered by term name then field.
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listTaxonomyTexts($taxonomy, $langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * Post-meta per-status counts grouped by WP post (joined to wp_posts) for one
+     * language. Merged into each post's content collection alongside tl_post.
+     *
+     * @return array<int, array{post_id:int, post_type:string, post_title:string,
+     *   post_mime_type:string, total:int, translated:int, needs_review:int, missing:int}>
+     */
     public function postMetaCounts(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->postMetaCounts($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_meta text units of one post for one language.
+     *
+     * @return array<int, array{id:int, meta_key:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listMetaTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listMetaTexts($postId, $langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_post text units (title, and post_content's
+     * paragraph-level units) of every image attachment for one language,
+     * across ALL matching posts at once — unlike listPostTexts(), which is
+     * scoped to one post. Each row carries post_id, since the Media
+     * collection has no other way to resolve which image a row belongs to
+     * (for the thumbnail).
+     *
+     * @return array<int, array{id:int, field:string, post_id:int, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listMediaPostTexts(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listMediaPostTexts($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_meta ALT text of every image attachment for one
+     * language, across ALL matching posts at once — the meta counterpart of
+     * listMediaPostTexts().
+     *
+     * @return array<int, array{id:int, field:string, post_id:int, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listMediaAltTexts(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listMediaAltTexts($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * Every unique content text (post/meta/term/option) across the whole
+     * site, deduplicated GLOBALLY by original_hash — NOT per table. CSV
+     * export is a flat text-to-translation matrix: the client explicitly
+     * does not want to know or care whether "Hello world!" lives on 4 posts
+     * and 2 terms, only that it is one string needing one translation per
+     * language (design-service_export-import.md).
+     *
+     * Only discovered (non-ignored) parents contribute. When sources sharing
+     * a hash disagree — e.g. a post and a term happen to hold the same
+     * normalized text with two different French translations, or two
+     * postmeta occurrences (meta is never DB-shared, see class docblock)
+     * diverge — one wins, deterministically, per source table queried
+     * (first-found). This collapsing is deliberate, not a bug: it is what
+     * "share the same translation for the same text" means for CSV
+     * purposes, and importing a merged row back writes that ONE value to
+     * every matching source (see findContentRefsByHash()).
+     *
+     * @param string[] $langCodes
+     * @return array<int, array{original_text:string, translations:array<string,?string>}>
+     */
     public function exportTextsForLanguages(array $langCodes): array
     {
         return $this->board->exportTextsForLanguages($langCodes);
     }
 
-    /** @inheritDoc */
+    /**
+     * Every currently-discovered SourceRef across the four content tables
+     * sharing this original_hash — the CSV import lookup. Hash-link kinds
+     * (post/term/option) contribute at most one ref each (any parent with
+     * that hash addresses the one shared translation); meta contributes one
+     * ref PER occurrence, since meta translations are never shared. Empty
+     * when the hash matches nothing currently discovered (e.g. the source
+     * text was edited or removed since the CSV was exported).
+     *
+     * @return SourceRef[]
+     */
     public function findContentRefsByHash(string $hashHex): array
     {
         return $this->board->findContentRefsByHash($hashHex);
     }
 
-    /** @inheritDoc */
+    /**
+     * The single Template-content collection (all discovered tl_html block units)
+     * with per-status counts for one language. tl_html has no post link, so every
+     * marked block shares one bucket.
+     *
+     * @return array{total:int, translated:int, needs_review:int, missing:int}
+     */
     public function htmlCollectionSummary(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->htmlCollectionSummary($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * The discovered tl_html text units for one language (field = selector).
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listHtmlTexts(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listHtmlTexts($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * tl_html rows flagged SOURCE_STALE (see flagStaleHtmlSources()) — nobody has
+     * re-encountered them via marking mode or the background crawl in the grace
+     * window. Same shape as listHtmlTexts(), for the admin review-before-delete
+     * surface.
+     *
+     * @return array<int, array{id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
     public function listStaleHtmlSources(string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listStaleHtmlSources($langCode, $search, $filters);
     }
 
-    /** @inheritDoc */
+    /**
+     * Aggregate translation progress for one language across the content tables
+     * (post, meta, term, option, html) — for the rail's per-language percentage.
+     *
+     * @return array{total:int, translated:int}
+     */
     public function languageProgress(string $langCode): array
     {
         return $this->board->languageProgress($langCode);
@@ -454,6 +641,7 @@ final class WpDbSourceRepository implements SourceRepository
     }
 
 
+    /** Original text of one discovered source by ref, or null if gone/ignored. */
     public function loadSourceText(SourceRef $ref): ?string
     {
         $parent = $this->parent($ref->parentTableKey());
@@ -569,7 +757,14 @@ final class WpDbSourceRepository implements SourceRepository
 
 
 
-    /** @inheritDoc */
+    /**
+     * Whether this post has AT LEAST ONE translated unit (post field or meta)
+     * in this language — any status counts (machine/reviewed/needs_review all
+     * render, per the same "any child renders" rule the rest of the render
+     * path already follows). For goals-seo-overview.md §5.3: a page with zero
+     * translated content in the visitor's language is treated as not-yet-
+     * started; the moment this returns true, it's "normal" again.
+     */
     public function hasAnyTranslation(int $postId, string $langCode): bool
     {
         return $this->existsTranslatedChild('tl_post', false, $postId, $langCode)
@@ -601,6 +796,11 @@ final class WpDbSourceRepository implements SourceRepository
 
     // ── translation writes ─────────────────────────────────────────────────────
 
+    /**
+     * Create or update one translation for the parent addressed by $ref.
+     * hash-link: keyed (parent.original_hash, lang) — shared across positions.
+     * parent_id: keyed (parent.id, lang). No-op if the parent row is gone.
+     */
     public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): void
     {
         $tableKey = $ref->parentTableKey();
@@ -652,6 +852,7 @@ final class WpDbSourceRepository implements SourceRepository
         $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
     }
 
+    /** Remove the translation for $ref + language (hash-link delete is text-global). */
     public function deleteTranslation(SourceRef $ref, string $langCode): void
     {
         $tableKey = $ref->parentTableKey();
@@ -679,6 +880,11 @@ final class WpDbSourceRepository implements SourceRepository
     }
 
 
+    /**
+     * Update only the status of $ref's translation for one language (no text
+     * change): mark reviewed (2) or flag needs_review (-1). No-op if there is no
+     * child row. hash-link updates by original_hash, parent_id by parent id.
+     */
     public function setTranslationStatus(SourceRef $ref, string $langCode, int $status): void
     {
         $tableKey = $ref->parentTableKey();
@@ -714,6 +920,13 @@ final class WpDbSourceRepository implements SourceRepository
         );
     }
 
+    /**
+     * Apply the same translation to several parents (apply-everywhere). Mostly for
+     * parent_id types — hash-link positions already share by text.
+     *
+     * @param SourceRef[] $refs
+     * @return int Translations written.
+     */
     public function applyTranslationToRefs(array $refs, string $langCode, string $text, int $status, bool $overwrite): int
     {
         $applied = 0;
@@ -728,6 +941,15 @@ final class WpDbSourceRepository implements SourceRepository
         return $applied;
     }
 
+    /**
+     * Copy every translation that exists in $fromLang but is missing in
+     * $toLang, across every content table, marked needs_review — a
+     * sibling-region translation should get a quick human check before
+     * being treated as final. Existing $toLang translations are never
+     * touched or overwritten.
+     *
+     * @return int rows inserted
+     */
     public function copyFallbackTranslations(string $fromLang, string $toLang): int
     {
         if ($fromLang === '' || $toLang === '' || $fromLang === $toLang) {
@@ -776,6 +998,12 @@ final class WpDbSourceRepository implements SourceRepository
         return $count;
     }
 
+    /**
+     * Whether $fromLang has at least one translation that $toLang is missing —
+     * the "is there anything to copy" check behind the rail's "Use fallback
+     * translation" button, without actually running the copy. Short-circuits
+     * across content tables on the first hit.
+     */
     public function hasFallbackTranslationsToCopy(string $fromLang, string $toLang): bool
     {
         if ($fromLang === '' || $toLang === '' || $fromLang === $toLang) {
@@ -818,6 +1046,7 @@ final class WpDbSourceRepository implements SourceRepository
         }
     }
 
+    /** Mark a parent ignored (status -1) AND delete its child(ren) across languages. */
     public function ignoreSource(SourceRef $ref): void
     {
         $tableKey = $ref->parentTableKey();
@@ -851,6 +1080,12 @@ final class WpDbSourceRepository implements SourceRepository
         );
     }
 
+    /**
+     * Return ignored parents to discovered (status 0). Children were deleted on
+     * ignore, so the string is untranslated until re-translated.
+     *
+     * @param SourceRef[] $refs
+     */
     public function restoreSources(array $refs): void
     {
         $now = current_time('mysql');
@@ -871,6 +1106,7 @@ final class WpDbSourceRepository implements SourceRepository
         }
     }
 
+    /** updated_at of $ref's translation for the concurrent-edit guard, or null. */
     public function translationUpdatedAt(SourceRef $ref, string $langCode): ?string
     {
         $tableKey = $ref->parentTableKey();
@@ -903,6 +1139,13 @@ final class WpDbSourceRepository implements SourceRepository
 
     // ── discovery reconciliation (delete-stale; carry-forward arrives in Phase 5) ─
 
+    /**
+     * Reconcile a post's parents (post fields + meta) after re-discovery: upsert
+     * the current $records, then delete this post's still-discovered parents that
+     * are absent from $records. Empty $records deletes all of the post's parents.
+     *
+     * @param SourceRecord[] $records
+     */
     public function reconcilePost(int $postId, array $records): void
     {
         $byTable = $this->groupByTable($records);
@@ -910,6 +1153,11 @@ final class WpDbSourceRepository implements SourceRepository
         $this->reconcileScope('tl_meta', 'post_id = %d', [$postId], $byTable['tl_meta'] ?? []);
     }
 
+    /**
+     * Reconcile one post + meta key's parents. Same delete-stale rule, scoped.
+     *
+     * @param SourceRecord[] $records
+     */
     public function reconcilePostMetaKey(int $postId, string $metaKey, array $records): void
     {
         $this->reconcileScope(
@@ -920,11 +1168,23 @@ final class WpDbSourceRepository implements SourceRepository
         );
     }
 
+    /**
+     * Reconcile a term's parents.
+     *
+     * @param SourceRecord[] $records
+     */
     public function reconcileTerm(int $termTaxonomyId, array $records): void
     {
         $this->reconcileScope('tl_term', 'term_taxonomy_id = %d', [$termTaxonomyId], $records);
     }
 
+    /**
+     * Reconcile one wp_options row's parents. Same delete-stale + carry-forward
+     * rule as posts/terms, scoped to a single option_id: an edited tagline keeps
+     * its translation, re-attached to the new text as needs_review.
+     *
+     * @param SourceRecord[] $records
+     */
     public function reconcileOption(int $optionId, array $records): void
     {
         $this->reconcileScope('tl_option', 'option_id = %d', [$optionId], $records);
@@ -1108,7 +1368,7 @@ final class WpDbSourceRepository implements SourceRepository
 
     private function isHashLink(string $tableKey): bool
     {
-        return in_array($tableKey, self::HASH_LINK, true);
+        return in_array($tableKey, TranslationMemorySchema::HASH_LINK_CHILDREN, true);
     }
 
     /** Lowercase hex of a parent's original_hash, or null if the parent is gone. */
@@ -1198,12 +1458,7 @@ final class WpDbSourceRepository implements SourceRepository
     /** @param string[] $keys */
     private function only(array $assoc, array $keys): array
     {
-        $out = [];
-        foreach ($keys as $key) {
-            $out[$key] = $assoc[$key] ?? null;
-        }
-
-        return $out;
+        return array_intersect_key($assoc, array_flip($keys));
     }
 
     private function isBinaryColumn(string $column): bool

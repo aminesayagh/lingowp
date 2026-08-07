@@ -6,7 +6,7 @@ use TransLangs\Resolution\PublicLinkRewriter;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Extraction\Html\HtmlDiscovery;
 use TransLangs\Resolution\Seo\SeoHeadTranslator;
 
@@ -30,7 +30,7 @@ final class PublicRenderPipeline
         private ResolveRequestLanguage $languageResolver,
         private RequestContext $requestContext,
         private PublicLinkRewriter $linkRewriter,
-        private SourceRepository $repository,
+        private WpDbSourceRepository $repository,
         private HtmlRenderer $htmlRenderer,
         private HtmlDiscovery $htmlDiscovery,
         private SeoHeadTranslator $seoHead,

@@ -42,17 +42,22 @@ final class OwnedStringIndex
         $tables       = TranslationMemorySchema::parentTables();
         $hexes        = array_map('bin2hex', $rawHashes);
         $placeholders = implode(', ', array_fill(0, count($hexes), 'UNHEX(%s)'));
-        $owned        = [];
 
+        $selects = [];
+        $args    = [];
         foreach (self::STRUCTURED as $key) {
-            $sql = "SELECT LOWER(HEX(original_hash)) AS h
-                    FROM {$tables[$key]} WHERE original_hash IN ({$placeholders})";
+            $selects[] = "SELECT LOWER(HEX(original_hash)) AS h
+                          FROM {$tables[$key]} WHERE original_hash IN ({$placeholders})";
+            array_push($args, ...$hexes);
+        }
+        $sql = implode(' UNION ALL ', $selects);
 
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            $rows = $this->wpdb->get_col($this->wpdb->prepare($sql, ...$hexes));
-            foreach ((array) $rows as $hex) {
-                $owned[strtolower((string) $hex)] = true;
-            }
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_col($this->wpdb->prepare($sql, ...$args));
+
+        $owned = [];
+        foreach ((array) $rows as $hex) {
+            $owned[strtolower((string) $hex)] = true;
         }
 
         return $owned;

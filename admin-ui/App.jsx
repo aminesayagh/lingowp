@@ -9,6 +9,7 @@ import enTranslations from '@shopify/polaris/locales/en.json'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from '@wordpress/element'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
+import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from './api'
 import Configuration from './screens/Configuration'
 import SettingUp from './screens/SettingUp'
@@ -28,27 +29,27 @@ const queryClient = new QueryClient( {
 	},
 } )
 
-// Reflect the current screen in the admin query string (?page=translangs&view=…)
-// for shareable URLs. Routing is state-driven, not popstate-driven, so browser
-// back/forward never steps through onboarding (arch nav rule).
-function pushView( view ) {
-	const url = new URL( window.location.href )
-	url.searchParams.set( 'page', 'translangs' )
-	url.searchParams.set( 'view', view )
-	window.history.pushState( {}, '', url )
-}
+const viewParser = parseAsStringLiteral( [
+	'onboarding_configuration',
+	'onboarding_setting_up',
+	'dashboard_empty_language',
+	'dashboard_workspace',
+] ).withOptions( { history: 'push' } )
 
 // Decide the landing screen. Incomplete onboarding can never reach the dashboard;
 // completed onboarding can never revisit configuration.
-function resolveView( state ) {
+function resolveView( state, urlView ) {
 	if ( ! state.onboarding_completed ) {
-		const urlView = new URLSearchParams( window.location.search ).get(
-			'view'
-		)
 		if ( urlView === 'onboarding_setting_up' && state.connected ) {
 			return 'onboarding_setting_up'
 		}
 		return 'onboarding_configuration'
+	}
+	if (
+		urlView === 'dashboard_empty_language' ||
+		urlView === 'dashboard_workspace'
+	) {
+		return urlView
 	}
 	return state.has_target_language
 		? 'dashboard_workspace'
@@ -57,7 +58,8 @@ function resolveView( state ) {
 
 export default function App() {
 	const [ state, setState ] = useState( null )
-	const [ view, setViewState ] = useState( null )
+	const [ urlView, setUrlView ] = useQueryState( 'view', viewParser )
+	const view = state ? resolveView( state, urlView ) : null
 
 	// Polaris renders popovers/tooltips/modals into a portal container that, by
 	// default, lives inside the React tree — which in wp-admin sits under the
@@ -75,15 +77,16 @@ export default function App() {
 		return el
 	} )
 
-	const setView = useCallback( ( next ) => {
-		setViewState( next )
-		pushView( next )
-	}, [] )
+	const setView = useCallback(
+		( next ) => {
+			setUrlView( next )
+		},
+		[ setUrlView ]
+	)
 
 	useEffect( () => {
 		api.get( '/onboarding/state' ).then( ( s ) => {
 			setState( s )
-			setViewState( resolveView( s ) )
 		} )
 	}, [] )
 

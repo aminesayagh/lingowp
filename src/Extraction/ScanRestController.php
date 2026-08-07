@@ -109,12 +109,7 @@ final class ScanRestController
      */
     public function rescanSeo(): WP_REST_Response
     {
-        $queued = $this->seoRescan->start();
-
-        return rest_ensure_response([
-            'ok'     => $queued,
-            'status' => $queued ? 'running' : 'unavailable',
-        ]);
+        return $this->queuedResponse($this->seoRescan->start());
     }
 
     /**
@@ -124,8 +119,11 @@ final class ScanRestController
      */
     public function rescanHtml(): WP_REST_Response
     {
-        $queued = $this->htmlCrawl->start();
+        return $this->queuedResponse($this->htmlCrawl->start());
+    }
 
+    private function queuedResponse(bool $queued): WP_REST_Response
+    {
         return rest_ensure_response([
             'ok'     => $queued,
             'status' => $queued ? 'running' : 'unavailable',

@@ -71,6 +71,11 @@ use TransLangs\GettextDomains\GettextPoImporter;
 use TransLangs\GettextDomains\GettextTemplateGenerator;
 use TransLangs\GettextDomains\GettextTranslationUnitsService;
 
+/**
+ * @phpstan-type BackendBundle array{connection: ConnectionRepository, backendClient: BackendClient,
+ *   siteMetadata: SiteMetadataProvider, connectionStatus: ConnectionStatus,
+ *   languageMetadata: LanguageMetadataStore}
+ */
 class Plugin
 {
     /**
@@ -87,7 +92,8 @@ class Plugin
         [$languageRegistry, $languageResolver, $urlBuilder, $context] = $this->bootLanguage($wpdb);
         $this->bootLocalizationRouting($languageResolver, $urlBuilder);
 
-        $sourceRepository = $this->bootRepository($wpdb);
+        // Per-type repository over the parent/child tables.
+        $sourceRepository = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
 
         [$initialScan, $seoRescan, $htmlCrawl, $htmlDiscovery, $htmlRenderer, $unitExtractor, $pageOwnedHashes] =
             $this->bootExtraction($wpdb, $sourceRepository);
@@ -108,10 +114,9 @@ class Plugin
         // view — only where the backend is actually reachable: wp-admin, the REST
         // API the SPA calls, and the cron/loopback request that runs the sync job.
         // (A bare is_admin() check would be wrong: REST and cron are not is_admin().)
-        $backend = null;
-        if ($this->isBackendContext()) {
-            $backend = $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $seoRescan, $htmlCrawl);
-        }
+        $backend = $this->isBackendContext()
+            ? $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $seoRescan, $htmlCrawl)
+            : null;
 
         // is_admin() implies isBackendContext() (see that method), so $backend is
         // always set by the time we get here.
@@ -158,12 +163,6 @@ class Plugin
     {
         (new LanguageRouteRegistrar($languageResolver))->register();
         (new LanguageSwitcherShortcode($languageResolver, $urlBuilder, new SupportedLanguages(new LanguageMetadataStore())))->register();
-    }
-
-    private function bootRepository(\wpdb $wpdb): WpDbSourceRepository
-    {
-        // Per-type repository over the parent/child tables.
-        return new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
     }
 
     /**
@@ -279,9 +278,7 @@ class Plugin
      * gettext domain management, and export/import — everything that only
      * runs where the backend is actually reachable (wp-admin, REST, cron).
      *
-     * @return array{connection: ConnectionRepository, backendClient: BackendClient,
-     *   siteMetadata: SiteMetadataProvider, connectionStatus: ConnectionStatus,
-     *   languageMetadata: LanguageMetadataStore} handed to bootAdmin() for the dev reset tool
+     * @return BackendBundle handed to bootAdmin() for the dev reset tool
      */
     private function bootBackendAndBoard(
         \wpdb $wpdb,
@@ -353,9 +350,7 @@ class Plugin
      * Thin wp-admin chrome: assets, the Site Health panel, the onboarding
      * page shell, and (WP_DEBUG only) the dev reset tool.
      *
-     * @param array{connection: ConnectionRepository, backendClient: BackendClient,
-     *   siteMetadata: SiteMetadataProvider, connectionStatus: ConnectionStatus,
-     *   languageMetadata: LanguageMetadataStore} $backend from bootBackendAndBoard()
+     * @param BackendBundle $backend from bootBackendAndBoard()
      */
     private function bootAdmin(\wpdb $wpdb, OptionLanguageRegistry $languageRegistry, array $backend): void
     {
@@ -387,13 +382,7 @@ class Plugin
      */
     private function isBackendContext(): bool
     {
-        if (is_admin()) {
-            return true;
-        }
-        if (function_exists('wp_doing_cron') && wp_doing_cron()) {
-            return true;
-        }
-        if (defined('REST_REQUEST') && REST_REQUEST) {
+        if (is_admin() || (function_exists('wp_doing_cron') && wp_doing_cron()) || (defined('REST_REQUEST') && REST_REQUEST)) {
             return true;
         }
 

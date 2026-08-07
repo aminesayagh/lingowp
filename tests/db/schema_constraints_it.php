@@ -19,7 +19,6 @@ require __DIR__ . '/_harness.php';
 
 use TransLangs\Database\ConstraintVerifier;
 use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Database\Repository\WpDbSourceRepository;
 
 global $wpdb;
 
@@ -170,14 +169,5 @@ foreach ($parents as $key => $table) {
     $child = $table . '_translation';
     tl_ok("  {$key}_translation is InnoDB", strtoupper($engineOf($child)) === 'INNODB', 'got ' . $engineOf($child));
 }
-
-// ── E. The duplicated hash-link list must never drift ────────────────────────
-
-tl_section('duplicated constants:');
-
-$repoHashLink = (new ReflectionClass(WpDbSourceRepository::class))->getConstant('HASH_LINK');
-tl_ok('HASH_LINK_CHILDREN === WpDbSourceRepository::HASH_LINK',
-    TranslationMemorySchema::HASH_LINK_CHILDREN === $repoHashLink,
-    'schema=' . json_encode(TranslationMemorySchema::HASH_LINK_CHILDREN) . ' repo=' . json_encode($repoHashLink));
 
 tl_done();

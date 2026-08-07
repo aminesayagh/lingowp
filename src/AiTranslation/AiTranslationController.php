@@ -6,7 +6,7 @@ use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Board\CollectionBoard;
 
 use TransLangs\Backend\AiQuotaService;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
@@ -33,7 +33,7 @@ final class AiTranslationController
     private const NS = 'translangs/v1';
 
     public function __construct(
-        private SourceRepository $repo,
+        private WpDbSourceRepository $repo,
         private OptionLanguageRegistry $registry,
         private CollectionBoard $collections,
         private AiQuotaService $quota,

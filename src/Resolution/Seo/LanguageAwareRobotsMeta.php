@@ -2,7 +2,7 @@
 
 namespace TransLangs\Resolution\Seo;
 
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Resolution\RequestContext;
 
@@ -36,7 +36,7 @@ class LanguageAwareRobotsMeta
     public function __construct(
         private ResolveRequestLanguage $resolver,
         private RequestContext $context,
-        private SourceRepository $repository
+        private WpDbSourceRepository $repository
     ) {
     }
 

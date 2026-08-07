@@ -36,6 +36,7 @@ import {
 	useState,
 } from '@wordpress/element'
 import { CheckIcon, DuplicateIcon, PageIcon } from '@shopify/polaris-icons'
+import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from '../api'
 import ExportImportModal from './ExportImportModal'
 import GettextBoard from './GettextBoard'
@@ -187,11 +188,11 @@ const PAGE_SIZE = 20
 // Rows revealed per "Show more" click in a group — an auto-opened 1,000-text
 // group never dumps every row at once.
 const TEXT_BATCH = 50
+const boardParser = parseAsStringLiteral( [ 'content', 'plugins' ] )
+	.withDefault( 'content' )
+	.withOptions( { history: 'replace' } )
 
-export default function Dashboard( {
-	defaultLanguage,
-	onLanguageCreated,
-} ) {
+export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	const queryClient = useQueryClient()
 	const [ languages, setLanguages ] = useState( [] )
 	// Distinguishes "no languages yet" (still loading) from "confirmed empty" —
@@ -224,28 +225,12 @@ export default function Dashboard( {
 	const [ textLengthFilter, setTextLengthFilter ] = useState( [] )
 	const [ progressFilter, setProgressFilter ] = useState( [] )
 	// Which board is showing: today's Content tree, or gettext grouped by
-	// plugin/theme. Swaps the `source` param on the same collections/text-order
-	// queries below — same load/search/pagination machinery, different data.
-	// Reflected in the URL (?board=plugins) so a refresh lands back on the same
-	// tab — same window.history/URLSearchParams approach App.jsx already uses
-	// for ?view=, no new dependency. replaceState (not pushState): switching
-	// tabs isn't a navigation step worth a back-button entry.
-	const [ board, setBoard ] = useState( () =>
-		new URLSearchParams( window.location.search ).get( 'board' ) ===
-		'plugins'
-			? 'plugins'
-			: 'content'
-	)
+	// plugin/theme. The URL is the source of truth so refreshes and shared links
+	// retain the selection; replacements keep tab changes out of browser history.
+	const [ board, setBoard ] = useQueryState( 'board', boardParser )
 
 	function selectBoard( next ) {
 		setBoard( next )
-		const url = new URL( window.location.href )
-		if ( next === 'content' ) {
-			url.searchParams.delete( 'board' )
-		} else {
-			url.searchParams.set( 'board', next )
-		}
-		window.history.replaceState( {}, '', url )
 	}
 
 	const autosaveToastTimerRef = useRef( null )

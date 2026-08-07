@@ -5,7 +5,7 @@ namespace TransLangs\Board;
 use TransLangs\Language\Domain\LocaleNormalizer;
 
 use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
@@ -17,7 +17,7 @@ final class TranslationRestController
     private const NS = 'translangs/v1';
 
     public function __construct(
-        private SourceRepository $repo,
+        private WpDbSourceRepository $repo,
         private OptionLanguageRegistry $registry,
         private CollectionBoard $collections
     ) {}

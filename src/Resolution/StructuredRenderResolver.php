@@ -8,7 +8,7 @@ use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Shared\Text\IdentityKey;
 use TransLangs\Shared\Parsing\HtmlUnitExtractor;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Text\TL_Key;
 use TransLangs\Shared\Source\TranslatableMetaKeys;
 
@@ -53,7 +53,7 @@ final class StructuredRenderResolver
     public function __construct(
         private ResolveRequestLanguage $language,
         private RequestContext $context,
-        private SourceRepository $repository,
+        private WpDbSourceRepository $repository,
         private HtmlUnitExtractor $unitExtractor,
         private PageOwnedHashes $pageOwned,
         private LanguageRegistry $languageRegistry

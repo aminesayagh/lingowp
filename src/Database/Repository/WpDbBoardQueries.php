@@ -48,16 +48,7 @@ final class WpDbBoardQueries
             ...$matchArgs
         ), ARRAY_A);
 
-        return array_map(static fn (array $r): array => [
-            'post_id'        => (int) $r['post_id'],
-            'post_type'      => (string) $r['post_type'],
-            'post_title'     => (string) $r['post_title'],
-            'post_mime_type' => (string) $r['post_mime_type'],
-            'total'          => (int) $r['total'],
-            'translated'     => (int) $r['translated'],
-            'needs_review'   => (int) $r['needs_review'],
-            'missing'        => (int) $r['missing'],
-        ], (array) $rows);
+        return array_map([$this, 'collectionRow'], (array) $rows);
     }
 
     public function listPostTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
@@ -111,12 +102,7 @@ final class WpDbBoardQueries
             ...$matchArgs
         ), ARRAY_A) ?: [];
 
-        return [
-            'total'        => (int) ($row['total'] ?? 0),
-            'translated'   => (int) ($row['translated'] ?? 0),
-            'needs_review' => (int) ($row['needs_review'] ?? 0),
-            'missing'      => (int) ($row['missing'] ?? 0),
-        ];
+        return $this->summaryRow($row);
     }
 
     public function listOptionTexts(string $langCode, string $search = '', array $filters = []): array
@@ -281,16 +267,7 @@ final class WpDbBoardQueries
             ...$matchArgs
         ), ARRAY_A);
 
-        return array_map(static fn (array $r): array => [
-            'post_id'        => (int) $r['post_id'],
-            'post_type'      => (string) $r['post_type'],
-            'post_title'     => (string) $r['post_title'],
-            'post_mime_type' => (string) $r['post_mime_type'],
-            'total'          => (int) $r['total'],
-            'translated'     => (int) $r['translated'],
-            'needs_review'   => (int) $r['needs_review'],
-            'missing'        => (int) $r['missing'],
-        ], (array) $rows);
+        return array_map([$this, 'collectionRow'], (array) $rows);
     }
 
     public function listMetaTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
@@ -547,12 +524,7 @@ final class WpDbBoardQueries
             ...$matchArgs
         ), ARRAY_A) ?: [];
 
-        return [
-            'total'        => (int) ($row['total'] ?? 0),
-            'translated'   => (int) ($row['translated'] ?? 0),
-            'needs_review' => (int) ($row['needs_review'] ?? 0),
-            'missing'      => (int) ($row['missing'] ?? 0),
-        ];
+        return $this->summaryRow($row);
     }
 
     public function listHtmlTexts(string $langCode, string $search = '', array $filters = []): array
@@ -730,5 +702,31 @@ final class WpDbBoardQueries
     private function parent(string $tableKey): string
     {
         return TranslationMemorySchema::parentTables()[$tableKey];
+    }
+
+    /** Group-by-post collection row shared by listPostCollections()/postMetaCounts(). */
+    private function collectionRow(array $r): array
+    {
+        return [
+            'post_id'        => (int) $r['post_id'],
+            'post_type'      => (string) $r['post_type'],
+            'post_title'     => (string) $r['post_title'],
+            'post_mime_type' => (string) $r['post_mime_type'],
+            'total'          => (int) $r['total'],
+            'translated'     => (int) $r['translated'],
+            'needs_review'   => (int) $r['needs_review'],
+            'missing'        => (int) $r['missing'],
+        ];
+    }
+
+    /** Status-count summary shared by optionCollectionSummary()/htmlCollectionSummary(). */
+    private function summaryRow(?array $row): array
+    {
+        return [
+            'total'        => (int) ($row['total'] ?? 0),
+            'translated'   => (int) ($row['translated'] ?? 0),
+            'needs_review' => (int) ($row['needs_review'] ?? 0),
+            'missing'      => (int) ($row['missing'] ?? 0),
+        ];
     }
 }

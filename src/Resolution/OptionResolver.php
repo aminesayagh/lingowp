@@ -5,7 +5,7 @@ use TransLangs\Resolution\RequestContext;
 
 use TransLangs\Language\Application\ResolveRequestLanguage;
 use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Text\TL_Key;
 
 /**
@@ -34,7 +34,7 @@ final class OptionResolver
     public function __construct(
         private ResolveRequestLanguage $language,
         private RequestContext $context,
-        private SourceRepository $repository,
+        private WpDbSourceRepository $repository,
         private LanguageRegistry $languageRegistry
     ) {}
 

@@ -3,7 +3,7 @@
 namespace TransLangs\Resolution\Seo;
 
 use TransLangs\Shared\Parsing\SeoTemplateVariables;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Source\TranslatableMetaKeys;
 use TransLangs\Shared\Text\TL_Key;
 
@@ -31,7 +31,7 @@ final class SeoHeadTranslator
     /** @var array<string, array<int, array{meta_key:string, original_text:string, translated_text:?string}>> */
     private array $stateCache = [];
 
-    public function __construct(private SourceRepository $repository) {}
+    public function __construct(private WpDbSourceRepository $repository) {}
 
     /**
      * Translate the head tags of an already-parsed document, in place.

@@ -40,14 +40,6 @@ final class ConstraintVerifier
             ARRAY_A
         );
 
-        $found = [];
-        foreach ($rows as $row) {
-            $found[(string) $row['CONSTRAINT_NAME']] = true;
-        }
-
-        return array_values(array_filter(
-            array_keys($expected),
-            fn(string $name): bool => !isset($found[$name])
-        ));
+        return array_values(array_diff(array_keys($expected), array_column($rows, 'CONSTRAINT_NAME')));
     }
 }

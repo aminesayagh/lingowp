@@ -4,7 +4,7 @@ namespace TransLangs\AiTranslation;
 
 use TransLangs\Backend\BackendClient;
 use TransLangs\Backend\SiteMetadataProvider;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
@@ -26,7 +26,7 @@ final class AiTranslationRunner
 
     public function __construct(
         private BackendClient $backend,
-        private SourceRepository $repo,
+        private WpDbSourceRepository $repo,
         private OptionLanguageRegistry $registry,
         private LanguageMetadataStore $langStore
     ) {}

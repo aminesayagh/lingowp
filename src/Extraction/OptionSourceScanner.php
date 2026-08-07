@@ -3,7 +3,7 @@
 namespace TransLangs\Extraction;
 
 use TransLangs\Shared\Source\Type\OptionSource;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 
 /**
  * Options discovery (Path E): extract the small subset of visitor-facing text
@@ -29,7 +29,7 @@ final class OptionSourceScanner
     ];
 
     public function __construct(
-        private SourceRepository $repository,
+        private WpDbSourceRepository $repository,
         private \wpdb $wpdb
     ) {}
 

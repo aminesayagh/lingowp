@@ -3,7 +3,7 @@
 namespace TransLangs\Extraction\Html;
 
 use TransLangs\Shared\Source\Type\HtmlSource;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Extraction\OwnedStringIndex;
 use TransLangs\Resolution\HtmlRenderer;
 
@@ -23,7 +23,7 @@ final class HtmlDiscovery
     public function __construct(
         private HtmlRenderer $htmlRenderer,
         private OwnedStringIndex $ownedIndex,
-        private SourceRepository $repository
+        private WpDbSourceRepository $repository
     ) {
     }
 
@@ -60,7 +60,8 @@ final class HtmlDiscovery
 
         $records = array_values(array_filter(
             $candidates,
-            static fn(HtmlSource $s): bool => !isset($owned[bin2hex($s->originalHash())])
+            static fn(string $hex): bool => !isset($owned[$hex]),
+            ARRAY_FILTER_USE_KEY
         ));
 
         if ($records !== []) {

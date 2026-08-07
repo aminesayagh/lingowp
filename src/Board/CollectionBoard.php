@@ -4,7 +4,7 @@ namespace TransLangs\Board;
 
 use TransLangs\Shared\Source\Type\HtmlSource;
 use TransLangs\Shared\Source\TranslatableMetaKeys;
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
@@ -20,7 +20,7 @@ use TransLangs\Shared\Source\TranslationStatus;
  */
 final class CollectionBoard
 {
-    public function __construct(private SourceRepository $repo, private LanguageRegistry $languages) {}
+    public function __construct(private WpDbSourceRepository $repo, private LanguageRegistry $languages) {}
 
     /**
      * Every collection group for a language + search term (Site settings first,

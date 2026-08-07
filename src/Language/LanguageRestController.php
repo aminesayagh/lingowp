@@ -2,7 +2,7 @@
 
 namespace TransLangs\Language;
 
-use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
@@ -25,7 +25,7 @@ final class LanguageRestController
     public function __construct(
         private LanguageMetadataStore $store,
         private OptionLanguageRegistry $registry,
-        private SourceRepository $repo
+        private WpDbSourceRepository $repo
     ) {}
 
     public function register(): void
