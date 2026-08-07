@@ -189,7 +189,6 @@ const PAGE_SIZE = 20
 const TEXT_BATCH = 50
 
 export default function Dashboard( {
-	view,
 	defaultLanguage,
 	onLanguageCreated,
 } ) {
@@ -961,7 +960,14 @@ export default function Dashboard( {
 	}
 
 	// Empty-language state: same shell, centered CTA (wireframe 1.3).
-	if ( view === 'dashboard_empty_language' && languages.length === 0 ) {
+	// Deliberately NOT keyed off `view` — App.jsx's `dashboard_empty_language`
+	// reflects "no ACTIVE language" (`getTargetLanguages()`, i.e. published
+	// only), so a language left in draft (the default for a newly-created one)
+	// would otherwise flash this screen on every load until `languages` (every
+	// language, draft included) finishes fetching and proves one already
+	// exists. `languagesLoaded` alone avoids both the false positive and the
+	// flash: nothing renders here until we actually know.
+	if ( languagesLoaded && languages.length === 0 ) {
 		return (
 			<>
 				<OnboardingPage>

@@ -135,7 +135,6 @@ export default function App() {
 								{ ( view === 'dashboard_empty_language' ||
 									view === 'dashboard_workspace' ) && (
 									<Dashboard
-										view={ view }
 										defaultLanguage={
 											state.default_language
 										}
