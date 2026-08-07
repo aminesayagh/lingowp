@@ -1,13 +1,10 @@
 {
-  "servers": {
-    "code-review-graph": {
-      "command": "uvx",
-      "args": [
-        "code-review-graph",
-        "serve"
-      ],
-      "cwd": "C:\\Users\\ROG ZEPHYRUS\\Local Sites\\translangs\\app\\public\\wp-content\\plugins\\translangs",
-      "type": "stdio"
-    }
-  }
+	"servers": {
+		"code-review-graph": {
+			"command": "uvx",
+			"args": [ "code-review-graph", "serve" ],
+			"cwd": "C:\\Users\\ROG ZEPHYRUS\\Local Sites\\translangs\\app\\public\\wp-content\\plugins\\translangs",
+			"type": "stdio"
+		}
+	}
 }

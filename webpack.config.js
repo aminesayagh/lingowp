@@ -1,4 +1,4 @@
-const defaultConfig = require( '@wordpress/scripts/config/webpack.config' );
+const defaultConfig = require( '@wordpress/scripts/config/webpack.config' )
 
 /**
  * wp-scripts' default performance budget (244 KiB) is calibrated for a
@@ -7,8 +7,8 @@ const defaultConfig = require( '@wordpress/scripts/config/webpack.config' );
  * "fix" by code-splitting an admin screen. Raised to a real budget instead of
  * silencing warnings outright, so genuine future bloat still gets flagged.
  */
-const MAX_ASSET_SIZE = 600 * 1024;
-const MAX_ENTRYPOINT_SIZE = 1.6 * 1024 * 1024;
+const MAX_ASSET_SIZE = 600 * 1024
+const MAX_ENTRYPOINT_SIZE = 1.6 * 1024 * 1024
 
 function withRealisticPerformanceBudget( config ) {
 	return {
@@ -18,9 +18,9 @@ function withRealisticPerformanceBudget( config ) {
 			maxAssetSize: MAX_ASSET_SIZE,
 			maxEntrypointSize: MAX_ENTRYPOINT_SIZE,
 		},
-	};
+	}
 }
 
 module.exports = Array.isArray( defaultConfig )
 	? defaultConfig.map( withRealisticPerformanceBudget )
-	: withRealisticPerformanceBudget( defaultConfig );
+	: withRealisticPerformanceBudget( defaultConfig )

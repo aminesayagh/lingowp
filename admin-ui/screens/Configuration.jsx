@@ -6,49 +6,54 @@ import {
 	Checkbox,
 	ChoiceList,
 	Text,
-} from '@shopify/polaris';
-import { useEffect, useState } from '@wordpress/element';
-import { api } from '../api';
-import { errorMessage } from '../errors';
-import OnboardingPage from './OnboardingPage';
+} from '@shopify/polaris'
+import { useEffect, useState } from '@wordpress/element'
+import { api } from '../api'
+import { errorMessage } from '../errors'
+import OnboardingPage from './OnboardingPage'
 
 // Code-only categories come from the backend; labels are a frontend concern.
 function humanize( code ) {
-	return code.replace( /[_-]+/g, ' ' ).replace( /\b\w/g, ( c ) => c.toUpperCase() );
+	return code
+		.replace( /[_-]+/g, ' ' )
+		.replace( /\b\w/g, ( c ) => c.toUpperCase() )
 }
 
 // Step 1 of 2. Source/default language is intentionally NOT shown here — it is
 // inherited from WordPress. Toggle defaults follow the wireframe (cookie +
 // browser detection on), not stored options, since this is first-run config.
 export default function Configuration( { onDone } ) {
-	const [ categoryChoices, setCategoryChoices ] = useState( [] );
-	const [ categories, setCategories ] = useState( [] );
-	const [ prefix, setPrefix ] = useState( false );
-	const [ cookie, setCookie ] = useState( true );
-	const [ browser, setBrowser ] = useState( true );
-	const [ autoRedirect, setAutoRedirect ] = useState( false );
-	const [ error, setError ] = useState( '' );
-	const [ submitting, setSubmitting ] = useState( false );
+	const [ categoryChoices, setCategoryChoices ] = useState( [] )
+	const [ categories, setCategories ] = useState( [] )
+	const [ prefix, setPrefix ] = useState( false )
+	const [ cookie, setCookie ] = useState( true )
+	const [ browser, setBrowser ] = useState( true )
+	const [ autoRedirect, setAutoRedirect ] = useState( false )
+	const [ error, setError ] = useState( '' )
+	const [ submitting, setSubmitting ] = useState( false )
 
 	useEffect( () => {
 		api.get( '/onboarding/categories' ).then( ( res ) => {
 			if ( res.ok && Array.isArray( res.categories ) ) {
 				setCategoryChoices(
-					res.categories.map( ( code ) => ( { label: humanize( code ), value: code } ) )
-				);
+					res.categories.map( ( code ) => ( {
+						label: humanize( code ),
+						value: code,
+					} ) )
+				)
 			}
-		} );
-	}, [] );
+		} )
+	}, [] )
 
 	// Auto redirect requires browser detection (arch dependency).
-	const canAutoRedirect = browser;
-	const effectiveAutoRedirect = autoRedirect && canAutoRedirect;
+	const canAutoRedirect = browser
+	const effectiveAutoRedirect = autoRedirect && canAutoRedirect
 
 	async function submit() {
 		// Categories are optional (and the catalog is only available when the backend
 		// is reachable) — never block Continue on them.
-		setSubmitting( true );
-		setError( '' );
+		setSubmitting( true )
+		setError( '' )
 
 		const res = await api.post( '/onboarding/configure', {
 			categories,
@@ -56,13 +61,13 @@ export default function Configuration( { onDone } ) {
 			cookie_preference: cookie,
 			browser_detection: browser,
 			auto_redirect: effectiveAutoRedirect,
-		} );
+		} )
 
-		setSubmitting( false );
+		setSubmitting( false )
 		if ( res.ok ) {
-			onDone();
+			onDone()
 		} else {
-			setError( res.error || 'ERR_BACKEND' );
+			setError( res.error || 'ERR_BACKEND' )
 		}
 	}
 
@@ -72,8 +77,9 @@ export default function Configuration( { onDone } ) {
 			subtitle="Tell us about your site and how visitors should reach translated pages."
 		>
 			<BlockStack gap="400">
-
-				{ error && <Banner tone="critical">{ errorMessage( error ) }</Banner> }
+				{ error && (
+					<Banner tone="critical">{ errorMessage( error ) }</Banner>
+				) }
 
 				{ /* Categories come from the backend catalog; hide the field entirely
 				     when it is unavailable (e.g. backend down). Optional either way. */ }
@@ -126,10 +132,15 @@ export default function Configuration( { onDone } ) {
 					</BlockStack>
 				</Card>
 
-				<Button variant="primary" size="large" loading={ submitting } onClick={ submit }>
+				<Button
+					variant="primary"
+					size="large"
+					loading={ submitting }
+					onClick={ submit }
+				>
 					Continue
 				</Button>
 			</BlockStack>
 		</OnboardingPage>
-	);
+	)
 }

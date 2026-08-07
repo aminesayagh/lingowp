@@ -1,2196 +1,2613 @@
 import {
-  ActionList,
-  Badge,
-  Banner,
-  BlockStack,
-  Box,
-  Button,
-  Card,
-  ChoiceList,
-  Collapsible,
-  Divider,
-  EmptyState,
-  Filters,
-  InlineStack,
-  Modal,
-  Page,
-  Popover,
-  Spinner,
-  Text,
-  TextField,
-  Thumbnail,
-  Tooltip,
-} from "@shopify/polaris";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWindowVirtualizer } from "@tanstack/react-virtual";
+	ActionList,
+	Badge,
+	Banner,
+	BlockStack,
+	Box,
+	Button,
+	Card,
+	ChoiceList,
+	Collapsible,
+	Divider,
+	EmptyState,
+	Filters,
+	InlineStack,
+	Modal,
+	Page,
+	Popover,
+	Spinner,
+	Text,
+	TextField,
+	Thumbnail,
+	Tooltip,
+} from '@shopify/polaris'
 import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "@wordpress/element";
+	useInfiniteQuery,
+	useQuery,
+	useQueryClient,
+} from '@tanstack/react-query'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import {
-  CheckIcon,
-  DuplicateIcon,
-  PageIcon
-} from "@shopify/polaris-icons";
-import { api } from "../api";
-import ExportImportModal from "./ExportImportModal";
-import GettextBoard from "./GettextBoard";
-import LanguageManagerModal from "./LanguageManagerModal";
-import OnboardingPage from "./OnboardingPage";
-import LanguageList, { PUBLISH_MIN_PERCENT } from "./LanguageList";
-import { flagIconUrl } from "./FlagIcon";
-import CompareOverlay from "./CompareOverlay";
-import QuotaCard from "./QuotaCard";
-import { hasMarkers, stripMarkers } from "./TranslationUnitEditor";
-import { lengthWarningMessage } from "./lengthWarning.mjs";
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from '@wordpress/element'
+import { CheckIcon, DuplicateIcon, PageIcon } from '@shopify/polaris-icons'
+import { api } from '../api'
+import ExportImportModal from './ExportImportModal'
+import GettextBoard from './GettextBoard'
+import LanguageManagerModal from './LanguageManagerModal'
+import OnboardingPage from './OnboardingPage'
+import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList'
+import { flagIconUrl } from './FlagIcon'
+import CompareOverlay from './CompareOverlay'
+import QuotaCard from './QuotaCard'
+import { hasMarkers, stripMarkers } from './TranslationUnitEditor'
+import { lengthWarningMessage } from './lengthWarning.mjs'
 
-const StartIcon = ({ color = "currentColor", ...props }) => (
-  <svg
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
-    <path
-      d="M10.6618 4.89303C11.1085 3.70232 12.8915 3.70232 13.3382 4.89303L14.8693 8.97405C15.0123 9.3552 15.3298 9.65504 15.7334 9.79009L20.0544 11.2361C21.3152 11.658 21.3152 13.342 20.0544 13.7639L15.7334 15.2099C15.3298 15.345 15.0123 15.6448 14.8693 16.0259L13.3382 20.107C12.8915 21.2977 11.1085 21.2977 10.6618 20.107L9.13068 16.0259C8.98769 15.6448 8.67021 15.345 8.26665 15.2099L3.94556 13.7639C2.68481 13.342 2.68481 11.658 3.94556 11.2361L8.26665 9.79009C8.67021 9.65504 8.98769 9.3552 9.13068 8.97405L10.6618 4.89303Z"
-      stroke={color}
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+const StartIcon = ( { color = 'currentColor', ...props } ) => (
+	<svg
+		width="24"
+		height="24"
+		viewBox="0 0 24 24"
+		fill="none"
+		xmlns="http://www.w3.org/2000/svg"
+		{ ...props }
+	>
+		<path
+			d="M10.6618 4.89303C11.1085 3.70232 12.8915 3.70232 13.3382 4.89303L14.8693 8.97405C15.0123 9.3552 15.3298 9.65504 15.7334 9.79009L20.0544 11.2361C21.3152 11.658 21.3152 13.342 20.0544 13.7639L15.7334 15.2099C15.3298 15.345 15.0123 15.6448 14.8693 16.0259L13.3382 20.107C12.8915 21.2977 11.1085 21.2977 10.6618 20.107L9.13068 16.0259C8.98769 15.6448 8.67021 15.345 8.26665 15.2099L3.94556 13.7639C2.68481 13.342 2.68481 11.658 3.94556 11.2361L8.26665 9.79009C8.67021 9.65504 8.98769 9.3552 9.13068 8.97405L10.6618 4.89303Z"
+			stroke={ color }
+			strokeWidth="1.5"
+			strokeLinejoin="round"
+		/>
+	</svg>
+)
 
 // Schema status → workspace pill. Completed rows keep a visible marker so table
 // progress is scannable even when the row is not hovered.
 const STATUS_BADGE = {
-  missing: null,
-  needs_review: { tone: "warning", label: "Needs review" },
-  reviewed: { tone: "success", label: "Done" },
-  translated: { tone: "success", label: "Done" },
-};
+	missing: null,
+	needs_review: { tone: 'warning', label: 'Needs review' },
+	reviewed: { tone: 'success', label: 'Done' },
+	translated: { tone: 'success', label: 'Done' },
+}
 
 // Which SEO field a meta row represents — shown as a small badge alongside the
 // status pill so title/description/keyword rows for the same post are
 // distinguishable at a glance.
 const SEO_FIELD_BADGE = {
-  title: "SEO title",
-  description: "Meta description",
-  keyword: "Focus keyword",
-  og_title: "OG title",
-  og_description: "OG description",
-  twitter_title: "Twitter title",
-  twitter_description: "Twitter description",
-};
+	title: 'SEO title',
+	description: 'Meta description',
+	keyword: 'Focus keyword',
+	og_title: 'OG title',
+	og_description: 'OG description',
+	twitter_title: 'Twitter title',
+	twitter_description: 'Twitter description',
+}
 
 // Truncate a cell to a single line with an ellipsis; the whole cell is a
 // clickable button that opens the overlay to read/edit the full text.
 // ponytail: stays inline — `all: unset` must sit in the same declaration as the
 // properties it resets, otherwise inline precedence wipes out equivalent utilities.
 const oneLineStyle = {
-  all: "unset",
-  cursor: "pointer",
-  display: "block",
-  width: "100%",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-// Collection type → group heading prefix. Site settings has no prefix.
-function groupHeading({ type, label }) {
-  const prefix = {
-    page: "Pages",
-    post: "Posts",
-    cpt: "Custom",
-    taxonomy: "Taxonomies",
-    plugin: "Plugin",
-    theme: "Theme",
-  }[type];
-  return prefix ? `${prefix} · ${label}` : label;
+	all: 'unset',
+	cursor: 'pointer',
+	display: 'block',
+	width: '100%',
+	whiteSpace: 'nowrap',
+	overflow: 'hidden',
+	textOverflow: 'ellipsis',
 }
 
-const enc = encodeURIComponent;
-const cfg = window.Translangs || {};
+// Collection type → group heading prefix. Site settings has no prefix.
+function groupHeading( { type, label } ) {
+	const prefix = {
+		page: 'Pages',
+		post: 'Posts',
+		cpt: 'Custom',
+		taxonomy: 'Taxonomies',
+		plugin: 'Plugin',
+		theme: 'Theme',
+	}[ type ]
+	return prefix ? `${ prefix } · ${ label }` : label
+}
+
+const enc = encodeURIComponent
+const cfg = window.Translangs || {}
 
 // Open a text's destination in a new tab. Front-end pages get a scroll-to-text
 // fragment so the browser jumps to (and highlights) the string being verified;
 // admin editors (taxonomy/options) open as-is. Best-effort: a no-match snippet
 // just lands on the page.
-function openCanvas(url, target, snippet) {
-  if (!url) return;
-  const final =
-    target === "frontend" && snippet ? `${url}#:~:text=${enc(snippet)}` : url;
-  window.open(final, "_blank", "noopener");
+function openCanvas( url, target, snippet ) {
+	if ( ! url ) {
+		return
+	}
+	const final =
+		target === 'frontend' && snippet
+			? `${ url }#:~:text=${ enc( snippet ) }`
+			: url
+	window.open( final, '_blank', 'noopener' )
 }
 
 // Header status filters — sent as ?status= to the server now.
 const FILTERS = [
-  { key: "untranslated", label: "Untranslated" },
-  { key: "needs_review", label: "Needs review" },
-  { key: "translated", label: "Translated" },
-];
+	{ key: 'untranslated', label: 'Untranslated' },
+	{ key: 'needs_review', label: 'Needs review' },
+	{ key: 'translated', label: 'Translated' },
+]
 const ORIGIN_FILTERS = [
-  { key: "manual", label: "Manual" },
-  { key: "ai", label: "AI" },
-  { key: "not_translated", label: "Not translated" },
-];
+	{ key: 'manual', label: 'Manual' },
+	{ key: 'ai', label: 'AI' },
+	{ key: 'not_translated', label: 'Not translated' },
+]
 const CONTENT_TYPE_FILTERS = [
-  { key: "page", label: "Pages" },
-  { key: "post", label: "Posts" },
-  { key: "cpt", label: "Custom post types" },
-  { key: "taxonomy", label: "Taxonomies" },
-  { key: "media", label: "Media" },
-  { key: "site_settings", label: "Site settings" },
-  { key: "html", label: "Template content" },
-  { key: "plugin", label: "Plugin text" },
-  { key: "theme", label: "Theme text" },
-];
+	{ key: 'page', label: 'Pages' },
+	{ key: 'post', label: 'Posts' },
+	{ key: 'cpt', label: 'Custom post types' },
+	{ key: 'taxonomy', label: 'Taxonomies' },
+	{ key: 'media', label: 'Media' },
+	{ key: 'site_settings', label: 'Site settings' },
+	{ key: 'html', label: 'Template content' },
+	{ key: 'plugin', label: 'Plugin text' },
+	{ key: 'theme', label: 'Theme text' },
+]
 const TEXT_LENGTH_FILTERS = [
-  { key: "short", label: "Short text" },
-  { key: "medium", label: "Medium text" },
-  { key: "long", label: "Long text" },
-];
+	{ key: 'short', label: 'Short text' },
+	{ key: 'medium', label: 'Medium text' },
+	{ key: 'long', label: 'Long text' },
+]
 const PROGRESS_FILTERS = [
-  { key: "not_started", label: "Not started" },
-  { key: "in_progress", label: "In progress" },
-  { key: "complete", label: "Complete" },
-  { key: "has_review", label: "Has review items" },
-];
+	{ key: 'not_started', label: 'Not started' },
+	{ key: 'in_progress', label: 'In progress' },
+	{ key: 'complete', label: 'Complete' },
+	{ key: 'has_review', label: 'Has review items' },
+]
 
-function filterQueryParams(filters) {
-  return Object.entries(filters)
-    .filter(([, values]) => values.length > 0)
-    .map(([key, values]) => `&${key}=${enc(values.join(","))}`)
-    .join("");
+function filterQueryParams( filters ) {
+	return Object.entries( filters )
+		.filter( ( [ , values ] ) => values.length > 0 )
+		.map(
+			( [ key, values ] ) => `&${ key }=${ enc( values.join( ',' ) ) }`
+		)
+		.join( '' )
 }
 
 // Search runs server-side (?search= on /collections and /collections/{id}/texts),
 // matching source text OR its translation in the selected language.
 // 300ms because each keystroke refetches every group's counts.
-const SEARCH_DEBOUNCE_MS = 300;
+const SEARCH_DEBOUNCE_MS = 300
 // One letter matches almost everything; below this the box is inert.
-const SEARCH_MIN = 2;
+const SEARCH_MIN = 2
 // Collections page size (matches CollectionRestController's DEFAULT_LIMIT).
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 20
 // Rows revealed per "Show more" click in a group — an auto-opened 1,000-text
 // group never dumps every row at once.
-const TEXT_BATCH = 50;
+const TEXT_BATCH = 50
 
-export default function Dashboard({
-  view,
-  defaultLanguage,
-  onLanguageCreated,
-}) {
-  const queryClient = useQueryClient();
-  const [languages, setLanguages] = useState([]);
-  // null means the REST request is still pending; an empty array is a completed
-  // response with no additional WordPress locales available.
-  const [languageCatalog, setLanguageCatalog] = useState(null);
-  const [selectedLang, setSelectedLang] = useState("");
-  const [search, setSearch] = useState("");
-  // The debounced term actually sent to the server ("" = not searching).
-  const [query, setQuery] = useState("");
-  // { id, cid } of the text unit open in the compare overlay, or null.
-  const [overlay, setOverlay] = useState(null);
-  const [managerOpen, setManagerOpen] = useState(false);
-  const [managerInitial, setManagerInitial] = useState(null);
-  const [exportImportOpen, setExportImportOpen] = useState(false);
-  const [pageMenuOpen, setPageMenuOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [confirm, setConfirm] = useState(null);
-  const [ai, setAi] = useState({ available: false, error: "" });
-  const [quota, setQuota] = useState(null);
-  const [notice, setNotice] = useState(null);
-  const [autosaveToast, setAutosaveToast] = useState(false);
-  const [lengthToast, setLengthToast] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [originFilter, setOriginFilter] = useState([]);
-  const [contentTypeFilter, setContentTypeFilter] = useState([]);
-  const [textLengthFilter, setTextLengthFilter] = useState([]);
-  const [progressFilter, setProgressFilter] = useState([]);
-  // Which board is showing: today's Content tree, or gettext grouped by
-  // plugin/theme. Swaps the `source` param on the same collections/text-order
-  // queries below — same load/search/pagination machinery, different data.
-  // Reflected in the URL (?board=plugins) so a refresh lands back on the same
-  // tab — same window.history/URLSearchParams approach App.jsx already uses
-  // for ?view=, no new dependency. replaceState (not pushState): switching
-  // tabs isn't a navigation step worth a back-button entry.
-  const [board, setBoard] = useState(
-    () => (new URLSearchParams(window.location.search).get("board") === "plugins" ? "plugins" : "content")
-  );
+export default function Dashboard( {
+	view,
+	defaultLanguage,
+	onLanguageCreated,
+} ) {
+	const queryClient = useQueryClient()
+	const [ languages, setLanguages ] = useState( [] )
+	// Distinguishes "no languages yet" (still loading) from "confirmed empty" —
+	// without it, the rail briefly renders an empty list + a bare "+ Add
+	// language" button before the first /languages response lands.
+	const [ languagesLoaded, setLanguagesLoaded ] = useState( false )
+	// null means the REST request is still pending; an empty array is a completed
+	// response with no additional WordPress locales available.
+	const [ languageCatalog, setLanguageCatalog ] = useState( null )
+	const [ selectedLang, setSelectedLang ] = useState( '' )
+	const [ search, setSearch ] = useState( '' )
+	// The debounced term actually sent to the server ("" = not searching).
+	const [ query, setQuery ] = useState( '' )
+	// { id, cid } of the text unit open in the compare overlay, or null.
+	const [ overlay, setOverlay ] = useState( null )
+	const [ managerOpen, setManagerOpen ] = useState( false )
+	const [ managerInitial, setManagerInitial ] = useState( null )
+	const [ exportImportOpen, setExportImportOpen ] = useState( false )
+	const [ pageMenuOpen, setPageMenuOpen ] = useState( false )
+	const [ refreshing, setRefreshing ] = useState( false )
+	const [ confirm, setConfirm ] = useState( null )
+	const [ ai, setAi ] = useState( { available: false, error: '' } )
+	const [ quota, setQuota ] = useState( null )
+	const [ notice, setNotice ] = useState( null )
+	const [ autosaveToast, setAutosaveToast ] = useState( false )
+	const [ lengthToast, setLengthToast ] = useState( '' )
+	const [ statusFilter, setStatusFilter ] = useState( 'all' )
+	const [ originFilter, setOriginFilter ] = useState( [] )
+	const [ contentTypeFilter, setContentTypeFilter ] = useState( [] )
+	const [ textLengthFilter, setTextLengthFilter ] = useState( [] )
+	const [ progressFilter, setProgressFilter ] = useState( [] )
+	// Which board is showing: today's Content tree, or gettext grouped by
+	// plugin/theme. Swaps the `source` param on the same collections/text-order
+	// queries below — same load/search/pagination machinery, different data.
+	// Reflected in the URL (?board=plugins) so a refresh lands back on the same
+	// tab — same window.history/URLSearchParams approach App.jsx already uses
+	// for ?view=, no new dependency. replaceState (not pushState): switching
+	// tabs isn't a navigation step worth a back-button entry.
+	const [ board, setBoard ] = useState( () =>
+		new URLSearchParams( window.location.search ).get( 'board' ) ===
+		'plugins'
+			? 'plugins'
+			: 'content'
+	)
 
-  function selectBoard(next) {
-    setBoard(next);
-    const url = new URL(window.location.href);
-    if (next === "content") {
-      url.searchParams.delete("board");
-    } else {
-      url.searchParams.set("board", next);
-    }
-    window.history.replaceState({}, "", url);
-  }
+	function selectBoard( next ) {
+		setBoard( next )
+		const url = new URL( window.location.href )
+		if ( next === 'content' ) {
+			url.searchParams.delete( 'board' )
+		} else {
+			url.searchParams.set( 'board', next )
+		}
+		window.history.replaceState( {}, '', url )
+	}
 
-  const autosaveToastTimerRef = useRef(null);
-  const lengthToastTimerRef = useRef(null);
+	const autosaveToastTimerRef = useRef( null )
+	const lengthToastTimerRef = useRef( null )
 
-  // Warning-toast for goal 4.8 (length warnings) — manual saves only, from
-  // TextUnitRow's inline edit and CompareOverlay's autosave. A longer dismiss
-  // than the autosave toast: a warning needs more time to read than a "saved" blip.
-  function showLengthWarning(message) {
-    setLengthToast(message);
-    clearTimeout(lengthToastTimerRef.current);
-    lengthToastTimerRef.current = setTimeout(() => setLengthToast(""), 5000);
-  }
-  useEffect(() => () => clearTimeout(lengthToastTimerRef.current), []);
+	// Warning-toast for goal 4.8 (length warnings) — manual saves only, from
+	// TextUnitRow's inline edit and CompareOverlay's autosave. A longer dismiss
+	// than the autosave toast: a warning needs more time to read than a "saved" blip.
+	function showLengthWarning( message ) {
+		setLengthToast( message )
+		clearTimeout( lengthToastTimerRef.current )
+		lengthToastTimerRef.current = setTimeout(
+			() => setLengthToast( '' ),
+			5000
+		)
+	}
+	useEffect( () => () => clearTimeout( lengthToastTimerRef.current ), [] )
 
-  const defaultCode = defaultLanguage?.code || defaultLanguage;
-  const advancedFilters = {
-    origin: originFilter,
-    content_type: contentTypeFilter,
-    text_length: textLengthFilter,
-    progress: progressFilter,
-  };
-  const advancedFilterParams = filterQueryParams(advancedFilters);
-  const hasAdvancedFilters = Object.values(advancedFilters).some(
-    (values) => values.length > 0
-  );
-  const hasAnyFilter = statusFilter !== "all" || hasAdvancedFilters;
+	const defaultCode = defaultLanguage?.code || defaultLanguage
+	const advancedFilters = {
+		origin: originFilter,
+		content_type: contentTypeFilter,
+		text_length: textLengthFilter,
+		progress: progressFilter,
+	}
+	const advancedFilterParams = filterQueryParams( advancedFilters )
+	const hasAdvancedFilters = Object.values( advancedFilters ).some(
+		( values ) => values.length > 0
+	)
+	const hasAnyFilter = statusFilter !== 'all' || hasAdvancedFilters
 
-  // Open the language manager, optionally focused on a specific language.
-  function openManager(code) {
-    setManagerInitial(code || "new");
-    setManagerOpen(true);
-  }
+	// Open the language manager, optionally focused on a specific language.
+	function openManager( code ) {
+		setManagerInitial( code || 'new' )
+		setManagerOpen( true )
+	}
 
-  function loadQuota() {
-    api.get("/quota").then((res) => setQuota(res.ok ? res.quota : null));
-  }
+	function loadQuota() {
+		api.get( '/quota' ).then( ( res ) =>
+			setQuota( res.ok ? res.quota : null )
+		)
+	}
 
-  useEffect(() => {
-    api.get("/connection/status").then((res) => {
-      setAi({ available: !!res.ai_available, error: res.ai_error || "" });
-    });
-    loadQuota();
-  }, []);
+	useEffect( () => {
+		api.get( '/connection/status' ).then( ( res ) => {
+			setAi( {
+				available: !! res.ai_available,
+				error: res.ai_error || '',
+			} )
+		} )
+		loadQuota()
+	}, [] )
 
-  useEffect(() => {
-    function showAutosaveToast() {
-      setAutosaveToast(true);
-      clearTimeout(autosaveToastTimerRef.current);
-      autosaveToastTimerRef.current = setTimeout(() => {
-        setAutosaveToast(false);
-      }, 3000);
-    }
+	useEffect( () => {
+		function showAutosaveToast() {
+			setAutosaveToast( true )
+			clearTimeout( autosaveToastTimerRef.current )
+			autosaveToastTimerRef.current = setTimeout( () => {
+				setAutosaveToast( false )
+			}, 3000 )
+		}
 
-    function handleShortcut(event) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        showAutosaveToast();
-      }
-    }
+		function handleShortcut( event ) {
+			if (
+				( event.ctrlKey || event.metaKey ) &&
+				event.key.toLowerCase() === 's'
+			) {
+				event.preventDefault()
+				showAutosaveToast()
+			}
+		}
 
-    window.addEventListener("keydown", handleShortcut);
-    return () => {
-      window.removeEventListener("keydown", handleShortcut);
-      clearTimeout(autosaveToastTimerRef.current);
-    };
-  }, []);
+		window.addEventListener( 'keydown', handleShortcut )
+		return () => {
+			window.removeEventListener( 'keydown', handleShortcut )
+			clearTimeout( autosaveToastTimerRef.current )
+		}
+	}, [] )
 
-  // AI translate a scope (text | collection | language), then refresh views + quota.
-  async function translateScope(scope, opts = {}) {
-    if (!ai.available) {
-      setNotice({
-        tone: "warning",
-        content:
-          ai.error ||
-          "AI is unavailable. Connect Translangs to enable AI translation.",
-      });
-      return;
-    }
-    const res = await api.post("/translate", {
-      scope,
-      language: selectedLang,
-      ...opts,
-    });
-    if (res.error === "ERR_QUOTA") {
-      setNotice({
-        tone: "warning",
-        content: `Not enough words remaining (needs ~${res.estimated_words}, ${res.words_remaining} left). Upgrade to run this.`,
-      });
-      return;
-    }
-    if (!res.ok) {
-      setNotice({
-        tone: "critical",
-        content: "AI translation failed. Please try again.",
-      });
-      return;
-    }
-    // Some items can be rejected while the rest save (a translation that dropped
-    // or invented a protected variable/tag would break the rendered output). The
-    // run still succeeded, so this is a warning, not a failure — but it must be
-    // visible, or the user just sees rows that silently stayed untranslated.
-    const failed = res.failed || 0;
-    setNotice({
-      tone: failed > 0 ? "warning" : "success",
-      content:
-        `Translated ${res.translated} text${res.translated === 1 ? "" : "s"}.` +
-        (failed > 0
-          ? ` ${failed} ${failed === 1 ? "was" : "were"
-          } rejected because protected variables or formatting changed.`
-          : ""),
-    });
-    if (res.collection_summary) {
-      patchCollectionSummary(res.collection_summary);
-    } else {
-      invalidateCollections();
-    }
-    if (res.updated_unit) {
-      // scope 'text' resolves to one unit; propagate it to any other visible
-      // occurrence of the same text (its own group is invalidated below anyway).
-      propagateTranslation(opts.collection_id ?? opts.id, res.updated_unit);
-    }
-    // Every mounted group's texts for this language may have changed (a scope
-    // or language-wide AI translate isn't limited to one group).
-    queryClient.invalidateQueries({
-      predicate: (q) => q.queryKey[0] === "texts" && q.queryKey[2] === selectedLang,
-    });
-    loadQuota();
-    refreshLanguages(); // rail percentages changed
-  }
+	// AI translate a scope (text | collection | language), then refresh views + quota.
+	async function translateScope( scope, opts = {} ) {
+		if ( ! ai.available ) {
+			setNotice( {
+				tone: 'warning',
+				content:
+					ai.error ||
+					'AI is unavailable. Connect Translangs to enable AI translation.',
+			} )
+			return
+		}
+		const res = await api.post( '/translate', {
+			scope,
+			language: selectedLang,
+			...opts,
+		} )
+		if ( res.error === 'ERR_QUOTA' ) {
+			setNotice( {
+				tone: 'warning',
+				content: `Not enough words remaining (needs ~${ res.estimated_words }, ${ res.words_remaining } left). Upgrade to run this.`,
+			} )
+			return
+		}
+		if ( ! res.ok ) {
+			setNotice( {
+				tone: 'critical',
+				content: 'AI translation failed. Please try again.',
+			} )
+			return
+		}
+		// Some items can be rejected while the rest save (a translation that dropped
+		// or invented a protected variable/tag would break the rendered output). The
+		// run still succeeded, so this is a warning, not a failure — but it must be
+		// visible, or the user just sees rows that silently stayed untranslated.
+		const failed = res.failed || 0
+		setNotice( {
+			tone: failed > 0 ? 'warning' : 'success',
+			content:
+				`Translated ${ res.translated } text${
+					res.translated === 1 ? '' : 's'
+				}.` +
+				( failed > 0
+					? ` ${ failed } ${
+							failed === 1 ? 'was' : 'were'
+					  } rejected because protected variables or formatting changed.`
+					: '' ),
+		} )
+		if ( res.collection_summary ) {
+			patchCollectionSummary( res.collection_summary )
+		} else {
+			invalidateCollections()
+		}
+		if ( res.updated_unit ) {
+			// scope 'text' resolves to one unit; propagate it to any other visible
+			// occurrence of the same text (its own group is invalidated below anyway).
+			propagateTranslation(
+				opts.collection_id ?? opts.id,
+				res.updated_unit
+			)
+		}
+		// Every mounted group's texts for this language may have changed (a scope
+		// or language-wide AI translate isn't limited to one group).
+		queryClient.invalidateQueries( {
+			predicate: ( q ) =>
+				q.queryKey[ 0 ] === 'texts' && q.queryKey[ 2 ] === selectedLang,
+		} )
+		loadQuota()
+		refreshLanguages() // rail percentages changed
+	}
 
-  // Rail "Translate All": select that language, confirm, then AI-translate it whole.
-  function translateLanguageAll(lang) {
-    setSelectedLang(lang.code);
-    setConfirm({
-      title: `AI translate all of ${lang.display_name || lang.name || lang.code
-        }?`,
-      body: "All untranslated text in this language will be sent to AI translation and may use a large number of words.",
-      actionLabel: "Translate all",
-      onConfirm: () => translateScope("language", { language: lang.code }),
-    });
-  }
+	// Rail "Translate All": select that language, confirm, then AI-translate it whole.
+	function translateLanguageAll( lang ) {
+		setSelectedLang( lang.code )
+		setConfirm( {
+			title: `AI translate all of ${
+				lang.display_name || lang.name || lang.code
+			}?`,
+			body: 'All untranslated text in this language will be sent to AI translation and may use a large number of words.',
+			actionLabel: 'Translate all',
+			onConfirm: () =>
+				translateScope( 'language', { language: lang.code } ),
+		} )
+	}
 
-  function patchLangStatus(code, status) {
-    api.patch(`/languages/${enc(code)}`, { status }).then((res) => {
-      if (res.ok) {
-        refreshLanguages();
-      }
-    });
-  }
+	function patchLangStatus( code, status ) {
+		api.patch( `/languages/${ enc( code ) }`, { status } ).then(
+			( res ) => {
+				if ( res.ok ) {
+					refreshLanguages()
+				}
+			}
+		)
+	}
 
-  function deleteLang(code) {
-    api.del(`/languages/${enc(code)}`).then((res) => {
-      if (res.ok) {
-        setSelectedLang((cur) => (cur === code ? "" : cur));
-        refreshLanguages();
-      }
-    });
-  }
+	function deleteLang( code ) {
+		api.del( `/languages/${ enc( code ) }` ).then( ( res ) => {
+			if ( res.ok ) {
+				setSelectedLang( ( cur ) => ( cur === code ? '' : cur ) )
+				refreshLanguages()
+			}
+		} )
+	}
 
-  function confirmDeleteLang(lang) {
-    setConfirm({
-      title: `Delete ${lang.display_name || lang.name || lang.code}?`,
-      body: "This removes it from the public site and the workspace. Its translations are kept and restored if you re-add the language.",
-      actionLabel: "Delete",
-      destructive: true,
-      onConfirm: () => deleteLang(lang.code),
-    });
-  }
+	function confirmDeleteLang( lang ) {
+		setConfirm( {
+			title: `Delete ${ lang.display_name || lang.name || lang.code }?`,
+			body: 'This removes it from the public site and the workspace. Its translations are kept and restored if you re-add the language.',
+			actionLabel: 'Delete',
+			destructive: true,
+			onConfirm: () => deleteLang( lang.code ),
+		} )
+	}
 
-  // Draft → active is "publish"; below PUBLISH_MIN_PERCENT it asks for
-  // confirmation first, since visitors would see mostly-fallback content.
-  function togglePublishStatus(lang) {
-    if (lang.enabled) {
-      patchLangStatus(lang.code, "draft");
-      return;
-    }
-    const percent = lang.translated_percent ?? 0;
-    if (percent >= PUBLISH_MIN_PERCENT) {
-      patchLangStatus(lang.code, "active");
-      return;
-    }
-    setConfirm({
-      title: `Publish ${lang.display_name || lang.name || lang.code} at ${percent}% translated?`,
-      body: "Some pages are not fully translated yet. Publishing now may cause search engines to index fallback content in the wrong language, which could affect your SEO. You can continue translating after publishing.",
-      actionLabel: "Publish anyway",
-      onConfirm: () => patchLangStatus(lang.code, "active"),
-    });
-  }
+	// Draft → active is "publish"; below PUBLISH_MIN_PERCENT it asks for
+	// confirmation first, since visitors would see mostly-fallback content.
+	function togglePublishStatus( lang ) {
+		if ( lang.enabled ) {
+			patchLangStatus( lang.code, 'draft' )
+			return
+		}
+		const percent = lang.translated_percent ?? 0
+		if ( percent >= PUBLISH_MIN_PERCENT ) {
+			patchLangStatus( lang.code, 'active' )
+			return
+		}
+		setConfirm( {
+			title: `Publish ${
+				lang.display_name || lang.name || lang.code
+			} at ${ percent }% translated?`,
+			body: 'Some pages are not fully translated yet. Publishing now may cause search engines to index fallback content in the wrong language, which could affect your SEO. You can continue translating after publishing.',
+			actionLabel: 'Publish anyway',
+			onConfirm: () => patchLangStatus( lang.code, 'active' ),
+		} )
+	}
 
-  // Rail "Use fallback translation": bulk-copy the fallback language's existing
-  // translations into every text this language is missing (marked Needs
-  // review). LanguageList only enables this when the fallback shares the same
-  // base language, but the backend re-validates it too.
-  function useFallbackTranslation(lang) {
-    setSelectedLang(lang.code);
-    const fb = languages.find((l) => l.code === lang.fallback_language);
-    const fbLabel = fb ? fb.display_name || fb.name || fb.code : lang.fallback_language;
-    setConfirm({
-      title: `Use ${fbLabel} translations for ${lang.display_name || lang.name || lang.code
-        }?`,
-      body: "Fills in every text this language is missing using its fallback language's existing translations, marked as Needs review. Existing translations are never overwritten.",
-      actionLabel: "Use fallback translation",
-      onConfirm: async () => {
-        const res = await api.post(`/languages/${enc(lang.code)}/use-fallback`);
-        if (!res.ok) {
-          setNotice({
-            tone: "critical",
-            content: "Could not copy fallback translations. Please try again.",
-          });
-          return;
-        }
-        setNotice({
-          tone: "success",
-          content: `Copied ${res.copied} translation${res.copied === 1 ? "" : "s"
-            } from ${fbLabel}.`,
-        });
-        invalidateCollections();
-        queryClient.invalidateQueries({
-          predicate: (q) => q.queryKey[0] === "texts" && q.queryKey[2] === lang.code,
-        });
-        refreshLanguages(); // rail percentages changed
-      },
-    });
-  }
+	// Rail "Use fallback translation": bulk-copy the fallback language's existing
+	// translations into every text this language is missing (marked Needs
+	// review). LanguageList only enables this when the fallback shares the same
+	// base language, but the backend re-validates it too.
+	function applyFallbackTranslation( lang ) {
+		setSelectedLang( lang.code )
+		const fb = languages.find( ( l ) => l.code === lang.fallback_language )
+		const fbLabel = fb
+			? fb.display_name || fb.name || fb.code
+			: lang.fallback_language
+		setConfirm( {
+			title: `Use ${ fbLabel } translations for ${
+				lang.display_name || lang.name || lang.code
+			}?`,
+			body: "Fills in every text this language is missing using its fallback language's existing translations, marked as Needs review. Existing translations are never overwritten.",
+			actionLabel: 'Use fallback translation',
+			onConfirm: async () => {
+				const res = await api.post(
+					`/languages/${ enc( lang.code ) }/use-fallback`
+				)
+				if ( ! res.ok ) {
+					setNotice( {
+						tone: 'critical',
+						content:
+							'Could not copy fallback translations. Please try again.',
+					} )
+					return
+				}
+				setNotice( {
+					tone: 'success',
+					content: `Copied ${ res.copied } translation${
+						res.copied === 1 ? '' : 's'
+					} from ${ fbLabel }.`,
+				} )
+				invalidateCollections()
+				queryClient.invalidateQueries( {
+					predicate: ( q ) =>
+						q.queryKey[ 0 ] === 'texts' &&
+						q.queryKey[ 2 ] === lang.code,
+				} )
+				refreshLanguages() // rail percentages changed
+			},
+		} )
+	}
 
-  function refreshLanguages() {
-    api.get("/languages").then((res) => {
-      if (!res.ok) {
-        // Resolve the pending state even when the request fails so the modal
-        // never leaves the user behind an endless loading message.
-        setLanguageCatalog([]);
-        return;
-      }
-      const langs = res.languages || [];
-      setLanguageCatalog(res.catalog || []);
-      setLanguages(langs);
-      setSelectedLang((cur) => {
-        if (cur && langs.some((l) => l.code === cur)) {
-          return cur;
-        }
-        const active = langs.find((l) => l.enabled) || langs[0];
-        return active?.code || "";
-      });
-    });
-  }
+	function refreshLanguages() {
+		api.get( '/languages' ).then( ( res ) => {
+			if ( ! res.ok ) {
+				// Resolve the pending state even when the request fails so the modal
+				// never leaves the user behind an endless loading message.
+				setLanguageCatalog( [] )
+				setLanguagesLoaded( true )
+				return
+			}
+			const langs = res.languages || []
+			setLanguageCatalog( res.catalog || [] )
+			setLanguages( langs )
+			setLanguagesLoaded( true )
+			setSelectedLang( ( cur ) => {
+				if ( cur && langs.some( ( l ) => l.code === cur ) ) {
+					return cur
+				}
+				const active = langs.find( ( l ) => l.enabled ) || langs[ 0 ]
+				return active?.code || ''
+			} )
+		} )
+	}
 
-  useEffect(refreshLanguages, []);
+	useEffect( refreshLanguages, [] )
 
-  // Debounce the box into the term we actually query with. Below SEARCH_MIN the term
-  // counts as empty, so backspacing to one letter restores the full tree.
-  useEffect(() => {
-    const q = search.trim();
-    const id = setTimeout(
-      () => setQuery(q.length < SEARCH_MIN ? "" : q),
-      SEARCH_DEBOUNCE_MS
-    );
-    return () => clearTimeout(id);
-  }, [search]);
+	// Debounce the box into the term we actually query with. Below SEARCH_MIN the term
+	// counts as empty, so backspacing to one letter restores the full tree.
+	useEffect( () => {
+		const q = search.trim()
+		const id = setTimeout(
+			() => setQuery( q.length < SEARCH_MIN ? '' : q ),
+			SEARCH_DEBOUNCE_MS
+		)
+		return () => clearTimeout( id )
+	}, [ search ] )
 
-  const searchParam = (q) => (q ? `&search=${enc(q)}` : "");
+	const searchParam = ( q ) => ( q ? `&search=${ enc( q ) }` : '' )
 
-  // Collections, paged. Language/search/status/limit live in the key, so any
-  // change refetches from page 0 automatically — no manual reset effect needed.
-  const groupsQ = useInfiniteQuery({
-    queryKey: [
-      "collections",
-      {
-        language: selectedLang,
-        search: query,
-        status: statusFilter,
-        source: board,
-        filters: advancedFilters,
-        limit: PAGE_SIZE,
-      },
-    ],
-    initialPageParam: 0,
-    queryFn: async ({ pageParam, signal }) => {
-      const res = await api.get(
-        `/collections?language=${enc(selectedLang)}&offset=${pageParam}&limit=${PAGE_SIZE}` +
-        `${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`,
-        { signal }
-      );
-      if (!res.ok) {
-        throw new Error(res.error || "ERR_UNREACHABLE");
-      }
-      return res;
-    },
-    getNextPageParam: (last) => (last.has_more ? last.next_offset : undefined),
-    // Plugins & Themes has its own board (GettextBoard) now — no need to
-    // fetch the collections-count list while that tab is active.
-    enabled: !!selectedLang && board === "content",
-  });
+	// Collections, paged. Language/search/status/limit live in the key, so any
+	// change refetches from page 0 automatically — no manual reset effect needed.
+	const groupsQ = useInfiniteQuery( {
+		queryKey: [
+			'collections',
+			{
+				language: selectedLang,
+				search: query,
+				status: statusFilter,
+				source: board,
+				filters: advancedFilters,
+				limit: PAGE_SIZE,
+			},
+		],
+		initialPageParam: 0,
+		queryFn: async ( { pageParam, signal } ) => {
+			const res = await api.get(
+				`/collections?language=${ enc(
+					selectedLang
+				) }&offset=${ pageParam }&limit=${ PAGE_SIZE }` +
+					`${ searchParam( query ) }&status=${ enc(
+						statusFilter
+					) }&source=${ enc( board ) }${ advancedFilterParams }`,
+				{ signal }
+			)
+			if ( ! res.ok ) {
+				throw new Error( res.error || 'ERR_UNREACHABLE' )
+			}
+			return res
+		},
+		getNextPageParam: ( last ) =>
+			last.has_more ? last.next_offset : undefined,
+		// Plugins & Themes has its own board (GettextBoard) now — no need to
+		// fetch the collections-count list while that tab is active.
+		enabled: !! selectedLang && board === 'content',
+	} )
 
-  function invalidateCollections() {
-    queryClient.invalidateQueries({
-      predicate: (q) =>
-        q.queryKey[0] === "collections" && q.queryKey[1]?.language === selectedLang,
-    });
-  }
+	function invalidateCollections() {
+		queryClient.invalidateQueries( {
+			predicate: ( q ) =>
+				q.queryKey[ 0 ] === 'collections' &&
+				q.queryKey[ 1 ]?.language === selectedLang,
+		} )
+	}
 
-  // Manual "recheck the site for missing text": re-arm the same scan that runs
-  // on activation, then poll status the same way SettingUp.jsx does during
-  // onboarding. On completion, refetch the board so newly discovered text
-  // shows up without a full page reload.
-  //
-  // The HTML crawl also gets (re-)triggered by this same click, but it is
-  // deliberately NOT part of what's polled below — it's network-bound (one
-  // fetch per page) and can run far longer than the DB-only scan on a large
-  // site. Waiting for it would hold the dashboard hostage for no reason: the
-  // crawl keeps filling in tl_html in the background regardless, and newly
-  // discovered hardcoded text just shows up next time the html:all group is
-  // fetched (a manual refresh, reopening the group, etc.) — no spinner needed.
-  function refreshScan() {
-    if (refreshing) {
-      return;
-    }
-    setRefreshing(true);
-    setNotice({ tone: "info", content: "Rescanning your site…" });
-    api.post("/scan/refresh").then((res) => {
-      pollScanStatus(res.html_status === "running");
-    });
-  }
+	// Manual "recheck the site for missing text": re-arm the same scan that runs
+	// on activation, then poll status the same way SettingUp.jsx does during
+	// onboarding. On completion, refetch the board so newly discovered text
+	// shows up without a full page reload.
+	//
+	// The HTML crawl also gets (re-)triggered by this same click, but it is
+	// deliberately NOT part of what's polled below — it's network-bound (one
+	// fetch per page) and can run far longer than the DB-only scan on a large
+	// site. Waiting for it would hold the dashboard hostage for no reason: the
+	// crawl keeps filling in tl_html in the background regardless, and newly
+	// discovered hardcoded text just shows up next time the html:all group is
+	// fetched (a manual refresh, reopening the group, etc.) — no spinner needed.
+	function refreshScan() {
+		if ( refreshing ) {
+			return
+		}
+		setRefreshing( true )
+		setNotice( { tone: 'info', content: 'Rescanning your site…' } )
+		api.post( '/scan/refresh' ).then( ( res ) => {
+			pollScanStatus( res.html_status === 'running' )
+		} )
+	}
 
-  function pollScanStatus(htmlCrawlRunning) {
-    api.get("/scan/status").then((res) => {
-      const status = res.status || "running";
-      if (status === "running") {
-        setTimeout(() => pollScanStatus(htmlCrawlRunning), 3000);
-        return;
-      }
-      setRefreshing(false);
-      if (status === "completed") {
-        setNotice({
-          tone: "success",
-          content: htmlCrawlRunning
-            ? "Scan complete. We're still looking for more text on your site — check back soon."
-            : "Scan complete.",
-        });
-        invalidateCollections();
-      } else {
-        setNotice({
-          tone: "critical",
-          content: "Scan could not finish. Please try again.",
-        });
-      }
-    });
-  }
+	function pollScanStatus( htmlCrawlRunning ) {
+		api.get( '/scan/status' ).then( ( res ) => {
+			const status = res.status || 'running'
+			if ( status === 'running' ) {
+				setTimeout( () => pollScanStatus( htmlCrawlRunning ), 3000 )
+				return
+			}
+			setRefreshing( false )
+			if ( status === 'completed' ) {
+				setNotice( {
+					tone: 'success',
+					content: htmlCrawlRunning
+						? "Scan complete. We're still looking for more text on your site — check back soon."
+						: 'Scan complete.',
+				} )
+				invalidateCollections()
+			} else {
+				setNotice( {
+					tone: 'critical',
+					content: 'Scan could not finish. Please try again.',
+				} )
+			}
+		} )
+	}
 
-  // A mutation response that resolved to one collection's fresh counts
-  // (`collection_summary`) patches the cached board directly — no refetch
-  // round-trip. Also keeps the header total_texts/total_translated in step
-  // (derives their delta from the one collection's old vs. new numbers), and
-  // drops the row if it no longer matches the active status filter (mirrors
-  // what a real refetch would do server-side).
-  function patchCollectionSummary(summary) {
-    if (hasAdvancedFilters) {
-      queryClient.invalidateQueries({ queryKey: ["collections"] });
-      queryClient.invalidateQueries({ queryKey: ["texts"] });
-      queryClient.invalidateQueries({ queryKey: ["text-order"] });
-      return;
-    }
+	// A mutation response that resolved to one collection's fresh counts
+	// (`collection_summary`) patches the cached board directly — no refetch
+	// round-trip. Also keeps the header total_texts/total_translated in step
+	// (derives their delta from the one collection's old vs. new numbers), and
+	// drops the row if it no longer matches the active status filter (mirrors
+	// what a real refetch would do server-side).
+	function patchCollectionSummary( summary ) {
+		if ( hasAdvancedFilters ) {
+			queryClient.invalidateQueries( { queryKey: [ 'collections' ] } )
+			queryClient.invalidateQueries( { queryKey: [ 'texts' ] } )
+			queryClient.invalidateQueries( { queryKey: [ 'text-order' ] } )
+			return
+		}
 
-    const stillMatchesFilter =
-      statusFilter === "all" ||
-      (statusFilter === "untranslated" && summary.missing > 0) ||
-      (statusFilter === "needs_review" && summary.needs_review > 0) ||
-      (statusFilter === "translated" && summary.translated > 0);
+		const stillMatchesFilter =
+			statusFilter === 'all' ||
+			( statusFilter === 'untranslated' && summary.missing > 0 ) ||
+			( statusFilter === 'needs_review' && summary.needs_review > 0 ) ||
+			( statusFilter === 'translated' && summary.translated > 0 )
 
-    queryClient.setQueriesData(
-      {
-        predicate: (q) =>
-          q.queryKey[0] === "collections" && q.queryKey[1]?.language === selectedLang,
-      },
-      (old) => {
-        if (!old) {
-          return old;
-        }
-        let deltaTotal = 0;
-        let deltaTranslated = 0;
-        let found = false;
-        const pages = old.pages.map((p) => {
-          if (!p.collections.some((c) => c.id === summary.id)) {
-            return p;
-          }
-          found = true;
-          const collections = p.collections.flatMap((c) => {
-            if (c.id !== summary.id) {
-              return [c];
-            }
-            deltaTotal = summary.total - c.total;
-            deltaTranslated = summary.translated - c.translated;
-            return stillMatchesFilter ? [{ ...c, ...summary }] : [];
-          });
-          return { ...p, collections };
-        });
-        if (!found) {
-          return old;
-        }
-        return {
-          ...old,
-          pages: pages.map((p) => ({
-            ...p,
-            total_texts: p.total_texts + deltaTotal,
-            total_translated: p.total_translated + deltaTranslated,
-          })),
-        };
-      }
-    );
-  }
+		queryClient.setQueriesData(
+			{
+				predicate: ( q ) =>
+					q.queryKey[ 0 ] === 'collections' &&
+					q.queryKey[ 1 ]?.language === selectedLang,
+			},
+			( old ) => {
+				if ( ! old ) {
+					return old
+				}
+				const delta = { total: 0, translated: 0 }
+				const pages = old.pages.map( ( p ) => {
+					if (
+						! p.collections.some( ( c ) => c.id === summary.id )
+					) {
+						return p
+					}
+					const collections = p.collections.flatMap( ( c ) => {
+						if ( c.id !== summary.id ) {
+							return [ c ]
+						}
+						delta.total = summary.total - c.total
+						delta.translated = summary.translated - c.translated
+						return stillMatchesFilter
+							? [ { ...c, ...summary } ]
+							: []
+					} )
+					return { ...p, collections }
+				} )
+				const found = pages.some(
+					( page, index ) => page !== old.pages[ index ]
+				)
+				if ( ! found ) {
+					return old
+				}
+				return {
+					...old,
+					pages: pages.map( ( p ) => ( {
+						...p,
+						total_texts: p.total_texts + delta.total,
+						total_translated: p.total_translated + delta.translated,
+					} ) ),
+				}
+			}
+		)
+	}
 
-  // Hash-link kinds (post/term/html/option) share one translation row across
-  // every position with the same source text — a save in one group doesn't
-  // magically update another, already-cached group showing the same text.
-  // Patch every OTHER cached group's matching row (by original_hash) directly,
-  // and recompute that group's summary from the patched array. Skips the
-  // group just edited — that one already gets its normal targeted invalidate.
-  function propagateTranslation(editedCid, updatedUnit) {
-    const hash = updatedUnit?.original_hash;
-    if (!hash) {
-      return; // meta / unlinked kinds never share a translation
-    }
+	// Hash-link kinds (post/term/html/option) share one translation row across
+	// every position with the same source text — a save in one group doesn't
+	// magically update another, already-cached group showing the same text.
+	// Patch every OTHER cached group's matching row (by original_hash) directly,
+	// and recompute that group's summary from the patched array. Skips the
+	// group just edited — that one already gets its normal targeted invalidate.
+	function propagateTranslation( editedCid, updatedUnit ) {
+		const hash = updatedUnit?.original_hash
+		if ( ! hash ) {
+			return // meta / unlinked kinds never share a translation
+		}
 
-    const entries = queryClient.getQueriesData({
-      predicate: (q) =>
-        q.queryKey[0] === "texts" && q.queryKey[2] === selectedLang && q.queryKey[1] !== editedCid,
-    });
+		const entries = queryClient.getQueriesData( {
+			predicate: ( q ) =>
+				q.queryKey[ 0 ] === 'texts' &&
+				q.queryKey[ 2 ] === selectedLang &&
+				q.queryKey[ 1 ] !== editedCid,
+		} )
 
-    for (const [key, data] of entries) {
-      const texts = data?.texts;
-      if (!Array.isArray(texts)) {
-        continue;
-      }
-      let changed = false;
-      const nextTexts = texts.map((t) => {
-        if (t.original_hash !== hash) {
-          return t;
-        }
-        changed = true;
-        return {
-          ...t,
-          translated: updatedUnit.translated,
-          status: updatedUnit.status,
-          origin: updatedUnit.origin,
-          is_ai: updatedUnit.is_ai,
-          word_count: updatedUnit.word_count,
-        };
-      });
-      if (!changed) {
-        continue;
-      }
-      queryClient.setQueryData(key, { ...data, texts: nextTexts });
+		for ( const [ key, data ] of entries ) {
+			const texts = data?.texts
+			if ( ! Array.isArray( texts ) ) {
+				continue
+			}
+			let changed = false
+			const nextTexts = texts.map( ( t ) => {
+				if ( t.original_hash !== hash ) {
+					return t
+				}
+				changed = true
+				return {
+					...t,
+					translated: updatedUnit.translated,
+					status: updatedUnit.status,
+					origin: updatedUnit.origin,
+					is_ai: updatedUnit.is_ai,
+					word_count: updatedUnit.word_count,
+				}
+			} )
+			if ( ! changed ) {
+				continue
+			}
+			queryClient.setQueryData( key, { ...data, texts: nextTexts } )
 
-      const cid = key[1];
-      const summary = { id: cid, total: nextTexts.length, translated: 0, needs_review: 0, missing: 0 };
-      for (const t of nextTexts) {
-        if (t.status === "missing") {
-          summary.missing++;
-        } else if (t.status === "needs_review") {
-          summary.needs_review++;
-        } else {
-          summary.translated++;
-        }
-      }
-      patchCollectionSummary(summary);
-    }
-  }
+			const cid = key[ 1 ]
+			const summary = {
+				id: cid,
+				total: nextTexts.length,
+				translated: 0,
+				needs_review: 0,
+				missing: 0,
+			}
+			for ( const t of nextTexts ) {
+				if ( t.status === 'missing' ) {
+					summary.missing++
+				} else if ( t.status === 'needs_review' ) {
+					summary.needs_review++
+				} else {
+					summary.translated++
+				}
+			}
+			patchCollectionSummary( summary )
+		}
+	}
 
-  // Offset paging can repeat a row across pages (mid-scroll inserts/removals);
-  // first occurrence wins, which preserves page order.
-  const groups = useMemo(() => {
-    const seen = new Set();
-    const result = [];
-    for (const p of groupsQ.data?.pages ?? []) {
-      for (const g of p.collections ?? []) {
-        if (seen.has(g.id)) continue;
-        seen.add(g.id);
-        result.push(g);
-      }
-    }
-    return result;
-  }, [groupsQ.data]);
+	// Offset paging can repeat a row across pages (mid-scroll inserts/removals);
+	// first occurrence wins, which preserves page order.
+	const groups = useMemo( () => {
+		const seen = new Set()
+		const result = []
+		for ( const p of groupsQ.data?.pages ?? [] ) {
+			for ( const g of p.collections ?? [] ) {
+				if ( seen.has( g.id ) ) {
+					continue
+				}
+				seen.add( g.id )
+				result.push( g )
+			}
+		}
+		return result
+	}, [ groupsQ.data ] )
 
-  // Header progress badge — the whole matching set's totals, from the most
-  // recently fetched page (every page carries the same whole-set totals).
-  const pages = groupsQ.data?.pages ?? [];
-  const lastPage = pages[pages.length - 1];
-  const totalTexts = lastPage?.total_texts ?? 0;
-  const totalDone = lastPage?.total_translated ?? 0;
-  const totalGroups = lastPage?.total ?? groups.length;
+	// Header progress badge — the whole matching set's totals, from the most
+	// recently fetched page (every page carries the same whole-set totals).
+	const pages = groupsQ.data?.pages ?? []
+	const lastPage = pages[ pages.length - 1 ]
+	const totalTexts = lastPage?.total_texts ?? 0
+	const totalDone = lastPage?.total_translated ?? 0
+	const totalGroups = lastPage?.total ?? groups.length
 
-  // Every group is open by default; a manual collapse is remembered here and
-  // reset when the working language changes (mirrors the old per-language reset).
-  const [collapsedIds, setCollapsedIds] = useState(() => new Set());
-  useEffect(() => {
-    setCollapsedIds(new Set());
-  }, [selectedLang]);
+	// Every group is open by default; a manual collapse is remembered here and
+	// reset when the working language changes (mirrors the old per-language reset).
+	const [ collapsedIds, setCollapsedIds ] = useState( () => new Set() )
+	useEffect( () => {
+		setCollapsedIds( new Set() )
+	}, [ selectedLang ] )
 
-  const toggleCollapsed = useCallback((id) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
+	const toggleCollapsed = useCallback( ( id ) => {
+		setCollapsedIds( ( prev ) => {
+			const next = new Set( prev )
+			if ( next.has( id ) ) {
+				next.delete( id )
+			} else {
+				next.add( id )
+			}
+			return next
+		} )
+	}, [] )
 
-  // Window-scroll virtualization: only near-view group rows mount. One extra
-  // "sentinel" row (count+1) carries the load-more/retry control when more
-  // pages exist. Scroll margin is measured (not assumed), so content above the
-  // list (notices, sticky header) doesn't misalign rows.
-  const listRef = useRef(null);
-  const [scrollMargin, setScrollMargin] = useState(0);
-  useLayoutEffect(() => {
-    const update = () => setScrollMargin(listRef.current?.offsetTop ?? 0);
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  const getItemKey = useCallback(
-    (i) => (i < groups.length ? groups[i].id : "__sentinel__"),
-    [groups]
-  );
-  const v = useWindowVirtualizer({
-    count: groupsQ.hasNextPage ? groups.length + 1 : groups.length,
-    estimateSize: () => 320,
-    overscan: 3,
-    getItemKey,
-    scrollMargin,
-  });
-  const virtualItems = v.getVirtualItems();
+	// Window-scroll virtualization: only near-view group rows mount. One extra
+	// "sentinel" row (count+1) carries the load-more/retry control when more
+	// pages exist. Scroll margin is measured (not assumed), so content above the
+	// list (notices, sticky header) doesn't misalign rows.
+	const listRef = useRef( null )
+	const [ scrollMargin, setScrollMargin ] = useState( 0 )
+	useLayoutEffect( () => {
+		const update = () => setScrollMargin( listRef.current?.offsetTop ?? 0 )
+		update()
+		window.addEventListener( 'resize', update )
+		return () => window.removeEventListener( 'resize', update )
+	}, [] )
+	const getItemKey = useCallback(
+		( i ) => ( i < groups.length ? groups[ i ].id : '__sentinel__' ),
+		[ groups ]
+	)
+	const v = useWindowVirtualizer( {
+		count: groupsQ.hasNextPage ? groups.length + 1 : groups.length,
+		estimateSize: () => 320,
+		overscan: 3,
+		getItemKey,
+		scrollMargin,
+	} )
+	const virtualItems = v.getVirtualItems()
 
-  // Fetch the next page once the sentinel/last row nears the viewport.
-  useEffect(() => {
-    const last = virtualItems[virtualItems.length - 1];
-    if (!last) {
-      return;
-    }
-    if (
-      last.index >= groups.length - 3 &&
-      groupsQ.hasNextPage &&
-      !groupsQ.isFetchingNextPage &&
-      !groupsQ.isRefetching
-    ) {
-      groupsQ.fetchNextPage();
-    }
-  }, [
-    virtualItems,
-    groups.length,
-    groupsQ.hasNextPage,
-    groupsQ.isFetchingNextPage,
-    groupsQ.isRefetching,
-  ]);
+	// Fetch the next page once the sentinel/last row nears the viewport.
+	const fetchNextGroupsPage = groupsQ.fetchNextPage
+	const hasNextGroupsPage = groupsQ.hasNextPage
+	const isFetchingNextGroupsPage = groupsQ.isFetchingNextPage
+	const isRefetchingGroups = groupsQ.isRefetching
+	useEffect( () => {
+		const last = virtualItems[ virtualItems.length - 1 ]
+		if ( ! last ) {
+			return
+		}
+		if (
+			last.index >= groups.length - 3 &&
+			hasNextGroupsPage &&
+			! isFetchingNextGroupsPage &&
+			! isRefetchingGroups
+		) {
+			fetchNextGroupsPage()
+		}
+	}, [
+		virtualItems,
+		groups.length,
+		fetchNextGroupsPage,
+		hasNextGroupsPage,
+		isFetchingNextGroupsPage,
+		isRefetchingGroups,
+	] )
 
-  // The overlay reads its group's texts from the same cache key each
-  // CollectionGroup uses, so opening a neighbor group is just a query-key
-  // change (shares cache with that group's own row if it's mounted).
-  const overlayTextsQ = useQuery({
-    queryKey: ["texts", overlay?.cid, selectedLang, query, statusFilter, advancedFilters],
-    queryFn: async ({ signal }) => {
-      const res = await api.get(
-        `/collections/${enc(overlay.cid)}/texts?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}${advancedFilterParams}`,
-        { signal }
-      );
-      if (!res.ok) {
-        throw new Error(res.error || "ERR_UNREACHABLE");
-      }
-      return res;
-    },
-    enabled: !!overlay,
-  });
-  const overlayTexts = overlayTextsQ.data?.texts ?? [];
-  const overlayIndex = overlay
-    ? overlayTexts.findIndex((t) => t.id === overlay.id)
-    : -1;
-  const overlayUnit = overlayIndex >= 0 ? overlayTexts[overlayIndex] : null;
+	// The overlay reads its group's texts from the same cache key each
+	// CollectionGroup uses, so opening a neighbor group is just a query-key
+	// change (shares cache with that group's own row if it's mounted).
+	const overlayTextsQ = useQuery( {
+		queryKey: [
+			'texts',
+			overlay?.cid,
+			selectedLang,
+			query,
+			statusFilter,
+			advancedFilters,
+		],
+		queryFn: async ( { signal } ) => {
+			const res = await api.get(
+				`/collections/${ enc( overlay.cid ) }/texts?language=${ enc(
+					selectedLang
+				) }${ searchParam( query ) }&status=${ enc(
+					statusFilter
+				) }${ advancedFilterParams }`,
+				{ signal }
+			)
+			if ( ! res.ok ) {
+				throw new Error( res.error || 'ERR_UNREACHABLE' )
+			}
+			return res
+		},
+		enabled: !! overlay,
+	} )
+	const overlayTexts = overlayTextsQ.data?.texts ?? []
+	const overlayIndex = overlay
+		? overlayTexts.findIndex( ( t ) => t.id === overlay.id )
+		: -1
+	const overlayUnit = overlayIndex >= 0 ? overlayTexts[ overlayIndex ] : null
 
-  // Cross-group prev/next: every matching group's text-id order, fetched only
-  // while the overlay is open (not part of the paginated board itself).
-  const orderQ = useQuery({
-    queryKey: [
-      "text-order",
-      selectedLang,
-      query,
-      statusFilter,
-      board,
-      advancedFilters,
-    ],
-    queryFn: async ({ signal }) => {
-      const res = await api.get(
-        `/collections/text-order?language=${enc(selectedLang)}${searchParam(query)}&status=${enc(statusFilter)}&source=${enc(board)}${advancedFilterParams}`,
-        { signal }
-      );
-      if (!res.ok) {
-        throw new Error(res.error || "ERR_UNREACHABLE");
-      }
-      return res;
-    },
-    enabled: !!overlay,
-  });
-  const orderFlat = useMemo(
-    () =>
-      (orderQ.data?.groups ?? []).flatMap((g) =>
-        g.ids.map((id) => ({ id, cid: g.cid, label: g.label, type: g.type }))
-      ),
-    [orderQ.data]
-  );
-  const globalIndex = overlay
-    ? orderFlat.findIndex((o) => o.id === overlay.id)
-    : -1;
-  const overlayOrderEntry = globalIndex >= 0 ? orderFlat[globalIndex] : null;
-  // Prefer the order response's group label (works even for a neighbor group
-  // the board hasn't paginated its way to yet); fall back to the loaded board
-  // list for the brief window before the order list has resolved.
-  const overlayCollection =
-    overlayOrderEntry ??
-    (overlay ? groups.find((g) => g.id === overlay.cid) : null);
-  const overlayFieldLabel =
-    overlayUnit && overlayCollection
-      ? `${groupHeading(overlayCollection)} — ${overlayUnit.field}`
-      : undefined;
+	// Cross-group prev/next: every matching group's text-id order, fetched only
+	// while the overlay is open (not part of the paginated board itself).
+	const orderQ = useQuery( {
+		queryKey: [
+			'text-order',
+			selectedLang,
+			query,
+			statusFilter,
+			board,
+			advancedFilters,
+		],
+		queryFn: async ( { signal } ) => {
+			const res = await api.get(
+				`/collections/text-order?language=${ enc(
+					selectedLang
+				) }${ searchParam( query ) }&status=${ enc(
+					statusFilter
+				) }&source=${ enc( board ) }${ advancedFilterParams }`,
+				{ signal }
+			)
+			if ( ! res.ok ) {
+				throw new Error( res.error || 'ERR_UNREACHABLE' )
+			}
+			return res
+		},
+		enabled: !! overlay,
+	} )
+	const orderFlat = useMemo(
+		() =>
+			( orderQ.data?.groups ?? [] ).flatMap( ( g ) =>
+				g.ids.map( ( id ) => ( {
+					id,
+					cid: g.cid,
+					label: g.label,
+					type: g.type,
+				} ) )
+			),
+		[ orderQ.data ]
+	)
+	const globalIndex = overlay
+		? orderFlat.findIndex( ( o ) => o.id === overlay.id )
+		: -1
 
-  // After a mutation on a unit: invalidate that group's texts (any cached
-  // search variant); patch the collections cache directly if the mutation
-  // returned a fresh summary, otherwise fall back to invalidating it; and
-  // propagate the new value to any other visible occurrence of the same text.
-  function afterMutate(cid, patch) {
-    queryClient.invalidateQueries({ queryKey: ["texts", cid, selectedLang] });
-    if (patch?.collection_summary) {
-      patchCollectionSummary(patch.collection_summary);
-    } else {
-      invalidateCollections();
-    }
-    if (patch?.updated_unit) {
-      propagateTranslation(cid, patch.updated_unit);
-    }
-  }
+	// After a mutation on a unit: invalidate that group's texts (any cached
+	// search variant); patch the collections cache directly if the mutation
+	// returned a fresh summary, otherwise fall back to invalidating it; and
+	// propagate the new value to any other visible occurrence of the same text.
+	function afterMutate( cid, patch ) {
+		queryClient.invalidateQueries( {
+			queryKey: [ 'texts', cid, selectedLang ],
+		} )
+		if ( patch?.collection_summary ) {
+			patchCollectionSummary( patch.collection_summary )
+		} else {
+			invalidateCollections()
+		}
+		if ( patch?.updated_unit ) {
+			propagateTranslation( cid, patch.updated_unit )
+		}
+	}
 
-  // Empty-language state: same shell, centered CTA (wireframe 1.3).
-  if (view === "dashboard_empty_language" && languages.length === 0) {
-    return (
-      <>
-        <OnboardingPage>
-          <Card>
-            <EmptyState
-              heading="Add your first language"
-              action={{
-                content: "Create a language",
-                onAction: () => openManager(null),
-              }}
-            >
-              <p>
-                Your site is ready. Create a language to start translating your
-                content.
-              </p>
-              <p>Need more later? Add them from the sidebar anytime.</p>
-            </EmptyState>
-          </Card>
-        </OnboardingPage>
-        <LanguageManagerModal
-          open={managerOpen}
-          languages={languages}
-          catalog={languageCatalog}
-          defaultCode={defaultCode}
-          initialCode={managerInitial}
-          onClose={() => setManagerOpen(false)}
-          onConfirm={setConfirm}
-          onChanged={() => {
-            refreshLanguages();
-            onLanguageCreated();
-          }}
-        />
-      </>
-    );
-  }
+	// Empty-language state: same shell, centered CTA (wireframe 1.3).
+	if ( view === 'dashboard_empty_language' && languages.length === 0 ) {
+		return (
+			<>
+				<OnboardingPage>
+					<Card>
+						<EmptyState
+							heading="Add your first language"
+							action={ {
+								content: 'Create a language',
+								onAction: () => openManager( null ),
+							} }
+						>
+							<p>
+								Your site is ready. Create a language to start
+								translating your content.
+							</p>
+							<p>
+								Need more later? Add them from the sidebar
+								anytime.
+							</p>
+						</EmptyState>
+					</Card>
+				</OnboardingPage>
+				<LanguageManagerModal
+					open={ managerOpen }
+					languages={ languages }
+					catalog={ languageCatalog }
+					defaultCode={ defaultCode }
+					initialCode={ managerInitial }
+					onClose={ () => setManagerOpen( false ) }
+					onConfirm={ setConfirm }
+					onChanged={ () => {
+						refreshLanguages()
+						onLanguageCreated()
+					} }
+				/>
+			</>
+		)
+	}
 
-  const searching = query !== "";
+	const searching = query !== ''
+	const showGettextBoard = board === 'plugins'
+	const showGroupsLoading = ! showGettextBoard && groupsQ.isPending
+	const showGroupsError =
+		! showGettextBoard &&
+		! groupsQ.isPending &&
+		groupsQ.isError &&
+		groups.length === 0
+	const showGroupsEmpty =
+		! showGettextBoard &&
+		! groupsQ.isPending &&
+		! showGroupsError &&
+		groups.length === 0
+	const showGroups =
+		! showGettextBoard &&
+		! groupsQ.isPending &&
+		! showGroupsError &&
+		groups.length > 0
+	let emptyGroupsMessage =
+		'No translatable content found for this language yet.'
+	if ( searching ) {
+		emptyGroupsMessage = `No text matches “${ query }” in this language.`
+	} else if ( hasAnyFilter ) {
+		emptyGroupsMessage = 'No content matches the selected filters.'
+	}
 
-  // Column headers show the actual language names: source (default) on the left,
-  // the selected target on the right. Prefer an explicit display name; otherwise
-  // turn the code into a readable name (en → English) so raw codes never show.
-  const codeName = (code) => {
-    if (!code) return null;
-    try {
-      return new Intl.DisplayNames(undefined, { type: "language" }).of(code);
-    } catch {
-      return code;
-    }
-  };
-  const langLabel = (l) =>
-    l && (l.display_name || l.name || codeName(l.code || l));
-  const originalLabel =
-    langLabel(defaultLanguage) || codeName(defaultCode) || "Original";
-  const translationLabel =
-    langLabel(languages.find((l) => l.code === selectedLang)) || "Translation";
-  const sourceFlag = flagIconUrl(
-    typeof defaultLanguage === "object" && defaultLanguage
-      ? defaultLanguage
-      : { code: defaultCode }
-  );
+	// Column headers show the actual language names: source (default) on the left,
+	// the selected target on the right. Prefer an explicit display name; otherwise
+	// turn the code into a readable name (en → English) so raw codes never show.
+	const codeName = ( code ) => {
+		if ( ! code ) {
+			return null
+		}
+		try {
+			return new Intl.DisplayNames( undefined, { type: 'language' } ).of(
+				code
+			)
+		} catch {
+			return code
+		}
+	}
+	const langLabel = ( l ) =>
+		l && ( l.display_name || l.name || codeName( l.code || l ) )
+	const originalLabel =
+		langLabel( defaultLanguage ) || codeName( defaultCode ) || 'Original'
+	const translationLabel =
+		langLabel( languages.find( ( l ) => l.code === selectedLang ) ) ||
+		'Translation'
+	const sourceFlag = flagIconUrl(
+		typeof defaultLanguage === 'object' && defaultLanguage
+			? defaultLanguage
+			: { code: defaultCode }
+	)
 
-  const choices = (items) =>
-    items.map((item) => ({ label: item.label, value: item.key }));
-  const selectedLabels = (items, selected) =>
-    items
-      .filter((item) => selected.includes(item.key))
-      .map((item) => item.label)
-      .join(", ");
+	const choices = ( items ) =>
+		items.map( ( item ) => ( { label: item.label, value: item.key } ) )
+	const selectedLabels = ( items, selected ) =>
+		items
+			.filter( ( item ) => selected.includes( item.key ) )
+			.map( ( item ) => item.label )
+			.join( ', ' )
 
-  const filters = [
-    {
-      key: "status",
-      label: "Status",
-      filter: (
-        <ChoiceList
-          title="Status"
-          titleHidden
-          choices={FILTERS.map((f) => ({ label: f.label, value: f.key }))}
-          selected={statusFilter === "all" ? [] : [statusFilter]}
-          onChange={(vals) => setStatusFilter(vals[0] || "all")}
-        />
-      ),
-      shortcut: true,
-    },
-    {
-      key: "origin",
-      label: "Origin",
-      filter: (
-        <ChoiceList
-          title="Origin"
-          titleHidden
-          allowMultiple
-          choices={choices(ORIGIN_FILTERS)}
-          selected={originFilter}
-          onChange={setOriginFilter}
-        />
-      ),
-      shortcut: true,
-    },
-    {
-      key: "content_type",
-      label: "Content type",
-      filter: (
-        <ChoiceList
-          title="Content type"
-          titleHidden
-          allowMultiple
-          choices={choices(CONTENT_TYPE_FILTERS)}
-          selected={contentTypeFilter}
-          onChange={setContentTypeFilter}
-        />
-      ),
-    },
-    {
-      key: "text_length",
-      label: "Text length",
-      filter: (
-        <ChoiceList
-          title="Text length"
-          titleHidden
-          allowMultiple
-          choices={choices(TEXT_LENGTH_FILTERS)}
-          selected={textLengthFilter}
-          onChange={setTextLengthFilter}
-        />
-      ),
-    },
-    {
-      key: "progress",
-      label: "Collection progress",
-      filter: (
-        <ChoiceList
-          title="Collection progress"
-          titleHidden
-          allowMultiple
-          choices={choices(PROGRESS_FILTERS)}
-          selected={progressFilter}
-          onChange={setProgressFilter}
-        />
-      ),
-    },
-  ];
-  const appliedFilters = [
-    ...(statusFilter === "all"
-      ? []
-      : [{
-        key: "status",
-        label: `Status: ${FILTERS.find((f) => f.key === statusFilter)?.label}`,
-        onRemove: () => setStatusFilter("all"),
-      }]),
-    ...(originFilter.length === 0
-      ? []
-      : [{
-        key: "origin",
-        label: `Origin: ${selectedLabels(ORIGIN_FILTERS, originFilter)}`,
-        onRemove: () => setOriginFilter([]),
-      }]),
-    ...(contentTypeFilter.length === 0
-      ? []
-      : [{
-        key: "content_type",
-        label: `Content type: ${selectedLabels(CONTENT_TYPE_FILTERS, contentTypeFilter)}`,
-        onRemove: () => setContentTypeFilter([]),
-      }]),
-    ...(textLengthFilter.length === 0
-      ? []
-      : [{
-        key: "text_length",
-        label: `Text length: ${selectedLabels(TEXT_LENGTH_FILTERS, textLengthFilter)}`,
-        onRemove: () => setTextLengthFilter([]),
-      }]),
-    ...(progressFilter.length === 0
-      ? []
-      : [{
-        key: "progress",
-        label: `Collection progress: ${selectedLabels(PROGRESS_FILTERS, progressFilter)}`,
-        onRemove: () => setProgressFilter([]),
-      }]),
-  ];
+	const filters = [
+		{
+			key: 'status',
+			label: 'Status',
+			filter: (
+				<ChoiceList
+					title="Status"
+					titleHidden
+					choices={ FILTERS.map( ( f ) => ( {
+						label: f.label,
+						value: f.key,
+					} ) ) }
+					selected={ statusFilter === 'all' ? [] : [ statusFilter ] }
+					onChange={ ( vals ) =>
+						setStatusFilter( vals[ 0 ] || 'all' )
+					}
+				/>
+			),
+			shortcut: true,
+		},
+		{
+			key: 'origin',
+			label: 'Origin',
+			filter: (
+				<ChoiceList
+					title="Origin"
+					titleHidden
+					allowMultiple
+					choices={ choices( ORIGIN_FILTERS ) }
+					selected={ originFilter }
+					onChange={ setOriginFilter }
+				/>
+			),
+			shortcut: true,
+		},
+		{
+			key: 'content_type',
+			label: 'Content type',
+			filter: (
+				<ChoiceList
+					title="Content type"
+					titleHidden
+					allowMultiple
+					choices={ choices( CONTENT_TYPE_FILTERS ) }
+					selected={ contentTypeFilter }
+					onChange={ setContentTypeFilter }
+				/>
+			),
+		},
+		{
+			key: 'text_length',
+			label: 'Text length',
+			filter: (
+				<ChoiceList
+					title="Text length"
+					titleHidden
+					allowMultiple
+					choices={ choices( TEXT_LENGTH_FILTERS ) }
+					selected={ textLengthFilter }
+					onChange={ setTextLengthFilter }
+				/>
+			),
+		},
+		{
+			key: 'progress',
+			label: 'Collection progress',
+			filter: (
+				<ChoiceList
+					title="Collection progress"
+					titleHidden
+					allowMultiple
+					choices={ choices( PROGRESS_FILTERS ) }
+					selected={ progressFilter }
+					onChange={ setProgressFilter }
+				/>
+			),
+		},
+	]
+	const appliedFilters = [
+		...( statusFilter === 'all'
+			? []
+			: [
+					{
+						key: 'status',
+						label: `Status: ${
+							FILTERS.find( ( f ) => f.key === statusFilter )
+								?.label
+						}`,
+						onRemove: () => setStatusFilter( 'all' ),
+					},
+			  ] ),
+		...( originFilter.length === 0
+			? []
+			: [
+					{
+						key: 'origin',
+						label: `Origin: ${ selectedLabels(
+							ORIGIN_FILTERS,
+							originFilter
+						) }`,
+						onRemove: () => setOriginFilter( [] ),
+					},
+			  ] ),
+		...( contentTypeFilter.length === 0
+			? []
+			: [
+					{
+						key: 'content_type',
+						label: `Content type: ${ selectedLabels(
+							CONTENT_TYPE_FILTERS,
+							contentTypeFilter
+						) }`,
+						onRemove: () => setContentTypeFilter( [] ),
+					},
+			  ] ),
+		...( textLengthFilter.length === 0
+			? []
+			: [
+					{
+						key: 'text_length',
+						label: `Text length: ${ selectedLabels(
+							TEXT_LENGTH_FILTERS,
+							textLengthFilter
+						) }`,
+						onRemove: () => setTextLengthFilter( [] ),
+					},
+			  ] ),
+		...( progressFilter.length === 0
+			? []
+			: [
+					{
+						key: 'progress',
+						label: `Collection progress: ${ selectedLabels(
+							PROGRESS_FILTERS,
+							progressFilter
+						) }`,
+						onRemove: () => setProgressFilter( [] ),
+					},
+			  ] ),
+	]
 
-  const clearAllFilters = () => {
-    setStatusFilter("all");
-    setOriginFilter([]);
-    setContentTypeFilter([]);
-    setTextLengthFilter([]);
-    setProgressFilter([]);
-  };
+	const clearAllFilters = () => {
+		setStatusFilter( 'all' )
+		setOriginFilter( [] )
+		setContentTypeFilter( [] )
+		setTextLengthFilter( [] )
+		setProgressFilter( [] )
+	}
 
-  return (
-    <Page fullWidth>
-      {notice && (
-        <Box paddingBlockEnd="300">
-          <Banner tone={notice.tone} onDismiss={() => setNotice(null)}>
-            {notice.content}
-          </Banner>
-        </Box>
-      )}
-      <InlineStack gap="200" align="start" blockAlign="start" wrap={false}>
-        {/* ── Left rail ─────────────────────────────────────────── */}
-        <div
-          style={{
-            flex: "0 0 260px",
-            width: 260,
-            alignSelf: "flex-start",
-            position: "sticky",
-            top: 32,
-            marginBlockStart: 8,
-            height: "calc(100vh - 100px)",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: "auto",
-              paddingRight: 4,
-            }}
-          >
-            <BlockStack gap="400">
-              {/* Brand header — name + logo live here, not in the page header. */}
-              <InlineStack
-                align="space-between"
-                blockAlign="center"
-                wrap={false}
-              >
-                <InlineStack
-                  gap="100"
-                  blockAlign="center"
-                  wrap={false}
-                  style={{ paddingLeft: 4 }}
-                >
-                  {cfg.logo && (
-                    <img
-                      src={cfg.logo}
-                      alt=""
-                      width="24"
-                      height="24"
-                      className="block"
-                    />
-                  )}
-                  <Text as="span" variant="headingMd">
-                    Translangs
-                  </Text>
-                </InlineStack>
-              </InlineStack>
-              <BlockStack gap="200">
-                <Card>
-                  <BlockStack gap="200">
-                    <Text as="h2" variant="headingSm">
-                      Target language
-                    </Text>
-                    <LanguageList
-                      languages={languages}
-                      selectedCode={selectedLang}
-                      aiAvailable={ai.available}
-                      onSelect={(lang) => setSelectedLang(lang.code)}
-                      onEdit={(lang) => openManager(lang.code)}
-                      onToggleStatus={togglePublishStatus}
-                      onTranslateAll={(lang) => translateLanguageAll(lang)}
-                      onUseFallback={(lang) => useFallbackTranslation(lang)}
-                      onDelete={(lang) => confirmDeleteLang(lang)}
-                      onAdd={() => openManager(null)}
-                    />
-                  </BlockStack>
-                </Card>
+	return (
+		<Page fullWidth>
+			{ notice && (
+				<Box paddingBlockEnd="300">
+					<Banner
+						tone={ notice.tone }
+						onDismiss={ () => setNotice( null ) }
+					>
+						{ notice.content }
+					</Banner>
+				</Box>
+			) }
+			<InlineStack
+				gap="200"
+				align="start"
+				blockAlign="start"
+				wrap={ false }
+			>
+				{ /* ── Left rail ─────────────────────────────────────────── */ }
+				<div
+					style={ {
+						flex: '0 0 260px',
+						width: 260,
+						alignSelf: 'flex-start',
+						position: 'sticky',
+						top: 32,
+						marginBlockStart: 8,
+						height: 'calc(100vh - 100px)',
+						display: 'flex',
+						flexDirection: 'column',
+					} }
+				>
+					<div
+						style={ {
+							flex: 1,
+							minHeight: 0,
+							overflowY: 'auto',
+							paddingRight: 4,
+						} }
+					>
+						<BlockStack gap="400">
+							{ /* Brand header — name + logo live here, not in the page header. */ }
+							<InlineStack
+								align="space-between"
+								blockAlign="center"
+								wrap={ false }
+							>
+								<InlineStack
+									gap="100"
+									blockAlign="center"
+									wrap={ false }
+									style={ { paddingLeft: 4 } }
+								>
+									{ cfg.logo && (
+										<img
+											src={ cfg.logo }
+											alt=""
+											width="24"
+											height="24"
+											className="block"
+										/>
+									) }
+									<Text as="span" variant="headingMd">
+										Translangs
+									</Text>
+								</InlineStack>
+							</InlineStack>
+							<BlockStack gap="200">
+								<Card>
+									<BlockStack gap="200">
+										<Text as="h2" variant="headingSm">
+											Target language
+										</Text>
+										<LanguageList
+											languages={ languages }
+											selectedCode={ selectedLang }
+											aiAvailable={ ai.available }
+											onSelect={ ( lang ) =>
+												setSelectedLang( lang.code )
+											}
+											onEdit={ ( lang ) =>
+												openManager( lang.code )
+											}
+											onToggleStatus={
+												togglePublishStatus
+											}
+											onTranslateAll={ ( lang ) =>
+												translateLanguageAll( lang )
+											}
+											onUseFallback={ ( lang ) =>
+												applyFallbackTranslation( lang )
+											}
+											onDelete={ ( lang ) =>
+												confirmDeleteLang( lang )
+											}
+											onAdd={ () => openManager( null ) }
+										/>
+									</BlockStack>
+								</Card>
 
-                <Card>
-                  <BlockStack gap="100">
-                    <Text as="h2" variant="headingSm">
-                      Sources
-                    </Text>
-                    <BlockStack gap="050">
-                      <Button
-                        fullWidth
-                        textAlign="left"
-                        variant={board === "content" ? "primary" : "tertiary"}
-                        onClick={() => selectBoard("content")}
-                      >
-                        Content
-                      </Button>
-                      <Button
-                        fullWidth
-                        textAlign="left"
-                        variant={board === "plugins" ? "primary" : "tertiary"}
-                        onClick={() => selectBoard("plugins")}
-                      >
-                        Plugins & Themes
-                      </Button>
-                    </BlockStack>
-                  </BlockStack>
-                </Card>
-              </BlockStack>
-            </BlockStack>
-          </div>
-          <div className="pt-4">
-            <QuotaCard quota={quota} aiAvailable={ai.available} />
-          </div>
-        </div>
+								<Card>
+									<BlockStack gap="100">
+										<Text as="h2" variant="headingSm">
+											Sources
+										</Text>
+										<BlockStack gap="050">
+											<Button
+												fullWidth
+												textAlign="left"
+												variant={
+													board === 'content'
+														? 'primary'
+														: 'tertiary'
+												}
+												onClick={ () =>
+													selectBoard( 'content' )
+												}
+											>
+												Content
+											</Button>
+											<Button
+												fullWidth
+												textAlign="left"
+												variant={
+													board === 'plugins'
+														? 'primary'
+														: 'tertiary'
+												}
+												onClick={ () =>
+													selectBoard( 'plugins' )
+												}
+											>
+												Plugins & Themes
+											</Button>
+										</BlockStack>
+									</BlockStack>
+								</Card>
+							</BlockStack>
+						</BlockStack>
+					</div>
+					<div className="pt-4">
+						<QuotaCard
+							quota={ quota }
+							aiAvailable={ ai.available }
+						/>
+					</div>
+				</div>
 
-        {/* ── Main: one card, sticky search header, scrolling body ─ */}
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            marginBlockStart: 8,
-            minHeight: "calc(100vh - 100px)",
-          }}
-        >
-          <div
-            style={{
-              minHeight: "calc(100vh - 100px)",
-              background: "var(--p-color-bg-surface, #fff)",
-              borderRadius: "var(--p-border-radius-300, 12px)",
-              boxShadow: "var(--p-shadow-100, 0 1px 2px rgba(0,0,0,0.08))",
-            }}
-          >
-            <div
-              style={{
-                position: "sticky",
-                top: 32,
-                zIndex: 2,
-                background: "var(--p-color-bg-surface, #fff)",
-                borderTopLeftRadius: "var(--p-border-radius-300, 12px)",
-                borderTopRightRadius: "var(--p-border-radius-300, 12px)",
-              }}
-            >
-              <Box padding="300">
-                <BlockStack gap="200">
-                  {/* Line 1: search (left) + actions (right) */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      minHeight: 32,
-                    }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <TextField
-                        label="Search text"
-                        labelHidden
-                        placeholder="Search text…"
-                        value={search}
-                        onChange={setSearch}
-                        autoComplete="off"
-                        clearButton
-                        onClearButtonClick={() => setSearch("")}
-                      />
-                    </div>
-                    <Tooltip content="AI translate all">
-                      <Button
-                        icon={(props) => <StartIcon {...props} />}
-                        variant="tertiary"
-                        disabled={!ai.available}
-                        accessibilityLabel="AI translate all"
-                        size="medium"
-                        onClick={() =>
-                          setConfirm({
-                            title: "AI translate all missing text?",
-                            body: "This sends every untranslated text in the selected language to AI translation and may use a large number of words.",
-                            actionLabel: "Translate all",
-                            onConfirm: () => translateScope("language", { source: board }),
-                          })
-                        }
-                      />
-                    </Tooltip>
-                    <Popover
-                      active={pageMenuOpen}
-                      onClose={() => setPageMenuOpen(false)}
-                      activator={
-                        <Tooltip content="More actions">
-                          <Button
-                            variant="tertiary"
-                            size="medium"
-                            accessibilityLabel="More actions"
-                            onClick={() => setPageMenuOpen((o) => !o)}
-                          >
-                            ⋯
-                          </Button>
-                        </Tooltip>
-                      }
-                    >
-                      <ActionList
-                        items={[
-                          {
-                            content: "Settings",
-                            onAction: () => {
-                              setPageMenuOpen(false);
-                              openManager("configuration");
-                            },
-                          },
-                          {
-                            content: "Export / Import",
-                            onAction: () => {
-                              setPageMenuOpen(false);
-                              setExportImportOpen(true);
-                            },
-                          },
-                          {
-                            content: "Refresh",
-                            disabled: refreshing,
-                            onAction: () => {
-                              setPageMenuOpen(false);
-                              refreshScan();
-                            },
-                          },
-                        ]}
-                      />
-                    </Popover>
-                  </div>
-                  {/* Line 2: standard Polaris Filters (status) */}
-                  <div className="tl-filters">
-                    <Filters
-                      hideQueryField
-                      filters={filters}
-                      appliedFilters={appliedFilters}
-                      onQueryChange={() => { }}
-                      onQueryClear={() => { }}
-                      onClearAll={clearAllFilters}
-                    />
-                  </div>
-                </BlockStack>
-              </Box>
-            </div>
-            {board === "plugins" ? (
-              <GettextBoard
-                language={selectedLang}
-                originalLabel={originalLabel}
-                translationLabel={translationLabel}
-                sourceLabel={originalLabel}
-                sourceFlag={sourceFlag}
-                languages={languages}
-                aiAvailable={ai.available}
-                onPickLanguage={setSelectedLang}
-                onConfirm={setConfirm}
-              />
-            ) : groupsQ.isPending ? (
-              <Box padding="500">
-                <Spinner accessibilityLabel="Loading content" size="small" />
-              </Box>
-            ) : groupsQ.isError && groups.length === 0 ? (
-              <Box padding="500">
-                <BlockStack gap="200">
-                  <Text as="p" tone="critical">
-                    Could not load content for this language.
-                  </Text>
-                  <InlineStack>
-                    <Button onClick={() => groupsQ.refetch()}>Retry</Button>
-                  </InlineStack>
-                </BlockStack>
-              </Box>
-            ) : groups.length === 0 ? (
-              <Box padding="500">
-                <Text as="p" tone="subdued">
-                  {searching
-                    ? `No text matches “${query}” in this language.`
-                    : hasAnyFilter
-                      ? "No content matches the selected filters."
-                      : "No translatable content found for this language yet."}
-                </Text>
-              </Box>
-            ) : (
-              <BlockStack gap="0">
-                {searching && (
-                  <Box paddingInline="300" paddingBlock="200">
-                    <Text as="p" tone="subdued" variant="bodySm">
-                      {totalGroups} {totalGroups === 1 ? "group matches" : "groups match"}.
-                    </Text>
-                  </Box>
-                )}
-                <Box paddingInlineStart="1000">
-                  <Box paddingInline="300" paddingBlock="200">
-                    <InlineStack
-                      gap="300"
-                      align="space-between"
-                      blockAlign="center"
-                      wrap={false}
-                    >
-                      <Box width="42%" minWidth="0">
-                        <Text as="span" variant="bodySm" tone="subdued" fontWeight="medium">
-                          {originalLabel}
-                        </Text>
-                      </Box>
-                      <Box width="42%" minWidth="0">
-                        <Text as="span" variant="bodySm" tone="subdued" fontWeight="medium">
-                          {translationLabel}
-                        </Text>
-                      </Box>
-                      <Box width="16%" />
-                    </InlineStack>
-                  </Box>
-                </Box>
-                <Divider />
-                <div
-                  ref={listRef}
-                  style={{ position: "relative", height: v.getTotalSize() }}
-                >
-                  {virtualItems.map((row) => {
-                    const isLoaderRow = row.index >= groups.length;
-                    const c = groups[row.index];
-                    return (
-                      <div
-                        key={row.key}
-                        data-index={row.index}
-                        ref={v.measureElement}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          transform: `translateY(${row.start - scrollMargin}px)`,
-                        }}
-                      >
-                        {isLoaderRow ? (
-                          <Box padding="300">
-                            <InlineStack align="center">
-                              {groupsQ.isFetchNextPageError ? (
-                                <Button onClick={() => groupsQ.fetchNextPage()}>
-                                  Retry loading more
-                                </Button>
-                              ) : groupsQ.hasNextPage ? (
-                                <Button
-                                  onClick={() => groupsQ.fetchNextPage()}
-                                  loading={groupsQ.isFetchingNextPage}
-                                  disabled={groupsQ.isFetchingNextPage}
-                                >
-                                  Load more
-                                </Button>
-                              ) : null}
-                            </InlineStack>
-                          </Box>
-                        ) : (
-                          <CollectionGroup
-                            collection={c}
-                            language={selectedLang}
-                            search={query}
-                            status={statusFilter}
-                            filterKey={advancedFilters}
-                            filterParams={advancedFilterParams}
-                            collapsed={collapsedIds.has(c.id)}
-                            onToggleCollapsed={() => toggleCollapsed(c.id)}
-                            onMutate={(patch) => afterMutate(c.id, patch)}
-                            onConfirm={setConfirm}
-                            aiAvailable={ai.available}
-                            onAiTranslate={translateScope}
-                            onOpenOverlay={(unit, cid) => setOverlay({ id: unit.id, cid })}
-                            onLengthWarning={showLengthWarning}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </BlockStack>
-            )}
+				{ /* ── Main: one card, sticky search header, scrolling body ─ */ }
+				<div
+					style={ {
+						flex: 1,
+						minWidth: 0,
+						marginBlockStart: 8,
+						minHeight: 'calc(100vh - 100px)',
+					} }
+				>
+					<div
+						style={ {
+							minHeight: 'calc(100vh - 100px)',
+							background: 'var(--p-color-bg-surface, #fff)',
+							borderRadius: 'var(--p-border-radius-300, 12px)',
+							boxShadow:
+								'var(--p-shadow-100, 0 1px 2px rgba(0,0,0,0.08))',
+						} }
+					>
+						<div
+							style={ {
+								position: 'sticky',
+								top: 32,
+								zIndex: 2,
+								background: 'var(--p-color-bg-surface, #fff)',
+								borderTopLeftRadius:
+									'var(--p-border-radius-300, 12px)',
+								borderTopRightRadius:
+									'var(--p-border-radius-300, 12px)',
+							} }
+						>
+							<Box padding="300">
+								<BlockStack gap="200">
+									{ /* Line 1: search (left) + actions (right) */ }
+									<div
+										style={ {
+											display: 'flex',
+											alignItems: 'center',
+											gap: 10,
+											minHeight: 32,
+										} }
+									>
+										<div className="flex-1 min-w-0">
+											<TextField
+												label="Search text"
+												labelHidden
+												placeholder="Search text…"
+												value={ search }
+												onChange={ setSearch }
+												autoComplete="off"
+												clearButton
+												onClearButtonClick={ () =>
+													setSearch( '' )
+												}
+											/>
+										</div>
+										<Tooltip content="AI translate all">
+											<Button
+												icon={ ( props ) => (
+													<StartIcon { ...props } />
+												) }
+												variant="tertiary"
+												disabled={ ! ai.available }
+												accessibilityLabel="AI translate all"
+												size="medium"
+												onClick={ () =>
+													setConfirm( {
+														title: 'AI translate all missing text?',
+														body: 'This sends every untranslated text in the selected language to AI translation and may use a large number of words.',
+														actionLabel:
+															'Translate all',
+														onConfirm: () =>
+															translateScope(
+																'language',
+																{
+																	source: board,
+																}
+															),
+													} )
+												}
+											/>
+										</Tooltip>
+										<Popover
+											active={ pageMenuOpen }
+											onClose={ () =>
+												setPageMenuOpen( false )
+											}
+											activator={
+												<Tooltip content="More actions">
+													<Button
+														variant="tertiary"
+														size="medium"
+														accessibilityLabel="More actions"
+														onClick={ () =>
+															setPageMenuOpen(
+																( o ) => ! o
+															)
+														}
+													>
+														⋯
+													</Button>
+												</Tooltip>
+											}
+										>
+											<ActionList
+												items={ [
+													{
+														content: 'Settings',
+														onAction: () => {
+															setPageMenuOpen(
+																false
+															)
+															openManager(
+																'configuration'
+															)
+														},
+													},
+													{
+														content:
+															'Export / Import',
+														onAction: () => {
+															setPageMenuOpen(
+																false
+															)
+															setExportImportOpen(
+																true
+															)
+														},
+													},
+													{
+														content: 'Refresh',
+														disabled: refreshing,
+														onAction: () => {
+															setPageMenuOpen(
+																false
+															)
+															refreshScan()
+														},
+													},
+												] }
+											/>
+										</Popover>
+									</div>
+									{ /* Line 2: standard Polaris Filters (status) */ }
+									<div className="tl-filters">
+										<Filters
+											hideQueryField
+											filters={ filters }
+											appliedFilters={ appliedFilters }
+											onQueryChange={ () => {} }
+											onQueryClear={ () => {} }
+											onClearAll={ clearAllFilters }
+										/>
+									</div>
+								</BlockStack>
+							</Box>
+						</div>
+						{ showGettextBoard && (
+							<GettextBoard
+								language={ selectedLang }
+								originalLabel={ originalLabel }
+								translationLabel={ translationLabel }
+								sourceLabel={ originalLabel }
+								sourceFlag={ sourceFlag }
+								languages={ languages }
+								aiAvailable={ ai.available }
+								onPickLanguage={ setSelectedLang }
+								onConfirm={ setConfirm }
+							/>
+						) }
+						{ showGroupsLoading && (
+							<Box padding="500">
+								<Spinner
+									accessibilityLabel="Loading content"
+									size="small"
+								/>
+							</Box>
+						) }
+						{ showGroupsError && (
+							<Box padding="500">
+								<BlockStack gap="200">
+									<Text as="p" tone="critical">
+										Could not load content for this
+										language.
+									</Text>
+									<InlineStack>
+										<Button
+											onClick={ () => groupsQ.refetch() }
+										>
+											Retry
+										</Button>
+									</InlineStack>
+								</BlockStack>
+							</Box>
+						) }
+						{ showGroupsEmpty && (
+							<Box padding="500">
+								<Text as="p" tone="subdued">
+									{ emptyGroupsMessage }
+								</Text>
+							</Box>
+						) }
+						{ showGroups && (
+							<BlockStack gap="0">
+								{ searching && (
+									<Box paddingInline="300" paddingBlock="200">
+										<Text
+											as="p"
+											tone="subdued"
+											variant="bodySm"
+										>
+											{ totalGroups }{ ' ' }
+											{ totalGroups === 1
+												? 'group matches'
+												: 'groups match' }
+											.
+										</Text>
+									</Box>
+								) }
+								<Box paddingInlineStart="1000">
+									<Box paddingInline="300" paddingBlock="200">
+										<InlineStack
+											gap="300"
+											align="space-between"
+											blockAlign="center"
+											wrap={ false }
+										>
+											<Box width="42%" minWidth="0">
+												<Text
+													as="span"
+													variant="bodySm"
+													tone="subdued"
+													fontWeight="medium"
+												>
+													{ originalLabel }
+												</Text>
+											</Box>
+											<Box width="42%" minWidth="0">
+												<Text
+													as="span"
+													variant="bodySm"
+													tone="subdued"
+													fontWeight="medium"
+												>
+													{ translationLabel }
+												</Text>
+											</Box>
+											<Box width="16%" />
+										</InlineStack>
+									</Box>
+								</Box>
+								<Divider />
+								<div
+									ref={ listRef }
+									style={ {
+										position: 'relative',
+										height: v.getTotalSize(),
+									} }
+								>
+									{ virtualItems.map( ( row ) => {
+										const isLoaderRow =
+											row.index >= groups.length
+										const c = groups[ row.index ]
+										let loaderAction = null
+										if ( groupsQ.isFetchNextPageError ) {
+											loaderAction = (
+												<Button
+													onClick={ () =>
+														groupsQ.fetchNextPage()
+													}
+												>
+													Retry loading more
+												</Button>
+											)
+										} else if ( groupsQ.hasNextPage ) {
+											loaderAction = (
+												<Button
+													onClick={ () =>
+														groupsQ.fetchNextPage()
+													}
+													loading={
+														groupsQ.isFetchingNextPage
+													}
+													disabled={
+														groupsQ.isFetchingNextPage
+													}
+												>
+													Load more
+												</Button>
+											)
+										}
+										return (
+											<div
+												key={ row.key }
+												data-index={ row.index }
+												ref={ v.measureElement }
+												style={ {
+													position: 'absolute',
+													top: 0,
+													left: 0,
+													width: '100%',
+													transform: `translateY(${
+														row.start - scrollMargin
+													}px)`,
+												} }
+											>
+												{ isLoaderRow ? (
+													<Box padding="300">
+														<InlineStack align="center">
+															{ loaderAction }
+														</InlineStack>
+													</Box>
+												) : (
+													<CollectionGroup
+														collection={ c }
+														language={
+															selectedLang
+														}
+														search={ query }
+														status={ statusFilter }
+														filterKey={
+															advancedFilters
+														}
+														filterParams={
+															advancedFilterParams
+														}
+														collapsed={ collapsedIds.has(
+															c.id
+														) }
+														onToggleCollapsed={ () =>
+															toggleCollapsed(
+																c.id
+															)
+														}
+														onMutate={ ( patch ) =>
+															afterMutate(
+																c.id,
+																patch
+															)
+														}
+														onConfirm={ setConfirm }
+														aiAvailable={
+															ai.available
+														}
+														onAiTranslate={
+															translateScope
+														}
+														onOpenOverlay={ (
+															unit,
+															cid
+														) =>
+															setOverlay( {
+																id: unit.id,
+																cid,
+															} )
+														}
+														onLengthWarning={
+															showLengthWarning
+														}
+													/>
+												) }
+											</div>
+										)
+									} ) }
+								</div>
+							</BlockStack>
+						) }
 
-            {board === "content" && !groupsQ.isPending && (
-              <>
-                <Divider />
-                <Box padding="300">
-                  <Text as="p" alignment="end" tone="subdued" variant="bodySm">
-                    {totalDone} of {totalTexts} translated
-                    {searching || hasAnyFilter ? " in filtered text" : ""}
-                  </Text>
-                </Box>
-              </>
-            )}
-          </div>
-        </div>
-      </InlineStack>
+						{ board === 'content' && ! groupsQ.isPending && (
+							<>
+								<Divider />
+								<Box padding="300">
+									<Text
+										as="p"
+										alignment="end"
+										tone="subdued"
+										variant="bodySm"
+									>
+										{ totalDone } of { totalTexts }{ ' ' }
+										translated
+										{ searching || hasAnyFilter
+											? ' in filtered text'
+											: '' }
+									</Text>
+								</Box>
+							</>
+						) }
+					</div>
+				</div>
+			</InlineStack>
 
-      <LanguageManagerModal
-        open={managerOpen}
-        languages={languages}
-        catalog={languageCatalog}
-        defaultCode={defaultCode}
-        initialCode={managerInitial}
-        onClose={() => setManagerOpen(false)}
-        onConfirm={setConfirm}
-        onChanged={() => {
-          refreshLanguages();
-          onLanguageCreated();
-        }}
-      />
-      <ExportImportModal
-        open={exportImportOpen}
-        languages={languages}
-        initialLanguage={selectedLang}
-        onClose={() => setExportImportOpen(false)}
-      />
-      <CompareOverlay
-        open={!!overlayUnit}
-        unit={overlayUnit}
-        fieldLabel={overlayFieldLabel}
-        language={selectedLang}
-        collectionId={overlay?.cid}
-        languages={languages}
-        sourceLabel={originalLabel}
-        sourceFlag={sourceFlag}
-        targetDir={
-          languages.find((l) => l.code === selectedLang)?.direction || "ltr"
-        }
-        aiAvailable={ai.available}
-        onAiTranslate={translateScope}
-        onPickLanguage={setSelectedLang}
-        onOpenPreview={openCanvas}
-        onClose={() => setOverlay(null)}
-        onSaved={(patch) => overlay && afterMutate(overlay.cid, patch)}
-        onLengthWarning={showLengthWarning}
-        hasPrev={globalIndex > 0}
-        hasNext={globalIndex >= 0 && globalIndex < orderFlat.length - 1}
-        onPrev={() => {
-          const prev = orderFlat[globalIndex - 1];
-          setOverlay({ id: prev.id, cid: prev.cid });
-        }}
-        onNext={() => {
-          const next = orderFlat[globalIndex + 1];
-          setOverlay({ id: next.id, cid: next.cid });
-        }}
-      />
-      <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
-      {autosaveToast && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            position: "fixed",
-            left: "50%",
-            bottom: "24px",
-            transform: "translateX(-50%)",
-            zIndex: 999999,
-            padding: "10px 14px",
-            borderRadius: "8px",
-            background: "var(--p-color-bg-fill-inverse)",
-            color: "var(--p-color-text-inverse)",
-            boxShadow: "var(--p-shadow-400)",
-            fontSize: "13px",
-            lineHeight: "20px",
-          }}
-        >
-          The plugin has auto save enabled.
-        </div>
-      )}
-      {lengthToast && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            position: "fixed",
-            left: "50%",
-            bottom: "24px",
-            transform: "translateX(-50%)",
-            zIndex: 999999,
-            padding: "10px 14px",
-            borderRadius: "8px",
-            maxWidth: "420px",
-            textAlign: "center",
-            background: "var(--p-color-bg-fill-caution)",
-            color: "var(--p-color-text-caution-on-bg-fill)",
-            boxShadow: "var(--p-shadow-400)",
-            fontSize: "13px",
-            lineHeight: "20px",
-          }}
-        >
-          {lengthToast}
-        </div>
-      )}
-    </Page>
-  );
+			<LanguageManagerModal
+				open={ managerOpen }
+				languages={ languages }
+				catalog={ languageCatalog }
+				defaultCode={ defaultCode }
+				initialCode={ managerInitial }
+				onClose={ () => setManagerOpen( false ) }
+				onConfirm={ setConfirm }
+				onChanged={ () => {
+					refreshLanguages()
+					onLanguageCreated()
+				} }
+			/>
+			<ExportImportModal
+				open={ exportImportOpen }
+				languages={ languages }
+				initialLanguage={ selectedLang }
+				onClose={ () => setExportImportOpen( false ) }
+			/>
+			<CompareOverlay
+				open={ !! overlayUnit }
+				unit={ overlayUnit }
+				language={ selectedLang }
+				collectionId={ overlay?.cid }
+				languages={ languages }
+				sourceLabel={ originalLabel }
+				sourceFlag={ sourceFlag }
+				targetDir={
+					languages.find( ( l ) => l.code === selectedLang )
+						?.direction || 'ltr'
+				}
+				aiAvailable={ ai.available }
+				onAiTranslate={ translateScope }
+				onPickLanguage={ setSelectedLang }
+				onOpenPreview={ openCanvas }
+				onClose={ () => setOverlay( null ) }
+				onSaved={ ( patch ) =>
+					overlay && afterMutate( overlay.cid, patch )
+				}
+				onLengthWarning={ showLengthWarning }
+				hasPrev={ globalIndex > 0 }
+				hasNext={
+					globalIndex >= 0 && globalIndex < orderFlat.length - 1
+				}
+				onPrev={ () => {
+					const prev = orderFlat[ globalIndex - 1 ]
+					setOverlay( { id: prev.id, cid: prev.cid } )
+				} }
+				onNext={ () => {
+					const next = orderFlat[ globalIndex + 1 ]
+					setOverlay( { id: next.id, cid: next.cid } )
+				} }
+			/>
+			<ConfirmDialog
+				confirm={ confirm }
+				onClose={ () => setConfirm( null ) }
+			/>
+			{ autosaveToast && (
+				<div
+					role="status"
+					aria-live="polite"
+					style={ {
+						position: 'fixed',
+						left: '50%',
+						bottom: '24px',
+						transform: 'translateX(-50%)',
+						zIndex: 999999,
+						padding: '10px 14px',
+						borderRadius: '8px',
+						background: 'var(--p-color-bg-fill-inverse)',
+						color: 'var(--p-color-text-inverse)',
+						boxShadow: 'var(--p-shadow-400)',
+						fontSize: '13px',
+						lineHeight: '20px',
+					} }
+				>
+					The plugin has auto save enabled.
+				</div>
+			) }
+			{ lengthToast && (
+				<div
+					role="status"
+					aria-live="polite"
+					style={ {
+						position: 'fixed',
+						left: '50%',
+						bottom: '24px',
+						transform: 'translateX(-50%)',
+						zIndex: 999999,
+						padding: '10px 14px',
+						borderRadius: '8px',
+						maxWidth: '420px',
+						textAlign: 'center',
+						background: 'var(--p-color-bg-fill-caution)',
+						color: 'var(--p-color-text-caution-on-bg-fill)',
+						boxShadow: 'var(--p-shadow-400)',
+						fontSize: '13px',
+						lineHeight: '20px',
+					} }
+				>
+					{ lengthToast }
+				</div>
+			) }
+		</Page>
+	)
 }
 
-function ConfirmDialog({ confirm, onClose }) {
-  if (!confirm) {
-    return null;
-  }
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title={confirm.title}
-      primaryAction={{
-        content: confirm.actionLabel,
-        destructive: confirm.destructive,
-        onAction: () => {
-          confirm.onConfirm();
-          onClose();
-        },
-      }}
-      secondaryActions={[{ content: "Cancel", onAction: onClose }]}
-    >
-      <Modal.Section>
-        <Text as="p">{confirm.body}</Text>
-      </Modal.Section>
-    </Modal>
-  );
+function ConfirmDialog( { confirm, onClose } ) {
+	if ( ! confirm ) {
+		return null
+	}
+	return (
+		<Modal
+			open
+			onClose={ onClose }
+			title={ confirm.title }
+			primaryAction={ {
+				content: confirm.actionLabel,
+				destructive: confirm.destructive,
+				onAction: () => {
+					confirm.onConfirm()
+					onClose()
+				},
+			} }
+			secondaryActions={ [ { content: 'Cancel', onAction: onClose } ] }
+		>
+			<Modal.Section>
+				<Text as="p">{ confirm.body }</Text>
+			</Modal.Section>
+		</Modal>
+	)
 }
 
-function CollectionGroup({
-  collection,
-  language,
-  search,
-  status,
-  filterKey,
-  filterParams,
-  collapsed,
-  onToggleCollapsed,
-  onMutate,
-  onConfirm,
-  onOpenOverlay,
-  aiAvailable,
-  onAiTranslate,
-  onLengthWarning,
-}) {
-  const c = collection;
-  const open = !collapsed;
-  const searching = search !== "";
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const [shown, setShown] = useState(TEXT_BATCH);
+function CollectionGroup( {
+	collection,
+	language,
+	search,
+	status,
+	filterKey,
+	filterParams,
+	collapsed,
+	onToggleCollapsed,
+	onMutate,
+	onConfirm,
+	onOpenOverlay,
+	aiAvailable,
+	onAiTranslate,
+	onLengthWarning,
+} ) {
+	const c = collection
+	const open = ! collapsed
+	const searching = search !== ''
+	const [ menuOpen, setMenuOpen ] = useState( false )
+	const [ hovered, setHovered ] = useState( false )
+	const [ shown, setShown ] = useState( TEXT_BATCH )
 
-  // Suppress requests for groups only flashed past during fast scroll: a
-  // collapsed/just-scrolled-past group never settles long enough to fetch.
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    if (collapsed) {
-      setSettled(false);
-      return;
-    }
-    const t = setTimeout(() => setSettled(true), 120);
-    return () => clearTimeout(t);
-  }, [collapsed]);
+	// Suppress requests for groups only flashed past during fast scroll: a
+	// collapsed/just-scrolled-past group never settles long enough to fetch.
+	const [ settled, setSettled ] = useState( false )
+	useEffect( () => {
+		if ( collapsed ) {
+			setSettled( false )
+			return
+		}
+		const t = setTimeout( () => setSettled( true ), 120 )
+		return () => clearTimeout( t )
+	}, [ collapsed ] )
 
-  const textsQ = useQuery({
-    queryKey: ["texts", c.id, language, search, status, filterKey],
-    queryFn: async ({ signal }) => {
-      const res = await api.get(
-        `/collections/${enc(c.id)}/texts?language=${enc(language)}${search ? `&search=${enc(search)}` : ""}&status=${enc(status)}${filterParams}`,
-        { signal }
-      );
-      if (!res.ok) {
-        throw new Error(res.error || "ERR_UNREACHABLE");
-      }
-      return res;
-    },
-    enabled: !collapsed && settled,
-  });
-  const allTexts = textsQ.data?.texts ?? [];
-  const rows = allTexts.slice(0, shown);
+	const textsQ = useQuery( {
+		queryKey: [ 'texts', c.id, language, search, status, filterKey ],
+		queryFn: async ( { signal } ) => {
+			const res = await api.get(
+				`/collections/${ enc( c.id ) }/texts?language=${ enc(
+					language
+				) }${
+					search ? `&search=${ enc( search ) }` : ''
+				}&status=${ enc( status ) }${ filterParams }`,
+				{ signal }
+			)
+			if ( ! res.ok ) {
+				throw new Error( res.error || 'ERR_UNREACHABLE' )
+			}
+			return res
+		},
+		enabled: ! collapsed && settled,
+	} )
+	const allTexts = textsQ.data?.texts ?? []
+	const rows = allTexts.slice( 0, shown )
 
-  // Stale tl_html rows: text nobody (marking mode or the background crawl)
-  // has re-encountered in the grace window. Html-only — staleness has no
-  // meaning for the other collection types.
-  const staleQ = useQuery({
-    queryKey: ["html-stale", c.id, language],
-    queryFn: async ({ signal }) => {
-      const res = await api.get(
-        `/collections/${enc(c.id)}/stale?language=${enc(language)}`,
-        { signal }
-      );
-      if (!res.ok) {
-        throw new Error(res.error || "ERR_UNREACHABLE");
-      }
-      return res;
-    },
-    enabled: c.id === "html:all" && !collapsed && settled,
-  });
-  const staleCount = staleQ.data?.texts?.length ?? 0;
+	// Stale tl_html rows: text nobody (marking mode or the background crawl)
+	// has re-encountered in the grace window. Html-only — staleness has no
+	// meaning for the other collection types.
+	const staleQ = useQuery( {
+		queryKey: [ 'html-stale', c.id, language ],
+		queryFn: async ( { signal } ) => {
+			const res = await api.get(
+				`/collections/${ enc( c.id ) }/stale?language=${ enc(
+					language
+				) }`,
+				{ signal }
+			)
+			if ( ! res.ok ) {
+				throw new Error( res.error || 'ERR_UNREACHABLE' )
+			}
+			return res
+		},
+		enabled: c.id === 'html:all' && ! collapsed && settled,
+	} )
+	const staleCount = staleQ.data?.texts?.length ?? 0
 
-  function confirmAiGroup() {
-    onConfirm({
-      title: "AI translate this group?",
-      body: "Untranslated text in this group will be sent to AI translation.",
-      actionLabel: "Translate",
-      onConfirm: () => onAiTranslate("collection", { id: c.id }),
-    });
-  }
+	function confirmAiGroup() {
+		onConfirm( {
+			title: 'AI translate this group?',
+			body: 'Untranslated text in this group will be sent to AI translation.',
+			actionLabel: 'Translate',
+			onConfirm: () => onAiTranslate( 'collection', { id: c.id } ),
+		} )
+	}
 
-  async function bulk(action) {
-    setMenuOpen(false);
-    const res = await api.post(`/collections/${enc(c.id)}/${action}`, {
-      language,
-    });
-    if (res.ok) {
-      onMutate(res);
-    }
-  }
+	async function bulk( action ) {
+		setMenuOpen( false )
+		const res = await api.post(
+			`/collections/${ enc( c.id ) }/${ action }`,
+			{
+				language,
+			}
+		)
+		if ( res.ok ) {
+			onMutate( res )
+		}
+	}
 
-  function confirmIgnoreAll() {
-    onConfirm({
-      title: "Ignore all texts in this group?",
-      body: "Every text in this group will be excluded from translation and moved to the Ignored view.",
-      actionLabel: "Ignore all",
-      // destructive: true,
-      onConfirm: () => bulk("ignore"),
-    });
-  }
+	function confirmIgnoreAll() {
+		onConfirm( {
+			title: 'Ignore all texts in this group?',
+			body: 'Every text in this group will be excluded from translation and moved to the Ignored view.',
+			actionLabel: 'Ignore all',
+			// destructive: true,
+			onConfirm: () => bulk( 'ignore' ),
+		} )
+	}
 
-  function confirmClearAll() {
-    onConfirm({
-      title: "Clear all translations in this group?",
-      body: "Every translation in this group for the selected language will be removed.",
-      actionLabel: "Clear all",
-      // destructive: true,
-      onConfirm: () => bulk("clear"),
-    });
-  }
+	function confirmClearAll() {
+		onConfirm( {
+			title: 'Clear all translations in this group?',
+			body: 'Every translation in this group for the selected language will be removed.',
+			actionLabel: 'Clear all',
+			// destructive: true,
+			onConfirm: () => bulk( 'clear' ),
+		} )
+	}
 
-  async function deleteStale() {
-    setMenuOpen(false);
-    const res = await api.post(`/collections/${enc(c.id)}/delete-stale`, {
-      language,
-    });
-    if (res.ok) {
-      onMutate(res);
-      staleQ.refetch();
-    }
-  }
+	async function deleteStale() {
+		setMenuOpen( false )
+		const res = await api.post(
+			`/collections/${ enc( c.id ) }/delete-stale`,
+			{
+				language,
+			}
+		)
+		if ( res.ok ) {
+			onMutate( res )
+			staleQ.refetch()
+		}
+	}
 
-  function confirmDeleteStale() {
-    onConfirm({
-      title: "Delete stale text?",
-      body: `${staleCount} ${staleCount === 1 ? "text hasn't" : "texts haven't"} been seen on the site in over 30 days. Deleting removes them and their translations permanently — this cannot be undone.`,
-      actionLabel: "Delete stale",
-      destructive: true,
-      onConfirm: deleteStale,
-    });
-  }
+	function confirmDeleteStale() {
+		onConfirm( {
+			title: 'Delete stale text?',
+			body: `${ staleCount } ${
+				staleCount === 1 ? "text hasn't" : "texts haven't"
+			} been seen on the site in over 30 days. Deleting removes them and their translations permanently — this cannot be undone.`,
+			actionLabel: 'Delete stale',
+			destructive: true,
+			onConfirm: deleteStale,
+		} )
+	}
 
-  // Ignore all / Clear all are whole-collection on the server. Offering them beside
-  // a filtered row list would read as "ignore these 3", so they hide during a search;
-  // the preview link is scope-free and stays.
-  const bulkItems = [
-    ...(c.preview_url
-      ? [
-        {
-          content:
-            c.preview_target === "frontend"
-              ? "Show in canvas"
-              : "Edit in WordPress",
-          onAction: () => {
-            setMenuOpen(false);
-            openCanvas(c.preview_url, c.preview_target);
-          },
-        },
-      ]
-      : []),
-    ...(searching
-      ? []
-      : [
-        {
-          content: "Ignore all",
-          destructive: true,
-          onAction: confirmIgnoreAll,
-        },
-        {
-          content: "Clear all",
-          destructive: true,
-          onAction: confirmClearAll,
-        },
-        ...(c.id === "html:all" && staleCount > 0
-          ? [
-            {
-              content: `Delete stale (${staleCount})`,
-              destructive: true,
-              onAction: confirmDeleteStale,
-            },
-          ]
-          : []),
-      ]),
-  ];
+	// Ignore all / Clear all are whole-collection on the server. Offering them beside
+	// a filtered row list would read as "ignore these 3", so they hide during a search;
+	// the preview link is scope-free and stays.
+	const bulkItems = [
+		...( c.preview_url
+			? [
+					{
+						content:
+							c.preview_target === 'frontend'
+								? 'Show in canvas'
+								: 'Edit in WordPress',
+						onAction: () => {
+							setMenuOpen( false )
+							openCanvas( c.preview_url, c.preview_target )
+						},
+					},
+			  ]
+			: [] ),
+		...( searching
+			? []
+			: [
+					{
+						content: 'Ignore all',
+						destructive: true,
+						onAction: confirmIgnoreAll,
+					},
+					{
+						content: 'Clear all',
+						destructive: true,
+						onAction: confirmClearAll,
+					},
+					...( c.id === 'html:all' && staleCount > 0
+						? [
+								{
+									content: `Delete stale (${ staleCount })`,
+									destructive: true,
+									onAction: confirmDeleteStale,
+								},
+						  ]
+						: [] ),
+			  ] ),
+	]
 
-  return (
-    <Box>
-      <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        <Box padding="300" background={open ? "bg-surface-secondary" : undefined}>
-          <InlineStack align="space-between" blockAlign="center" wrap={false}>
-            <button
-              type="button"
-              onClick={onToggleCollapsed}
-              style={{
-                all: "unset",
-                cursor: "pointer",
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <Text as="span" variant="bodyMd" fontWeight="medium">
-                {open ? "▾" : "▸"}
-              </Text>
-              <span
-                style={{
-                  display: "inline-flex",
-                  flexShrink: 0,
-                  width: 16,
-                  height: 16,
-                  color: "var(--p-color-icon-subdued)",
-                }}
-              >
-                <PageIcon fill="currentColor" width={16} height={16} />
-              </span>
-              <Text as="span" variant="bodyMd" fontWeight="medium">
-                {groupHeading(c)}
-              </Text>
-              {/* While searching, the server's counts describe the matching subset,
-                so `total` is the match count. */}
-              {searching && (
-                <Text as="span" variant="bodySm" tone="subdued">
-                  {c.total} {c.total === 1 ? "match" : "matches"}
-                </Text>
-              )}
-            </button>
-            <div
-              style={{
-                opacity: hovered || menuOpen ? 1 : 0,
-                visibility: hovered || menuOpen ? "visible" : "hidden",
-                transition: "opacity 120ms ease",
-              }}
-            >
-              <InlineStack gap="100" blockAlign="center" wrap={false}>
-                {!searching && (
-                  <Button
-                    variant="tertiary"
-                    size="micro"
-                    disabled={!aiAvailable}
-                    icon={(props) => <StartIcon {...props} />}
-                    onClick={confirmAiGroup}
-                  >
-                    Translate all
-                  </Button>
-                )}
-                {bulkItems.length > 0 && (
-                  <Popover
-                    active={menuOpen}
-                    onClose={() => setMenuOpen(false)}
-                    activator={
-                      <Button
-                        variant="tertiary"
-                        size="micro"
-                        onClick={() => setMenuOpen((o) => !o)}
-                      >
-                        ⋯
-                      </Button>
-                    }
-                  >
-                    <ActionList items={bulkItems} />
-                  </Popover>
-                )}
-              </InlineStack>
-            </div>
-          </InlineStack>
-        </Box>
-      </div>
-      <Collapsible open={open} id={`col-${c.id}`}>
-        <Box paddingBlockEnd="200" paddingInlineStart="1000">
-          {textsQ.isPending ? (
-            <Box padding="300">
-              <Spinner accessibilityLabel="Loading texts" size="small" />
-            </Box>
-          ) : textsQ.isError ? (
-            <Box padding="300">
-              <Text as="p" tone="critical" variant="bodySm">
-                Could not load texts for this group.
-              </Text>
-            </Box>
-          ) : (
-            <>
-              {rows.map((t) => (
-                <TextUnitRow
-                  key={t.id}
-                  unit={t}
-                  language={language}
-                  collectionId={c.id}
-                  onMutate={onMutate}
-                  onConfirm={onConfirm}
-                  aiAvailable={aiAvailable}
-                  onAiTranslate={onAiTranslate}
-                  onOpenOverlay={(unit) => onOpenOverlay(unit, c.id)}
-                  onLengthWarning={onLengthWarning}
-                />
-              ))}
-              {allTexts.length > shown && (
-                <Box padding="300">
-                  <Button
-                    onClick={() =>
-                      setShown((n) => Math.min(n + TEXT_BATCH, allTexts.length))
-                    }
-                  >
-                    Show {Math.min(TEXT_BATCH, allTexts.length - shown)} more
-                  </Button>
-                </Box>
-              )}
-            </>
-          )}
-        </Box>
-      </Collapsible>
-      <Divider />
-    </Box>
-  );
+	return (
+		<Box>
+			<div
+				onMouseEnter={ () => setHovered( true ) }
+				onMouseLeave={ () => setHovered( false ) }
+			>
+				<Box
+					padding="300"
+					background={ open ? 'bg-surface-secondary' : undefined }
+				>
+					<InlineStack
+						align="space-between"
+						blockAlign="center"
+						wrap={ false }
+					>
+						<button
+							type="button"
+							onClick={ onToggleCollapsed }
+							style={ {
+								all: 'unset',
+								cursor: 'pointer',
+								flex: 1,
+								display: 'flex',
+								alignItems: 'center',
+								gap: '8px',
+							} }
+						>
+							<Text
+								as="span"
+								variant="bodyMd"
+								fontWeight="medium"
+							>
+								{ open ? '▾' : '▸' }
+							</Text>
+							<span
+								style={ {
+									display: 'inline-flex',
+									flexShrink: 0,
+									width: 16,
+									height: 16,
+									color: 'var(--p-color-icon-subdued)',
+								} }
+							>
+								<PageIcon
+									fill="currentColor"
+									width={ 16 }
+									height={ 16 }
+								/>
+							</span>
+							<Text
+								as="span"
+								variant="bodyMd"
+								fontWeight="medium"
+							>
+								{ groupHeading( c ) }
+							</Text>
+							{ /* While searching, the server's counts describe the matching subset,
+                so `total` is the match count. */ }
+							{ searching && (
+								<Text as="span" variant="bodySm" tone="subdued">
+									{ c.total }{ ' ' }
+									{ c.total === 1 ? 'match' : 'matches' }
+								</Text>
+							) }
+						</button>
+						<div
+							style={ {
+								opacity: hovered || menuOpen ? 1 : 0,
+								visibility:
+									hovered || menuOpen ? 'visible' : 'hidden',
+								transition: 'opacity 120ms ease',
+							} }
+						>
+							<InlineStack
+								gap="100"
+								blockAlign="center"
+								wrap={ false }
+							>
+								{ ! searching && (
+									<Button
+										variant="tertiary"
+										size="micro"
+										disabled={ ! aiAvailable }
+										icon={ ( props ) => (
+											<StartIcon { ...props } />
+										) }
+										onClick={ confirmAiGroup }
+									>
+										Translate all
+									</Button>
+								) }
+								{ bulkItems.length > 0 && (
+									<Popover
+										active={ menuOpen }
+										onClose={ () => setMenuOpen( false ) }
+										activator={
+											<Button
+												variant="tertiary"
+												size="micro"
+												onClick={ () =>
+													setMenuOpen( ( o ) => ! o )
+												}
+											>
+												⋯
+											</Button>
+										}
+									>
+										<ActionList items={ bulkItems } />
+									</Popover>
+								) }
+							</InlineStack>
+						</div>
+					</InlineStack>
+				</Box>
+			</div>
+			<Collapsible open={ open } id={ `col-${ c.id }` }>
+				<Box paddingBlockEnd="200" paddingInlineStart="1000">
+					{ textsQ.isPending && (
+						<Box padding="300">
+							<Spinner
+								accessibilityLabel="Loading texts"
+								size="small"
+							/>
+						</Box>
+					) }
+					{ ! textsQ.isPending && textsQ.isError && (
+						<Box padding="300">
+							<Text as="p" tone="critical" variant="bodySm">
+								Could not load texts for this group.
+							</Text>
+						</Box>
+					) }
+					{ ! textsQ.isPending && ! textsQ.isError && (
+						<>
+							{ rows.map( ( t ) => (
+								<TextUnitRow
+									key={ t.id }
+									unit={ t }
+									language={ language }
+									collectionId={ c.id }
+									onMutate={ onMutate }
+									onConfirm={ onConfirm }
+									aiAvailable={ aiAvailable }
+									onAiTranslate={ onAiTranslate }
+									onOpenOverlay={ ( unit ) =>
+										onOpenOverlay( unit, c.id )
+									}
+									onLengthWarning={ onLengthWarning }
+								/>
+							) ) }
+							{ allTexts.length > shown && (
+								<Box padding="300">
+									<Button
+										onClick={ () =>
+											setShown( ( n ) =>
+												Math.min(
+													n + TEXT_BATCH,
+													allTexts.length
+												)
+											)
+										}
+									>
+										Show{ ' ' }
+										{ Math.min(
+											TEXT_BATCH,
+											allTexts.length - shown
+										) }{ ' ' }
+										more
+									</Button>
+								</Box>
+							) }
+						</>
+					) }
+				</Box>
+			</Collapsible>
+			<Divider />
+		</Box>
+	)
 }
 
-function TextUnitRow({
-  unit,
-  language,
-  collectionId,
-  onMutate,
-  onConfirm,
-  onOpenOverlay,
-  aiAvailable,
-  onAiTranslate,
-  onLengthWarning,
-}) {
-  const [draft, setDraft] = useState(unit.translated ?? "");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const [originalHovered, setOriginalHovered] = useState(false);
-  const [copiedOriginal, setCopiedOriginal] = useState(false);
+function TextUnitRow( {
+	unit,
+	language,
+	collectionId,
+	onMutate,
+	onConfirm,
+	onOpenOverlay,
+	aiAvailable,
+	onAiTranslate,
+	onLengthWarning,
+} ) {
+	const [ draft, setDraft ] = useState( unit.translated ?? '' )
+	const [ menuOpen, setMenuOpen ] = useState( false )
+	const [ hovered, setHovered ] = useState( false )
+	const [ originalHovered, setOriginalHovered ] = useState( false )
+	const [ copiedOriginal, setCopiedOriginal ] = useState( false )
 
-  const shown = unit.translated ?? unit.fallback;
-  const hasTranslation =
-    unit.translated !== null && unit.translated !== undefined;
-  const badge =
-    unit.status === "needs_review"
-      ? STATUS_BADGE.needs_review
-      : hasTranslation
-        ? STATUS_BADGE.translated
-        : null;
+	const shown = unit.translated ?? unit.fallback
+	const hasTranslation =
+		unit.translated !== null && unit.translated !== undefined
+	let badge = null
+	if ( unit.status === 'needs_review' ) {
+		badge = STATUS_BADGE.needs_review
+	} else if ( hasTranslation ) {
+		badge = STATUS_BADGE.translated
+	}
 
-  // "Long" = the original doesn't fit on one line in its cell at the current
-  // width. Measured, so it adapts to screen/column size instead of a fixed
-  // character count. Long text edits in the overlay; short text edits inline.
-  // A composed unit carries codec markers ({1}…{/1}); it must edit in the
-  // overlay's chip editor, never the plain inline input.
-  const isComposed = hasMarkers(unit.original || "");
-  const originalText = isComposed ? stripMarkers(unit.original) : unit.original;
-  const shownText = isComposed ? stripMarkers(shown) : shown;
-  const originalRef = useRef(null);
-  const [isLong, setIsLong] = useState(false);
-  useLayoutEffect(() => {
-    const el = originalRef.current;
-    if (!el) {
-      return;
-    }
-    const check = () => setIsLong(el.scrollWidth > el.clientWidth + 1);
-    check();
-    const ro = new ResizeObserver(check);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [unit.original]);
+	// "Long" = the original doesn't fit on one line in its cell at the current
+	// width. Measured, so it adapts to screen/column size instead of a fixed
+	// character count. Long text edits in the overlay; short text edits inline.
+	// A composed unit carries codec markers ({1}…{/1}); it must edit in the
+	// overlay's chip editor, never the plain inline input.
+	const isComposed = hasMarkers( unit.original || '' )
+	const originalText = isComposed
+		? stripMarkers( unit.original )
+		: unit.original
+	const shownText = isComposed ? stripMarkers( shown ) : shown
+	const originalRef = useRef( null )
+	const [ isLong, setIsLong ] = useState( false )
+	useLayoutEffect( () => {
+		const el = originalRef.current
+		if ( ! el ) {
+			return
+		}
+		const check = () => setIsLong( el.scrollWidth > el.clientWidth + 1 )
+		check()
+		const ro = new ResizeObserver( check )
+		ro.observe( el )
+		return () => ro.disconnect()
+	}, [ unit.original ] )
 
-  // Only long or structured (rich-text) source opens the overlay; short plain
-  // text is fully visible and edits inline, so its cell stays non-clickable.
-  const clickable = isLong || isComposed;
+	// Only long or structured (rich-text) source opens the overlay; short plain
+	// text is fully visible and edits inline, so its cell stays non-clickable.
+	const clickable = isLong || isComposed
 
-  // Keep the inline draft in sync when the translation changes elsewhere
-  // (AI translate, overlay save).
-  useEffect(() => {
-    setDraft(unit.translated ?? "");
-  }, [unit.translated]);
+	// Keep the inline draft in sync when the translation changes elsewhere
+	// (AI translate, overlay save).
+	useEffect( () => {
+		setDraft( unit.translated ?? '' )
+	}, [ unit.translated ] )
 
-  // Autosave the inline field on blur — only when the value actually changed.
-  async function saveTranslation() {
-    if ((unit.translated ?? "") === draft) {
-      return;
-    }
-    const res = await api.post("/translations", {
-      text_unit_id: unit.id,
-      language,
-      text: draft,
-      collection_id: collectionId,
-    });
-    if (res.ok) {
-      onMutate(res);
-      const warning = lengthWarningMessage(unit.original, draft);
-      if (warning) {
-        onLengthWarning(warning);
-      }
-    }
-  }
+	// Autosave the inline field on blur — only when the value actually changed.
+	async function saveTranslation() {
+		if ( ( unit.translated ?? '' ) === draft ) {
+			return
+		}
+		const res = await api.post( '/translations', {
+			text_unit_id: unit.id,
+			language,
+			text: draft,
+			collection_id: collectionId,
+		} )
+		if ( res.ok ) {
+			onMutate( res )
+			const warning = lengthWarningMessage( unit.original, draft )
+			if ( warning ) {
+				onLengthWarning( warning )
+			}
+		}
+	}
 
-  async function copyOriginal() {
-    await navigator.clipboard.writeText(originalText);
-    setCopiedOriginal(true);
-    setTimeout(() => setCopiedOriginal(false), 1500);
-  }
+	async function copyOriginal() {
+		await navigator.clipboard.writeText( originalText )
+		setCopiedOriginal( true )
+		setTimeout( () => setCopiedOriginal( false ), 1500 )
+	}
 
-  async function doStatus(action) {
-    setMenuOpen(false);
-    const res = await api.post(`/texts/${enc(unit.id)}/status`, {
-      action,
-      language,
-      collection_id: collectionId,
-    });
-    if (res.ok) {
-      onMutate(res);
-    }
-  }
+	async function doStatus( action ) {
+		setMenuOpen( false )
+		const res = await api.post( `/texts/${ enc( unit.id ) }/status`, {
+			action,
+			language,
+			collection_id: collectionId,
+		} )
+		if ( res.ok ) {
+			onMutate( res )
+		}
+	}
 
-  function confirmClear() {
-    onConfirm({
-      title: "Clear translation?",
-      body: "This removes the translation for this text in the selected language.",
-      actionLabel: "Clear",
-      destructive: true,
-      onConfirm: () => doStatus("clear"),
-    });
-  }
+	function confirmClear() {
+		onConfirm( {
+			title: 'Clear translation?',
+			body: 'This removes the translation for this text in the selected language.',
+			actionLabel: 'Clear',
+			destructive: true,
+			onConfirm: () => doStatus( 'clear' ),
+		} )
+	}
 
-  function confirmIgnore() {
-    onConfirm({
-      title: "Ignore this text?",
-      body: "Ignored text is excluded from translation and moves to the Ignored view.",
-      actionLabel: "Ignore",
-      destructive: true,
-      onConfirm: () => doStatus("ignore"),
-    });
-  }
+	function confirmIgnore() {
+		onConfirm( {
+			title: 'Ignore this text?',
+			body: 'Ignored text is excluded from translation and moves to the Ignored view.',
+			actionLabel: 'Ignore',
+			destructive: true,
+			onConfirm: () => doStatus( 'ignore' ),
+		} )
+	}
 
-  const menuItems = [
-    aiAvailable && {
-      content: "AI translate",
-      onAction: () => {
-        setMenuOpen(false);
-        onAiTranslate("text", { ref: unit.id, collection_id: collectionId });
-      },
-    },
-    {
-      content: "Open in overlay",
-      onAction: () => {
-        setMenuOpen(false);
-        onOpenOverlay(unit);
-      },
-    },
-    unit.preview_url && {
-      content:
-        unit.preview_target === "frontend" ? "Preview on website" : "Edit in WordPress",
-      onAction: () => {
-        setMenuOpen(false);
-        openCanvas(
-          unit.preview_url,
-          unit.preview_target,
-          stripMarkers(unit.translated ?? unit.original ?? ""),
-        );
-      },
-    },
-    hasTranslation && {
-      content: "To review",
-      onAction: () => doStatus("review"),
-    },
-    hasTranslation && {
-      content: "Clear",
-      destructive: true,
-      onAction: () => {
-        setMenuOpen(false);
-        confirmClear();
-      },
-    },
-    {
-      content: "Ignore",
-      destructive: true,
-      onAction: () => {
-        setMenuOpen(false);
-        confirmIgnore();
-      },
-    },
-  ].filter(Boolean);
+	const menuItems = [
+		aiAvailable && {
+			content: 'AI translate',
+			onAction: () => {
+				setMenuOpen( false )
+				onAiTranslate( 'text', {
+					ref: unit.id,
+					collection_id: collectionId,
+				} )
+			},
+		},
+		{
+			content: 'Open in overlay',
+			onAction: () => {
+				setMenuOpen( false )
+				onOpenOverlay( unit )
+			},
+		},
+		unit.preview_url && {
+			content:
+				unit.preview_target === 'frontend'
+					? 'Preview on website'
+					: 'Edit in WordPress',
+			onAction: () => {
+				setMenuOpen( false )
+				openCanvas(
+					unit.preview_url,
+					unit.preview_target,
+					stripMarkers( unit.translated ?? unit.original ?? '' )
+				)
+			},
+		},
+		hasTranslation && {
+			content: 'To review',
+			onAction: () => doStatus( 'review' ),
+		},
+		hasTranslation && {
+			content: 'Clear',
+			destructive: true,
+			onAction: () => {
+				setMenuOpen( false )
+				confirmClear()
+			},
+		},
+		{
+			content: 'Ignore',
+			destructive: true,
+			onAction: () => {
+				setMenuOpen( false )
+				confirmIgnore()
+			},
+		},
+	].filter( Boolean )
 
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <Box paddingInline="300" paddingBlock="200">
-        <InlineStack
-          gap="300"
-          align="space-between"
-          blockAlign="center"
-          wrap={false}
-        >
-          <Box width="42%" minWidth="0">
-            <div
-              onMouseEnter={() => setOriginalHovered(true)}
-              onMouseLeave={() => setOriginalHovered(false)}
-              style={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}
-            >
-              {unit.image_url && (
-                <div style={{ flexShrink: 0 }}>
-                  <Thumbnail source={unit.image_url} alt="" size="extraSmall" />
-                </div>
-              )}
-              <button
-                ref={originalRef}
-                type="button"
-                onClick={clickable ? () => onOpenOverlay(unit) : undefined}
-                disabled={!clickable}
-                style={{ ...oneLineStyle, flex: 1, minWidth: 0, cursor: clickable ? "pointer" : "default" }}
-              >
-                <Text as="span" variant="bodySm">
-                  {originalText}
-                </Text>
-              </button>
-              <div
-                style={{
-                  opacity: originalHovered ? 1 : 0,
-                  visibility: originalHovered ? "visible" : "hidden",
-                  transition: "opacity 120ms ease",
-                  flexShrink: 0,
-                }}
-              >
-                <Tooltip content={copiedOriginal ? "Copied!" : "Copy to clipboard"}>
-                  <Button
-                    size="micro"
-                    variant="tertiary"
-                    icon={copiedOriginal ? CheckIcon : DuplicateIcon}
-                    accessibilityLabel="Copy original to clipboard"
-                    onClick={copyOriginal}
-                  />
-                </Tooltip>
-              </div>
-            </div>
-          </Box>
+	return (
+		<div
+			onMouseEnter={ () => setHovered( true ) }
+			onMouseLeave={ () => setHovered( false ) }
+		>
+			<Box paddingInline="300" paddingBlock="200">
+				<InlineStack
+					gap="300"
+					align="space-between"
+					blockAlign="center"
+					wrap={ false }
+				>
+					<Box width="42%" minWidth="0">
+						<div
+							onMouseEnter={ () => setOriginalHovered( true ) }
+							onMouseLeave={ () => setOriginalHovered( false ) }
+							style={ {
+								display: 'flex',
+								alignItems: 'center',
+								gap: '4px',
+								minWidth: 0,
+							} }
+						>
+							{ unit.image_url && (
+								<div style={ { flexShrink: 0 } }>
+									<Thumbnail
+										source={ unit.image_url }
+										alt=""
+										size="extraSmall"
+									/>
+								</div>
+							) }
+							<button
+								ref={ originalRef }
+								type="button"
+								onClick={
+									clickable
+										? () => onOpenOverlay( unit )
+										: undefined
+								}
+								disabled={ ! clickable }
+								style={ {
+									...oneLineStyle,
+									flex: 1,
+									minWidth: 0,
+									cursor: clickable ? 'pointer' : 'default',
+								} }
+							>
+								<Text as="span" variant="bodySm">
+									{ originalText }
+								</Text>
+							</button>
+							<div
+								style={ {
+									opacity: originalHovered ? 1 : 0,
+									visibility: originalHovered
+										? 'visible'
+										: 'hidden',
+									transition: 'opacity 120ms ease',
+									flexShrink: 0,
+								} }
+							>
+								<Tooltip
+									content={
+										copiedOriginal
+											? 'Copied!'
+											: 'Copy to clipboard'
+									}
+								>
+									<Button
+										size="micro"
+										variant="tertiary"
+										icon={
+											copiedOriginal
+												? CheckIcon
+												: DuplicateIcon
+										}
+										accessibilityLabel="Copy original to clipboard"
+										onClick={ copyOriginal }
+									/>
+								</Tooltip>
+							</div>
+						</div>
+					</Box>
 
-          <Box width="42%" minWidth="0">
-            {clickable ? (
-              <button
-                type="button"
-                onClick={() => onOpenOverlay(unit)}
-                style={oneLineStyle}
-              >
-                <Text
-                  as="span"
-                  variant="bodySm"
-                  tone={hasTranslation ? undefined : "subdued"}
-                >
-                  {shownText}
-                </Text>
-              </button>
-            ) : (
-              <input
-                type="text"
-                aria-label="Translation"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={saveTranslation}
-                placeholder={unit.fallback || ""}
-                style={{
-                  all: "unset",
-                  display: "block",
-                  width: "100%",
-                  minWidth: 0,
-                  cursor: "text",
-                  fontSize: "var(--p-font-size-300, 0.75rem)",
-                  lineHeight: "var(--p-font-line-height-300, 1rem)",
-                  color: hasTranslation
-                    ? "var(--p-color-text)"
-                    : "var(--p-color-text-subdued)",
-                }}
-              />
-            )}
-          </Box>
+					<Box width="42%" minWidth="0">
+						{ clickable ? (
+							<button
+								type="button"
+								onClick={ () => onOpenOverlay( unit ) }
+								style={ oneLineStyle }
+							>
+								<Text
+									as="span"
+									variant="bodySm"
+									tone={
+										hasTranslation ? undefined : 'subdued'
+									}
+								>
+									{ shownText }
+								</Text>
+							</button>
+						) : (
+							<input
+								type="text"
+								aria-label="Translation"
+								value={ draft }
+								onChange={ ( e ) => setDraft( e.target.value ) }
+								onBlur={ saveTranslation }
+								placeholder={ unit.fallback || '' }
+								style={ {
+									all: 'unset',
+									display: 'block',
+									width: '100%',
+									minWidth: 0,
+									cursor: 'text',
+									fontSize: 'var(--p-font-size-300, 0.75rem)',
+									lineHeight:
+										'var(--p-font-line-height-300, 1rem)',
+									color: hasTranslation
+										? 'var(--p-color-text)'
+										: 'var(--p-color-text-subdued)',
+								} }
+							/>
+						) }
+					</Box>
 
-          <Box width="16%">
-            <InlineStack gap="100" align="end" blockAlign="center" wrap={false}>
-              {isComposed && (hovered || menuOpen) && (
-                <Tooltip content="This text contains inline formatting (links, bold, etc.). Open it to edit — the formatting is kept for you.">
-                  <Badge tone="info" size="small">
-                    Rich text
-                  </Badge>
-                </Tooltip>
-              )}
-              {SEO_FIELD_BADGE[unit.seo_field] && (
-                <Badge tone="info" size="small">
-                  {SEO_FIELD_BADGE[unit.seo_field]}
-                </Badge>
-              )}
-              {unit.is_ai && <Badge size="small">AI</Badge>}
-              {badge && (
-                <Badge tone={badge.tone} size="small">
-                  {badge.label}
-                </Badge>
-              )}
-              <div
-                style={{
-                  opacity: hovered || menuOpen ? 1 : 0,
-                  visibility: hovered || menuOpen ? "visible" : "hidden",
-                  transition: "opacity 120ms ease",
-                }}
-              >
-                <Popover
-                  active={menuOpen}
-                  onClose={() => setMenuOpen(false)}
-                  activator={
-                    <Button
-                      variant="tertiary"
-                      size="micro"
-                      onClick={() => setMenuOpen((o) => !o)}
-                    >
-                      ⋯
-                    </Button>
-                  }
-                >
-                  <ActionList items={menuItems} />
-                </Popover>
-              </div>
-            </InlineStack>
-          </Box>
-        </InlineStack>
-      </Box>
-    </div>
-  );
+					<Box width="16%">
+						<InlineStack
+							gap="100"
+							align="end"
+							blockAlign="center"
+							wrap={ false }
+						>
+							{ isComposed && ( hovered || menuOpen ) && (
+								<Tooltip content="This text contains inline formatting (links, bold, etc.). Open it to edit — the formatting is kept for you.">
+									<Badge tone="info" size="small">
+										Rich text
+									</Badge>
+								</Tooltip>
+							) }
+							{ SEO_FIELD_BADGE[ unit.seo_field ] && (
+								<Badge tone="info" size="small">
+									{ SEO_FIELD_BADGE[ unit.seo_field ] }
+								</Badge>
+							) }
+							{ unit.is_ai && <Badge size="small">AI</Badge> }
+							{ badge && (
+								<Badge tone={ badge.tone } size="small">
+									{ badge.label }
+								</Badge>
+							) }
+							<div
+								style={ {
+									opacity: hovered || menuOpen ? 1 : 0,
+									visibility:
+										hovered || menuOpen
+											? 'visible'
+											: 'hidden',
+									transition: 'opacity 120ms ease',
+								} }
+							>
+								<Popover
+									active={ menuOpen }
+									onClose={ () => setMenuOpen( false ) }
+									activator={
+										<Button
+											variant="tertiary"
+											size="micro"
+											onClick={ () =>
+												setMenuOpen( ( o ) => ! o )
+											}
+										>
+											⋯
+										</Button>
+									}
+								>
+									<ActionList items={ menuItems } />
+								</Popover>
+							</div>
+						</InlineStack>
+					</Box>
+				</InlineStack>
+			</Box>
+		</div>
+	)
 }

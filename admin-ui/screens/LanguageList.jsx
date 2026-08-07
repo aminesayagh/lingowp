@@ -1,58 +1,63 @@
-import { ActionList, BlockStack, Button, Text } from '@shopify/polaris';
+import { ActionList, BlockStack, Button, Text } from '@shopify/polaris'
 import {
 	createPortal,
 	useCallback,
 	useEffect,
 	useRef,
 	useState,
-} from '@wordpress/element';
-import { AnimatePresence, motion } from 'motion/react';
-import { flagIconUrl, FlagIcon } from './FlagIcon';
+} from '@wordpress/element'
+import { AnimatePresence, motion } from 'motion/react'
+import { flagIconUrl, FlagIcon } from './FlagIcon'
 
 // Below this translated percentage, publishing a language asks for confirmation
 // first (Dashboard.jsx / LanguageManagerModal.jsx).
-export const PUBLISH_MIN_PERCENT = 90;
+export const PUBLISH_MIN_PERCENT = 90
 
 // Animated dropdown (motion): a gap below the activator + a fade/slide on open,
 // with click-outside to close. Portaled to <body> and fixed-positioned off the
 // activator so no ancestor (e.g. a Polaris Card's overflow) can clip it.
 export function AnimatedMenu( { open, onClose, activator, children } ) {
-	const anchorRef = useRef( null );
-	const menuRef = useRef( null );
-	const [ pos, setPos ] = useState( null );
+	const anchorRef = useRef( null )
+	const menuRef = useRef( null )
+	const [ pos, setPos ] = useState( null )
 
 	const place = useCallback( () => {
-		const el = anchorRef.current;
+		const el = anchorRef.current
 		if ( el ) {
-			const r = el.getBoundingClientRect();
-			setPos( { top: r.bottom + 8, right: window.innerWidth - r.right } );
+			const r = el.getBoundingClientRect()
+			setPos( { top: r.bottom + 8, right: window.innerWidth - r.right } )
 		}
-	}, [] );
+	}, [] )
 
 	useEffect( () => {
 		if ( ! open ) {
-			return undefined;
+			return undefined
 		}
-		place();
+		place()
 		function onDoc( e ) {
-			if ( anchorRef.current?.contains( e.target ) || menuRef.current?.contains( e.target ) ) {
-				return;
+			if (
+				anchorRef.current?.contains( e.target ) ||
+				menuRef.current?.contains( e.target )
+			) {
+				return
 			}
-			onClose();
+			onClose()
 		}
-		document.addEventListener( 'mousedown', onDoc );
-		window.addEventListener( 'resize', place );
-		window.addEventListener( 'scroll', place, true );
+		document.addEventListener( 'mousedown', onDoc )
+		window.addEventListener( 'resize', place )
+		window.addEventListener( 'scroll', place, true )
 		return () => {
-			document.removeEventListener( 'mousedown', onDoc );
-			window.removeEventListener( 'resize', place );
-			window.removeEventListener( 'scroll', place, true );
-		};
-	}, [ open, onClose, place ] );
+			document.removeEventListener( 'mousedown', onDoc )
+			window.removeEventListener( 'resize', place )
+			window.removeEventListener( 'scroll', place, true )
+		}
+	}, [ open, onClose, place ] )
 
 	return (
 		<>
-			<span ref={ anchorRef } style={ { display: 'inline-flex' } }>{ activator }</span>
+			<span ref={ anchorRef } style={ { display: 'inline-flex' } }>
+				{ activator }
+			</span>
 			{ createPortal(
 				<AnimatePresence>
 					{ open && pos && (
@@ -69,8 +74,10 @@ export function AnimatedMenu( { open, onClose, activator, children } ) {
 								zIndex: 520,
 								minWidth: 168,
 								background: 'var(--p-color-bg-surface, #fff)',
-								borderRadius: 'var(--p-border-radius-300, 12px)',
-								boxShadow: 'var(--p-shadow-400, 0 6px 16px rgba(0,0,0,0.16))',
+								borderRadius:
+									'var(--p-border-radius-300, 12px)',
+								boxShadow:
+									'var(--p-shadow-400, 0 6px 16px rgba(0,0,0,0.16))',
 								border: '1px solid var(--p-color-border-secondary, rgba(0,0,0,0.08))',
 								overflow: 'hidden',
 							} }
@@ -82,36 +89,95 @@ export function AnimatedMenu( { open, onClose, activator, children } ) {
 				document.getElementById( 'translangs-portals' ) || document.body
 			) }
 		</>
-	);
+	)
 }
 
 // One language row: flag + name, % on the right that swaps to a ⋯ menu on hover.
 // Every action is optional — only handlers that are passed produce a menu item, so
 // the same row works in the dashboard rail and inside the language manager.
-export function LanguageRow( { lang, selected, percent, showProgress, aiAvailable, onSelect, onEdit, onToggleStatus, onTranslateAll, onUseFallback, onDelete } ) {
-	const [ hover, setHover ] = useState( false );
-	const [ menuOpen, setMenuOpen ] = useState( false );
-	const name = ( lang.display_name || lang.name || lang.code ).trim() || lang.code;
+export function LanguageRow( {
+	lang,
+	selected,
+	percent,
+	showProgress,
+	aiAvailable,
+	onSelect,
+	onEdit,
+	onToggleStatus,
+	onTranslateAll,
+	onUseFallback,
+	onDelete,
+} ) {
+	const [ hover, setHover ] = useState( false )
+	const [ menuOpen, setMenuOpen ] = useState( false )
+	const name =
+		( lang.display_name || lang.name || lang.code ).trim() || lang.code
 
 	const items = [
-		onEdit && { content: 'Settings', onAction: () => { setMenuOpen( false ); onEdit(); } },
-		onToggleStatus && { content: lang.enabled ? 'Set to draft' : 'Publish', onAction: () => { setMenuOpen( false ); onToggleStatus(); } },
-		onTranslateAll && percent < 100 && { content: 'Translate All', disabled: ! aiAvailable, onAction: () => { setMenuOpen( false ); onTranslateAll(); } },
+		onEdit && {
+			content: 'Settings',
+			onAction: () => {
+				setMenuOpen( false )
+				onEdit()
+			},
+		},
+		onToggleStatus && {
+			content: lang.enabled ? 'Set to draft' : 'Publish',
+			onAction: () => {
+				setMenuOpen( false )
+				onToggleStatus()
+			},
+		},
+		onTranslateAll &&
+			percent < 100 && {
+				content: 'Translate All',
+				disabled: ! aiAvailable,
+				onAction: () => {
+					setMenuOpen( false )
+					onTranslateAll()
+				},
+			},
 		// fallback_ready (from GET /languages) is true only when the fallback
 		// shares the base language AND actually has something this language is
 		// missing — a same-base pointer with nothing new to offer stays disabled too.
-		onUseFallback && { content: 'Use fallback translation', disabled: ! lang.fallback_ready, onAction: () => { setMenuOpen( false ); onUseFallback(); } },
-		onDelete && { content: 'Delete', destructive: true, onAction: () => { setMenuOpen( false ); onDelete(); } },
-	].filter( Boolean );
+		onUseFallback && {
+			content: 'Use fallback translation',
+			disabled: ! lang.fallback_ready,
+			onAction: () => {
+				setMenuOpen( false )
+				onUseFallback()
+			},
+		},
+		onDelete && {
+			content: 'Delete',
+			destructive: true,
+			onAction: () => {
+				setMenuOpen( false )
+				onDelete()
+			},
+		},
+	].filter( Boolean )
 
-	const hasMenu = items.length > 0;
-	const showMenu = hasMenu && ( hover || menuOpen );
+	const hasMenu = items.length > 0
+	const showMenu = hasMenu && ( hover || menuOpen )
 
 	return (
 		<div
+			role="button"
+			tabIndex={ 0 }
 			onMouseEnter={ () => setHover( true ) }
 			onMouseLeave={ () => setHover( false ) }
-			onClick={ onSelect }
+			onClick={ ( event ) => {
+				if ( ! event.target.closest( '[data-language-actions]' ) ) {
+					onSelect()
+				}
+			} }
+			onKeyDown={ ( event ) => {
+				if ( event.key === 'Enter' || event.key === ' ' ) {
+					event.preventDefault()
+					onSelect()
+				}
+			} }
 			style={ {
 				display: 'flex',
 				alignItems: 'center',
@@ -120,26 +186,58 @@ export function LanguageRow( { lang, selected, percent, showProgress, aiAvailabl
 				paddingInline: 8,
 				borderRadius: 8,
 				cursor: 'pointer',
-				background: selected ? 'var(--p-color-bg-surface-selected, rgba(0,0,0,0.06))' : 'transparent',
+				background: selected
+					? 'var(--p-color-bg-surface-selected, rgba(0,0,0,0.06))'
+					: 'transparent',
 			} }
 		>
-			<FlagIcon src={ flagIconUrl( lang ) } size={ 16 } grayscale={ ! lang.enabled } />
-			<span style={ { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>
-				<Text as="span" variant="bodyMd">{ name }</Text>
+			<FlagIcon
+				src={ flagIconUrl( lang ) }
+				size={ 16 }
+				grayscale={ ! lang.enabled }
+			/>
+			<span
+				style={ {
+					flex: 1,
+					minWidth: 0,
+					overflow: 'hidden',
+					textOverflow: 'ellipsis',
+					whiteSpace: 'nowrap',
+				} }
+			>
+				<Text as="span" variant="bodyMd">
+					{ name }
+				</Text>
 			</span>
 			{ ( showProgress || showMenu ) && (
 				<div
-					onClick={ ( e ) => e.stopPropagation() }
-					style={ { width: 36, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' } }
+					data-language-actions
+					style={ {
+						width: 36,
+						height: 24,
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'flex-end',
+					} }
 				>
 					<AnimatedMenu
 						open={ menuOpen }
 						onClose={ () => setMenuOpen( false ) }
 						activator={
 							showMenu ? (
-								<Button variant="tertiary" size="micro" onClick={ () => setMenuOpen( ( o ) => ! o ) }>⋯</Button>
+								<Button
+									variant="tertiary"
+									size="micro"
+									onClick={ () =>
+										setMenuOpen( ( o ) => ! o )
+									}
+								>
+									⋯
+								</Button>
 							) : (
-								<Text as="span" tone="subdued" variant="bodySm">{ percent }%</Text>
+								<Text as="span" tone="subdued" variant="bodySm">
+									{ percent }%
+								</Text>
 							)
 						}
 					>
@@ -148,7 +246,7 @@ export function LanguageRow( { lang, selected, percent, showProgress, aiAvailabl
 				</div>
 			) }
 		</div>
-	);
+	)
 }
 
 // The reusable language list: rows + an optional "add" affordance. Shared by the
@@ -178,18 +276,36 @@ export default function LanguageList( {
 						percent={ lang.translated_percent ?? 0 }
 						showProgress={ showProgress }
 						aiAvailable={ aiAvailable }
-						onSelect={ onSelect ? () => onSelect( lang ) : undefined }
+						onSelect={
+							onSelect ? () => onSelect( lang ) : undefined
+						}
 						onEdit={ onEdit ? () => onEdit( lang ) : undefined }
-						onToggleStatus={ onToggleStatus ? () => onToggleStatus( lang ) : undefined }
-						onTranslateAll={ onTranslateAll ? () => onTranslateAll( lang ) : undefined }
-						onUseFallback={ onUseFallback ? () => onUseFallback( lang ) : undefined }
-						onDelete={ onDelete ? () => onDelete( lang ) : undefined }
+						onToggleStatus={
+							onToggleStatus
+								? () => onToggleStatus( lang )
+								: undefined
+						}
+						onTranslateAll={
+							onTranslateAll
+								? () => onTranslateAll( lang )
+								: undefined
+						}
+						onUseFallback={
+							onUseFallback
+								? () => onUseFallback( lang )
+								: undefined
+						}
+						onDelete={
+							onDelete ? () => onDelete( lang ) : undefined
+						}
 					/>
 				) ) }
 			</div>
 			{ onAdd && (
-				<Button variant="plain" textAlign="left" onClick={ onAdd }>{ addLabel }</Button>
+				<Button variant="plain" textAlign="left" onClick={ onAdd }>
+					{ addLabel }
+				</Button>
 			) }
 		</BlockStack>
-	);
+	)
 }
