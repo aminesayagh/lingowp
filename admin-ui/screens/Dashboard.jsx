@@ -36,7 +36,7 @@ import {
 	useState,
 } from '@wordpress/element'
 import { CheckIcon, DuplicateIcon, PageIcon } from '@shopify/polaris-icons'
-import { parseAsStringLiteral, useQueryState } from 'nuqs'
+import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from '../api'
 import ExportImportModal from './ExportImportModal'
 import GettextBoard from './GettextBoard'
@@ -191,6 +191,12 @@ const TEXT_BATCH = 50
 const boardParser = parseAsStringLiteral( [ 'content', 'plugins' ] )
 	.withDefault( 'content' )
 	.withOptions( { history: 'replace' } )
+// Language codes are dynamic (whatever the site has configured), so this
+// can't be a parseAsStringLiteral like board — plain string is enough since
+// refreshLanguages() already validates the value against the fetched list.
+const langParser = parseAsString.withDefault( '' ).withOptions( {
+	history: 'replace',
+} )
 
 export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	const queryClient = useQueryClient()
@@ -202,12 +208,25 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	// null means the REST request is still pending; an empty array is a completed
 	// response with no additional WordPress locales available.
 	const [ languageCatalog, setLanguageCatalog ] = useState( null )
-	const [ selectedLang, setSelectedLang ] = useState( '' )
+	// Persisted in the URL so a refresh or a shared link keeps the working
+	// language (mirrors `board` just below).
+	const [ selectedLang, setSelectedLang ] = useQueryState(
+		'lang',
+		langParser
+	)
 	const [ search, setSearch ] = useState( '' )
 	// The debounced term actually sent to the server ("" = not searching).
 	const [ query, setQuery ] = useState( '' )
 	// { id, cid } of the text unit open in the compare overlay, or null.
 	const [ overlay, setOverlay ] = useState( null )
+	// Collection id to scroll to once loaded, read once from a shared link's
+	// "#collection=<id>" hash (view/board/lang are restored via nuqs already —
+	// the hash just isn't part of that persisted URL state). Cleared once found
+	// (or given up on) so a later refresh doesn't re-trigger the jump.
+	const [ pendingScrollId, setPendingScrollId ] = useState( () => {
+		const match = window.location.hash.match( /^#collection=(.+)$/ )
+		return match ? decodeURIComponent( match[ 1 ] ) : null
+	} )
 	const [ managerOpen, setManagerOpen ] = useState( false )
 	const [ managerInitial, setManagerInitial ] = useState( null )
 	const [ exportImportOpen, setExportImportOpen ] = useState( false )
@@ -232,6 +251,20 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	function selectBoard( next ) {
 		setBoard( next )
 	}
+
+	// A deep-linked collection must be reachable regardless of whatever filters
+	// happen to be active, so a pending scroll target clears them up front.
+	useEffect( () => {
+		if ( ! pendingScrollId ) {
+			return
+		}
+		setStatusFilter( 'all' )
+		setOriginFilter( [] )
+		setContentTypeFilter( [] )
+		setTextLengthFilter( [] )
+		setProgressFilter( [] )
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- one-time on mount
+	}, [] )
 
 	const autosaveToastTimerRef = useRef( null )
 	const lengthToastTimerRef = useRef( null )
@@ -513,6 +546,9 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 		} )
 	}
 
+	// setSelectedLang (from useQueryState) is stable across renders like a
+	// useState setter — nuqs's own examples omit it from effect deps too.
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	useEffect( refreshLanguages, [] )
 
 	// Debounce the box into the term we actually query with. Below SEARCH_MIN the term
@@ -619,6 +655,19 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 				} )
 			}
 		} )
+	}
+
+	// Copies a link that lands on this same board/language and scrolls straight
+	// to this collection (view/board/lang restore via the URL state nuqs already
+	// keeps in sync; the collection id rides in the hash — see pendingScrollId).
+	async function shareCollection( c ) {
+		const url = new URL( window.location.href )
+		url.searchParams.set( 'view', 'dashboard_workspace' )
+		url.searchParams.set( 'board', board )
+		url.searchParams.set( 'lang', selectedLang )
+		url.hash = `collection=${ enc( c.id ) }`
+		await navigator.clipboard.writeText( url.toString() )
+		setNotice( { tone: 'success', content: 'Link copied.' } )
 	}
 
 	// A mutation response that resolved to one collection's fresh counts
@@ -847,6 +896,47 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 		hasNextGroupsPage,
 		isFetchingNextGroupsPage,
 		isRefetchingGroups,
+	] )
+
+	// Deep-link landing: keep paging until the shared-link collection turns up,
+	// then scroll it into view and drop the hash so a later refresh doesn't
+	// re-trigger the jump. Gives up once every page is loaded and it's still
+	// not there (removed, or filtered out on the visitor's language).
+	useEffect( () => {
+		if ( ! pendingScrollId || groupsQ.isPending ) {
+			return
+		}
+		const index = groups.findIndex( ( g ) => g.id === pendingScrollId )
+		if ( index >= 0 ) {
+			v.scrollToIndex( index, { align: 'start' } )
+			window.history.replaceState(
+				null,
+				'',
+				window.location.pathname + window.location.search
+			)
+			setPendingScrollId( null )
+			return
+		}
+		if ( hasNextGroupsPage ) {
+			if ( ! isFetchingNextGroupsPage ) {
+				fetchNextGroupsPage()
+			}
+			return
+		}
+		setNotice( {
+			tone: 'warning',
+			content:
+				"Could not find that collection — it may have been removed or doesn't exist in this language.",
+		} )
+		setPendingScrollId( null )
+	}, [
+		pendingScrollId,
+		groups,
+		groupsQ.isPending,
+		hasNextGroupsPage,
+		isFetchingNextGroupsPage,
+		fetchNextGroupsPage,
+		v,
 	] )
 
 	// The overlay reads its group's texts from the same cache key each
@@ -1722,6 +1812,9 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 														onLengthWarning={
 															showLengthWarning
 														}
+														onShare={
+															shareCollection
+														}
 													/>
 												) }
 											</div>
@@ -1902,6 +1995,7 @@ function CollectionGroup( {
 	aiAvailable,
 	onAiTranslate,
 	onLengthWarning,
+	onShare,
 } ) {
 	const c = collection
 	const open = ! collapsed
@@ -2036,6 +2130,13 @@ function CollectionGroup( {
 	// a filtered row list would read as "ignore these 3", so they hide during a search;
 	// the preview link is scope-free and stays.
 	const bulkItems = [
+		{
+			content: 'Share collection',
+			onAction: () => {
+				setMenuOpen( false )
+				onShare( c )
+			},
+		},
 		...( c.preview_url
 			? [
 					{
@@ -2054,14 +2155,13 @@ function CollectionGroup( {
 			? []
 			: [
 					{
+						content: 'Clear all',
+						onAction: confirmClearAll,
+					},
+					{
 						content: 'Ignore all',
 						destructive: true,
 						onAction: confirmIgnoreAll,
-					},
-					{
-						content: 'Clear all',
-						destructive: true,
-						onAction: confirmClearAll,
 					},
 					...( c.id === 'html:all' && staleCount > 0
 						? [
@@ -2354,16 +2454,6 @@ function TextUnitRow( {
 		}
 	}
 
-	function confirmClear() {
-		onConfirm( {
-			title: 'Clear translation?',
-			body: 'This removes the translation for this text in the selected language.',
-			actionLabel: 'Clear',
-			destructive: true,
-			onConfirm: () => doStatus( 'clear' ),
-		} )
-	}
-
 	function confirmIgnore() {
 		onConfirm( {
 			title: 'Ignore this text?',
@@ -2374,59 +2464,71 @@ function TextUnitRow( {
 		} )
 	}
 
-	const menuItems = [
-		aiAvailable && {
-			content: 'AI translate',
-			onAction: () => {
-				setMenuOpen( false )
-				onAiTranslate( 'text', {
-					ref: unit.id,
-					collection_id: collectionId,
-				} )
-			},
+	const menuSections = [
+		{
+			items: [
+				aiAvailable && {
+					content: 'AI translate',
+					onAction: () => {
+						setMenuOpen( false )
+						onAiTranslate( 'text', {
+							ref: unit.id,
+							collection_id: collectionId,
+						} )
+					},
+				},
+				{
+					content: 'Open in overlay',
+					onAction: () => {
+						setMenuOpen( false )
+						onOpenOverlay( unit )
+					},
+				},
+				unit.preview_url && {
+					content:
+						unit.preview_target === 'frontend'
+							? 'Preview on website'
+							: 'Edit in WordPress',
+					onAction: () => {
+						setMenuOpen( false )
+						openCanvas(
+							unit.preview_url,
+							unit.preview_target,
+							stripMarkers(
+								unit.translated ?? unit.original ?? ''
+							)
+						)
+					},
+				},
+			].filter( Boolean ),
 		},
 		{
-			content: 'Open in overlay',
-			onAction: () => {
-				setMenuOpen( false )
-				onOpenOverlay( unit )
-			},
+			items: [
+				hasTranslation &&
+					( unit.status === 'needs_review'
+						? {
+								content: 'Reviewed',
+								onAction: () => doStatus( 'reviewed' ),
+						  }
+						: {
+								content: 'To review',
+								onAction: () => doStatus( 'review' ),
+						  } ),
+				hasTranslation && {
+					content: 'Clear',
+					onAction: () => doStatus( 'clear' ),
+				},
+				{
+					content: 'Ignore',
+					destructive: true,
+					onAction: () => {
+						setMenuOpen( false )
+						confirmIgnore()
+					},
+				},
+			].filter( Boolean ),
 		},
-		unit.preview_url && {
-			content:
-				unit.preview_target === 'frontend'
-					? 'Preview on website'
-					: 'Edit in WordPress',
-			onAction: () => {
-				setMenuOpen( false )
-				openCanvas(
-					unit.preview_url,
-					unit.preview_target,
-					stripMarkers( unit.translated ?? unit.original ?? '' )
-				)
-			},
-		},
-		hasTranslation && {
-			content: 'To review',
-			onAction: () => doStatus( 'review' ),
-		},
-		hasTranslation && {
-			content: 'Clear',
-			destructive: true,
-			onAction: () => {
-				setMenuOpen( false )
-				confirmClear()
-			},
-		},
-		{
-			content: 'Ignore',
-			destructive: true,
-			onAction: () => {
-				setMenuOpen( false )
-				confirmIgnore()
-			},
-		},
-	].filter( Boolean )
+	]
 
 	return (
 		<div
@@ -2605,7 +2707,7 @@ function TextUnitRow( {
 										</Button>
 									}
 								>
-									<ActionList items={ menuItems } />
+									<ActionList sections={ menuSections } />
 								</Popover>
 							</div>
 						</InlineStack>

@@ -882,8 +882,12 @@ final class WpDbSourceRepository
 
     /**
      * Update only the status of $ref's translation for one language (no text
-     * change): mark reviewed (2) or flag needs_review (-1). No-op if there is no
-     * child row. hash-link updates by original_hash, parent_id by parent id.
+     * change): mark reviewed (2) or flag needs_review (-1). Both are review
+     * states of an existing translation, so the row must already carry one —
+     * `translated_text IS NOT NULL` keeps a still-missing text from being
+     * flipped straight to reviewed/needs_review. No-op if there is no
+     * matching (translated) child row. hash-link updates by original_hash,
+     * parent_id by parent id.
      */
     public function setTranslationStatus(SourceRef $ref, string $langCode, int $status): void
     {
@@ -898,7 +902,7 @@ final class WpDbSourceRepository
             }
             $this->wpdb->query( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "UPDATE {$child} SET status = %d, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    "UPDATE {$child} SET status = %d, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s AND translated_text IS NOT NULL",
                     $status,
                     $now,
                     $hashHex,
@@ -911,7 +915,7 @@ final class WpDbSourceRepository
 
         $this->wpdb->query( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "UPDATE {$child} SET status = %d, updated_at = %s WHERE parent_id = %d AND lang_code = %s",
+                "UPDATE {$child} SET status = %d, updated_at = %s WHERE parent_id = %d AND lang_code = %s AND translated_text IS NOT NULL",
                 $status,
                 $now,
                 $ref->id,
