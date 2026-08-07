@@ -64,6 +64,17 @@ interface SourceRepository
      */
     public function fetchParentTranslations(string $parentTableKey, array $lookups, string $langCode): array;
 
+    /**
+     * Fallback-chain lookup for parent_id types (meta): unlike hash-link
+     * children, tl_meta_translation has no original_hash column (meta
+     * translations are never hash-shared), so a fallback probe needs the
+     * parent row ids directly rather than a hash set.
+     *
+     * @param int[] $parentIds
+     * @return array<int, string> parent_id => translated_text
+     */
+    public function fetchTranslationsByParentIds(array $parentIds, string $langCode): array;
+
     // ── translation writes (admin) ─────────────────────────────────────────────
 
     // ── board reads (admin dashboard) ──────────────────────────────────────────
@@ -352,6 +363,25 @@ interface SourceRepository
      * @return int Translations written.
      */
     public function applyTranslationToRefs(array $refs, string $langCode, string $text, int $status, bool $overwrite): int;
+
+    /**
+     * Copy every translation that exists in $fromLang but is missing in
+     * $toLang, across every content table, marked needs_review — a
+     * sibling-region translation should get a quick human check before
+     * being treated as final. Existing $toLang translations are never
+     * touched or overwritten.
+     *
+     * @return int rows inserted
+     */
+    public function copyFallbackTranslations(string $fromLang, string $toLang): int;
+
+    /**
+     * Whether $fromLang has at least one translation that $toLang is missing —
+     * the "is there anything to copy" check behind the rail's "Use fallback
+     * translation" button, without actually running the copy. Short-circuits
+     * across content tables on the first hit.
+     */
+    public function hasFallbackTranslationsToCopy(string $fromLang, string $toLang): bool;
 
     /** Mark a parent ignored (status -1) AND delete its child(ren) across languages. */
     public function ignoreSource(SourceRef $ref): void;

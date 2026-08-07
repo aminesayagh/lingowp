@@ -313,7 +313,7 @@ class Plugin
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
-        $collectionBoard   = new CollectionBoard($sourceRepository);
+        $collectionBoard   = new CollectionBoard($sourceRepository, $languageRegistry);
         (new CollectionsRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
         (new TranslationRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
 

@@ -5,6 +5,7 @@ namespace TransLangs\Board;
 use TransLangs\Shared\Source\Type\HtmlSource;
 use TransLangs\Shared\Source\TranslatableMetaKeys;
 use TransLangs\Database\Repository\SourceRepository;
+use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
 
@@ -19,7 +20,7 @@ use TransLangs\Shared\Source\TranslationStatus;
  */
 final class CollectionBoard
 {
-    public function __construct(private SourceRepository $repo) {}
+    public function __construct(private SourceRepository $repo, private LanguageRegistry $languages) {}
 
     /**
      * Every collection group for a language + search term (Site settings first,
@@ -173,24 +174,35 @@ final class CollectionBoard
     }
 
     /** Text units of one collection for the selected language. */
-    /** Text units of one collection, or null if `$id` doesn't resolve to a known collection. */
-    public function collectionTexts(string $id, string $lang, string $search, array $filters = []): ?array
+    /**
+     * Text units of one collection, or null if `$id` doesn't resolve to a known
+     * collection. `$withFallback` walks the language's fallback_language chain
+     * to fill the 'fallback' field with an intermediate language's translation
+     * instead of the raw source text — skip it (false) when the caller only
+     * reads status/ids (summaryFor(), unitAndSummaryFor(), text-order), so a
+     * save or a cross-group nav doesn't pay for fallback queries nobody reads.
+     */
+    public function collectionTexts(string $id, string $lang, string $search, array $filters = [], bool $withFallback = true): ?array
     {
         if ($id === 'option:site') {
             $optionPreview = ['preview_url' => admin_url('options-general.php'), 'preview_target' => 'admin'];
+            $rows          = $this->repo->listOptionTexts($lang, $search, $filters);
+            $fallbacks     = $withFallback ? $this->fallbacksByHash('tl_option', $rows, $lang) : [];
             return array_map(
-                fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name']) + $optionPreview,
-                $this->repo->listOptionTexts($lang, $search, $filters)
+                fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name'], $fallbacks[$r['original_hash']] ?? null) + $optionPreview,
+                $rows
             );
         }
 
         if ($id === 'html:all') {
+            $rows      = $this->repo->listHtmlTexts($lang, $search, $filters);
+            $fallbacks = $withFallback ? $this->fallbacksByHash('tl_html', $rows, $lang) : [];
             return array_map(
-                fn (array $r): array => $this->presentText('html', $r, (string) $r['field']) + [
+                fn (array $r): array => $this->presentText('html', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null) + [
                     'preview_url'    => $this->htmlPreviewUrl($r['source_url'] ?? null, $lang),
                     'preview_target' => 'frontend',
                 ],
-                $this->repo->listHtmlTexts($lang, $search, $filters)
+                $rows
             );
         }
 
@@ -214,39 +226,49 @@ final class CollectionBoard
                     'preview_target' => 'frontend',
                 ];
             }
-            $posts = array_map(
-                fn (array $r): array => $this->presentText('post', $r, (string) $r['field']) + $preview,
-                $this->repo->listPostTexts($postId, $lang, $search, $filters)
+            $postRows      = $this->repo->listPostTexts($postId, $lang, $search, $filters);
+            $postFallbacks = $withFallback ? $this->fallbacksByHash('tl_post', $postRows, $lang) : [];
+            $posts         = array_map(
+                fn (array $r): array => $this->presentText('post', $r, (string) $r['field'], $postFallbacks[$r['original_hash']] ?? null) + $preview,
+                $postRows
             );
-            $metas = array_map(
-                fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']) + $preview,
-                $this->repo->listMetaTexts($postId, $lang, $search, $filters)
+            $metaRows      = $this->repo->listMetaTexts($postId, $lang, $search, $filters);
+            $metaFallbacks = $withFallback ? $this->fallbacksByParentId($metaRows, $lang) : [];
+            $metas         = array_map(
+                fn (array $r): array => $this->presentText('meta', $r, (string) $r['field'], $metaFallbacks[(int) $r['id']] ?? null) + $preview,
+                $metaRows
             );
             return array_merge($posts, $metas);
         }
 
         if ($id === 'media:all') {
-            $posts = array_map(
-                fn (array $r): array => $this->presentText('post', $r, (string) $r['field']) + $this->mediaPreview($r),
-                $this->repo->listMediaPostTexts($lang, $search, $filters)
+            $postRows      = $this->repo->listMediaPostTexts($lang, $search, $filters);
+            $postFallbacks = $withFallback ? $this->fallbacksByHash('tl_post', $postRows, $lang) : [];
+            $posts         = array_map(
+                fn (array $r): array => $this->presentText('post', $r, (string) $r['field'], $postFallbacks[$r['original_hash']] ?? null) + $this->mediaPreview($r),
+                $postRows
             );
-            $alts = array_map(
-                fn (array $r): array => $this->presentText('meta', $r, (string) $r['field']) + $this->mediaPreview($r),
-                $this->repo->listMediaAltTexts($lang, $search, $filters)
+            $altRows       = $this->repo->listMediaAltTexts($lang, $search, $filters);
+            $altFallbacks  = $withFallback ? $this->fallbacksByParentId($altRows, $lang) : [];
+            $alts          = array_map(
+                fn (array $r): array => $this->presentText('meta', $r, (string) $r['field'], $altFallbacks[(int) $r['id']] ?? null) + $this->mediaPreview($r),
+                $altRows
             );
             return array_merge($posts, $alts);
         }
 
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
-            $taxonomy = $m[1];
+            $taxonomy  = $m[1];
+            $rows      = $this->repo->listTaxonomyTexts($taxonomy, $lang, $search, $filters);
+            $fallbacks = $withFallback ? $this->fallbacksByHash('tl_term', $rows, $lang) : [];
             return array_map(
-                fn (array $r): array => $this->presentText('term', $r, (string) $r['field']) + [
+                fn (array $r): array => $this->presentText('term', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null) + [
                     'preview_url'    => admin_url(
                         'term.php?taxonomy=' . urlencode($taxonomy) . '&tag_ID=' . (int) $r['term_id']
                     ),
                     'preview_target' => 'admin',
                 ],
-                $this->repo->listTaxonomyTexts($taxonomy, $lang, $search, $filters)
+                $rows
             );
         }
 
@@ -262,7 +284,7 @@ final class CollectionBoard
      */
     public function summaryFor(string $id, string $lang): ?array
     {
-        $texts = $this->collectionTexts($id, $lang, '');
+        $texts = $this->collectionTexts($id, $lang, '', [], false);
         if ($texts === null) {
             return null;
         }
@@ -292,7 +314,7 @@ final class CollectionBoard
      */
     public function unitAndSummaryFor(string $id, string $lang, string $refFormatted): array
     {
-        $texts = $this->collectionTexts($id, $lang, '');
+        $texts = $this->collectionTexts($id, $lang, '', [], false);
         if ($texts === null) {
             return ['unit' => null, 'summary' => null];
         }
@@ -382,7 +404,7 @@ final class CollectionBoard
     }
 
     /** Shape one text unit for the board, deriving the UI status from schema state. */
-    public function presentText(string $kind, array $row, string $field): array
+    public function presentText(string $kind, array $row, string $field, ?string $fallbackText = null): array
     {
         $translated = $row['translated_text'];
         $status     = $row['status'];
@@ -407,8 +429,9 @@ final class CollectionBoard
             'seo_field'     => TranslatableMetaKeys::seoFieldType($field),
             'original'      => $original,
             'translated'    => $translated,
-            // Fallback shows the source text; fallback-language lookup is not implemented yet.
-            'fallback'      => $original,
+            // Falls back through the language's fallback_language chain (see
+            // fallbacksByHash()/fallbacksByParentId()) before showing the source text.
+            'fallback'      => $fallbackText ?? $original,
             'status'        => $statusLabel,
             'origin'        => $translated === null ? null : ($provider !== null ? 'ai' : 'manual'),
             'is_ai'         => $isAi,
@@ -421,6 +444,76 @@ final class CollectionBoard
             // text after a save, instead of only the one just edited.
             'original_hash' => $row['original_hash'] ?? null,
         ];
+    }
+
+    /**
+     * Batched fallback lookup for hash-link kinds (post/term/html/option),
+     * walking the language's fallback_language chain one hop at a time —
+     * same narrowing-remaining-set shape as StructuredRenderResolver's render
+     * path — so an N-row collection costs at most one query per chain hop,
+     * not one per row.
+     *
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<string,string> hex(original_hash) => translated_text
+     */
+    private function fallbacksByHash(string $tableKey, array $rows, string $lang): array
+    {
+        $pending = [];
+        foreach ($rows as $r) {
+            if ($r['translated_text'] === null && ! empty($r['original_hash'])) {
+                $pending[(string) $r['original_hash']] = true;
+            }
+        }
+
+        $resolved = [];
+        foreach ($this->languages->fallbackChain($lang) as $fallbackLang) {
+            if ($pending === []) {
+                break;
+            }
+            $hashes = array_map('hex2bin', array_keys($pending));
+            foreach ($this->repo->fetchHashTranslations($tableKey, $hashes, $fallbackLang) as $hex => $text) {
+                if ($text !== null && isset($pending[$hex])) {
+                    $resolved[$hex] = $text;
+                    unset($pending[$hex]);
+                }
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Fallback lookup for the meta kind: tl_meta_translation has no
+     * original_hash (meta is never hash-shared), so this walks the chain by
+     * parent id instead — same narrowing/stop-once-resolved shape as
+     * fallbacksByHash().
+     *
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,string> row id => translated_text
+     */
+    private function fallbacksByParentId(array $rows, string $lang): array
+    {
+        $pending = [];
+        foreach ($rows as $r) {
+            if ($r['translated_text'] === null) {
+                $pending[(int) $r['id']] = true;
+            }
+        }
+
+        $resolved = [];
+        foreach ($this->languages->fallbackChain($lang) as $fallbackLang) {
+            if ($pending === []) {
+                break;
+            }
+            foreach ($this->repo->fetchTranslationsByParentIds(array_keys($pending), $fallbackLang) as $id => $text) {
+                if ($text !== null && isset($pending[$id])) {
+                    $resolved[$id] = $text;
+                    unset($pending[$id]);
+                }
+            }
+        }
+
+        return $resolved;
     }
 
     /**

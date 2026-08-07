@@ -235,6 +235,34 @@ final class WpDbSourceRepository implements SourceRepository
         return $out;
     }
 
+    public function fetchTranslationsByParentIds(array $parentIds, string $langCode): array
+    {
+        if ($parentIds === [] || $langCode === '') {
+            return [];
+        }
+
+        $child = $this->parent('tl_meta') . '_translation';
+        $out   = [];
+
+        foreach (array_chunk(array_values($parentIds), self::SELECT_CHUNK) as $chunk) {
+            $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
+            $args         = array_merge([$langCode], $chunk);
+
+            $sql = "SELECT parent_id, translated_text
+                    FROM {$child}
+                    WHERE lang_code = %s
+                      AND parent_id IN ({$placeholders})";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+            foreach ((array) $rows as $row) {
+                $out[(int) $row['parent_id']] = (string) $row['translated_text'];
+            }
+        }
+
+        return $out;
+    }
+
     // ── board reads (admin dashboard) — delegated to WpDbBoardQueries ───────────
     // Same interface contract, same tables; split out because this class had
     // grown to mix write persistence with board-shaped read/presentation logic.
@@ -698,6 +726,83 @@ final class WpDbSourceRepository implements SourceRepository
         }
 
         return $applied;
+    }
+
+    public function copyFallbackTranslations(string $fromLang, string $toLang): int
+    {
+        if ($fromLang === '' || $toLang === '' || $fromLang === $toLang) {
+            return 0;
+        }
+
+        $now   = current_time('mysql');
+        $count = 0;
+
+        foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
+            $child = $this->parent($tableKey) . '_translation';
+            $sql   = "INSERT IGNORE INTO {$child}
+                        (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
+                    SELECT original_hash, %s, translated_text, %d, provider, %s, %s
+                    FROM {$child} WHERE lang_code = %s";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $result = $this->wpdb->query($this->wpdb->prepare(
+                $sql,
+                $toLang,
+                TranslationStatus::NEEDS_REVIEW,
+                $now,
+                $now,
+                $fromLang
+            ));
+            $count += max(0, (int) $result);
+        }
+
+        $metaChild = $this->parent('tl_meta') . '_translation';
+        $sql       = "INSERT IGNORE INTO {$metaChild}
+                    (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
+                SELECT parent_id, %s, translated_text, %d, provider, %s, %s
+                FROM {$metaChild} WHERE lang_code = %s";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $result = $this->wpdb->query($this->wpdb->prepare(
+            $sql,
+            $toLang,
+            TranslationStatus::NEEDS_REVIEW,
+            $now,
+            $now,
+            $fromLang
+        ));
+        $count += max(0, (int) $result);
+
+        return $count;
+    }
+
+    public function hasFallbackTranslationsToCopy(string $fromLang, string $toLang): bool
+    {
+        if ($fromLang === '' || $toLang === '' || $fromLang === $toLang) {
+            return false;
+        }
+
+        foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
+            $child = $this->parent($tableKey) . '_translation';
+            $sql   = "SELECT 1 FROM {$child} t1
+                    LEFT JOIN {$child} t2 ON t2.original_hash = t1.original_hash AND t2.lang_code = %s
+                    WHERE t1.lang_code = %s AND t2.id IS NULL
+                    LIMIT 1";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            if ($this->wpdb->get_var($this->wpdb->prepare($sql, $toLang, $fromLang)) !== null) {
+                return true;
+            }
+        }
+
+        $metaChild = $this->parent('tl_meta') . '_translation';
+        $sql       = "SELECT 1 FROM {$metaChild} t1
+                LEFT JOIN {$metaChild} t2 ON t2.parent_id = t1.parent_id AND t2.lang_code = %s
+                WHERE t1.lang_code = %s AND t2.id IS NULL
+                LIMIT 1";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        return $this->wpdb->get_var($this->wpdb->prepare($sql, $toLang, $fromLang)) !== null;
     }
 
     /**

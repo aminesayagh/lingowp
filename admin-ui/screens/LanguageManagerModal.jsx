@@ -111,7 +111,7 @@ export default function LanguageManagerModal({ open, languages, catalog, default
 		}
 		onConfirm({
 			title: `Publish ${lang.display_name || lang.name || lang.code} at ${percent}% translated?`,
-			body: 'Visitors will see untranslated content in its fallback until translation is complete. You can keep translating after publishing.',
+			body: 'Some pages are not fully translated yet. Publishing now may cause search engines to index fallback content in the wrong language, which could affect your SEO. You can continue translating after publishing.',
 			actionLabel: 'Publish anyway',
 			onConfirm: () => patchStatus(lang.code, 'active'),
 		});
@@ -270,6 +270,10 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 			})),
 	];
 	const defaultLanguage = catalogItems.find((item) => item.locale === defaultCode);
+	// Edit-only (see the form below): creation picks this automatically via
+	// smartFallback() below, with no field shown, so it never interrupts adding
+	// a language — this list exists only to let an already-added language's
+	// fallback be reviewed or overridden afterward.
 	const fallbackChoices = [
 		{ label: 'None', value: '' },
 		{
@@ -297,6 +301,20 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 		setDirection('ltr');
 	}
 
+	// A same-base-language sibling is a better fallback than the site default
+	// (e.g. fr_CA should fall back to fr_FR, not the English source) — the
+	// default only wins when it's itself that same base language, since it's
+	// guaranteed complete. Picks the earliest-added sibling when several exist.
+	function smartFallback(baseLanguage) {
+		if (defaultLanguage?.language === baseLanguage) {
+			return defaultCode;
+		}
+		const sibling = existing.find(
+			(siblingCode) => catalogItems.find((item) => item.locale === siblingCode)?.language === baseLanguage
+		);
+		return sibling || defaultCode;
+	}
+
 	function pickLocale(value) {
 		const choice = catalogItems.find((item) => item.locale === value);
 		if (!choice || localeUnavailable(value)) {
@@ -306,6 +324,7 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 		setDisplayName(`${choice.language_name} (${regionLabel(choice)})`);
 		setDirection(choice.direction || 'ltr');
 		setSlug(localeSlug(value));
+		setFallback(smartFallback(choice.language));
 	}
 
 	async function submit() {
@@ -399,14 +418,16 @@ function LanguageForm({ mode, current, catalog, catalogError = false, onCatalogR
 					disabled={isNew && !code}
 				/>
 				<TextField label="URL slug" requiredIndicator value={slug} onChange={setSlug} autoComplete="off" />
-				<SearchableLanguageSelect
-					label="Fallback language"
-					requiredIndicator
-					options={fallbackChoices}
-					value={fallback}
-					onChange={setFallback}
-					placeholder="Search fallback languages"
-				/>
+				{!isNew && (
+					<SearchableLanguageSelect
+						label="Fallback language"
+						requiredIndicator
+						options={fallbackChoices}
+						value={fallback}
+						onChange={setFallback}
+						placeholder="Search fallback languages"
+					/>
+				)}
 			</BlockStack>
 
 			<Divider />

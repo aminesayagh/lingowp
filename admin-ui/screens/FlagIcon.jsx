@@ -52,7 +52,7 @@ export function FlagIcon({ src, size = 16, grayscale = false }) {
         borderRadius: 2,
         objectFit: "cover",
         flexShrink: 0,
-        filter: grayscale ? "grayscale(1)" : undefined,
+        filter: grayscale ? "grayscale(0.8)" : undefined,
       }}
     />
   );

@@ -10,12 +10,16 @@
  *   3. The simpler tl_html/tl_option "+=" merge used by
  *      PublicRenderPipeline::pageOutputTranslations() and OptionResolver::map().
  *   4. LanguageRestController's fallback_language write guard.
+ *   5. CollectionBoard::collectionTexts()'s 'fallback' field — the admin board
+ *      preview, which used to hardcode the raw source text regardless of
+ *      fallback_language.
  *
  * Run: wp eval-file tests/db/fallback_language_it.php
  */
 
 require __DIR__ . '/_harness.php';
 
+use TransLangs\Board\CollectionBoard;
 use TransLangs\Language\LanguageRestController;
 use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Database\Repository\WpDbBoardQueries;
@@ -186,5 +190,125 @@ $valid->set_url_params(['code' => 'qq_QQ']);
 $valid->set_param('fallback_language', $default);
 $res = $controller->update($valid);
 tl_ok('the default language is accepted as a fallback', ($res->get_data()['ok'] ?? false) === true, json_encode($res->get_data()));
+
+// ── 5. Admin board: CollectionBoard::collectionTexts() 'fallback' field ─────
+// Reuses the .tltest-fallback-block fixture from section 3: zz_ZZ has no
+// translation for it at all, and its chain is zz_ZZ -> qq_QQ -> (default) —
+// the board's 'fallback' field should surface qq_QQ's translation, not the
+// raw source text it used to hardcode.
+
+tl_section('CollectionBoard fallback field (admin board):');
+
+$board    = new CollectionBoard($repo, $registry);
+$boardRows = $board->collectionTexts('html:all', 'zz_ZZ', '') ?? [];
+$boardRow  = null;
+foreach ($boardRows as $r) {
+    if ($r['id'] === SourceRef::make('html', $htmlId)->format()) {
+        $boardRow = $r;
+        break;
+    }
+}
+tl_ok('fixture html row found in zz_ZZ board', $boardRow !== null, 'row=' . json_encode($boardRow));
+tl_ok(
+    "board 'fallback' field resolves through the chain, not the raw source text",
+    ($boardRow['fallback'] ?? null) === 'HTML TLTEST QQ',
+    'got ' . json_encode($boardRow['fallback'] ?? null)
+);
+
+// ── 6. "Use fallback translation": LanguageRestController::useFallback() ────
+// A dedicated same-base-language pair (zz_AA -> zz_BB), independent of the
+// cross-language zz_ZZ/qq_QQ pair above — useFallback() must accept this one
+// and reject that one.
+
+tl_section('useFallback() bulk-copy:');
+
+$store->save(['code' => 'zz_AA', 'fallback_language' => '']);
+$store->save(['code' => 'zz_BB', 'fallback_language' => 'zz_AA']);
+
+$repo->upsertSources([new HtmlSource('.tltest-usefallback-block', null, 'TLTEST UseFallback Html')]);
+$ufHashHex = strtolower(bin2hex(TL_Key::currentHash('TLTEST UseFallback Html')));
+$ufId      = (int) tl_var(
+    "SELECT id FROM {$htmlTable} WHERE original_hash = UNHEX(%s) AND status = %d",
+    $ufHashHex,
+    $discovered
+);
+tl_ok('use-fallback fixture html row found', $ufId > 0, "id=$ufId");
+$repo->saveTranslation(SourceRef::make('html', $ufId), 'zz_AA', 'UseFallback TLTEST AA', TranslationStatus::MACHINE, 'test');
+
+tl_ok(
+    'hasFallbackTranslationsToCopy() sees the new fixture before copying',
+    $repo->hasFallbackTranslationsToCopy('zz_AA', 'zz_BB') === true,
+    'expected true'
+);
+
+$indexBefore   = $controller->index()->get_data();
+$zzBbBefore    = null;
+foreach ($indexBefore['languages'] as $l) {
+    if ($l['code'] === 'zz_BB') {
+        $zzBbBefore = $l;
+        break;
+    }
+}
+tl_ok(
+    "index()'s fallback_ready is true before copying",
+    ($zzBbBefore['fallback_ready'] ?? null) === true,
+    json_encode($zzBbBefore)
+);
+
+$useFallbackReq = new WP_REST_Request('POST', '/translangs/v1/languages/zz_BB/use-fallback');
+$useFallbackReq->set_url_params(['code' => 'zz_BB']);
+$res = $controller->useFallback($useFallbackReq);
+tl_ok(
+    'same-base-language fallback copies at least the new fixture',
+    ($res->get_data()['ok'] ?? false) === true && ($res->get_data()['copied'] ?? 0) >= 1,
+    json_encode($res->get_data())
+);
+
+$copiedText = $repo->fetchHashTranslations('tl_html', [TL_Key::currentHash('TLTEST UseFallback Html')], 'zz_BB')[$ufHashHex] ?? null;
+tl_ok('zz_BB now has zz_AA\'s translation', $copiedText === 'UseFallback TLTEST AA', 'got ' . json_encode($copiedText));
+
+$childTable = $htmlTable . '_translation';
+$copiedStatus = (int) tl_var(
+    "SELECT status FROM {$childTable} WHERE lang_code = %s AND original_hash = UNHEX(%s)",
+    'zz_BB',
+    $ufHashHex
+);
+tl_ok('copied translation is marked needs_review', $copiedStatus === TranslationStatus::NEEDS_REVIEW, "status=$copiedStatus");
+
+$resAgain = $controller->useFallback($useFallbackReq);
+tl_ok(
+    're-running is a no-op (INSERT IGNORE, no duplicate)',
+    ($resAgain->get_data()['ok'] ?? false) === true && ($resAgain->get_data()['copied'] ?? -1) === 0,
+    json_encode($resAgain->get_data())
+);
+
+tl_ok(
+    'hasFallbackTranslationsToCopy() is false once everything is copied',
+    $repo->hasFallbackTranslationsToCopy('zz_AA', 'zz_BB') === false,
+    'expected false'
+);
+
+$indexAfter = $controller->index()->get_data();
+$zzBbAfter  = null;
+foreach ($indexAfter['languages'] as $l) {
+    if ($l['code'] === 'zz_BB') {
+        $zzBbAfter = $l;
+        break;
+    }
+}
+tl_ok(
+    "index()'s fallback_ready flips to false with nothing left to copy — this is what disables the rail button",
+    ($zzBbAfter['fallback_ready'] ?? null) === false,
+    json_encode($zzBbAfter)
+);
+
+$crossLangReq = new WP_REST_Request('POST', '/translangs/v1/languages/zz_ZZ/use-fallback');
+$crossLangReq->set_url_params(['code' => 'zz_ZZ']);
+$crossLangRes = $controller->useFallback($crossLangReq);
+tl_ok(
+    "a cross-language fallback (zz_ZZ -> qq_QQ) is rejected server-side, even though it's a valid fallback_language value",
+    ($crossLangRes->get_data()['error'] ?? null) === 'ERR_NO_FALLBACK',
+    json_encode($crossLangRes->get_data())
+);
 
 tl_done();

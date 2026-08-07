@@ -239,7 +239,7 @@ final class CollectionsRestController
 
         $groups = [];
         foreach ($collections as $c) {
-            $ids = array_column($this->board->collectionTexts($c['id'], $lang, $search, $filters) ?? [], 'id');
+            $ids = array_column($this->board->collectionTexts($c['id'], $lang, $search, $filters, false) ?? [], 'id');
             if ($ids === []) {
                 continue;
             }

@@ -88,15 +88,19 @@ export function AnimatedMenu( { open, onClose, activator, children } ) {
 // One language row: flag + name, % on the right that swaps to a ⋯ menu on hover.
 // Every action is optional — only handlers that are passed produce a menu item, so
 // the same row works in the dashboard rail and inside the language manager.
-export function LanguageRow( { lang, selected, percent, showProgress, aiAvailable, onSelect, onEdit, onToggleStatus, onTranslateAll, onDelete } ) {
+export function LanguageRow( { lang, selected, percent, showProgress, aiAvailable, onSelect, onEdit, onToggleStatus, onTranslateAll, onUseFallback, onDelete } ) {
 	const [ hover, setHover ] = useState( false );
 	const [ menuOpen, setMenuOpen ] = useState( false );
-	const name = ( lang.display_name || lang.name || lang.code ) + ( lang.enabled ? '' : ' (Draft)' );
+	const name = ( lang.display_name || lang.name || lang.code ).trim() || lang.code;
 
 	const items = [
 		onEdit && { content: 'Settings', onAction: () => { setMenuOpen( false ); onEdit(); } },
 		onToggleStatus && { content: lang.enabled ? 'Set to draft' : 'Publish', onAction: () => { setMenuOpen( false ); onToggleStatus(); } },
 		onTranslateAll && percent < 100 && { content: 'Translate All', disabled: ! aiAvailable, onAction: () => { setMenuOpen( false ); onTranslateAll(); } },
+		// fallback_ready (from GET /languages) is true only when the fallback
+		// shares the base language AND actually has something this language is
+		// missing — a same-base pointer with nothing new to offer stays disabled too.
+		onUseFallback && { content: 'Use fallback translation', disabled: ! lang.fallback_ready, onAction: () => { setMenuOpen( false ); onUseFallback(); } },
 		onDelete && { content: 'Delete', destructive: true, onAction: () => { setMenuOpen( false ); onDelete(); } },
 	].filter( Boolean );
 
@@ -157,6 +161,7 @@ export default function LanguageList( {
 	onEdit,
 	onToggleStatus,
 	onTranslateAll,
+	onUseFallback,
 	onDelete,
 	onAdd,
 	addLabel = '+ Add language',
@@ -177,6 +182,7 @@ export default function LanguageList( {
 						onEdit={ onEdit ? () => onEdit( lang ) : undefined }
 						onToggleStatus={ onToggleStatus ? () => onToggleStatus( lang ) : undefined }
 						onTranslateAll={ onTranslateAll ? () => onTranslateAll( lang ) : undefined }
+						onUseFallback={ onUseFallback ? () => onUseFallback( lang ) : undefined }
 						onDelete={ onDelete ? () => onDelete( lang ) : undefined }
 					/>
 				) ) }

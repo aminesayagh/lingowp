@@ -55,6 +55,16 @@ final class TranslationRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
+        // An empty (or whitespace-only) submission is someone clearing the field,
+        // not a confirmed empty translation — treat it as Clear rather than
+        // saving "" as reviewed (the structure guard below has nothing to check
+        // against an empty string anyway for plain, marker-free text).
+        if (trim($text) === '') {
+            $this->repo->deleteTranslation($ref, $lang);
+
+            return rest_ensure_response(['ok' => true] + $this->boardPatch($request, $lang, $ref));
+        }
+
         $context = $this->repo->loadSourceValidationContext($ref);
         $errors  = TranslationSubmissionGuard::validate(
             $context['text'] ?? '',

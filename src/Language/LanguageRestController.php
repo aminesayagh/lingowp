@@ -42,6 +42,7 @@ final class LanguageRestController
         register_rest_route(self::NS, '/languages/catalog', ['methods' => 'GET', 'callback' => [$this, 'catalog']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
+        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)/use-fallback', ['methods' => 'POST', 'callback' => [$this, 'useFallback']] + $guard);
     }
 
     public function canManage(): bool
@@ -64,6 +65,14 @@ final class LanguageRestController
             $entry['translated_percent'] = $progress['total'] > 0
                 ? (int) round($progress['translated'] / $progress['total'] * 100)
                 : 100;
+
+            // Backs the rail's "Use fallback translation" button: only ready when
+            // the fallback shares the base language (cheap check first) AND it
+            // actually has at least one translation this language is missing.
+            $fallback               = (string) ($entry['fallback_language'] ?? '');
+            $entry['fallback_ready'] = $fallback !== ''
+                && LocaleNormalizer::language($fallback) === LocaleNormalizer::language($code)
+                && $this->repo->hasFallbackTranslationsToCopy($fallback, $code);
 
             $languages[] = $entry;
         }
@@ -247,6 +256,31 @@ final class LanguageRestController
         do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
 
         return rest_ensure_response(['ok' => true]);
+    }
+
+    /**
+     * Bulk-copy every translation the configured fallback_language already has
+     * into $code wherever $code is missing one (never overwrites), so a
+     * newly-added regional variant doesn't start from zero. Re-validates the
+     * same-base-language condition server-side — the UI only disables the
+     * button for a cross-language fallback, it doesn't prevent the request.
+     */
+    public function useFallback(WP_REST_Request $request): WP_REST_Response
+    {
+        $code  = LocaleNormalizer::normalize((string) $request->get_param('code'));
+        $entry = $code === '' ? null : $this->store->get($code);
+        if ($entry === null) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_NOT_FOUND'], 404);
+        }
+
+        $fallback = (string) ($entry['fallback_language'] ?? '');
+        if ($fallback === '' || LocaleNormalizer::language($fallback) !== LocaleNormalizer::language($code)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_NO_FALLBACK'], 400);
+        }
+
+        $copied = $this->repo->copyFallbackTranslations($fallback, $code);
+
+        return rest_ensure_response(['ok' => true, 'copied' => $copied]);
     }
 
     /** A fallback is valid if empty, or if it points at the default language or an already-added one, and not at itself. */

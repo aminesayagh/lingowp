@@ -418,9 +418,45 @@ export default function Dashboard({
     }
     setConfirm({
       title: `Publish ${lang.display_name || lang.name || lang.code} at ${percent}% translated?`,
-      body: "Visitors will see untranslated content in its fallback until translation is complete. You can keep translating after publishing.",
+      body: "Some pages are not fully translated yet. Publishing now may cause search engines to index fallback content in the wrong language, which could affect your SEO. You can continue translating after publishing.",
       actionLabel: "Publish anyway",
       onConfirm: () => patchLangStatus(lang.code, "active"),
+    });
+  }
+
+  // Rail "Use fallback translation": bulk-copy the fallback language's existing
+  // translations into every text this language is missing (marked Needs
+  // review). LanguageList only enables this when the fallback shares the same
+  // base language, but the backend re-validates it too.
+  function useFallbackTranslation(lang) {
+    setSelectedLang(lang.code);
+    const fb = languages.find((l) => l.code === lang.fallback_language);
+    const fbLabel = fb ? fb.display_name || fb.name || fb.code : lang.fallback_language;
+    setConfirm({
+      title: `Use ${fbLabel} translations for ${lang.display_name || lang.name || lang.code
+        }?`,
+      body: "Fills in every text this language is missing using its fallback language's existing translations, marked as Needs review. Existing translations are never overwritten.",
+      actionLabel: "Use fallback translation",
+      onConfirm: async () => {
+        const res = await api.post(`/languages/${enc(lang.code)}/use-fallback`);
+        if (!res.ok) {
+          setNotice({
+            tone: "critical",
+            content: "Could not copy fallback translations. Please try again.",
+          });
+          return;
+        }
+        setNotice({
+          tone: "success",
+          content: `Copied ${res.copied} translation${res.copied === 1 ? "" : "s"
+            } from ${fbLabel}.`,
+        });
+        invalidateCollections();
+        queryClient.invalidateQueries({
+          predicate: (q) => q.queryKey[0] === "texts" && q.queryKey[2] === lang.code,
+        });
+        refreshLanguages(); // rail percentages changed
+      },
     });
   }
 
@@ -1102,6 +1138,7 @@ export default function Dashboard({
                       onEdit={(lang) => openManager(lang.code)}
                       onToggleStatus={togglePublishStatus}
                       onTranslateAll={(lang) => translateLanguageAll(lang)}
+                      onUseFallback={(lang) => useFallbackTranslation(lang)}
                       onDelete={(lang) => confirmDeleteLang(lang)}
                       onAdd={() => openManager(null)}
                     />
