@@ -18,6 +18,14 @@ const languageLabel = ( item ) => {
 	return native && native !== english ? `${ english } — ${ native }` : english
 }
 
+// Toast tone → colors, same tokens Dashboard.jsx uses for its bottom toast.
+const TOAST_TONE_STYLE = {
+	warning: {
+		background: 'var(--p-color-bg-fill-caution)',
+		color: 'var(--p-color-text-caution-on-bg-fill)',
+	},
+}
+
 export default function GeneralConfiguration( { defaultLanguage } ) {
 	const [ prefix, setPrefix ] = useState( false )
 	const [ cookie, setCookie ] = useState( true )
@@ -26,12 +34,32 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 	const [ catalog, setCatalog ] = useState( [] )
 	const [ currentLocale, setCurrentLocale ] = useState( defaultLanguage )
 	const [ selectedLocale, setSelectedLocale ] = useState( defaultLanguage )
+	const [ currentSlug, setCurrentSlug ] = useState( '' )
 	const [ loading, setLoading ] = useState( true )
 	const [ loadFailed, setLoadFailed ] = useState( false )
 	const [ reload, setReload ] = useState( 0 )
 	const [ saving, setSaving ] = useState( false )
 	const [ notice, setNotice ] = useState( null )
 	const [ confirmingLanguage, setConfirmingLanguage ] = useState( false )
+	// The site already has a live URL structure (onboarding is long done), so any
+	// move away from the loaded prefix value changes real, indexed URLs.
+	const [ initialPrefix, setInitialPrefix ] = useState( false )
+	const [ prefixToast, setPrefixToast ] = useState( null )
+
+	function handlePrefixChange( value ) {
+		setPrefix( value )
+		if ( value === initialPrefix ) {
+			setPrefixToast( null )
+			return
+		}
+		const slug = currentSlug || 'en'
+		setPrefixToast( {
+			tone: 'warning',
+			content: value
+				? `This will change existing URLs: /about/ will become /${ slug }/about/, which may temporarily affect search indexing.`
+				: `This will change existing URLs: /${ slug }/about/ will become /about/, which may temporarily affect search indexing.`,
+		} )
+	}
 
 	useEffect( () => {
 		let active = true
@@ -58,12 +86,15 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 			const locale = stateRes.default_language?.code || defaultLanguage
 			const items = catalogRes.catalog
 			setPrefix( !! settings.prefix_default_language )
+			setInitialPrefix( !! settings.prefix_default_language )
+			setPrefixToast( null )
 			setCookie( !! settings.cookie_preference )
 			setBrowser( !! settings.browser_detection )
 			setAutoRedirect( !! settings.auto_redirect )
 			setCatalog( items )
 			setCurrentLocale( locale )
 			setSelectedLocale( locale )
+			setCurrentSlug( stateRes.default_language_slug || '' )
 			setLoading( false )
 		} )
 
@@ -114,6 +145,8 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 			return
 		}
 		if ( res.ok ) {
+			setInitialPrefix( prefix )
+			setPrefixToast( null )
 			setNotice( { tone: 'success', content: 'Configuration saved.' } )
 			return
 		}
@@ -177,9 +210,13 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 							</Text>
 							<Checkbox
 								label="Prefix default language"
-								helpText="Add /en to source URLs."
+								helpText={ `Add /${
+									currentSlug || 'en'
+								} to default-language URLs. Example: example.com/${
+									currentSlug || 'en'
+								}/about/` }
 								checked={ prefix }
-								onChange={ setPrefix }
+								onChange={ handlePrefixChange }
 							/>
 							<Checkbox
 								label="Cookie preference"
@@ -271,6 +308,30 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 					</>
 				) }
 			</BlockStack>
+
+			{ prefixToast && (
+				<div
+					role="status"
+					aria-live="polite"
+					style={ {
+						position: 'fixed',
+						left: '50%',
+						bottom: '24px',
+						transform: 'translateX(-50%)',
+						zIndex: 999999,
+						padding: '10px 14px',
+						borderRadius: '8px',
+						maxWidth: '420px',
+						textAlign: 'center',
+						boxShadow: 'var(--p-shadow-400)',
+						fontSize: '13px',
+						lineHeight: '20px',
+						...TOAST_TONE_STYLE[ prefixToast.tone ],
+					} }
+				>
+					{ prefixToast.content }
+				</div>
+			) }
 		</div>
 	)
 }

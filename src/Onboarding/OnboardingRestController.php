@@ -22,6 +22,8 @@ use WP_REST_Response;
 final class OnboardingRestController
 {
     private const NS = 'translangs/v1';
+    private const URL_RISK_NEW_SITE_DAYS = 30;
+    private const URL_RISK_SMALL_SITE_MAX_URLS = 20;
 
     public function __construct(
         private BackendClient $backend,
@@ -69,8 +71,18 @@ final class OnboardingRestController
             'ai_available'          => $status['available'],
             'ai_error'              => $status['error'],
             'default_language'      => $this->defaultLanguage(),
+            // The actual URL segment (e.g. "en"), distinct from default_language.code
+            // (the WordPress locale, e.g. "en_US") — this is what the prefix toggle
+            // adds to URLs, via the same lookup LocalizedUrlBuilder uses.
+            'default_language_slug' => $this->languages->slugForLanguage($this->languages->getDefaultLanguage()),
             'settings'              => $this->currentSettings(),
             'has_target_language'   => $this->languages->getTargetLanguages() !== [],
+            // Only meaningful pre-onboarding: Configuration.jsx uses it to seed the
+            // "Prefix default language" checkbox. Skip the post-count/age queries once
+            // onboarding is done — no screen reads this value afterwards.
+            'recommended_prefix_default_language' => $onboardingCompleted
+                ? null
+                : $this->recommendedPrefixDefaultLanguage(),
         ]);
     }
 
@@ -112,6 +124,9 @@ final class OnboardingRestController
         update_option('translangs_cookie_preference', (bool) $request->get_param('cookie_preference'));
         update_option('translangs_browser_detection', $browserDetection);
         update_option('translangs_auto_redirect', $autoRedirect);
+        // The URL structure just went live: freeze it so later visits never
+        // recompute the recommendation from the site's (changing) risk profile.
+        update_option('translangs_url_structure_initialized', true);
 
         // Configuration is the last required user action. Persist completion
         // before starting the scan so navigating to Workspace (or reloading)
@@ -213,6 +228,83 @@ final class OnboardingRestController
             'settings'         => $this->currentSettings(),
             'default_language' => $this->defaultLanguage(),
         ]);
+    }
+
+    /**
+     * Once a URL structure has gone live, preserving it IS the recommendation —
+     * never recompute from the site's current (possibly changed) risk profile.
+     */
+    private function recommendedPrefixDefaultLanguage(): bool
+    {
+        if ((bool) get_option('translangs_url_structure_initialized', false)) {
+            return (bool) get_option('translangs_prefix_default_language', false);
+        }
+
+        return $this->urlChangeRisk() === 'low';
+    }
+
+    /**
+     * Deliberately simple first pass: non-indexable, or new-and-small, sites have
+     * little to lose from a URL change, so prefixing the default language is
+     * recommended there. Everything else is treated as high risk.
+     */
+    private function urlChangeRisk(): string
+    {
+        if (!(bool) get_option('blog_public')) {
+            return 'low';
+        }
+
+        $siteIsNew   = $this->oldestPublicContentAgeDays() < self::URL_RISK_NEW_SITE_DAYS;
+        $siteIsSmall = $this->publishedPublicUrlCount() < self::URL_RISK_SMALL_SITE_MAX_URLS;
+
+        return $siteIsNew && $siteIsSmall ? 'low' : 'high';
+    }
+
+    /** @return string[] Built-in + public custom post types, excluding attachments. */
+    private function publicPostTypes(): array
+    {
+        $builtin = ['post', 'page'];
+
+        if (!function_exists('get_post_types')) {
+            return $builtin;
+        }
+
+        $custom = array_diff(get_post_types(['public' => true], 'names'), $builtin, ['attachment']);
+
+        return array_merge($builtin, array_values($custom));
+    }
+
+    /** Age, in days, of the oldest published post/page/public-CPT entry. No public content yet → 0 (newest possible). */
+    private function oldestPublicContentAgeDays(): int
+    {
+        $oldest = get_posts([
+            'post_type'      => $this->publicPostTypes(),
+            'post_status'    => 'publish',
+            'orderby'        => 'date',
+            'order'          => 'ASC',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        ]);
+
+        if ($oldest === []) {
+            return 0;
+        }
+
+        $publishedGmt = get_post_field('post_date_gmt', $oldest[0]);
+
+        return (int) floor((time() - strtotime($publishedGmt . ' UTC')) / DAY_IN_SECONDS);
+    }
+
+    /** Count of published posts/pages/public-CPT entries. */
+    private function publishedPublicUrlCount(): int
+    {
+        $count = 0;
+        foreach ($this->publicPostTypes() as $postType) {
+            $count += (int) (wp_count_posts($postType)->publish ?? 0);
+        }
+
+        return $count;
     }
 
     /** @return array{code: string, language: string, region: string, name: string, display_name: string, direction: string} */

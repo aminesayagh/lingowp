@@ -125,6 +125,12 @@ export default function App() {
 							>
 								{ view === 'onboarding_configuration' && (
 									<Configuration
+										recommendedPrefixDefaultLanguage={
+											state.recommended_prefix_default_language
+										}
+										defaultLanguageSlug={
+											state.default_language_slug
+										}
 										onDone={ () =>
 											setView( 'onboarding_setting_up' )
 										}

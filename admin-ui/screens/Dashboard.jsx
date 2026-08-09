@@ -37,6 +37,7 @@ import {
 import {
 	CheckIcon,
 	DuplicateIcon,
+	MagicIcon,
 	PageIcon,
 	SettingsIcon,
 } from '@shopify/polaris-icons'
@@ -1532,14 +1533,14 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 									'var(--p-border-radius-300, 12px)',
 							} }
 						>
-							<Box padding="300">
+							<Box padding="200">
 								<BlockStack gap="200">
 									{ /* Line 1: search (left) + AI translate all (right) */ }
 									<div
 										style={ {
 											display: 'flex',
 											alignItems: 'center',
-											gap: 10,
+											gap: 6,
 											minHeight: 32,
 										} }
 									>
@@ -1561,32 +1562,29 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 												}
 											/>
 										</div>
-										<Tooltip content="AI translate all">
-											<Button
-												icon={ ( props ) => (
-													<StartIcon { ...props } />
-												) }
-												variant="tertiary"
-												disabled={ ! ai.available }
-												accessibilityLabel="AI translate all"
-												size="medium"
-												onClick={ () =>
-													setConfirm( {
-														title: 'AI translate all missing text?',
-														body: 'This sends every untranslated text in the selected language to AI translation and may use a large number of words.',
-														actionLabel:
-															'Translate all',
-														onConfirm: () =>
-															translateScope(
-																'language',
-																{
-																	source: board,
-																}
-															),
-													} )
-												}
-											/>
-										</Tooltip>
+										<Button
+											icon={ MagicIcon }
+											variant="secondary"
+											disabled
+											size="large"
+											onClick={ () =>
+												setConfirm( {
+													title: 'AI translate all missing text?',
+													body: 'This sends every untranslated text in the selected language to AI translation and may use a large number of words.',
+													actionLabel:
+														'Translate all',
+													onConfirm: () =>
+														translateScope(
+															'language',
+															{
+																source: board,
+															}
+														),
+												} )
+											}
+										>
+											Translate All
+										</Button>
 									</div>
 									{ /* Line 2: standard Polaris Filters (status) — these all
 									filter the Content board's collections/texts query, which
@@ -1596,7 +1594,7 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 											<Filters
 												hideQueryField
 												filters={ filters }
-												appliedFilters={ appliedFilters }
+												appliedFilters={appliedFilters}
 												onQueryChange={ () => {} }
 												onQueryClear={ () => {} }
 												onClearAll={ clearAllFilters }
