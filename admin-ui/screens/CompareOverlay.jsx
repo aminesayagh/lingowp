@@ -319,7 +319,7 @@ export default function CompareOverlay( {
 								variant="tertiary"
 								icon={ MenuHorizontalIcon }
 								onClick={ () => setMenuOpen( ( o ) => ! o ) }
-								accessibilityLabel="More actions"
+								accessibilityLabel="Preview options"
 							/>
 						}
 					>

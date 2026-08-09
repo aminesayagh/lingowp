@@ -91,9 +91,15 @@ final class GettextDomainRestController
 
         $offset = max(0, (int) $request->get_param('offset'));
         $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
+        $search = trim((string) $request->get_param('search'));
 
-        $rows = [];
+        $rows  = [];
+        $paths = [];
         foreach ($this->components->all() as $domain => $component) {
+            if ($search !== '' && mb_stripos($component['label'], $search) === false && mb_stripos($domain, $search) === false) {
+                continue;
+            }
+
             [$status, $sourceLocale] = $this->reconciledStatus($component['kind'], $domain, $locale);
 
             $rows[] = [
@@ -104,12 +110,26 @@ final class GettextDomainRestController
                 'status'        => $status,
                 'source_locale' => $sourceLocale,
             ];
+            $paths[$domain] = $component['path'];
         }
 
         $total    = count($rows);
         $page     = array_slice($rows, $offset, $limit);
         $returned = count($page);
         $next     = $offset + $returned;
+
+        // Scoped to just the page being returned — scanning every installed
+        // component's source on every request would dwarf the file_exists()
+        // check above, for domains the client may never scroll to.
+        foreach ($page as &$row) {
+            $row['translated_percent'] = $this->translatedPercent(
+                $paths[$row['domain']],
+                $row['type'],
+                $row['domain'],
+                $row['locale']
+            );
+        }
+        unset($row);
 
         return rest_ensure_response([
             'ok'          => true,
@@ -380,6 +400,28 @@ final class GettextDomainRestController
         }
 
         return [$status, $status !== null ? ($stored['source_locale'] ?? null) : null];
+    }
+
+    /** Null when there's no source to scan or nothing translatable in it — the UI hides the badge then. */
+    private function translatedPercent(string $path, string $type, string $domain, string $locale): ?int
+    {
+        if ($path === '') {
+            return null;
+        }
+
+        $units = $this->units->list($path, $type, $domain, $locale);
+        if ($units === null || $units === []) {
+            return null;
+        }
+
+        $translated = 0;
+        foreach ($units as $unit) {
+            if ($unit['msgstr'] !== '') {
+                $translated++;
+            }
+        }
+
+        return (int) round($translated / count($units) * 100);
     }
 
     /** @return array{0: string, 1: ?string} [msgid, context] */

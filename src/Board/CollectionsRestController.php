@@ -37,7 +37,7 @@ final class CollectionsRestController
 
     private const VALID_ORIGINS       = ['manual', 'ai', 'not_translated'];
     private const VALID_CONTENT_TYPES = ['page', 'post', 'cpt', 'taxonomy', 'media', 'site_settings', 'html', 'plugin', 'theme'];
-    private const VALID_TEXT_LENGTHS = ['short', 'medium', 'long'];
+    private const VALID_TEXT_LENGTHS = ['short', 'medium', 'long', 'length_mismatch'];
     private const VALID_PROGRESS     = ['not_started', 'in_progress', 'complete', 'has_review'];
 
     /** Default/maximum page size for `GET /collections`. */

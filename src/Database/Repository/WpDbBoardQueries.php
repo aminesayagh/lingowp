@@ -710,6 +710,13 @@ final class WpDbBoardQueries
                 'short'  => 'CHAR_LENGTH(p.original_text) <= 80',
                 'medium' => '(CHAR_LENGTH(p.original_text) BETWEEN 81 AND 300)',
                 'long'   => 'CHAR_LENGTH(p.original_text) > 300',
+                // Mirrors admin-ui/screens/lengthWarning.mjs: 30% relative threshold
+                // with a 15-char floor, same rule the UI warns on after a translation.
+                'length_mismatch' => '(t.translated_text IS NOT NULL
+                    AND CHAR_LENGTH(p.original_text) > 0
+                    AND CHAR_LENGTH(t.translated_text) > 0
+                    AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text))
+                        > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15))',
             };
         }
         if ($lengthClauses !== []) {

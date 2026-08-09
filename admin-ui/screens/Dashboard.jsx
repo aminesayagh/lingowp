@@ -34,7 +34,12 @@ import {
 	useRef,
 	useState,
 } from '@wordpress/element'
-import { CheckIcon, DuplicateIcon, PageIcon } from '@shopify/polaris-icons'
+import {
+	CheckIcon,
+	DuplicateIcon,
+	PageIcon,
+	SettingsIcon,
+} from '@shopify/polaris-icons'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from '../api'
 import ExportImportModal from './ExportImportModal'
@@ -180,6 +185,8 @@ const TEXT_LENGTH_FILTERS = [
 	{ key: 'short', label: 'Short text' },
 	{ key: 'medium', label: 'Medium text' },
 	{ key: 'long', label: 'Long text' },
+	// Same 30%/15-char rule as the inline length-warning toast (lengthWarning.mjs).
+	{ key: 'length_mismatch', label: 'Length mismatch (30%+)' },
 ]
 const PROGRESS_FILTERS = [
 	{ key: 'not_started', label: 'Not started' },
@@ -1315,118 +1322,177 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 							paddingRight: 4,
 						} }
 					>
-						<BlockStack gap="400">
-							{ /* Brand header — name + logo live here, not in the page header. */ }
-							<InlineStack
-								align="space-between"
-								blockAlign="center"
-								wrap={ false }
-							>
+						<Card>
+							<BlockStack gap="400">
+								{ /* Brand header — name + logo live here, not in the page header. */ }
 								<InlineStack
-									gap="100"
+									align="space-between"
 									blockAlign="center"
 									wrap={ false }
-									style={ { paddingLeft: 4 } }
 								>
-									{ cfg.logo && (
-										<img
-											src={ cfg.logo }
-											alt=""
-											width="24"
-											height="24"
-											className="block"
-										/>
-									) }
-									<Text as="span" variant="headingMd">
-										Translangs
-									</Text>
-								</InlineStack>
-							</InlineStack>
-							<BlockStack gap="200">
-								<Card>
-									<BlockStack gap="200">
-										<Text as="h2" variant="headingSm">
-											Target language
-										</Text>
-										{ languagesLoaded ? (
-											<LanguageList
-												languages={ languages }
-												selectedCode={ selectedLang }
-												aiAvailable={ ai.available }
-												onSelect={ ( lang ) =>
-													setSelectedLang( lang.code )
-												}
-												onEdit={ ( lang ) =>
-													openManager( lang.code )
-												}
-												onToggleStatus={
-													togglePublishStatus
-												}
-												onTranslateAll={ ( lang ) =>
-													translateLanguageAll( lang )
-												}
-												onUseFallback={ ( lang ) =>
-													applyFallbackTranslation(
-														lang
-													)
-												}
-												onDelete={ ( lang ) =>
-													confirmDeleteLang( lang )
-												}
-												onAdd={ () =>
-													openManager( null )
-												}
+									<InlineStack
+										gap="100"
+										blockAlign="center"
+										wrap={ false }
+									>
+										{ cfg.logo && (
+											<img
+												src={ cfg.logo }
+												alt=""
+												width="22"
+												height="22"
+												className="block"
 											/>
-										) : (
-											<InlineStack align="center">
-												<Spinner
-													accessibilityLabel="Loading languages"
-													size="small"
-												/>
-											</InlineStack>
 										) }
-									</BlockStack>
-								</Card>
-
-								<Card>
-									<BlockStack gap="100">
-										<Text as="h2" variant="headingSm">
-											Sources
+										<Text as="span" variant="headingMd">
+											Translangs
 										</Text>
-										<BlockStack gap="050">
-											<Button
-												fullWidth
-												textAlign="left"
-												variant={
-													board === 'content'
-														? 'primary'
-														: 'tertiary'
-												}
-												onClick={ () =>
-													selectBoard( 'content' )
-												}
-											>
-												Content
-											</Button>
-											<Button
-												fullWidth
-												textAlign="left"
-												variant={
-													board === 'plugins'
-														? 'primary'
-														: 'tertiary'
-												}
-												onClick={ () =>
-													selectBoard( 'plugins' )
-												}
-											>
-												Plugins & Themes
-											</Button>
-										</BlockStack>
+									</InlineStack>
+									<Popover
+										active={ pageMenuOpen }
+										onClose={ () =>
+											setPageMenuOpen( false )
+										}
+										activator={
+											<Tooltip content="Settings">
+												<Button
+													icon={ SettingsIcon }
+													variant="tertiary"
+													size="medium"
+													accessibilityLabel="Settings"
+													onClick={ () =>
+														setPageMenuOpen(
+															( o ) => ! o
+														)
+													}
+												/>
+											</Tooltip>
+										}
+									>
+										<div className="tl-settings-menu">
+											<ActionList
+												items={ [
+													{
+														content: 'Settings',
+														onAction: () => {
+															setPageMenuOpen(
+																false
+															)
+															openManager(
+																'configuration'
+															)
+														},
+													},
+													{
+														content:
+															'Export / Import',
+														onAction: () => {
+															setPageMenuOpen(
+																false
+															)
+															setExportImportOpen(
+																true
+															)
+														},
+													},
+													{
+														content: 'Refresh',
+														disabled: refreshing,
+														onAction: () => {
+															setPageMenuOpen(
+																false
+															)
+															refreshScan()
+														},
+													},
+												] }
+											/>
+										</div>
+									</Popover>
+								</InlineStack>
+
+								<Divider />
+
+								<BlockStack gap="200">
+									<Text as="h2" variant="headingSm">
+										Target language
+									</Text>
+									{ languagesLoaded ? (
+										<LanguageList
+											languages={ languages }
+											selectedCode={ selectedLang }
+											aiAvailable={ ai.available }
+											onSelect={ ( lang ) =>
+												setSelectedLang( lang.code )
+											}
+											onEdit={ ( lang ) =>
+												openManager( lang.code )
+											}
+											onToggleStatus={
+												togglePublishStatus
+											}
+											onTranslateAll={ ( lang ) =>
+												translateLanguageAll( lang )
+											}
+											onUseFallback={ ( lang ) =>
+												applyFallbackTranslation(
+													lang
+												)
+											}
+											onDelete={ ( lang ) =>
+												confirmDeleteLang( lang )
+											}
+											onAdd={ () => openManager( null ) }
+										/>
+									) : (
+										<InlineStack align="center">
+											<Spinner
+												accessibilityLabel="Loading languages"
+												size="small"
+											/>
+										</InlineStack>
+									) }
+								</BlockStack>
+
+								<Divider />
+
+								<BlockStack gap="100">
+									<Text as="h2" variant="headingSm">
+										Sources
+									</Text>
+									<BlockStack gap="050">
+										<Button
+											fullWidth
+											textAlign="left"
+											variant={
+												board === 'content'
+													? 'primary'
+													: 'tertiary'
+											}
+											onClick={ () =>
+												selectBoard( 'content' )
+											}
+										>
+											Content
+										</Button>
+										<Button
+											fullWidth
+											textAlign="left"
+											variant={
+												board === 'plugins'
+													? 'primary'
+													: 'tertiary'
+											}
+											onClick={ () =>
+												selectBoard( 'plugins' )
+											}
+										>
+											Plugins & Themes
+										</Button>
 									</BlockStack>
-								</Card>
+								</BlockStack>
 							</BlockStack>
-						</BlockStack>
+						</Card>
 					</div>
 					<div className="pt-4">
 						<QuotaCard
@@ -1468,7 +1534,7 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 						>
 							<Box padding="300">
 								<BlockStack gap="200">
-									{ /* Line 1: search (left) + actions (right) */ }
+									{ /* Line 1: search (left) + AI translate all (right) */ }
 									<div
 										style={ {
 											display: 'flex',
@@ -1481,7 +1547,11 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 											<TextField
 												label="Search text"
 												labelHidden
-												placeholder="Search text…"
+												placeholder={
+													showGettextBoard
+														? 'Search plugins & themes…'
+														: 'Search text…'
+												}
 												value={ search }
 												onChange={ setSearch }
 												autoComplete="off"
@@ -1517,84 +1587,29 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 												}
 											/>
 										</Tooltip>
-										<Popover
-											active={ pageMenuOpen }
-											onClose={ () =>
-												setPageMenuOpen( false )
-											}
-											activator={
-												<Tooltip content="More actions">
-													<Button
-														variant="tertiary"
-														size="medium"
-														accessibilityLabel="More actions"
-														onClick={ () =>
-															setPageMenuOpen(
-																( o ) => ! o
-															)
-														}
-													>
-														⋯
-													</Button>
-												</Tooltip>
-											}
-										>
-											<ActionList
-												items={ [
-													{
-														content: 'Settings',
-														onAction: () => {
-															setPageMenuOpen(
-																false
-															)
-															openManager(
-																'configuration'
-															)
-														},
-													},
-													{
-														content:
-															'Export / Import',
-														onAction: () => {
-															setPageMenuOpen(
-																false
-															)
-															setExportImportOpen(
-																true
-															)
-														},
-													},
-													{
-														content: 'Refresh',
-														disabled: refreshing,
-														onAction: () => {
-															setPageMenuOpen(
-																false
-															)
-															refreshScan()
-														},
-													},
-												] }
+									</div>
+									{ /* Line 2: standard Polaris Filters (status) — these all
+									filter the Content board's collections/texts query, which
+									the Plugins & Themes board doesn't use. */ }
+									{ ! showGettextBoard && (
+										<div className="tl-filters">
+											<Filters
+												hideQueryField
+												filters={ filters }
+												appliedFilters={ appliedFilters }
+												onQueryChange={ () => {} }
+												onQueryClear={ () => {} }
+												onClearAll={ clearAllFilters }
 											/>
-										</Popover>
-									</div>
-									{ /* Line 2: standard Polaris Filters (status) */ }
-									<div className="tl-filters">
-										<Filters
-											hideQueryField
-											filters={ filters }
-											appliedFilters={ appliedFilters }
-											onQueryChange={ () => {} }
-											onQueryClear={ () => {} }
-											onClearAll={ clearAllFilters }
-										/>
-									</div>
+										</div>
+									) }
 								</BlockStack>
 							</Box>
 						</div>
 						{ showGettextBoard && (
 							<GettextBoard
 								language={ selectedLang }
+								search={ query }
 								originalLabel={ originalLabel }
 								translationLabel={ translationLabel }
 								sourceLabel={ originalLabel }

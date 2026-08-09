@@ -57,6 +57,7 @@ function rowKey( row ) {
 
 export default function GettextBoard( {
 	language,
+	search,
 	originalLabel,
 	translationLabel,
 	sourceLabel,
@@ -73,13 +74,14 @@ export default function GettextBoard( {
 	const runningRef = useRef( false )
 
 	const rowsQ = useInfiniteQuery( {
-		queryKey: [ 'gettext-domains', language ],
+		queryKey: [ 'gettext-domains', language, search ],
 		initialPageParam: 0,
 		queryFn: async ( { pageParam, signal } ) => {
 			const params = new URLSearchParams( {
 				language,
 				offset: String( pageParam ),
 				limit: String( PAGE_SIZE ),
+				...( search ? { search } : {} ),
 			} )
 			const res = await api.get(
 				`/gettext-domains?${ params.toString() }`,
@@ -96,7 +98,6 @@ export default function GettextBoard( {
 	} )
 
 	const rows = ( rowsQ.data?.pages ?? [] ).flatMap( ( p ) => p.rows )
-	const total = rowsQ.data?.pages?.at( -1 )?.total ?? rows.length
 
 	const reload = useCallback( () => {
 		queryClient.invalidateQueries( {
@@ -203,7 +204,9 @@ export default function GettextBoard( {
 		return (
 			<Box padding="500">
 				<Text as="p" tone="subdued">
-					No plugin/theme domains found.
+					{ search
+						? `No plugin or theme matches “${ search }”.`
+						: 'No plugin/theme domains found.' }
 				</Text>
 			</Box>
 		)
@@ -302,6 +305,28 @@ export default function GettextBoard( {
 										<Badge>Not found</Badge>
 									</Box>
 								) }
+								{ row.translated_percent !== null &&
+									row.translated_percent !== undefined && (
+										<span
+											style={ {
+												marginLeft: 'auto',
+												flexShrink: 0,
+											} }
+										>
+											<Text
+												as="span"
+												variant="bodySm"
+												tone={
+													row.translated_percent ===
+													100
+														? 'success'
+														: 'subdued'
+												}
+											>
+												{ `${ row.translated_percent }%` }
+											</Text>
+										</span>
+									) }
 							</button>
 						</Box>
 						<Collapsible open={ open }>
@@ -331,17 +356,16 @@ export default function GettextBoard( {
 					</Box>
 				)
 			} ) }
-			<Divider />
-			<Box padding="300">
-				<InlineStack align="start" blockAlign="center">
-					<InlineStack align="center">
-						{ paginationAction }
-					</InlineStack>
-					<Text as="p" tone="subdued" variant="bodySm">
-						{ rows.length } of { total }
-					</Text>
-				</InlineStack>
-			</Box>
+			{ paginationAction && (
+				<>
+					<Divider />
+					<Box padding="300">
+						<InlineStack align="center">
+							{ paginationAction }
+						</InlineStack>
+					</Box>
+				</>
+			) }
 		</BlockStack>
 	)
 }
