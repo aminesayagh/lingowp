@@ -43,7 +43,6 @@ final class OnboardingRestController
         $guard = ['permission_callback' => [$this, 'canManage']];
 
         register_rest_route(self::NS, '/onboarding/state', ['methods' => 'GET', 'callback' => [$this, 'state']] + $guard);
-        register_rest_route(self::NS, '/onboarding/categories', ['methods' => 'GET', 'callback' => [$this, 'categories']] + $guard);
         register_rest_route(self::NS, '/onboarding/configure', ['methods' => 'POST', 'callback' => [$this, 'configure']] + $guard);
         register_rest_route(self::NS, '/onboarding/complete', ['methods' => 'POST', 'callback' => [$this, 'complete']] + $guard);
         register_rest_route(self::NS, '/settings', ['methods' => 'POST', 'callback' => [$this, 'saveSettings']] + $guard);
@@ -86,40 +85,17 @@ final class OnboardingRestController
         ]);
     }
 
-    /** Server-side proxy so React never sees the provision key. */
-    public function categories(): WP_REST_Response
-    {
-        $result = $this->backend->getCategories();
-
-        if (!$result['ok']) {
-            return $this->fail($result['error']);
-        }
-
-        // Backend returns code-only categories, e.g. ["ecommerce","blog"]; labels are frontend i18n.
-        return rest_ensure_response(['ok' => true, 'categories' => $result['data']['categories'] ?? $result['data']]);
-    }
-
     /**
-     * Save config locally, store the category selection, then attempt to connect.
-     * Onboarding proceeds regardless of the connect result: a down backend
-     * only means AI stays disabled until a later retry — it never blocks setup.
+     * Save config locally, then attempt to connect. Onboarding proceeds
+     * regardless of the connect result: a down backend only means AI stays
+     * disabled until a later retry — it never blocks setup.
      */
     public function configure(WP_REST_Request $request): WP_REST_Response
     {
-        // Categories are optional — the catalog is only available when the backend
-        // is reachable, so onboarding must accept an empty selection.
-        $categories = array_values(array_filter(array_map(
-            'sanitize_key',
-            (array) $request->get_param('categories')
-        )));
-
-        // Persist toggles + the category selection first, so config survives even if
-        // the backend never answers. Categories are stored locally (pending) and
-        // synced on the first successful connect.
+        // Persist toggles first, so config survives even if the backend never answers.
         $browserDetection = (bool) $request->get_param('browser_detection');
         $autoRedirect     = (bool) $request->get_param('auto_redirect') && $browserDetection; // auto-redirect requires detection
 
-        update_option(SiteMetadataProvider::OPTION_CATEGORIES, $categories);
         update_option('translangs_prefix_default_language', (bool) $request->get_param('prefix_default_language'));
         update_option('translangs_cookie_preference', (bool) $request->get_param('cookie_preference'));
         update_option('translangs_browser_detection', $browserDetection);
@@ -146,13 +122,13 @@ final class OnboardingRestController
     }
 
     /**
-     * Runs POST /auth/site with the stored metadata + categories, storing the token
-     * on success. Returns an ERR_* code on failure ('' on success) — never throws,
+     * Runs POST /auth/site with the current site metadata, storing the token on
+     * success. Returns an ERR_* code on failure ('' on success) — never throws,
      * so callers can proceed offline.
      */
     private function attemptConnect(): string
     {
-        $result = $this->backend->createSite($this->metadata->build());
+        $result = $this->backend->createSite($this->metadata->buildForCreate());
 
         if (!$result['ok']) {
             return $result['error'];
@@ -322,10 +298,5 @@ final class OnboardingRestController
             'browser_detection'       => (bool) get_option('translangs_browser_detection', false),
             'auto_redirect'           => (bool) get_option('translangs_auto_redirect', false),
         ];
-    }
-
-    private function fail(string $code, int $status = 200): WP_REST_Response
-    {
-        return new WP_REST_Response(['ok' => false, 'error' => $code], $status);
     }
 }

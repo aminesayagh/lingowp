@@ -15,11 +15,11 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	DuplicateIcon,
-	MagicIcon,
 	MenuHorizontalIcon,
 } from '@shopify/polaris-icons'
 import { useCallback, useEffect, useRef, useState } from '@wordpress/element'
 import { api } from '../api'
+import { AiIcon } from './AiIcon'
 import { flagIconUrl, FlagIcon } from './FlagIcon'
 import {
 	ChipField,
@@ -400,7 +400,7 @@ export default function CompareOverlay( {
 								>
 									<Button
 										size="micro"
-										icon={ MagicIcon }
+										icon={ AiIcon }
 										disabled={ ! aiAvailable }
 										loading={ translating }
 										onClick={ translate }

@@ -22,6 +22,7 @@ import {
 	useState,
 } from '@wordpress/element'
 import { api } from '../api'
+import { AiIcon } from './AiIcon'
 import GettextOverlay from './GettextOverlay'
 
 const oneLineStyle = {
@@ -587,6 +588,7 @@ function GettextUnitList( {
 					key={ unitKey( unit ) }
 					unit={ unit }
 					row={ row }
+					aiAvailable={ aiAvailable }
 					onSaved={ ( msgstr ) => updateUnit( i, msgstr ) }
 					onOpenOverlay={ () => setOverlayIndex( i ) }
 					onIgnore={ () => confirmIgnore( i ) }
@@ -628,12 +630,20 @@ function GettextUnitList( {
 	)
 }
 
-function GettextUnitRow( { unit, row, onSaved, onOpenOverlay, onIgnore } ) {
+function GettextUnitRow( {
+	unit,
+	row,
+	aiAvailable,
+	onSaved,
+	onOpenOverlay,
+	onIgnore,
+} ) {
 	const [ draft, setDraft ] = useState( unit.msgstr )
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ hovered, setHovered ] = useState( false )
 	const [ originalHovered, setOriginalHovered ] = useState( false )
 	const [ copiedOriginal, setCopiedOriginal ] = useState( false )
+	const [ translating, setTranslating ] = useState( false )
 
 	const hasTranslation = unit.msgstr !== ''
 
@@ -676,6 +686,22 @@ function GettextUnitRow( { unit, row, onSaved, onOpenOverlay, onIgnore } ) {
 		await navigator.clipboard.writeText( unit.msgid )
 		setCopiedOriginal( true )
 		setTimeout( () => setCopiedOriginal( false ), 1500 )
+	}
+
+	async function translateUnit() {
+		setTranslating( true )
+		const res = await api.post( '/gettext-domains/translate-unit', {
+			type: row.type,
+			domain: row.domain,
+			locale: row.locale,
+			msgid: unit.msgid,
+			context: unit.context,
+		} )
+		setTranslating( false )
+		if ( res.ok ) {
+			setDraft( res.msgstr )
+			onSaved( res.msgstr )
+		}
 	}
 
 	const menuItems = [
@@ -832,23 +858,46 @@ function GettextUnitRow( { unit, row, onSaved, onOpenOverlay, onIgnore } ) {
 									transition: 'opacity 120ms ease',
 								} }
 							>
-								<Popover
-									active={ menuOpen }
-									onClose={ () => setMenuOpen( false ) }
-									activator={
-										<Button
-											variant="tertiary"
-											size="micro"
-											onClick={ () =>
-												setMenuOpen( ( o ) => ! o )
-											}
-										>
-											⋯
-										</Button>
-									}
+								<InlineStack
+									gap="100"
+									blockAlign="center"
+									wrap={ false }
 								>
-									<ActionList items={ menuItems } />
-								</Popover>
+									<Tooltip
+										content={
+											aiAvailable
+												? 'AI translate'
+												: 'AI translation is not available'
+										}
+									>
+										<Button
+											variant="secondary"
+											size="micro"
+											disabled={ ! aiAvailable }
+											loading={ translating }
+											icon={ AiIcon }
+											accessibilityLabel="AI translate"
+											onClick={ translateUnit }
+										/>
+									</Tooltip>
+									<Popover
+										active={ menuOpen }
+										onClose={ () => setMenuOpen( false ) }
+										activator={
+											<Button
+												variant="secondary"
+												size="micro"
+												onClick={ () =>
+													setMenuOpen( ( o ) => ! o )
+												}
+											>
+												⋯
+											</Button>
+										}
+									>
+										<ActionList items={ menuItems } />
+									</Popover>
+								</InlineStack>
 							</div>
 						</InlineStack>
 					</Box>

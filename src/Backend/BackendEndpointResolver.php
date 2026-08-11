@@ -5,54 +5,47 @@ namespace TransLangs\Backend;
 /**
  * Resolves the Translangs backend base URL and provision key.
  *
- * The origin is configurable (production origin is not finalized yet); the
- * "/api/v1" version path is code, not user-editable. The provision key is a
- * server-only secret — it is read from a constant or filter and is never exposed
- * to the browser, localized scripts, or REST responses.
+ * This plugin is distributed publicly, so nothing here can depend on a site
+ * owner editing wp-config.php — resolution is self-contained in the plugin.
+ * The baked-in DEFAULT_ORIGIN ships with the plugin and requires zero
+ * site-owner configuration; the filter/option remain only as internal
+ * dev/support overrides. The "/api/v1" version path is code, not
+ * user-editable.
  */
 final class BackendEndpointResolver
 {
     public const OPTION_ORIGIN = 'translangs_api_origin';
 
-    private const VERSION_PATH     = '/api/v1';
-    private const LOCALHOST_ORIGIN = 'http://localhost:3002';
+    private const VERSION_PATH = '/api/v1';
 
-    /** Full API base, e.g. https://api.example.com/api/v1. Empty if unresolved. */
+    // ponytail: dev placeholder — swap for the real production origin before release.
+    private const DEFAULT_ORIGIN = 'http://localhost:8000';
+
+    /** Full API base, e.g. https://api.example.com/api/v1. */
     public function baseUrl(): string
     {
-        $origin = $this->origin();
-
-        return $origin === '' ? '' : $origin . self::VERSION_PATH;
+        return $this->origin() . self::VERSION_PATH;
     }
 
     public function origin(): string
     {
-        // 1. Hard constant in wp-config.php wins (per-environment, not editable in UI).
-        if (defined('TRANSLANGS_API_ORIGIN') && is_string(TRANSLANGS_API_ORIGIN)) {
-            return $this->normalize((string) TRANSLANGS_API_ORIGIN);
-        }
-
-        // 2. Filter override (programmatic).
+        // 1. Filter override (programmatic — mu-plugin/hosting integration).
         $filtered = apply_filters('translangs_api_origin', '');
         if (is_string($filtered) && $filtered !== '') {
             return $this->normalize($filtered);
         }
 
-        // 3. Stored option (dev/advanced only).
+        // 2. Stored option (dev/advanced-only support screen).
         $option = (string) get_option(self::OPTION_ORIGIN, '');
         if ($option !== '') {
             return $this->normalize($option);
         }
 
-        // 4. Localhost fallback only while debugging.
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            return self::LOCALHOST_ORIGIN;
-        }
-
-        return '';
+        // 3. Baked-in default — every public install works out of the box.
+        return self::DEFAULT_ORIGIN;
     }
 
-    /** Server-only provision key for /auth/categories and first /auth/site. */
+    /** Server-only provision key for the first POST /auth/site. */
     public function provisionKey(): string
     {
         if (defined('TRANSLANGS_PROVISION_KEY') && is_string(TRANSLANGS_PROVISION_KEY)) {
@@ -64,7 +57,7 @@ final class BackendEndpointResolver
         return is_string($filtered) ? $filtered : '';
     }
 
-    /** Dev-only reset tool: drop back to the constant/filter/localhost defaults. */
+    /** Dev-only reset tool: drop back to the filter/baked-in default. */
     public function resetOrigin(): void
     {
         delete_option(self::OPTION_ORIGIN);

@@ -15,10 +15,10 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	DuplicateIcon,
-	MagicIcon,
 } from '@shopify/polaris-icons'
 import { useEffect, useRef, useState } from '@wordpress/element'
 import { api } from '../api'
+import { AiIcon } from './AiIcon'
 import { flagIconUrl, FlagIcon } from './FlagIcon'
 
 /*
@@ -261,7 +261,7 @@ export default function GettextOverlay( {
 								>
 									<Button
 										size="micro"
-										icon={ MagicIcon }
+										icon={ AiIcon }
 										disabled={ ! aiAvailable }
 										loading={ translating }
 										onClick={ translate }

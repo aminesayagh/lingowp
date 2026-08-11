@@ -74,13 +74,13 @@ final class ConnectionRestController
     }
 
     /**
-     * Connect (or reconnect) using the stored pending categories + current site
-     * metadata. Used to finish connecting after an offline onboarding, or to retry
-     * when the backend recovers. Never blocks: returns an ERR_* code on failure.
+     * Connect (or reconnect) using the current site metadata. Used to finish
+     * connecting after an offline onboarding, or to retry when the backend
+     * recovers. Never blocks: returns an ERR_* code on failure.
      */
     public function connect(): WP_REST_Response
     {
-        $result = $this->backend->createSite($this->metadata->build());
+        $result = $this->backend->createSite($this->metadata->buildForCreate());
 
         if (!$result['ok']) {
             return new WP_REST_Response(['ok' => false, 'connected' => false, 'error' => $result['error']], 200);

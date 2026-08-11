@@ -3,12 +3,11 @@
 namespace TransLangs\Backend;
 
 /**
- * Action Scheduler job that pushes current site metadata to the backend (P4).
+ * Action Scheduler job that pushes the current default_language to the backend (P4).
  *
- * Runs off-request. Builds the full metadata snapshot at run time (so it always
+ * Runs off-request. Reads the current source locale at run time (so it always
  * reflects the latest state, not whatever was true when the job was queued) and
- * sends one consolidated PUT /auth/site. Categories are intentionally omitted —
- * the backend keeps its current selection unless the user explicitly changes it.
+ * sends PUT /auth/site — the only field that route accepts.
  *
  * Failure policy:
  *   - network / origin unset  -> retryable: throw so Action Scheduler retries.
@@ -41,7 +40,7 @@ final class SiteMetadataSyncJob
             return;
         }
 
-        $result = $this->backend->syncSite($this->metadata->build());
+        $result = $this->backend->syncSite($this->metadata->buildForSync());
 
         if ($result['ok']) {
             delete_transient(self::ERROR_TRANSIENT);

@@ -29,12 +29,6 @@ final class BackendClient
         return $this->request('GET', '/health');
     }
 
-    /** GET /auth/categories — provision-key auth. */
-    public function getCategories(): array
-    {
-        return $this->request('GET', '/auth/categories', null, $this->provisionHeaders());
-    }
-
     /** POST /auth/site — first connect; returns the raw token once. */
     public function createSite(array $payload): array
     {
@@ -131,6 +125,7 @@ final class BackendClient
         return ['ok' => false, 'status' => 0, 'data' => null, 'error' => $code];
     }
 
+    /** Server-only provision key for the first POST /auth/site. */
     private function provisionHeaders(): array
     {
         return ['X-Provision-Key' => $this->resolver->provisionKey()];

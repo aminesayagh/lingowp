@@ -5,16 +5,17 @@ namespace TransLangs\Backend;
 use TransLangs\Language\Domain\LanguageRegistry;
 
 /**
- * Builds the site payload sent to POST/PUT /auth/site at call time.
+ * Builds the site payloads sent to POST/PUT /auth/site at call time.
  *
- * default_language is the frozen source locale (translangs_source_locale), never
- * onboarding input. active_languages starts empty and grows as target languages
- * are enabled.
+ * The backend only accepts a minimal shape per verb: POST /auth/site takes
+ * {email, domain, default_language}; PUT /auth/site takes {default_language}
+ * only. default_language is the frozen source locale
+ * (translangs_source_locale), never onboarding input.
  *
- * Categories: the catalog comes from GET /auth/categories, but the user's
- * selection is stored locally (translangs_categories) as pending config so
- * onboarding can complete offline. The stored selection is
- * always included, so the first connect and every later sync carry it.
+ * translangs_categories is unrelated to the site-connect payload — it is a
+ * local-only selection read by the /translate flow (AiTranslationRunner,
+ * GettextDomainRestController) for style context, kept here purely as
+ * storage.
  */
 final class SiteMetadataProvider
 {
@@ -22,20 +23,21 @@ final class SiteMetadataProvider
 
     public function __construct(private LanguageRegistry $languages) {}
 
-    /** @return array<string, mixed> */
-    public function build(): array
+    /** @return array{email: string, domain: string, default_language: string} */
+    public function buildForCreate(): array
     {
         return [
             'email'            => (string) get_option('admin_email', ''),
             'domain'           => (string) wp_parse_url(home_url(), PHP_URL_HOST),
-            'title'            => (string) get_option('blogname', ''),
-            'description'      => (string) get_option('blogdescription', ''),
-            'tagline'          => (string) get_option('blogdescription', ''),
-            'categories'       => $this->categories(),
             'default_language' => $this->languages->getDefaultLanguage(),
-            'active_languages' => array_values($this->languages->getTargetLanguages()),
-            'active_plugins'   => $this->activePlugins(),
-            'active_theme'     => $this->activeTheme(),
+        ];
+    }
+
+    /** @return array{default_language: string} */
+    public function buildForSync(): array
+    {
+        return [
+            'default_language' => $this->languages->getDefaultLanguage(),
         ];
     }
 
@@ -51,23 +53,5 @@ final class SiteMetadataProvider
     public function resetCategories(): void
     {
         delete_option(self::OPTION_CATEGORIES);
-    }
-
-    /** @return string[] */
-    private function activePlugins(): array
-    {
-        return array_values(array_map('strval', (array) get_option('active_plugins', [])));
-    }
-
-    /** @return array<string, string> */
-    private function activeTheme(): array
-    {
-        $theme = wp_get_theme();
-
-        return [
-            'name'       => (string) $theme->get('Name'),
-            'stylesheet' => (string) $theme->get_stylesheet(),
-            'version'    => (string) $theme->get('Version'),
-        ];
     }
 }

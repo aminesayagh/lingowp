@@ -4,20 +4,11 @@ import {
 	Button,
 	Card,
 	Checkbox,
-	ChoiceList,
-	Text,
 } from '@shopify/polaris'
-import { useEffect, useState } from '@wordpress/element'
+import { useState } from '@wordpress/element'
 import { api } from '../api'
 import { errorMessage } from '../errors'
 import OnboardingPage from './OnboardingPage'
-
-// Code-only categories come from the backend; labels are a frontend concern.
-function humanize( code ) {
-	return code
-		.replace( /[_-]+/g, ' ' )
-		.replace( /\b\w/g, ( c ) => c.toUpperCase() )
-}
 
 // Toast tone → colors, same tokens Dashboard.jsx uses for its bottom toast.
 const TOAST_TONE_STYLE = {
@@ -40,8 +31,6 @@ export default function Configuration( {
 	onDone,
 } ) {
 	const slug = defaultLanguageSlug || 'en'
-	const [ categoryChoices, setCategoryChoices ] = useState( [] )
-	const [ categories, setCategories ] = useState( [] )
 	const [ prefix, setPrefix ] = useState(
 		!! recommendedPrefixDefaultLanguage
 	)
@@ -74,31 +63,15 @@ export default function Configuration( {
 		)
 	}
 
-	useEffect( () => {
-		api.get( '/onboarding/categories' ).then( ( res ) => {
-			if ( res.ok && Array.isArray( res.categories ) ) {
-				setCategoryChoices(
-					res.categories.map( ( code ) => ( {
-						label: humanize( code ),
-						value: code,
-					} ) )
-				)
-			}
-		} )
-	}, [] )
-
 	// Auto redirect requires browser detection (arch dependency).
 	const canAutoRedirect = browser
 	const effectiveAutoRedirect = autoRedirect && canAutoRedirect
 
 	async function submit() {
-		// Categories are optional (and the catalog is only available when the backend
-		// is reachable) — never block Continue on them.
 		setSubmitting( true )
 		setError( '' )
 
 		const res = await api.post( '/onboarding/configure', {
-			categories,
 			prefix_default_language: prefix,
 			cookie_preference: cookie,
 			browser_detection: browser,
@@ -121,23 +94,6 @@ export default function Configuration( {
 			<BlockStack gap="400">
 				{ error && (
 					<Banner tone="critical">{ errorMessage( error ) }</Banner>
-				) }
-
-				{ /* Categories come from the backend catalog; hide the field entirely
-				     when it is unavailable (e.g. backend down). Optional either way. */ }
-				{ categoryChoices.length > 0 && (
-					<Card>
-						<ChoiceList
-							allowMultiple
-							title="Site categories"
-							choices={ categoryChoices }
-							selected={ categories }
-							onChange={ setCategories }
-						/>
-						<Text as="p" tone="subdued" variant="bodySm">
-							Helps AI match your site&#39;s tone.
-						</Text>
-					</Card>
 				) }
 
 				<Card>
