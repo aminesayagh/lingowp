@@ -1,4 +1,5 @@
 import { ActionList, BlockStack, Button, Text } from '@shopify/polaris'
+import { MenuHorizontalIcon } from '@shopify/polaris-icons'
 import {
 	createPortal,
 	useCallback,
@@ -228,12 +229,12 @@ export function LanguageRow( {
 								<Button
 									variant="tertiary"
 									size="micro"
+									icon={ MenuHorizontalIcon }
+									accessibilityLabel="More actions"
 									onClick={ () =>
 										setMenuOpen( ( o ) => ! o )
 									}
-								>
-									⋯
-								</Button>
+								/>
 							) : (
 								<Text as="span" tone="subdued" variant="bodySm">
 									{ percent }%

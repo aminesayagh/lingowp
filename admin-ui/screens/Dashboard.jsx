@@ -2219,7 +2219,9 @@ function CollectionGroup( {
 										variant="tertiary"
 										size="micro"
 										disabled={ ! aiAvailable }
-										icon={ AiIcon }
+										icon={ ( props ) => (
+											<AiIcon { ...props } size={ 14 } />
+										) }
 										onClick={ confirmAiGroup }
 									>
 										Translate all
@@ -2233,12 +2235,12 @@ function CollectionGroup( {
 											<Button
 												variant="tertiary"
 												size="micro"
+												icon={ MenuHorizontalIcon }
+												accessibilityLabel="More actions"
 												onClick={ () =>
 													setMenuOpen( ( o ) => ! o )
 												}
-											>
-												⋯
-											</Button>
+											/>
 										}
 									>
 										<ActionList items={ bulkItems } />
