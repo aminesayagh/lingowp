@@ -12,7 +12,12 @@ import {
 	Text,
 	Tooltip,
 } from '@shopify/polaris'
-import { CheckIcon, DuplicateIcon, PageIcon } from '@shopify/polaris-icons'
+import {
+	CheckIcon,
+	DuplicateIcon,
+	MenuHorizontalIcon,
+	PageIcon,
+} from '@shopify/polaris-icons'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import {
 	useCallback,
@@ -887,12 +892,21 @@ function GettextUnitRow( {
 											<Button
 												variant="secondary"
 												size="micro"
+												icon={ ( props ) => (
+													<MenuHorizontalIcon
+														{ ...props }
+														style={ {
+															...props.style,
+															transform:
+																'scale(0.7)',
+														} }
+													/>
+												) }
+												accessibilityLabel="More actions"
 												onClick={ () =>
 													setMenuOpen( ( o ) => ! o )
 												}
-											>
-												⋯
-											</Button>
+											/>
 										}
 									>
 										<ActionList items={ menuItems } />
