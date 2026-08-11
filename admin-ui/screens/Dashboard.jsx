@@ -47,7 +47,6 @@ import { AiIcon } from './AiIcon'
 import ExportImportModal from './ExportImportModal'
 import GettextBoard from './GettextBoard'
 import LanguageManagerModal from './LanguageManagerModal'
-import OnboardingPage from './OnboardingPage'
 import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList'
 import { flagIconUrl } from './FlagIcon'
 import CompareOverlay from './CompareOverlay'
@@ -209,7 +208,7 @@ const langParser = parseAsString.withDefault( '' ).withOptions( {
 	history: 'replace',
 } )
 
-export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
+export default function Dashboard( { defaultLanguage } ) {
 	const queryClient = useQueryClient()
 	const [ languages, setLanguages ] = useState( [] )
 	// Distinguishes "no languages yet" (still loading) from "confirmed empty" —
@@ -243,6 +242,11 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	const [ exportImportOpen, setExportImportOpen ] = useState( false )
 	const [ pageMenuOpen, setPageMenuOpen ] = useState( false )
 	const [ refreshing, setRefreshing ] = useState( false )
+	// True right after the first language is created, until the initial
+	// content scan (running since plugin activation, independent of
+	// onboarding) reports done — gates the board body with a loader instead
+	// of an empty content list.
+	const [ extractionPending, setExtractionPending ] = useState( false )
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
@@ -600,9 +604,9 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 	}
 
 	// Manual "recheck the site for missing text": re-arm the same scan that runs
-	// on activation, then poll status the same way SettingUp.jsx does during
-	// onboarding. On completion, refetch the board so newly discovered text
-	// shows up without a full page reload.
+	// on activation, then poll status the same way pollFirstScan does after the
+	// first language is created. On completion, refetch the board so newly
+	// discovered text shows up without a full page reload.
 	//
 	// The HTML crawl also gets (re-)triggered by this same click, but it is
 	// deliberately NOT part of what's polled below — it's network-bound (one
@@ -644,12 +648,30 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 		} )
 	}
 
+	// Same poll-until-done shape as pollScanStatus, but gates the board body
+	// (via extractionPending) instead of a toast — used once, right after the
+	// very first language is created, so the user never sees an empty content
+	// list while the activation-time scan is still filling it in.
+	function pollFirstScan() {
+		api.get( '/scan/status' ).then( ( res ) => {
+			const status = res.status || 'running'
+			if ( status === 'running' ) {
+				setTimeout( pollFirstScan, 3000 )
+				return
+			}
+			setExtractionPending( false )
+			if ( status === 'completed' ) {
+				invalidateCollections()
+			}
+		} )
+	}
+
 	// Copies a link that lands on this same board/language and scrolls straight
 	// to this collection (view/board/lang restore via the URL state nuqs already
 	// keeps in sync; the collection id rides in the hash — see pendingScrollId).
 	async function shareCollection( c ) {
 		const url = new URL( window.location.href )
-		url.searchParams.set( 'view', 'dashboard_workspace' )
+		url.searchParams.set( 'view', 'dashboard' )
 		url.searchParams.set( 'board', board )
 		url.searchParams.set( 'lang', selectedLang )
 		url.hash = `collection=${ enc( c.id ) }`
@@ -1017,69 +1039,36 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 		}
 	}
 
-	// Empty-language state: same shell, centered CTA (wireframe 1.3).
-	// Deliberately NOT keyed off `view` — App.jsx's `dashboard_empty_language`
-	// reflects "no ACTIVE language" (`getTargetLanguages()`, i.e. published
-	// only), so a language left in draft (the default for a newly-created one)
-	// would otherwise flash this screen on every load until `languages` (every
-	// language, draft included) finishes fetching and proves one already
-	// exists. `languagesLoaded` alone avoids both the false positive and the
-	// flash: nothing renders here until we actually know.
-	if ( languagesLoaded && languages.length === 0 ) {
-		return (
-			<>
-				<OnboardingPage>
-					<Card>
-						<EmptyState
-							heading="Add your first language"
-							action={ {
-								content: 'Create a language',
-								onAction: () => openManager( null ),
-							} }
-						>
-							<p>
-								Your site is ready. Create a language to start
-								translating your content.
-							</p>
-							<p>
-								Need more later? Add them from the sidebar
-								anytime.
-							</p>
-						</EmptyState>
-					</Card>
-				</OnboardingPage>
-				<LanguageManagerModal
-					open={ managerOpen }
-					languages={ languages }
-					catalog={ languageCatalog }
-					defaultCode={ defaultCode }
-					initialCode={ managerInitial }
-					onClose={ () => setManagerOpen( false ) }
-					onConfirm={ setConfirm }
-					onChanged={ () => {
-						refreshLanguages()
-						onLanguageCreated()
-					} }
-				/>
-			</>
-		)
-	}
-
 	const searching = query !== ''
 	const showGettextBoard = board === 'plugins'
-	const showGroupsLoading = ! showGettextBoard && groupsQ.isPending
+	// No language yet: board body shows a centered CTA instead of the content
+	// list, but the sidebar/shell around it renders as usual.
+	const showNoLanguages = languagesLoaded && languages.length === 0
+	// While the first-scan gate is up, it fully replaces the board body —
+	// no stacked/duplicate spinners underneath it.
+	const showGroupsLoading =
+		! showGettextBoard &&
+		! showNoLanguages &&
+		! extractionPending &&
+		groupsQ.isPending
 	const showGroupsError =
 		! showGettextBoard &&
+		! showNoLanguages &&
+		! extractionPending &&
 		! groupsQ.isPending &&
 		groupsQ.isError &&
 		groups.length === 0
 	const showGroupsEmpty =
 		! showGettextBoard &&
+		! showNoLanguages &&
+		! extractionPending &&
 		! groupsQ.isPending &&
 		! showGroupsError &&
 		groups.length === 0
 	const showGroups =
 		! showGettextBoard &&
+		! showNoLanguages &&
+		! extractionPending &&
 		! groupsQ.isPending &&
 		! showGroupsError &&
 		groups.length > 0
@@ -1593,20 +1582,53 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 								</BlockStack>
 							</Box>
 						</div>
-						{ showGettextBoard && (
-							<GettextBoard
-								language={ selectedLang }
-								search={ query }
-								originalLabel={ originalLabel }
-								translationLabel={ translationLabel }
-								sourceLabel={ originalLabel }
-								sourceFlag={ sourceFlag }
-								languages={ languages }
-								aiAvailable={ ai.available }
-								onPickLanguage={ setSelectedLang }
-								onConfirm={ setConfirm }
-							/>
+						{ showNoLanguages && (
+							<Box padding="500">
+								<EmptyState
+									heading="Add your first language"
+									action={ {
+										content: 'Create a language',
+										onAction: () => openManager( null ),
+									} }
+								>
+									<p>
+										Your site is ready. Create a language to
+										start translating your content.
+									</p>
+								</EmptyState>
+							</Box>
 						) }
+						{ extractionPending && (
+							<Box padding="500">
+								<BlockStack gap="200" inlineAlign="center">
+									<Spinner
+										accessibilityLabel="Scanning your site"
+										size="small"
+									/>
+									<Text as="p" tone="subdued">
+										Automatically scanning your site for
+										translatable content. This can take a
+										moment.
+									</Text>
+								</BlockStack>
+							</Box>
+						) }
+						{ showGettextBoard &&
+							! showNoLanguages &&
+							! extractionPending && (
+								<GettextBoard
+									language={ selectedLang }
+									search={ query }
+									originalLabel={ originalLabel }
+									translationLabel={ translationLabel }
+									sourceLabel={ originalLabel }
+									sourceFlag={ sourceFlag }
+									languages={ languages }
+									aiAvailable={ ai.available }
+									onPickLanguage={ setSelectedLang }
+									onConfirm={ setConfirm }
+								/>
+							) }
 						{ showGroupsLoading && (
 							<Box padding="500">
 								<Spinner
@@ -1840,8 +1862,16 @@ export default function Dashboard( { defaultLanguage, onLanguageCreated } ) {
 				onClose={ () => setManagerOpen( false ) }
 				onConfirm={ setConfirm }
 				onChanged={ () => {
+					const wasFirstLanguage = languages.length === 0
 					refreshLanguages()
-					onLanguageCreated()
+					if ( wasFirstLanguage ) {
+						api.get( '/scan/status' ).then( ( res ) => {
+							if ( ( res.status || 'running' ) === 'running' ) {
+								setExtractionPending( true )
+								setTimeout( pollFirstScan, 3000 )
+							}
+						} )
+					}
 				} }
 			/>
 			<ExportImportModal

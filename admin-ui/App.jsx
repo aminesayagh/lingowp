@@ -12,7 +12,6 @@ import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from './api'
 import Configuration from './screens/Configuration'
-import SettingUp from './screens/SettingUp'
 import Dashboard from './screens/Dashboard'
 import OnboardingPage from './screens/OnboardingPage'
 
@@ -31,35 +30,19 @@ const queryClient = new QueryClient( {
 
 const viewParser = parseAsStringLiteral( [
 	'onboarding_configuration',
-	'onboarding_setting_up',
-	'dashboard_empty_language',
-	'dashboard_workspace',
+	'dashboard',
 ] ).withOptions( { history: 'push' } )
 
 // Decide the landing screen. Incomplete onboarding can never reach the dashboard;
 // completed onboarding can never revisit configuration.
-function resolveView( state, urlView ) {
-	if ( ! state.onboarding_completed ) {
-		if ( urlView === 'onboarding_setting_up' && state.connected ) {
-			return 'onboarding_setting_up'
-		}
-		return 'onboarding_configuration'
-	}
-	if (
-		urlView === 'dashboard_empty_language' ||
-		urlView === 'dashboard_workspace'
-	) {
-		return urlView
-	}
-	return state.has_target_language
-		? 'dashboard_workspace'
-		: 'dashboard_empty_language'
+function resolveView( state ) {
+	return state.onboarding_completed ? 'dashboard' : 'onboarding_configuration'
 }
 
 export default function App() {
 	const [ state, setState ] = useState( null )
-	const [ urlView, setUrlView ] = useQueryState( 'view', viewParser )
-	const view = state ? resolveView( state, urlView ) : null
+	const [ , setUrlView ] = useQueryState( 'view', viewParser )
+	const view = state ? resolveView( state ) : null
 
 	// Polaris renders popovers/tooltips/modals into a portal container that, by
 	// default, lives inside the React tree — which in wp-admin sits under the
@@ -131,24 +114,19 @@ export default function App() {
 										defaultLanguageSlug={
 											state.default_language_slug
 										}
-										onDone={ () =>
-											setView( 'onboarding_setting_up' )
-										}
+										onDone={ () => {
+											setState( ( s ) => ( {
+												...s,
+												onboarding_completed: true,
+											} ) )
+											setView( 'dashboard' )
+										} }
 									/>
 								) }
-								{ view === 'onboarding_setting_up' && (
-									<SettingUp
-										onDone={ ( next ) => setView( next ) }
-									/>
-								) }
-								{ ( view === 'dashboard_empty_language' ||
-									view === 'dashboard_workspace' ) && (
+								{ view === 'dashboard' && (
 									<Dashboard
 										defaultLanguage={
 											state.default_language
-										}
-										onLanguageCreated={ () =>
-											setView( 'dashboard_workspace' )
 										}
 									/>
 								) }
