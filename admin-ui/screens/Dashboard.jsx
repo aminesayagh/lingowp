@@ -1691,7 +1691,7 @@ export default function Dashboard( { defaultLanguage } ) {
 													as="span"
 													variant="bodySm"
 													tone="subdued"
-													fontWeight="medium"
+													// fontWeight="medium"
 												>
 													{ originalLabel }
 												</Text>
@@ -1701,7 +1701,7 @@ export default function Dashboard( { defaultLanguage } ) {
 													as="span"
 													variant="bodySm"
 													tone="subdued"
-													fontWeight="medium"
+													// fontWeight="medium"
 												>
 													{ translationLabel }
 												</Text>
