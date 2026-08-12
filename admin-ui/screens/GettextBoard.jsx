@@ -72,6 +72,7 @@ export default function GettextBoard( {
 	aiAvailable,
 	onPickLanguage,
 	onConfirm,
+	onAiUnavailable,
 } ) {
 	const queryClient = useQueryClient()
 	const [ openKeys, setOpenKeys ] = useState( () => new Set() )
@@ -349,6 +350,7 @@ export default function GettextBoard( {
 										languages={ languages }
 										aiAvailable={ aiAvailable }
 										onPickLanguage={ onPickLanguage }
+										onAiUnavailable={ onAiUnavailable }
 									/>
 								) : (
 									<GettextRowActions
@@ -471,6 +473,7 @@ function GettextUnitList( {
 	languages,
 	aiAvailable,
 	onPickLanguage,
+	onAiUnavailable,
 } ) {
 	const queryClient = useQueryClient()
 	const queryKey = [ 'gettext-units', row.type, row.domain, row.locale ]
@@ -597,6 +600,7 @@ function GettextUnitList( {
 					onSaved={ ( msgstr ) => updateUnit( i, msgstr ) }
 					onOpenOverlay={ () => setOverlayIndex( i ) }
 					onIgnore={ () => confirmIgnore( i ) }
+					onAiUnavailable={ onAiUnavailable }
 				/>
 			) ) }
 			<Box padding="300">
@@ -618,6 +622,7 @@ function GettextUnitList( {
 				languages={ languages }
 				aiAvailable={ aiAvailable }
 				onPickLanguage={ onPickLanguage }
+				onAiUnavailable={ onAiUnavailable }
 				onClose={ () => setOverlayIndex( null ) }
 				onSaved={ ( msgstr ) => updateUnit( overlayIndex, msgstr ) }
 				onPrev={ () =>
@@ -642,6 +647,7 @@ function GettextUnitRow( {
 	onSaved,
 	onOpenOverlay,
 	onIgnore,
+	onAiUnavailable,
 } ) {
 	const [ draft, setDraft ] = useState( unit.msgstr )
 	const [ menuOpen, setMenuOpen ] = useState( false )
@@ -706,6 +712,11 @@ function GettextUnitRow( {
 		if ( res.ok ) {
 			setDraft( res.msgstr )
 			onSaved( res.msgstr )
+		} else if (
+			res.error !== 'ERR_QUOTA' &&
+			res.error !== 'ERR_INVALID_INPUT'
+		) {
+			onAiUnavailable?.( res.error )
 		}
 	}
 

@@ -400,7 +400,10 @@ export default function CompareOverlay( {
 								>
 									<Button
 										size="micro"
-										icon={ AiIcon }
+										variant="tertiary"
+										icon={ ( props ) => (
+											<AiIcon { ...props } size={ 12 } />
+										) }
 										disabled={ ! aiAvailable }
 										loading={ translating }
 										onClick={ translate }

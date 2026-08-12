@@ -5,6 +5,7 @@ namespace TransLangs\GettextDomains;
 use TransLangs\GettextDomains\InstalledGettextComponentDiscovery;
 use TransLangs\Backend\AiQuotaService;
 use TransLangs\Backend\BackendClient;
+use TransLangs\Backend\ConnectionStatus;
 use TransLangs\GettextDomains\GettextDomainRegistry;
 use TransLangs\GettextDomains\GettextOnlineTranslationFetcher;
 use TransLangs\GettextDomains\GettextPoImporter;
@@ -43,7 +44,8 @@ final class GettextDomainRestController
         private GettextPoImporter $importer,
         private GettextTranslationUnitsService $units,
         private BackendClient $backend,
-        private AiQuotaService $quota
+        private AiQuotaService $quota,
+        private ConnectionStatus $connectionStatus
     ) {}
 
     public function register(): void
@@ -326,6 +328,11 @@ final class GettextDomainRestController
 
         $res = $this->backend->translate($payload);
         if (! $res['ok']) {
+            // Same connectivity-failure bookkeeping as AiTranslationController —
+            // one shared "AI available" status regardless of which translate
+            // entry point noticed the backend was down.
+            $this->connectionStatus->markUnavailable($res['error']);
+
             return rest_ensure_response(['ok' => false, 'error' => $res['error']]);
         }
 

@@ -62,6 +62,17 @@ final class ConnectionStatus
             : $this->store(false, $result['error']);
     }
 
+    /**
+     * Record a failure already observed by a caller (e.g. a translate request
+     * that hit the backend and got a connection-level error) — no extra live
+     * probe, just persist what's already known so the next status read is
+     * accurate immediately instead of waiting for the next cron tick.
+     */
+    public function markUnavailable(string $error): void
+    {
+        $this->store(false, $error);
+    }
+
     /** Keep the recurring check scheduled only while connected. */
     public function syncSchedule(): void
     {

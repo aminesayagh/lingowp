@@ -6,6 +6,7 @@ use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Board\CollectionBoard;
 
 use TransLangs\Backend\AiQuotaService;
+use TransLangs\Backend\ConnectionStatus;
 use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Source\SourceRef;
 use TransLangs\Shared\Source\TranslationStatus;
@@ -37,7 +38,8 @@ final class AiTranslationController
         private OptionLanguageRegistry $registry,
         private CollectionBoard $collections,
         private AiQuotaService $quota,
-        private AiTranslationRunner $runner
+        private AiTranslationRunner $runner,
+        private ConnectionStatus $connectionStatus
     ) {}
 
     public function register(): void
@@ -93,6 +95,12 @@ final class AiTranslationController
 
         $result = $this->runner->run($units, $lang);
         if ($result['error'] !== null) {
+            // A batch call to the backend itself failed (network/auth/backend
+            // error) — record it now so the next status read reflects reality
+            // immediately, instead of the SPA showing AI as available until
+            // the next page load or health-check tick.
+            $this->connectionStatus->markUnavailable($result['error']);
+
             return rest_ensure_response([
                 'ok'         => false,
                 'error'      => $result['error'],

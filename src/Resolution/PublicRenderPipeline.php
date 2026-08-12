@@ -112,11 +112,15 @@ final class PublicRenderPipeline
     }
 
     /**
-     * Per-language map for the final-HTML replace pass, object-cached. Merges the
-     * hash-linked template text (tl_html) and wp_options text (tl_option) maps;
-     * rewriting the page output (never option retrieval) keeps business logic on
-     * the original value. Empty array is a valid cached value (means "skip the
-     * parse"); a cache miss triggers a fetch.
+     * Per-language map for the final-HTML replace pass, object-cached. Merges
+     * tl_html, tl_option, and tl_post (structured content) hash-link maps —
+     * tl_post is needed too since block-theme templates/parts render their
+     * post_content via do_blocks(), never the_content, so StructuredRenderResolver
+     * never substitutes them; this is the only pass that reaches them. Ordinary
+     * post/page text is already translated upstream by the time it reaches this
+     * buffer, so it's a no-op there. Rewriting the page output (never option
+     * retrieval) keeps business logic on the original value. Empty array is a
+     * valid cached value (means "skip the parse"); a cache miss triggers a fetch.
      *
      * @return array<string, string>
      */
@@ -133,8 +137,11 @@ final class PublicRenderPipeline
 
         $map = [];
         foreach ($this->languageRegistry->resolutionChain($lang) as $tryLang) {
-            $map += $this->repository->fetchAllHashTranslations('tl_html', $tryLang)
-                + $this->repository->fetchAllHashTranslations('tl_option', $tryLang);
+            // + is first-wins: tl_post (structured) outranks tl_option, which
+            // outranks tl_html (generic template-text sweep) on a hash collision.
+            $map += $this->repository->fetchAllHashTranslations('tl_post', $tryLang)
+                + $this->repository->fetchAllHashTranslations('tl_option', $tryLang)
+                + $this->repository->fetchAllHashTranslations('tl_html', $tryLang);
         }
 
         if (function_exists('wp_cache_set')) {

@@ -315,7 +315,7 @@ class Plugin
         (new TranslationRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
 
         $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry);
-        (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $aiQuota, $aiTranslationRunner))->register();
+        (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $aiQuota, $aiTranslationRunner, $connectionStatus))->register();
 
         (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
         (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
@@ -329,7 +329,8 @@ class Plugin
             $gettextImporter,
             new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore()),
             $backendClient,
-            $aiQuota
+            $aiQuota,
+            $connectionStatus
         ))->register();
 
         // Background site-metadata sync (job runs off-request via Action Scheduler).

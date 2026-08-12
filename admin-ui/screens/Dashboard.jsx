@@ -35,8 +35,6 @@ import {
 	useState,
 } from '@wordpress/element'
 import {
-	CheckIcon,
-	DuplicateIcon,
 	MenuHorizontalIcon,
 	PageIcon,
 	SettingsIcon,
@@ -327,13 +325,13 @@ export default function Dashboard( { defaultLanguage } ) {
 		)
 	}
 
-	// Every page load: check the backend connection and, if the site was never
-	// (or no longer) connected, retry automatically — no manual "Reconnect"
-	// action anywhere. A transient AI-unavailable state (already connected,
-	// backend just temporarily down) is left to the existing 15-min health
-	// check; only a hard not-connected state gets an immediate retry here.
+	// Every page load: force a LIVE backend probe (not the cached status —
+	// that's stale for up to 15 minutes after an outage recovers, which is
+	// exactly what would make a just-restarted backend look still-down here).
+	// If the site was never (or no longer) connected, retry automatically —
+	// no manual "Reconnect" action anywhere.
 	useEffect( () => {
-		api.get( '/connection/status' ).then( ( res ) => {
+		api.post( '/connection/check' ).then( ( res ) => {
 			if ( res.connected ) {
 				setAi( {
 					available: !! res.ai_available,
@@ -395,6 +393,12 @@ export default function Dashboard( { defaultLanguage } ) {
 			return
 		}
 		if ( ! res.ok ) {
+			// Anything other than quota/input errors here means the backend call
+			// itself failed — PHP already recorded that (ConnectionStatus), so
+			// reflect it locally too instead of leaving `ai.available` stale.
+			if ( res.error !== 'ERR_INVALID_INPUT' ) {
+				setAi( { available: false, error: res.error } )
+			}
 			showToast( 'critical', 'AI translation failed. Try again.' )
 			return
 		}
@@ -1648,6 +1652,9 @@ export default function Dashboard( { defaultLanguage } ) {
 									aiAvailable={ ai.available }
 									onPickLanguage={ setSelectedLang }
 									onConfirm={ setConfirm }
+									onAiUnavailable={ ( error ) =>
+										setAi( { available: false, error } )
+									}
 								/>
 							) }
 						{ showGroupsLoading && (
@@ -2381,8 +2388,6 @@ function TextUnitRow( {
 	const [ draft, setDraft ] = useState( unit.translated ?? '' )
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ hovered, setHovered ] = useState( false )
-	const [ originalHovered, setOriginalHovered ] = useState( false )
-	const [ copiedOriginal, setCopiedOriginal ] = useState( false )
 	const [ translating, setTranslating ] = useState( false )
 
 	const shown = unit.translated ?? unit.fallback
@@ -2447,12 +2452,6 @@ function TextUnitRow( {
 				onLengthWarning( warning )
 			}
 		}
-	}
-
-	async function copyOriginal() {
-		await navigator.clipboard.writeText( originalText )
-		setCopiedOriginal( true )
-		setTimeout( () => setCopiedOriginal( false ), 1500 )
 	}
 
 	async function doStatus( action ) {
@@ -2556,8 +2555,6 @@ function TextUnitRow( {
 				>
 					<Box width="42%" minWidth="0">
 						<div
-							onMouseEnter={ () => setOriginalHovered( true ) }
-							onMouseLeave={ () => setOriginalHovered( false ) }
 							style={ {
 								display: 'flex',
 								alignItems: 'center',
@@ -2610,36 +2607,6 @@ function TextUnitRow( {
 								<Text as="span" variant="bodySm">
 									{ originalText }
 								</Text>
-							</div>
-							<div
-								style={ {
-									opacity: originalHovered ? 1 : 0,
-									visibility: originalHovered
-										? 'visible'
-										: 'hidden',
-									transition: 'opacity 120ms ease',
-									flexShrink: 0,
-								} }
-							>
-								<Tooltip
-									content={
-										copiedOriginal
-											? 'Copied!'
-											: 'Copy to clipboard'
-									}
-								>
-									<Button
-										size="micro"
-										variant="tertiary"
-										icon={
-											copiedOriginal
-												? CheckIcon
-												: DuplicateIcon
-										}
-										accessibilityLabel="Copy original to clipboard"
-										onClick={ copyOriginal }
-									/>
-								</Tooltip>
 							</div>
 						</div>
 					</Box>
@@ -2715,9 +2682,21 @@ function TextUnitRow( {
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
 							) }
-							{ unit.is_ai && <Badge size="small">AI</Badge> }
 							{ badge && (
-								<Badge tone={ badge.tone } size="small">
+								<Badge
+									tone={ badge.tone }
+									size="small"
+									icon={
+										unit.is_ai && badge.label === 'Done'
+											? ( props ) => (
+													<AiIcon
+														{ ...props }
+														size={ 12 }
+													/>
+											  )
+											: undefined
+									}
+								>
 									{ badge.label }
 								</Badge>
 							) }
@@ -2736,28 +2715,23 @@ function TextUnitRow( {
 									blockAlign="center"
 									wrap={ false }
 								>
-									<Tooltip
-										content={
-											aiAvailable
-												? 'AI translate'
-												: 'AI translation is not available'
-										}
-									>
-										<Button
-											variant="secondary"
-											size="micro"
-											disabled={ ! aiAvailable }
-											loading={ translating }
-											accessibilityLabel="AI translate"
-											icon={ ( props ) => (
-												<AiIcon
-													{ ...props }
-													size={ 12 }
-												/>
-											) }
-											onClick={ translateThisText }
-										/>
-									</Tooltip>
+									{ aiAvailable && (
+										<Tooltip content="AI translate">
+											<Button
+												variant="secondary"
+												size="micro"
+												loading={ translating }
+												accessibilityLabel="AI translate"
+												icon={ ( props ) => (
+													<AiIcon
+														{ ...props }
+														size={ 12 }
+													/>
+												) }
+												onClick={ translateThisText }
+											/>
+										</Tooltip>
+									) }
 									<Popover
 										active={ menuOpen }
 										onClose={ () => setMenuOpen( false ) }

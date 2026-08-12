@@ -85,6 +85,7 @@ export default function GettextOverlay( {
 	languages = [],
 	aiAvailable,
 	onPickLanguage,
+	onAiUnavailable,
 	onClose,
 	onSaved,
 	onPrev,
@@ -157,6 +158,11 @@ export default function GettextOverlay( {
 			savedRef.current = res.msgstr
 			setSavedTick( ( t ) => t + 1 )
 			onSaved( res.msgstr )
+		} else if (
+			res.error !== 'ERR_QUOTA' &&
+			res.error !== 'ERR_INVALID_INPUT'
+		) {
+			onAiUnavailable?.( res.error )
 		}
 	}
 
