@@ -314,7 +314,7 @@ class Plugin
         (new CollectionsRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
         (new TranslationRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
 
-        $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry, $languageMetadata);
+        $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry);
         (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $aiQuota, $aiTranslationRunner))->register();
 
         (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
@@ -329,7 +329,6 @@ class Plugin
             $gettextImporter,
             new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore()),
             $backendClient,
-            $languageMetadata,
             $aiQuota
         ))->register();
 

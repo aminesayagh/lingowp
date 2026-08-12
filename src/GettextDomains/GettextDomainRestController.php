@@ -5,13 +5,11 @@ namespace TransLangs\GettextDomains;
 use TransLangs\GettextDomains\InstalledGettextComponentDiscovery;
 use TransLangs\Backend\AiQuotaService;
 use TransLangs\Backend\BackendClient;
-use TransLangs\Backend\SiteMetadataProvider;
-use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\GettextDomains\GettextDomainRegistry;
 use TransLangs\GettextDomains\GettextOnlineTranslationFetcher;
 use TransLangs\GettextDomains\GettextPoImporter;
 use TransLangs\GettextDomains\GettextTranslationUnitsService;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
+use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -45,7 +43,6 @@ final class GettextDomainRestController
         private GettextPoImporter $importer,
         private GettextTranslationUnitsService $units,
         private BackendClient $backend,
-        private LanguageMetadataStore $langStore,
         private AiQuotaService $quota
     ) {}
 
@@ -322,11 +319,9 @@ final class GettextDomainRestController
         }
 
         $payload = [
-            'source_language' => $this->languageRegistry->getDefaultLanguage(),
-            'target_language' => $locale,
-            'ai_style'        => (string) ($this->langStore->get($locale)['ai_style'] ?? ''),
-            'categories'      => array_values((array) get_option(SiteMetadataProvider::OPTION_CATEGORIES, [])),
-            'texts'           => [['id' => 'unit', 'text' => $msgid]],
+            'source_lang'  => $this->languageRegistry->getDefaultLanguage(),
+            'target_langs' => [$locale],
+            'texts'        => [$msgid],
         ];
 
         $res = $this->backend->translate($payload);
@@ -337,13 +332,20 @@ final class GettextDomainRestController
         $data = is_array($res['data']) ? $res['data'] : [];
         $text = '';
         foreach ((array) ($data['translations'] ?? []) as $t) {
-            if (($t['id'] ?? '') === 'unit') {
-                $text = (string) ($t['text'] ?? '');
+            if (($t['text'] ?? '') === $msgid) {
+                $text = (string) ($t['translation'] ?? '');
                 break;
             }
         }
         if ($text === '') {
-            return rest_ensure_response(['ok' => false, 'error' => 'ERR_EMPTY_RESULT']);
+            $reason = 'ERR_EMPTY_RESULT';
+            foreach ((array) ($data['failed'] ?? []) as $f) {
+                if (($f['text'] ?? '') === $msgid) {
+                    $reason = (string) ($f['reason'] ?? $reason);
+                    break;
+                }
+            }
+            return rest_ensure_response(['ok' => false, 'error' => $reason]);
         }
 
         if (! $this->units->saveUnit($type, $domain, $locale, $msgid, $context, $text)) {

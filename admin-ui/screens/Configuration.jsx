@@ -1,10 +1,4 @@
-import {
-	Banner,
-	BlockStack,
-	Button,
-	Card,
-	Checkbox,
-} from '@shopify/polaris'
+import { Banner, BlockStack, Button, Card, Checkbox } from '@shopify/polaris'
 import { useState } from '@wordpress/element'
 import { api } from '../api'
 import { errorMessage } from '../errors'

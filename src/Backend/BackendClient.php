@@ -60,13 +60,13 @@ final class BackendClient
     }
 
     /**
-     * POST /translate — batch translate (bearer). Payload:
-     *   { source_language, target_language, ai_style, categories[], texts:[{id,text}] }
-     * Success data: { translations:[{id,text}], words_used }.
+     * POST /translations — batch translate (bearer). Payload:
+     *   { source_lang, target_langs:[], texts:[""] }
+     * Success data: { translations:[{text,target_lang,translation}], failed:[{text,target_lang,reason}] }.
      */
     public function translate(array $payload): array
     {
-        return $this->request('POST', '/translate', $payload, $this->bearerHeaders());
+        return $this->request('POST', '/translations', $payload, $this->bearerHeaders());
     }
 
     /** GET /usage — AI word quota snapshot (bearer). */

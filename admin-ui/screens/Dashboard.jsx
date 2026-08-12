@@ -43,6 +43,7 @@ import {
 } from '@shopify/polaris-icons'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from '../api'
+import { errorMessage } from '../errors'
 import { AiIcon } from './AiIcon'
 import ExportImportModal from './ExportImportModal'
 import GettextBoard from './GettextBoard'
@@ -326,11 +327,31 @@ export default function Dashboard( { defaultLanguage } ) {
 		)
 	}
 
+	// Every page load: check the backend connection and, if the site was never
+	// (or no longer) connected, retry automatically — no manual "Reconnect"
+	// action anywhere. A transient AI-unavailable state (already connected,
+	// backend just temporarily down) is left to the existing 15-min health
+	// check; only a hard not-connected state gets an immediate retry here.
 	useEffect( () => {
 		api.get( '/connection/status' ).then( ( res ) => {
-			setAi( {
-				available: !! res.ai_available,
-				error: res.ai_error || '',
+			if ( res.connected ) {
+				setAi( {
+					available: !! res.ai_available,
+					error: res.ai_error || '',
+				} )
+				return
+			}
+			api.post( '/connection/connect' ).then( ( reconnectRes ) => {
+				if ( reconnectRes.ok && reconnectRes.connected ) {
+					setAi( {
+						available: !! reconnectRes.ai_available,
+						error: '',
+					} )
+					return
+				}
+				const error = reconnectRes.error || 'ERR_BACKEND'
+				setAi( { available: false, error } )
+				showToast( 'warning', errorMessage( error ) )
 			} )
 		} )
 		loadQuota()
@@ -2362,6 +2383,7 @@ function TextUnitRow( {
 	const [ hovered, setHovered ] = useState( false )
 	const [ originalHovered, setOriginalHovered ] = useState( false )
 	const [ copiedOriginal, setCopiedOriginal ] = useState( false )
+	const [ translating, setTranslating ] = useState( false )
 
 	const shown = unit.translated ?? unit.fallback
 	const hasTranslation =
@@ -2455,11 +2477,13 @@ function TextUnitRow( {
 		} )
 	}
 
-	function translateThisText() {
-		onAiTranslate( 'text', {
+	async function translateThisText() {
+		setTranslating( true )
+		await onAiTranslate( 'text', {
 			ref: unit.id,
 			collection_id: collectionId,
 		} )
+		setTranslating( false )
 	}
 
 	const menuSections = [
@@ -2723,6 +2747,7 @@ function TextUnitRow( {
 											variant="secondary"
 											size="micro"
 											disabled={ ! aiAvailable }
+											loading={ translating }
 											accessibilityLabel="AI translate"
 											icon={ ( props ) => (
 												<AiIcon

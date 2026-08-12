@@ -3,11 +3,9 @@
 namespace TransLangs\AiTranslation;
 
 use TransLangs\Backend\BackendClient;
-use TransLangs\Backend\SiteMetadataProvider;
 use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
 use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 
 /**
@@ -27,8 +25,7 @@ final class AiTranslationRunner
     public function __construct(
         private BackendClient $backend,
         private WpDbSourceRepository $repo,
-        private OptionLanguageRegistry $registry,
-        private LanguageMetadataStore $langStore
+        private OptionLanguageRegistry $registry
     ) {}
 
     /**
@@ -37,23 +34,16 @@ final class AiTranslationRunner
      */
     public function run(array $units, string $lang): array
     {
-        $source  = $this->registry->getDefaultLanguage();
-        $aiStyle = (string) ($this->langStore->get($lang)['ai_style'] ?? '');
-        $cats    = array_values((array) get_option(SiteMetadataProvider::OPTION_CATEGORIES, []));
+        $source   = $this->registry->getDefaultLanguage();
         $done     = 0;
         $words    = 0;
         $failures = [];
 
         foreach (array_chunk($units, self::BATCH) as $chunk) {
             $payload = [
-                'source_language' => $source,
-                'target_language' => $lang,
-                'ai_style'        => $aiStyle,
-                'categories'      => $cats,
-                'texts'           => array_map(
-                    static fn (array $u): array => ['id' => $u['ref']->format(), 'text' => $u['original']],
-                    $chunk
-                ),
+                'source_lang'  => $source,
+                'target_langs' => [$lang],
+                'texts'        => array_map(static fn (array $u): string => $u['original'], $chunk),
             ];
 
             $res = $this->backend->translate($payload);
@@ -62,14 +52,24 @@ final class AiTranslationRunner
             }
 
             $data = is_array($res['data']) ? $res['data'] : [];
-            $byId = [];
+            $byText = [];
             foreach ((array) ($data['translations'] ?? []) as $t) {
-                $byId[(string) ($t['id'] ?? '')] = (string) ($t['text'] ?? '');
+                $byText[(string) ($t['text'] ?? '')] = (string) ($t['translation'] ?? '');
+            }
+            $failedReasons = [];
+            foreach ((array) ($data['failed'] ?? []) as $f) {
+                $failedReasons[(string) ($f['text'] ?? '')] = (string) ($f['reason'] ?? 'ERR_BACKEND');
             }
 
             foreach ($chunk as $u) {
-                $text = $byId[$u['ref']->format()] ?? null;
+                $text = $byText[$u['original']] ?? null;
                 if ($text === null || $text === '') {
+                    if (isset($failedReasons[$u['original']])) {
+                        $failures[] = [
+                            'ref'   => $u['ref']->format(),
+                            'error' => $failedReasons[$u['original']],
+                        ];
+                    }
                     continue;
                 }
 
@@ -92,8 +92,11 @@ final class AiTranslationRunner
 
                 $this->repo->saveTranslation($u['ref'], $lang, $text, TranslationStatus::MACHINE, self::PROVIDER);
                 $done++;
+                // ponytail: the API no longer reports words actually billed, so this
+                // is the same str_word_count estimate used for the pre-flight quota
+                // check — GET /usage stays the source of truth for real balance.
+                $words += str_word_count(wp_strip_all_tags((string) $u['original']));
             }
-            $words += (int) ($data['words_used'] ?? 0);
         }
 
         return ['translated' => $done, 'words_used' => $words, 'failures' => $failures, 'error' => null];

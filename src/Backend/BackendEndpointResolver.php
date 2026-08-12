@@ -21,6 +21,12 @@ final class BackendEndpointResolver
     // ponytail: dev placeholder — swap for the real production origin before release.
     private const DEFAULT_ORIGIN = 'http://localhost:8000';
 
+    // Identifies this plugin to the backend for the one-time /auth/site call;
+    // the backend's own auth (token issuance + per-site checks) is what
+    // actually protects a connected site, so this ships baked-in like
+    // DEFAULT_ORIGIN rather than requiring site-owner configuration.
+    private const DEFAULT_PROVISION_KEY = 'tl_prov_WOFEFjWeTugfBX204lb5eeeMtzRm-hS3AIq4bfMpixk';
+
     /** Full API base, e.g. https://api.example.com/api/v1. */
     public function baseUrl(): string
     {
@@ -53,8 +59,11 @@ final class BackendEndpointResolver
         }
 
         $filtered = apply_filters('translangs_provision_key', '');
+        if (is_string($filtered) && $filtered !== '') {
+            return $filtered;
+        }
 
-        return is_string($filtered) ? $filtered : '';
+        return self::DEFAULT_PROVISION_KEY;
     }
 
     /** Dev-only reset tool: drop back to the filter/baked-in default. */
