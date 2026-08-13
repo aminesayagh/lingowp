@@ -2,10 +2,9 @@
 
 namespace TransLangs\Onboarding;
 
-use TransLangs\Backend\BackendClient;
 use TransLangs\Backend\ConnectionRepository;
 use TransLangs\Backend\ConnectionStatus;
-use TransLangs\Backend\SiteMetadataProvider;
+use TransLangs\Backend\SiteConnector;
 use TransLangs\Language\Domain\LanguageRegistry;
 use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
@@ -26,9 +25,8 @@ final class OnboardingRestController
     private const URL_RISK_SMALL_SITE_MAX_URLS = 20;
 
     public function __construct(
-        private BackendClient $backend,
+        private SiteConnector $siteConnector,
         private ConnectionRepository $connection,
-        private SiteMetadataProvider $metadata,
         private LanguageRegistry $languages,
         private ConnectionStatus $status
     ) {}
@@ -128,25 +126,9 @@ final class OnboardingRestController
      */
     private function attemptConnect(): string
     {
-        $result = $this->backend->createSite($this->metadata->buildForCreate());
+        $result = $this->siteConnector->connect();
 
-        if (!$result['ok']) {
-            return $result['error'];
-        }
-
-        $data   = is_array($result['data']) ? $result['data'] : [];
-        $siteId = (string) ($data['site_id'] ?? '');
-        $token  = (string) ($data['api_token'] ?? $data['token'] ?? '');
-
-        if ($token === '') {
-            return 'ERR_BACKEND';
-        }
-
-        $this->connection->store($siteId, $token);
-        $this->status->refresh();     // AI becomes available immediately
-        $this->status->syncSchedule(); // start the recurring health check
-
-        return '';
+        return $result['ok'] ? '' : $result['error'];
     }
 
     /** Mark completed and hand the SPA its dashboard destination. Does not wait for the scan. */

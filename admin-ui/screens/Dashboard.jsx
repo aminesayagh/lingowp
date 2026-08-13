@@ -40,6 +40,7 @@ import {
 	SettingsIcon,
 } from '@shopify/polaris-icons'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
+import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api'
 import { errorMessage } from '../errors'
 import { AiIcon } from './AiIcon'
@@ -1805,6 +1806,14 @@ export default function Dashboard( { defaultLanguage } ) {
 														language={
 															selectedLang
 														}
+														targetDir={
+															languages.find(
+																( l ) =>
+																	l.code ===
+																	selectedLang
+															)?.direction ||
+															'ltr'
+														}
 														search={ query }
 														status={ statusFilter }
 														filterKey={
@@ -2002,6 +2011,7 @@ function ConfirmDialog( { confirm, onClose } ) {
 function CollectionGroup( {
 	collection,
 	language,
+	targetDir,
 	search,
 	status,
 	filterKey,
@@ -2333,6 +2343,7 @@ function CollectionGroup( {
 									key={ t.id }
 									unit={ t }
 									language={ language }
+									targetDir={ targetDir }
 									collectionId={ c.id }
 									onMutate={ onMutate }
 									onConfirm={ onConfirm }
@@ -2377,6 +2388,7 @@ function CollectionGroup( {
 function TextUnitRow( {
 	unit,
 	language,
+	targetDir = 'ltr',
 	collectionId,
 	onMutate,
 	onConfirm,
@@ -2389,6 +2401,7 @@ function TextUnitRow( {
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ hovered, setHovered ] = useState( false )
 	const [ translating, setTranslating ] = useState( false )
+	const moreActionsRef = useRef( null )
 
 	const shown = unit.translated ?? unit.fallback
 	const hasTranslation =
@@ -2483,6 +2496,14 @@ function TextUnitRow( {
 			collection_id: collectionId,
 		} )
 		setTranslating( false )
+	}
+
+	// The AI-translate button unmounts while generating (AnimatePresence) — move
+	// focus to the adjacent "More actions" button first so a keyboard user
+	// never loses focus to <body>.
+	function handleAiClick() {
+		moreActionsRef.current?.querySelector( 'button' )?.focus()
+		translateThisText()
 	}
 
 	const menuSections = [
@@ -2612,55 +2633,88 @@ function TextUnitRow( {
 					</Box>
 
 					<Box width="42%" minWidth="0">
-						{ clickable ? (
-							<div
-								role="button"
-								tabIndex={ 0 }
-								onClick={ () => onOpenOverlay( unit ) }
-								onKeyDown={ ( e ) => {
-									if ( e.key === 'Enter' || e.key === ' ' ) {
-										e.preventDefault()
-										onOpenOverlay( unit )
-									}
-								} }
-								style={ {
-									...oneLineStyle,
-									userSelect: 'text',
-								} }
-							>
-								<Text
-									as="span"
-									variant="bodySm"
-									tone={
-										hasTranslation ? undefined : 'subdued'
-									}
+						<div style={ { position: 'relative', minWidth: 0 } }>
+							{ clickable ? (
+								<div
+									role="button"
+									tabIndex={ 0 }
+									onClick={ () => onOpenOverlay( unit ) }
+									onKeyDown={ ( e ) => {
+										if (
+											e.key === 'Enter' ||
+											e.key === ' '
+										) {
+											e.preventDefault()
+											onOpenOverlay( unit )
+										}
+									} }
+									style={ {
+										...oneLineStyle,
+										userSelect: 'text',
+										opacity: translating ? 0 : 1,
+									} }
 								>
-									{ shownText }
-								</Text>
-							</div>
-						) : (
-							<input
-								type="text"
-								aria-label="Translation"
-								value={ draft }
-								onChange={ ( e ) => setDraft( e.target.value ) }
-								onBlur={ saveTranslation }
-								placeholder={ unit.fallback || '' }
-								style={ {
-									all: 'unset',
-									display: 'block',
-									width: '100%',
-									minWidth: 0,
-									cursor: 'text',
-									fontSize: 'var(--p-font-size-300, 0.75rem)',
-									lineHeight:
-										'var(--p-font-line-height-300, 1rem)',
-									color: hasTranslation
-										? 'var(--p-color-text)'
-										: 'var(--p-color-text-subdued)',
-								} }
-							/>
-						) }
+									<Text
+										as="span"
+										variant="bodySm"
+										tone={
+											hasTranslation
+												? undefined
+												: 'subdued'
+										}
+									>
+										{ shownText }
+									</Text>
+								</div>
+							) : (
+								<input
+									type="text"
+									aria-label="Translation"
+									value={ draft }
+									onChange={ ( e ) =>
+										setDraft( e.target.value )
+									}
+									onBlur={ saveTranslation }
+									placeholder={ unit.fallback || '' }
+									style={ {
+										all: 'unset',
+										display: 'block',
+										width: '100%',
+										minWidth: 0,
+										cursor: 'text',
+										fontSize:
+											'var(--p-font-size-300, 0.75rem)',
+										lineHeight:
+											'var(--p-font-line-height-300, 1rem)',
+										color: hasTranslation
+											? 'var(--p-color-text)'
+											: 'var(--p-color-text-subdued)',
+										opacity: translating ? 0 : 1,
+									} }
+								/>
+							) }
+							{ translating && (
+								<span
+									aria-hidden="true"
+									className="tl-shimmer"
+									style={ {
+										whiteSpace: 'nowrap',
+										overflow: 'hidden',
+										textOverflow: 'ellipsis',
+										fontSize:
+											'var(--p-font-size-300, 0.75rem)',
+										lineHeight:
+											'var(--p-font-line-height-300, 1rem)',
+										animationDirection:
+											targetDir === 'rtl'
+												? 'reverse'
+												: 'normal',
+									} }
+								>
+									Translating…
+								</span>
+							) }
+						</div>
 					</Box>
 
 					<Box width="16%">
@@ -2716,48 +2770,101 @@ function TextUnitRow( {
 									wrap={ false }
 								>
 									{ aiAvailable && (
-										<Tooltip content="AI translate">
-											<Button
-												variant="secondary"
-												size="micro"
-												loading={ translating }
-												accessibilityLabel="AI translate"
-												icon={ ( props ) => (
-													<AiIcon
-														{ ...props }
-														size={ 12 }
-													/>
-												) }
-												onClick={ translateThisText }
-											/>
-										</Tooltip>
-									) }
-									<Popover
-										active={ menuOpen }
-										onClose={ () => setMenuOpen( false ) }
-										activator={
-											<Button
-												variant="secondary"
-												size="micro"
-												icon={ ( props ) => (
-													<MenuHorizontalIcon
-														{ ...props }
-														style={ {
-															...props.style,
-															transform:
-																'scale(0.7)',
+										<div
+											style={ {
+												width: 'var(--p-width-600)',
+												height: 'var(--p-height-600)',
+												flexShrink: 0,
+												position: 'relative',
+											} }
+										>
+											<AnimatePresence initial={ false }>
+												{ ! translating && (
+													<motion.div
+														key="ai-translate"
+														initial={ {
+															opacity: 0,
+															scale: 0.92,
 														} }
-													/>
+														animate={ {
+															opacity: 1,
+															scale: 1,
+														} }
+														exit={ {
+															opacity: 0,
+															scale: 0.92,
+														} }
+														transition={ {
+															duration: 0.2,
+															ease: [
+																0.4, 0, 0.2, 1,
+															],
+														} }
+														style={ {
+															position:
+																'absolute',
+															inset: 0,
+														} }
+													>
+														<Tooltip content="AI translate">
+															<Button
+																variant="secondary"
+																size="micro"
+																accessibilityLabel="AI translate"
+																icon={ (
+																	props
+																) => (
+																	<AiIcon
+																		{ ...props }
+																		size={
+																			12
+																		}
+																	/>
+																) }
+																onClick={
+																	handleAiClick
+																}
+															/>
+														</Tooltip>
+													</motion.div>
 												) }
-												accessibilityLabel="More actions"
-												onClick={ () =>
-													setMenuOpen( ( o ) => ! o )
-												}
+											</AnimatePresence>
+										</div>
+									) }
+									<span ref={ moreActionsRef }>
+										<Popover
+											active={ menuOpen }
+											onClose={ () =>
+												setMenuOpen( false )
+											}
+											activator={
+												<Button
+													variant="secondary"
+													size="micro"
+													icon={ ( props ) => (
+														<MenuHorizontalIcon
+															{ ...props }
+															style={ {
+																...props.style,
+																transform:
+																	'scale(0.7)',
+															} }
+														/>
+													) }
+													accessibilityLabel="More actions"
+													onClick={ () =>
+														setMenuOpen(
+															( o ) => ! o
+														)
+													}
+												/>
+											}
+										>
+											<ActionList
+												sections={ menuSections }
 											/>
-										}
-									>
-										<ActionList sections={ menuSections } />
-									</Popover>
+										</Popover>
+									</span>
 								</InlineStack>
 							</div>
 						</InlineStack>

@@ -5,7 +5,7 @@ namespace TransLangs\Backend;
 use TransLangs\Backend\BackendClient;
 use TransLangs\Backend\ConnectionRepository;
 use TransLangs\Backend\ConnectionStatus;
-use TransLangs\Backend\SiteMetadataProvider;
+use TransLangs\Backend\SiteConnector;
 use WP_REST_Response;
 
 /**
@@ -23,8 +23,8 @@ final class ConnectionRestController
     public function __construct(
         private BackendClient $backend,
         private ConnectionRepository $connection,
-        private SiteMetadataProvider $metadata,
-        private ConnectionStatus $status
+        private ConnectionStatus $status,
+        private SiteConnector $siteConnector
     ) {}
 
     public function register(): void
@@ -80,23 +80,15 @@ final class ConnectionRestController
      */
     public function connect(): WP_REST_Response
     {
-        $result = $this->backend->createSite($this->metadata->buildForCreate());
+        $result = $this->siteConnector->connect();
 
         if (!$result['ok']) {
             return new WP_REST_Response(['ok' => false, 'connected' => false, 'error' => $result['error']], 200);
         }
 
-        $data   = is_array($result['data']) ? $result['data'] : [];
-        $siteId = (string) ($data['site_id'] ?? '');
-        $token  = (string) ($data['api_token'] ?? $data['token'] ?? '');
-
-        if ($token === '') {
-            return new WP_REST_Response(['ok' => false, 'connected' => false, 'error' => 'ERR_BACKEND'], 200);
-        }
-
-        $this->connection->store($siteId, $token);
-        $status = $this->status->refresh();
-        $this->status->syncSchedule();
+        // SiteConnector::connect() already called status->refresh() — read the
+        // now-warm cache instead of probing the backend a second time.
+        $status = $this->status->current();
 
         return rest_ensure_response(['ok' => true, 'connected' => true, 'ai_available' => $status['available']]);
     }

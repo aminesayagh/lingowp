@@ -7,6 +7,7 @@ use TransLangs\Backend\ConnectionRepository;
 use TransLangs\Backend\ConnectionStatus;
 use TransLangs\Backend\SiteMetadataProvider;
 use TransLangs\Backend\SiteMetadataSyncJob;
+use TransLangs\Backend\TokenRotationJob;
 use TransLangs\Extraction\Html\HtmlDiscoveryCrawl;
 use TransLangs\Extraction\Structured\InitialDiscoveryScan;
 use TransLangs\Database\TranslationMemorySchema;
@@ -46,7 +47,8 @@ class ResetPageController
         private SiteMetadataSyncJob $siteMetadataSyncJob,
         private SiteMetadataProvider $siteMetadata,
         private OptionLanguageRegistry $languageRegistry,
-        private LanguageMetadataStore $languageMetadata
+        private LanguageMetadataStore $languageMetadata,
+        private TokenRotationJob $tokenRotationJob
     ) {
     }
 
@@ -125,6 +127,7 @@ class ResetPageController
         $this->endpointResolver->resetOrigin();
         $this->connectionStatus->unschedule();
         $this->siteMetadataSyncJob->clearError();
+        $this->tokenRotationJob->unschedule();
     }
 
     /**

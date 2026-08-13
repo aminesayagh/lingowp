@@ -49,9 +49,11 @@ use TransLangs\Backend\BackendClient;
 use TransLangs\Backend\BackendEndpointResolver;
 use TransLangs\Backend\ConnectionRepository;
 use TransLangs\Backend\ConnectionStatus;
+use TransLangs\Backend\SiteConnector;
 use TransLangs\Backend\SiteMetadataProvider;
 use TransLangs\Backend\SiteMetadataSyncJob;
 use TransLangs\Backend\SiteMetadataSyncScheduler;
+use TransLangs\Backend\TokenRotationJob;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Onboarding\OnboardingRestController;
 use TransLangs\Backend\ConnectionRestController;
@@ -74,7 +76,7 @@ use TransLangs\GettextDomains\GettextTranslationUnitsService;
 /**
  * @phpstan-type BackendBundle array{connection: ConnectionRepository, backendClient: BackendClient,
  *   siteMetadata: SiteMetadataProvider, connectionStatus: ConnectionStatus,
- *   languageMetadata: LanguageMetadataStore}
+ *   languageMetadata: LanguageMetadataStore, tokenRotationJob: TokenRotationJob}
  */
 class Plugin
 {
@@ -299,14 +301,19 @@ class Plugin
         $siteMetadata     = new SiteMetadataProvider($languageRegistry);
         $languageMetadata = new LanguageMetadataStore();
         $connectionStatus = new ConnectionStatus($backendClient, $connection);
+        $siteConnector    = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus);
         $aiQuota          = new AiQuotaService($backendClient);
 
         // Active AI-availability health check (recurring while connected).
         $connectionStatus->register();
 
+        // Key hygiene: rotate the API token every 30 days (recurring while connected).
+        $tokenRotationJob = new TokenRotationJob($backendClient, $connection, $connectionStatus, $siteConnector);
+        $tokenRotationJob->register();
+
         // REST API for the onboarding SPA (registers on rest_api_init).
-        (new OnboardingRestController($backendClient, $connection, $siteMetadata, $languageRegistry, $connectionStatus))->register();
-        (new ConnectionRestController($backendClient, $connection, $siteMetadata, $connectionStatus))->register();
+        (new OnboardingRestController($siteConnector, $connection, $languageRegistry, $connectionStatus))->register();
+        (new ConnectionRestController($backendClient, $connection, $connectionStatus, $siteConnector))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
@@ -343,6 +350,7 @@ class Plugin
             'siteMetadata'     => $siteMetadata,
             'connectionStatus' => $connectionStatus,
             'languageMetadata' => $languageMetadata,
+            'tokenRotationJob' => $tokenRotationJob,
         ];
     }
 
@@ -369,7 +377,8 @@ class Plugin
                 new SiteMetadataSyncJob($backend['backendClient'], $backend['connection'], $backend['siteMetadata']),
                 $backend['siteMetadata'],
                 $languageRegistry,
-                $backend['languageMetadata']
+                $backend['languageMetadata'],
+                $backend['tokenRotationJob']
             ))->register();
         }
     }
