@@ -248,6 +248,10 @@ export default function Dashboard( { defaultLanguage } ) {
 	// one. Never a top-of-page Banner: that shifted the whole board down every
 	// time it appeared/disappeared.
 	const [ toast, setToast ] = useState( null ) // { tone, content } | null
+	// Which "Translate All" job (if any) is running: null | 'language' | <collectionId>.
+	// Rows with no translation shimmer while this matches their scope — approximate on
+	// purpose, no tracking of which exact refs the API call actually included.
+	const [ bulkTranslating, setBulkTranslating ] = useState( null )
 	const [ statusFilter, setStatusFilter ] = useState( 'all' )
 	const [ originFilter, setOriginFilter ] = useState( [] )
 	const [ contentTypeFilter, setContentTypeFilter ] = useState( [] )
@@ -366,6 +370,12 @@ export default function Dashboard( { defaultLanguage } ) {
 			)
 			return
 		}
+		// A caller (e.g. CompareOverlay translating one text into every configured
+		// language) can target a language other than the dashboard's currently
+		// selected one — every cache op below must key off THIS call's language,
+		// not selectedLang, or translations into other languages never invalidate
+		// their own cached views.
+		const lang = opts.language ?? selectedLang
 		const res = await api.post( '/translate', {
 			scope,
 			language: selectedLang,
@@ -401,7 +411,9 @@ export default function Dashboard( { defaultLanguage } ) {
 		showToast(
 			failed > 0 ? 'warning' : 'success',
 			expandedToPost
-				? `Translated ${ res.translated } untranslated paragraphs from this post together.${
+				? `Translated ${
+						res.translated
+				  } untranslated paragraphs from this post together.${
 						failed > 0 ? ` ${ failed } rejected.` : ''
 				  }`
 				: `Translated ${ res.translated } text${
@@ -409,23 +421,24 @@ export default function Dashboard( { defaultLanguage } ) {
 				  }.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
 		)
 		if ( res.collection_summary ) {
-			patchCollectionSummary( res.collection_summary )
+			patchCollectionSummary( res.collection_summary, lang )
 		} else {
-			invalidateCollections()
+			invalidateCollections( lang )
 		}
 		if ( res.updated_unit ) {
 			// scope 'text' resolves to one unit; propagate it to any other visible
 			// occurrence of the same text (its own group is invalidated below anyway).
 			propagateTranslation(
 				opts.collection_id ?? opts.id,
-				res.updated_unit
+				res.updated_unit,
+				lang
 			)
 		}
 		// Every mounted group's texts for this language may have changed (a scope
 		// or language-wide AI translate isn't limited to one group).
 		queryClient.invalidateQueries( {
 			predicate: ( q ) =>
-				q.queryKey[ 0 ] === 'texts' && q.queryKey[ 2 ] === selectedLang,
+				q.queryKey[ 0 ] === 'texts' && q.queryKey[ 2 ] === lang,
 		} )
 		loadQuota()
 		refreshLanguages() // rail percentages changed
@@ -441,8 +454,11 @@ export default function Dashboard( { defaultLanguage } ) {
 			}?`,
 			body: 'All untranslated text in this language will be sent to AI translation and may use a large number of words.',
 			actionLabel: 'Translate all',
-			onConfirm: () =>
-				translateScope( 'language', { language: lang.code } ),
+			onConfirm: async () => {
+				setBulkTranslating( 'language' )
+				await translateScope( 'language', { language: lang.code } )
+				setBulkTranslating( null )
+			},
 		} )
 	}
 
@@ -616,11 +632,11 @@ export default function Dashboard( { defaultLanguage } ) {
 		enabled: !! selectedLang && board === 'content',
 	} )
 
-	function invalidateCollections() {
+	function invalidateCollections( lang = selectedLang ) {
 		queryClient.invalidateQueries( {
 			predicate: ( q ) =>
 				q.queryKey[ 0 ] === 'collections' &&
-				q.queryKey[ 1 ]?.language === selectedLang,
+				q.queryKey[ 1 ]?.language === lang,
 		} )
 	}
 
@@ -706,7 +722,7 @@ export default function Dashboard( { defaultLanguage } ) {
 	// (derives their delta from the one collection's old vs. new numbers), and
 	// drops the row if it no longer matches the active status filter (mirrors
 	// what a real refetch would do server-side).
-	function patchCollectionSummary( summary ) {
+	function patchCollectionSummary( summary, lang = selectedLang ) {
 		if ( hasAdvancedFilters ) {
 			queryClient.invalidateQueries( { queryKey: [ 'collections' ] } )
 			queryClient.invalidateQueries( { queryKey: [ 'texts' ] } )
@@ -724,7 +740,7 @@ export default function Dashboard( { defaultLanguage } ) {
 			{
 				predicate: ( q ) =>
 					q.queryKey[ 0 ] === 'collections' &&
-					q.queryKey[ 1 ]?.language === selectedLang,
+					q.queryKey[ 1 ]?.language === lang,
 			},
 			( old ) => {
 				if ( ! old ) {
@@ -773,7 +789,11 @@ export default function Dashboard( { defaultLanguage } ) {
 	// Patch every OTHER cached group's matching row (by original_hash) directly,
 	// and recompute that group's summary from the patched array. Skips the
 	// group just edited — that one already gets its normal targeted invalidate.
-	function propagateTranslation( editedCid, updatedUnit ) {
+	function propagateTranslation(
+		editedCid,
+		updatedUnit,
+		lang = selectedLang
+	) {
 		const hash = updatedUnit?.original_hash
 		if ( ! hash ) {
 			return // meta / unlinked kinds never share a translation
@@ -782,7 +802,7 @@ export default function Dashboard( { defaultLanguage } ) {
 		const entries = queryClient.getQueriesData( {
 			predicate: ( q ) =>
 				q.queryKey[ 0 ] === 'texts' &&
-				q.queryKey[ 2 ] === selectedLang &&
+				q.queryKey[ 2 ] === lang &&
 				q.queryKey[ 1 ] !== editedCid,
 		} )
 
@@ -828,7 +848,7 @@ export default function Dashboard( { defaultLanguage } ) {
 					summary.translated++
 				}
 			}
-			patchCollectionSummary( summary )
+			patchCollectionSummary( summary, lang )
 		}
 	}
 
@@ -1838,6 +1858,12 @@ export default function Dashboard( { defaultLanguage } ) {
 														onAiTranslate={
 															translateScope
 														}
+														bulkTranslating={
+															bulkTranslating
+														}
+														onBulkTranslatingChange={
+															setBulkTranslating
+														}
 														onOpenOverlay={ (
 															unit,
 															cid
@@ -2008,6 +2034,8 @@ function CollectionGroup( {
 	onOpenOverlay,
 	aiAvailable,
 	onAiTranslate,
+	bulkTranslating,
+	onBulkTranslatingChange,
 	onLengthWarning,
 	onShare,
 } ) {
@@ -2077,7 +2105,11 @@ function CollectionGroup( {
 			title: 'AI translate this group?',
 			body: 'Untranslated text in this group will be sent to AI translation.',
 			actionLabel: 'Translate',
-			onConfirm: () => onAiTranslate( 'collection', { id: c.id } ),
+			onConfirm: async () => {
+				onBulkTranslatingChange( c.id )
+				await onAiTranslate( 'collection', { id: c.id } )
+				onBulkTranslatingChange( null )
+			},
 		} )
 	}
 
@@ -2360,6 +2392,10 @@ function CollectionGroup( {
 									onConfirm={ onConfirm }
 									aiAvailable={ aiAvailable }
 									onAiTranslate={ onAiTranslate }
+									bulkActive={
+										bulkTranslating === 'language' ||
+										bulkTranslating === c.id
+									}
 									onOpenOverlay={ ( unit ) =>
 										onOpenOverlay( unit, c.id )
 									}
@@ -2406,6 +2442,7 @@ function TextUnitRow( {
 	onOpenOverlay,
 	aiAvailable,
 	onAiTranslate,
+	bulkActive = false,
 	onLengthWarning,
 } ) {
 	const [ draft, setDraft ] = useState( unit.translated ?? '' )
@@ -2434,6 +2471,10 @@ function TextUnitRow( {
 	const shown = effectiveTranslated ?? unit.fallback
 	const hasTranslation =
 		effectiveTranslated !== null && effectiveTranslated !== undefined
+	// Approximate on purpose: shimmer any untranslated row while a bulk "Translate
+	// All" covering it is running, regardless of whether this row's text actually
+	// made it into that job's API call (see Dashboard's bulkTranslating state).
+	const showShimmer = translating || ( bulkActive && ! hasTranslation )
 	let badge = null
 	if ( unit.status === 'needs_review' ) {
 		badge = STATUS_BADGE.needs_review
@@ -2687,7 +2728,7 @@ function TextUnitRow( {
 										}
 									} }
 									animate={ {
-										opacity: translating ? 0 : 1,
+										opacity: showShimmer ? 0 : 1,
 									} }
 									transition={ { duration: 0.15 } }
 									style={ {
@@ -2718,7 +2759,7 @@ function TextUnitRow( {
 									onBlur={ saveTranslation }
 									placeholder={ unit.fallback || '' }
 									animate={ {
-										opacity: translating ? 0 : 1,
+										opacity: showShimmer ? 0 : 1,
 									} }
 									transition={ { duration: 0.15 } }
 									style={ {
@@ -2741,7 +2782,7 @@ function TextUnitRow( {
 							transition would keep this mounted over the just-
 							arrived real text and read as a stall. It gets an
 							enter fade only; completion removes it instantly. */ }
-							{ translating && (
+							{ showShimmer && (
 								<motion.span
 									aria-hidden="true"
 									className="tl-shimmer"
@@ -2854,7 +2895,7 @@ function TextUnitRow( {
 												</Tooltip>
 											</div>
 											<AnimatePresence initial={ false }>
-												{ ! translating && (
+												{ ! showShimmer && (
 													<motion.div
 														key="ai-translate"
 														initial={ {

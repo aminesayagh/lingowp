@@ -241,23 +241,27 @@ export default function CompareOverlay( {
 		fn()
 	}
 
+	// Translates this one text into EVERY configured language (not just the
+	// pane currently shown), one request at a time — `languages` is already
+	// every target language the site has (draft + active; the source language
+	// isn't in this list), and `unit.id` is the source ref, which is the same
+	// regardless of which target language a given call is for. Only the
+	// response matching the pane's own `language` updates what's shown here;
+	// the rest save silently via onAiTranslate's own cache invalidation.
 	async function translate() {
 		setTranslating( true )
 		await flush()
-		const res = await onAiTranslate( 'text', {
-			ref: unit.id,
-			collection_id: collectionId,
-		} )
-		// Write the new text straight from the response — do not wait on the
-		// list refetch/invalidation `onAiTranslate` kicks off for consistency.
-		// setText and setTranslating are synchronous back-to-back calls here
-		// (no await between them), so React batches them into one commit: the
-		// pane never renders a frame that's no longer "generating" but still
-		// showing the old text.
-		if ( res?.updated_unit ) {
-			const value = res.updated_unit.translated ?? ''
-			savedRef.current = value
-			setText( value )
+		for ( const lang of languages ) {
+			const res = await onAiTranslate( 'text', {
+				ref: unit.id,
+				collection_id: collectionId,
+				language: lang.code,
+			} )
+			if ( lang.code === language && res?.updated_unit ) {
+				const value = res.updated_unit.translated ?? ''
+				savedRef.current = value
+				setText( value )
+			}
 		}
 		setTranslating( false )
 	}
@@ -469,7 +473,7 @@ export default function CompareOverlay( {
 													}
 													content={
 														aiAvailable
-															? 'Translate with AI'
+															? 'Translate with AI (all languages)'
 															: 'AI translation is not available'
 													}
 												>
