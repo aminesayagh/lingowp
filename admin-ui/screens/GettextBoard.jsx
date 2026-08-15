@@ -10,7 +10,7 @@ import {
 	Popover,
 	Spinner,
 	Text,
-	Tooltip,
+	Tooltip
 } from '@shopify/polaris'
 import {
 	CheckIcon,
@@ -26,6 +26,7 @@ import {
 	useRef,
 	useState,
 } from '@wordpress/element'
+import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api'
 import { AiIcon } from './AiIcon'
 import GettextOverlay from './GettextOverlay'
@@ -262,7 +263,12 @@ export default function GettextBoard( {
 				return (
 					<Box key={ key }>
 						{ i > 0 && <Divider /> }
-						<Box padding="300">
+						<Box
+							padding="300"
+							background={
+								open ? 'bg-surface-secondary' : undefined
+							}
+						>
 							<button
 								type="button"
 								onClick={ () => toggle( key ) }
@@ -655,8 +661,10 @@ function GettextUnitRow( {
 	const [ originalHovered, setOriginalHovered ] = useState( false )
 	const [ copiedOriginal, setCopiedOriginal ] = useState( false )
 	const [ translating, setTranslating ] = useState( false )
+	const moreActionsRef = useRef( null )
 
 	const hasTranslation = unit.msgstr !== ''
+	const shownText = draft || unit.msgid
 
 	const originalRef = useRef( null )
 	const [ isLong, setIsLong ] = useState( false )
@@ -738,6 +746,14 @@ function GettextUnitRow( {
 		},
 	]
 
+	// The AI-translate button unmounts while generating (AnimatePresence) —
+	// move focus to the adjacent "More actions" button first so a keyboard
+	// user never loses focus to <body>.
+	function handleAiClick() {
+		moreActionsRef.current?.querySelector( 'button' )?.focus()
+		translateUnit()
+	}
+
 	return (
 		<div
 			onMouseEnter={ () => setHovered( true ) }
@@ -811,45 +827,86 @@ function GettextUnitRow( {
 					</Box>
 
 					<Box width="42%" minWidth="0">
-						{ isLong ? (
-							<button
-								type="button"
-								onClick={ onOpenOverlay }
-								style={ oneLineStyle }
-							>
-								<Text
-									as="span"
-									variant="bodySm"
-									tone={
-										hasTranslation ? undefined : 'subdued'
-									}
+						<div style={ { position: 'relative', minWidth: 0 } }>
+							{ isLong ? (
+								<motion.button
+									type="button"
+									onClick={ onOpenOverlay }
+									animate={ {
+										opacity: translating ? 0 : 1,
+									} }
+									transition={ { duration: 0.15 } }
+									style={ oneLineStyle }
 								>
-									{ unit.msgstr || unit.msgid }
-								</Text>
-							</button>
-						) : (
-							<input
-								type="text"
-								aria-label="Translation"
-								value={ draft }
-								onChange={ ( e ) => setDraft( e.target.value ) }
-								onBlur={ save }
-								placeholder={ unit.msgid }
-								style={ {
-									all: 'unset',
-									display: 'block',
-									width: '100%',
-									minWidth: 0,
-									cursor: 'text',
-									fontSize: 'var(--p-font-size-300, 0.75rem)',
-									lineHeight:
-										'var(--p-font-line-height-300, 1rem)',
-									color: hasTranslation
-										? 'var(--p-color-text)'
-										: 'var(--p-color-text-subdued)',
-								} }
-							/>
-						) }
+									<Text
+										as="span"
+										variant="bodySm"
+										tone={
+											hasTranslation
+												? undefined
+												: 'subdued'
+										}
+									>
+										{ unit.msgstr || unit.msgid }
+									</Text>
+								</motion.button>
+							) : (
+								<motion.input
+									type="text"
+									aria-label="Translation"
+									value={ draft }
+									onChange={ ( e ) =>
+										setDraft( e.target.value )
+									}
+									onBlur={ save }
+									placeholder={ unit.msgid }
+									animate={ {
+										opacity: translating ? 0 : 1,
+									} }
+									transition={ { duration: 0.15 } }
+									style={ {
+										all: 'unset',
+										display: 'block',
+										width: '100%',
+										minWidth: 0,
+										cursor: 'text',
+										fontSize:
+											'var(--p-font-size-300, 0.75rem)',
+										lineHeight:
+											'var(--p-font-line-height-300, 1rem)',
+										color: hasTranslation
+											? 'var(--p-color-text)'
+											: 'var(--p-color-text-subdued)',
+									} }
+								/>
+							) }
+							{ /* No AnimatePresence here on purpose — an exit
+							transition would keep this mounted over the just-
+							arrived real text and read as a stall. It gets an
+							enter fade only; completion removes it instantly. */ }
+							{ translating && (
+								<motion.span
+									aria-hidden="true"
+									className="tl-shimmer"
+									initial={ { opacity: 0 } }
+									animate={ { opacity: 1 } }
+									transition={ { duration: 0.15 } }
+									style={ {
+										position: 'absolute',
+										inset: 0,
+										whiteSpace: 'nowrap',
+										overflow: 'hidden',
+										textOverflow: 'ellipsis',
+										fontSize:
+											'var(--p-font-size-300, 0.75rem)',
+										lineHeight:
+											'var(--p-font-line-height-300, 1rem)',
+									} }
+								>
+									{ shownText }
+								</motion.span>
+							) }
+						</div>
 					</Box>
 
 					<Box width="16%">
@@ -864,14 +921,16 @@ function GettextUnitRow( {
 									Translated
 								</Badge>
 							) }
-							<div
-								style={ {
+							<motion.div
+								animate={ {
 									opacity: hovered || menuOpen ? 1 : 0,
+								} }
+								transition={ { duration: 0.12 } }
+								style={ {
 									visibility:
 										hovered || menuOpen
 											? 'visible'
 											: 'hidden',
-									transition: 'opacity 120ms ease',
 								} }
 							>
 								<InlineStack
@@ -879,51 +938,116 @@ function GettextUnitRow( {
 									blockAlign="center"
 									wrap={ false }
 								>
-									<Tooltip
-										content={
-											aiAvailable
-												? 'AI translate'
-												: 'AI translation is not available'
-										}
+									<div
+										style={ {
+											position: 'relative',
+											flexShrink: 0,
+										} }
 									>
-										<Button
-											variant="secondary"
-											size="micro"
-											disabled={ ! aiAvailable }
-											loading={ translating }
-											icon={ AiIcon }
-											accessibilityLabel="AI translate"
-											onClick={ translateUnit }
-										/>
-									</Tooltip>
-									<Popover
-										active={ menuOpen }
-										onClose={ () => setMenuOpen( false ) }
-										activator={
-											<Button
-												variant="secondary"
-												size="micro"
-												icon={ ( props ) => (
-													<MenuHorizontalIcon
-														{ ...props }
-														style={ {
-															...props.style,
-															transform:
-																'scale(0.7)',
-														} }
-													/>
-												) }
-												accessibilityLabel="More actions"
-												onClick={ () =>
-													setMenuOpen( ( o ) => ! o )
-												}
-											/>
-										}
+										{ /* Invisible ghost, same markup as the
+										real button below — reserves its exact
+										footprint so the slot never shifts when
+										the real button mounts/unmounts. */ }
+										<div
+											aria-hidden="true"
+											style={ { visibility: 'hidden' } }
+										>
+											<Tooltip content="AI translate">
+												<Button
+													variant="secondary"
+													size="micro"
+													icon={ AiIcon }
+												/>
+											</Tooltip>
+										</div>
+										<AnimatePresence initial={ false }>
+											{ ! translating && (
+												<motion.div
+													key="ai-translate"
+													initial={ {
+														opacity: 0,
+														scale: 0.92,
+													} }
+													animate={ {
+														opacity: 1,
+														scale: 1,
+													} }
+													exit={ {
+														opacity: 0,
+														scale: 0.92,
+													} }
+													transition={ {
+														duration: 0.2,
+														ease: [
+															0.4, 0, 0.2, 1,
+														],
+													} }
+													style={ {
+														position: 'absolute',
+														inset: 0,
+													} }
+												>
+													<Tooltip
+														content={
+															aiAvailable
+																? 'AI translate'
+																: 'AI translation is not available'
+														}
+													>
+														<Button
+															variant="secondary"
+															size="micro"
+															disabled={
+																! aiAvailable
+															}
+															icon={ AiIcon }
+															accessibilityLabel="AI translate"
+															onClick={
+																handleAiClick
+															}
+														/>
+													</Tooltip>
+												</motion.div>
+											) }
+										</AnimatePresence>
+									</div>
+									<span
+										ref={ moreActionsRef }
+										style={ { display: 'contents' } }
 									>
-										<ActionList items={ menuItems } />
-									</Popover>
+										<Popover
+											active={ menuOpen }
+											onClose={ () =>
+												setMenuOpen( false )
+											}
+											activator={
+												<Button
+													variant="secondary"
+													size="micro"
+													icon={ ( props ) => (
+														<MenuHorizontalIcon
+															{ ...props }
+															style={ {
+																...props.style,
+																transform:
+																	'scale(0.7)',
+															} }
+														/>
+													) }
+													accessibilityLabel="More actions"
+													onClick={ () =>
+														setMenuOpen(
+															( o ) => ! o
+														)
+													}
+												/>
+											}
+										>
+											<ActionList items={ menuItems } />
+										</Popover>
+									</span>
 								</InlineStack>
-							</div>
+							</motion.div>
 						</InlineStack>
 					</Box>
 				</InlineStack>

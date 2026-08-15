@@ -18,6 +18,7 @@ import {
 	MenuHorizontalIcon,
 } from '@shopify/polaris-icons'
 import { useCallback, useEffect, useRef, useState } from '@wordpress/element'
+import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api'
 import { AiIcon } from './AiIcon'
 import { flagIconUrl, FlagIcon } from './FlagIcon'
@@ -121,6 +122,7 @@ export default function CompareOverlay( {
 	const validRef = useRef( true ) // chip-structure validity (composed only)
 	const pendingRef = useRef( null ) // value waiting on the debounce
 	const timerRef = useRef( null )
+	const copyButtonRef = useRef( null ) // focus target once Translate unmounts
 
 	const composed = !! unit && hasMarkers( unit.original || '' )
 	const unitId = unit?.id
@@ -242,11 +244,30 @@ export default function CompareOverlay( {
 	async function translate() {
 		setTranslating( true )
 		await flush()
-		await onAiTranslate( 'text', {
+		const res = await onAiTranslate( 'text', {
 			ref: unit.id,
 			collection_id: collectionId,
 		} )
+		// Write the new text straight from the response — do not wait on the
+		// list refetch/invalidation `onAiTranslate` kicks off for consistency.
+		// setText and setTranslating are synchronous back-to-back calls here
+		// (no await between them), so React batches them into one commit: the
+		// pane never renders a frame that's no longer "generating" but still
+		// showing the old text.
+		if ( res?.updated_unit ) {
+			const value = res.updated_unit.translated ?? ''
+			savedRef.current = value
+			setText( value )
+		}
 		setTranslating( false )
+	}
+
+	// The Translate button unmounts while generating (AnimatePresence) — move
+	// focus to the adjacent Copy button first so a keyboard user never loses
+	// focus to <body>.
+	function handleTranslateClick() {
+		copyButtonRef.current?.querySelector( 'button' )?.focus()
+		translate()
 	}
 
 	function fillFromOriginal() {
@@ -265,6 +286,11 @@ export default function CompareOverlay( {
 		targetLang || { code: language, locale: language }
 	)
 	const matchesOriginal = text === ( unit.original ?? '' )
+	// Shown by the shimmer while generating — whatever this pane already
+	// displays (the in-progress draft, or its fallback), never a loading label.
+	const shimmerText = composed
+		? stripMarkers( text || unit.original || '' )
+		: text || unit.fallback || unit.original || ''
 	let copyTooltipContent = 'Copy the original into the translation'
 	if ( matchesOriginal ) {
 		copyTooltipContent = 'Translation already matches the original'
@@ -390,42 +416,108 @@ export default function CompareOverlay( {
 								blockAlign="center"
 								wrap={ false }
 							>
-								<Tooltip
-									zIndexOverride={ TOOLTIP_Z_INDEX }
-									content={
-										aiAvailable
-											? 'Translate with AI'
-											: 'AI translation is not available'
-									}
-								>
-									<Button
-										size="micro"
-										variant="tertiary"
-										icon={ ( props ) => (
-											<AiIcon { ...props } size={ 12 } />
-										) }
-										disabled={ ! aiAvailable }
-										loading={ translating }
-										onClick={ translate }
+								<div style={ { position: 'relative' } }>
+									{ /* Invisible ghost, same markup as the real
+									button below — reserves its exact footprint
+									so the slot never shifts when the real
+									button mounts/unmounts. */ }
+									<div
+										aria-hidden="true"
+										style={ { visibility: 'hidden' } }
 									>
-										Translate
-									</Button>
-								</Tooltip>
-								<Tooltip
-									zIndexOverride={ TOOLTIP_Z_INDEX }
-									content={ copyTooltipContent }
+										<Button
+											size="micro"
+											variant="tertiary"
+											icon={ ( props ) => (
+												<AiIcon
+													{ ...props }
+													size={ 12 }
+												/>
+											) }
+										>
+											Translate
+										</Button>
+									</div>
+									<AnimatePresence initial={ false }>
+										{ ! translating && (
+											<motion.div
+												key="translate"
+												initial={ {
+													opacity: 0,
+													scale: 0.92,
+												} }
+												animate={ {
+													opacity: 1,
+													scale: 1,
+												} }
+												exit={ {
+													opacity: 0,
+													scale: 0.92,
+												} }
+												transition={ {
+													duration: 0.2,
+													ease: [ 0.4, 0, 0.2, 1 ],
+												} }
+												style={ {
+													position: 'absolute',
+													inset: 0,
+												} }
+											>
+												<Tooltip
+													zIndexOverride={
+														TOOLTIP_Z_INDEX
+													}
+													content={
+														aiAvailable
+															? 'Translate with AI'
+															: 'AI translation is not available'
+													}
+												>
+													<Button
+														size="micro"
+														variant="tertiary"
+														icon={ ( props ) => (
+															<AiIcon
+																{ ...props }
+																size={ 12 }
+															/>
+														) }
+														disabled={
+															! aiAvailable
+														}
+														onClick={
+															handleTranslateClick
+														}
+													>
+														Translate
+													</Button>
+												</Tooltip>
+											</motion.div>
+										) }
+									</AnimatePresence>
+								</div>
+								<span
+									ref={ copyButtonRef }
+									style={ { display: 'contents' } }
 								>
-									<Button
-										size="micro"
-										variant="tertiary"
-										icon={
-											filled ? CheckIcon : DuplicateIcon
-										}
-										disabled={ matchesOriginal }
-										accessibilityLabel="Copy the original into the translation"
-										onClick={ fillFromOriginal }
-									/>
-								</Tooltip>
+									<Tooltip
+										zIndexOverride={ TOOLTIP_Z_INDEX }
+										content={ copyTooltipContent }
+									>
+										<Button
+											size="micro"
+											variant="tertiary"
+											icon={
+												filled
+													? CheckIcon
+													: DuplicateIcon
+											}
+											disabled={ matchesOriginal }
+											accessibilityLabel="Copy the original into the translation"
+											onClick={ fillFromOriginal }
+										/>
+									</Tooltip>
+								</span>
 							</InlineStack>
 						}
 					/>
@@ -504,28 +596,90 @@ export default function CompareOverlay( {
 						}
 					/>
 
-					{ composed ? (
-						<ChipField
-							sourceUnit={ unit.original }
-							value={ text }
-							tags={ unit.tags }
-							dir={ targetDir }
-							onChange={ setDraft }
-						/>
-					) : (
-						<textarea
-							dir={ targetDir }
-							value={ text }
-							onChange={ ( e ) => setDraft( e.target.value ) }
-							onBlur={ flush }
-							placeholder={ unit.fallback || unit.original || '' }
-							aria-label="Translation"
-							style={ {
-								...textareaStyle( false ),
-								resize: 'none',
-							} }
-						/>
-					) }
+					<div
+						style={ {
+							position: 'relative',
+							flex: 1,
+							minHeight: 0,
+							display: 'flex',
+							flexDirection: 'column',
+						} }
+					>
+						{ composed ? (
+							<motion.div
+								animate={ {
+									opacity: translating ? 0 : 1,
+								} }
+								transition={ { duration: 0.15 } }
+								style={ {
+									flex: 1,
+									minHeight: 0,
+									display: 'flex',
+								} }
+							>
+								<ChipField
+									sourceUnit={ unit.original }
+									value={ text }
+									tags={ unit.tags }
+									dir={ targetDir }
+									onChange={ setDraft }
+								/>
+							</motion.div>
+						) : (
+							<motion.textarea
+								dir={ targetDir }
+								value={ text }
+								onChange={ ( e ) => setDraft( e.target.value ) }
+								onBlur={ flush }
+								placeholder={
+									unit.fallback || unit.original || ''
+								}
+								aria-label="Translation"
+								animate={ {
+									opacity: translating ? 0 : 1,
+								} }
+								transition={ { duration: 0.15 } }
+								style={ {
+									...textareaStyle( false ),
+									resize: 'none',
+								} }
+							/>
+						) }
+						{ /* No AnimatePresence here on purpose — an exit
+						transition would keep this mounted over the just-
+						arrived real text and read as a stall. It gets an
+						enter fade only; completion removes it instantly. */ }
+						{ translating && (
+							<motion.span
+								aria-hidden="true"
+								className="tl-shimmer"
+								initial={ { opacity: 0 } }
+								animate={ { opacity: 1 } }
+								transition={ { duration: 0.15 } }
+								dir={ targetDir }
+								style={ {
+									// .tl-shimmer's display:flex + align-items:
+									// center is tuned for a single-line table
+									// cell — this is a wrapped paragraph, so
+									// override both back to a plain top-aligned
+									// text block.
+									display: 'block',
+									alignItems: 'unset',
+									whiteSpace: 'pre-wrap',
+									overflow: 'hidden',
+									padding: '8px 4px',
+									fontSize: '13px',
+									lineHeight: '22px',
+									animationDirection:
+										targetDir === 'rtl'
+											? 'reverse'
+											: 'normal',
+								} }
+							>
+								{ shimmerText }
+							</motion.span>
+						) }
+					</div>
 
 					{ error && (
 						<Text as="p" tone="critical" variant="bodySm">

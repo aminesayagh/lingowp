@@ -435,6 +435,7 @@ export default function Dashboard( { defaultLanguage } ) {
 		} )
 		loadQuota()
 		refreshLanguages() // rail percentages changed
+		return res
 	}
 
 	// Rail "Translate All": select that language, confirm, then AI-translate it whole.
@@ -2269,17 +2270,25 @@ function CollectionGroup( {
 								</Text>
 							) }
 						</button>
-						<div
-							style={ {
+						<motion.div
+							animate={ {
 								opacity: hovered || menuOpen ? 1 : 0,
+							} }
+							transition={ { duration: 0.12 } }
+							style={ {
 								visibility:
 									hovered || menuOpen ? 'visible' : 'hidden',
-								transition: 'opacity 120ms ease',
 							} }
 						>
+							{ /* stretch, not center — Polaris gives an icon+label
+							button ("Translate all") taller block padding than
+							an icon-only one (the "..." button), so centering
+							them left a visible height mismatch; stretching
+							lets each button's own internal centering do the
+							rest. */ }
 							<InlineStack
 								gap="100"
-								blockAlign="center"
+								blockAlign="stretch"
 								wrap={ false }
 							>
 								{ ! searching && (
@@ -2295,27 +2304,45 @@ function CollectionGroup( {
 										Translate all
 									</Button>
 								) }
+								{ /* Popover wraps its activator in its own bare,
+								unstyleable <div> — stretching the InlineStack
+								stretches that wrapper, but the button inside
+								stays its natural (shorter) height and sits at
+								the top of it. This flex+center wrapper is one
+								we control, so it can re-center the button
+								within the stretched space. */ }
 								{ bulkItems.length > 0 && (
-									<Popover
-										active={ menuOpen }
-										onClose={ () => setMenuOpen( false ) }
-										activator={
-											<Button
-												variant="tertiary"
-												size="micro"
-												icon={ MenuHorizontalIcon }
-												accessibilityLabel="More actions"
-												onClick={ () =>
-													setMenuOpen( ( o ) => ! o )
-												}
-											/>
-										}
+									<div
+										style={ {
+											display: 'flex',
+											alignItems: 'center',
+										} }
 									>
-										<ActionList items={ bulkItems } />
-									</Popover>
+										<Popover
+											active={ menuOpen }
+											onClose={ () =>
+												setMenuOpen( false )
+											}
+											activator={
+												<Button
+													variant="tertiary"
+													size="micro"
+													icon={ MenuHorizontalIcon }
+													accessibilityLabel="More actions"
+													onClick={ () =>
+														setMenuOpen(
+															( o ) => ! o
+														)
+													}
+												/>
+											}
+										>
+											<ActionList items={ bulkItems } />
+										</Popover>
+									</div>
 								) }
 							</InlineStack>
-						</div>
+						</motion.div>
 					</InlineStack>
 				</Box>
 			</div>
@@ -2403,9 +2430,26 @@ function TextUnitRow( {
 	const [ translating, setTranslating ] = useState( false )
 	const moreActionsRef = useRef( null )
 
-	const shown = unit.translated ?? unit.fallback
+	// A same-commit-as-`translating` override: written the instant an AI
+	// translate response lands (see translateThisText), so the shimmer never
+	// clears one frame before the real text does. `undefined` = no override,
+	// defer to the prop. Cleared once the prop catches up (the invalidation
+	// `onAiTranslate` already fires refetches for consistency).
+	const [ pendingTranslated, setPendingTranslated ] = useState( undefined )
+	const effectiveTranslated =
+		pendingTranslated !== undefined ? pendingTranslated : unit.translated
+	useEffect( () => {
+		if (
+			pendingTranslated !== undefined &&
+			unit.translated === pendingTranslated
+		) {
+			setPendingTranslated( undefined )
+		}
+	}, [ unit.translated, pendingTranslated ] )
+
+	const shown = effectiveTranslated ?? unit.fallback
 	const hasTranslation =
-		unit.translated !== null && unit.translated !== undefined
+		effectiveTranslated !== null && effectiveTranslated !== undefined
 	let badge = null
 	if ( unit.status === 'needs_review' ) {
 		badge = STATUS_BADGE.needs_review
@@ -2444,8 +2488,8 @@ function TextUnitRow( {
 	// Keep the inline draft in sync when the translation changes elsewhere
 	// (AI translate, overlay save).
 	useEffect( () => {
-		setDraft( unit.translated ?? '' )
-	}, [ unit.translated ] )
+		setDraft( effectiveTranslated ?? '' )
+	}, [ effectiveTranslated ] )
 
 	// Autosave the inline field on blur — only when the value actually changed.
 	async function saveTranslation() {
@@ -2491,10 +2535,20 @@ function TextUnitRow( {
 
 	async function translateThisText() {
 		setTranslating( true )
-		await onAiTranslate( 'text', {
+		const res = await onAiTranslate( 'text', {
 			ref: unit.id,
 			collection_id: collectionId,
 		} )
+		// Write the new text straight from the response — do not wait on the
+		// list refetch/invalidation `onAiTranslate` kicks off for consistency.
+		// These three setState calls are synchronous (no await between them),
+		// so React batches them into one commit: the row never renders a frame
+		// that's no longer "generating" but still showing the old text.
+		if ( res?.updated_unit ) {
+			const text = res.updated_unit.translated ?? null
+			setDraft( text ?? '' )
+			setPendingTranslated( text )
+		}
 		setTranslating( false )
 	}
 
@@ -2635,7 +2689,7 @@ function TextUnitRow( {
 					<Box width="42%" minWidth="0">
 						<div style={ { position: 'relative', minWidth: 0 } }>
 							{ clickable ? (
-								<div
+								<motion.div
 									role="button"
 									tabIndex={ 0 }
 									onClick={ () => onOpenOverlay( unit ) }
@@ -2648,10 +2702,13 @@ function TextUnitRow( {
 											onOpenOverlay( unit )
 										}
 									} }
+									animate={ {
+										opacity: translating ? 0 : 1,
+									} }
+									transition={ { duration: 0.15 } }
 									style={ {
 										...oneLineStyle,
 										userSelect: 'text',
-										opacity: translating ? 0 : 1,
 									} }
 								>
 									<Text
@@ -2665,9 +2722,9 @@ function TextUnitRow( {
 									>
 										{ shownText }
 									</Text>
-								</div>
+								</motion.div>
 							) : (
-								<input
+								<motion.input
 									type="text"
 									aria-label="Translation"
 									value={ draft }
@@ -2676,6 +2733,10 @@ function TextUnitRow( {
 									}
 									onBlur={ saveTranslation }
 									placeholder={ unit.fallback || '' }
+									animate={ {
+										opacity: translating ? 0 : 1,
+									} }
+									transition={ { duration: 0.15 } }
 									style={ {
 										all: 'unset',
 										display: 'block',
@@ -2689,14 +2750,20 @@ function TextUnitRow( {
 										color: hasTranslation
 											? 'var(--p-color-text)'
 											: 'var(--p-color-text-subdued)',
-										opacity: translating ? 0 : 1,
 									} }
 								/>
 							) }
+							{ /* No AnimatePresence here on purpose — an exit
+							transition would keep this mounted over the just-
+							arrived real text and read as a stall. It gets an
+							enter fade only; completion removes it instantly. */ }
 							{ translating && (
-								<span
+								<motion.span
 									aria-hidden="true"
 									className="tl-shimmer"
+									initial={ { opacity: 0 } }
+									animate={ { opacity: 1 } }
+									transition={ { duration: 0.15 } }
 									style={ {
 										whiteSpace: 'nowrap',
 										overflow: 'hidden',
@@ -2711,8 +2778,8 @@ function TextUnitRow( {
 												: 'normal',
 									} }
 								>
-									Translating…
-								</span>
+									{ shownText }
+								</motion.span>
 							) }
 						</div>
 					</Box>
@@ -2754,14 +2821,16 @@ function TextUnitRow( {
 									{ badge.label }
 								</Badge>
 							) }
-							<div
-								style={ {
+							<motion.div
+								animate={ {
 									opacity: hovered || menuOpen ? 1 : 0,
+								} }
+								transition={ { duration: 0.12 } }
+								style={ {
 									visibility:
 										hovered || menuOpen
 											? 'visible'
 											: 'hidden',
-									transition: 'opacity 120ms ease',
 								} }
 							>
 								<InlineStack
@@ -2772,12 +2841,34 @@ function TextUnitRow( {
 									{ aiAvailable && (
 										<div
 											style={ {
-												width: 'var(--p-width-600)',
-												height: 'var(--p-height-600)',
-												flexShrink: 0,
 												position: 'relative',
+												flexShrink: 0,
 											} }
 										>
+											{ /* Invisible ghost, same markup as the
+											real button below — reserves its exact
+											footprint (Polaris's own box, not a
+											guessed size) so the slot never shifts
+											when the real button mounts/unmounts. */ }
+											<div
+												aria-hidden="true"
+												style={ {
+													visibility: 'hidden',
+												} }
+											>
+												<Tooltip content="AI translate">
+													<Button
+														variant="secondary"
+														size="micro"
+														icon={ ( props ) => (
+															<AiIcon
+																{ ...props }
+																size={ 12 }
+															/>
+														) }
+													/>
+												</Tooltip>
+											</div>
 											<AnimatePresence initial={ false }>
 												{ ! translating && (
 													<motion.div
@@ -2831,7 +2922,10 @@ function TextUnitRow( {
 											</AnimatePresence>
 										</div>
 									) }
-									<span ref={ moreActionsRef }>
+									<span
+										ref={ moreActionsRef }
+										style={ { display: 'contents' } }
+									>
 										<Popover
 											active={ menuOpen }
 											onClose={ () =>
@@ -2866,7 +2960,7 @@ function TextUnitRow( {
 										</Popover>
 									</span>
 								</InlineStack>
-							</div>
+							</motion.div>
 						</InlineStack>
 					</Box>
 				</InlineStack>
