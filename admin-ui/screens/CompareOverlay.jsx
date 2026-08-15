@@ -257,7 +257,14 @@ export default function CompareOverlay( {
 				collection_id: collectionId,
 				language: lang.code,
 			} )
-			if ( lang.code === language && res?.updated_unit ) {
+			// onAiTranslate resolves to undefined on every failure path (quota
+			// exhausted, AI unavailable, backend error — see Dashboard's
+			// translateScope) — stop instead of firing more doomed requests for
+			// the remaining languages, each of which would hit the same failure.
+			if ( ! res ) {
+				break
+			}
+			if ( lang.code === language && res.updated_unit ) {
 				const value = res.updated_unit.translated ?? ''
 				savedRef.current = value
 				setText( value )

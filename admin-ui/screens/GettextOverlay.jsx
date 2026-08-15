@@ -143,27 +143,40 @@ export default function GettextOverlay( {
 		fn()
 	}
 
+	// Translates this one string into EVERY configured language (matches
+	// Content board's CompareOverlay), one request at a time — only the
+	// response for the currently-viewed `locale` updates what's shown here;
+	// the rest just save server-side (each locale's own gettext-units query
+	// is fetched fresh whenever that locale is later viewed, so there's
+	// nothing else to invalidate). Stops on the first failure instead of
+	// firing more doomed requests for the remaining languages.
 	async function translate() {
 		setTranslating( true )
-		const res = await api.post( '/gettext-domains/translate-unit', {
-			type: row.type,
-			domain: row.domain,
-			locale,
-			msgid: unit.msgid,
-			context: unit.context,
-		} )
-		setTranslating( false )
-		if ( res.ok ) {
-			setText( res.msgstr )
-			savedRef.current = res.msgstr
-			setSavedTick( ( t ) => t + 1 )
-			onSaved( res.msgstr )
-		} else if (
-			res.error !== 'ERR_QUOTA' &&
-			res.error !== 'ERR_INVALID_INPUT'
-		) {
-			onAiUnavailable?.( res.error )
+		for ( const lang of languages ) {
+			const res = await api.post( '/gettext-domains/translate-unit', {
+				type: row.type,
+				domain: row.domain,
+				locale: lang.code,
+				msgid: unit.msgid,
+				context: unit.context,
+			} )
+			if ( ! res.ok ) {
+				if (
+					res.error !== 'ERR_QUOTA' &&
+					res.error !== 'ERR_INVALID_INPUT'
+				) {
+					onAiUnavailable?.( res.error )
+				}
+				break
+			}
+			if ( lang.code === locale ) {
+				setText( res.msgstr )
+				savedRef.current = res.msgstr
+				setSavedTick( ( t ) => t + 1 )
+				onSaved( res.msgstr )
+			}
 		}
+		setTranslating( false )
 	}
 
 	async function copyOriginal() {
@@ -261,7 +274,7 @@ export default function GettextOverlay( {
 									zIndexOverride={ TOOLTIP_Z_INDEX }
 									content={
 										aiAvailable
-											? 'Translate with AI'
+											? 'Translate with AI (all languages)'
 											: 'AI translation is not available'
 									}
 								>
