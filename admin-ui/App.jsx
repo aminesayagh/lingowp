@@ -2,6 +2,7 @@ import {
 	AppProvider,
 	BlockStack,
 	Card,
+	Frame,
 	PortalsManager,
 	Spinner,
 } from '@shopify/polaris'
@@ -73,66 +74,61 @@ export default function App() {
 		} )
 	}, [] )
 
-	if ( ! state || ! view ) {
-		return (
-			<QueryClientProvider client={ queryClient }>
-				<AppProvider i18n={ enTranslations }>
-					<OnboardingPage>
-						<Card>
-							<BlockStack inlineAlign="center">
-								<Spinner accessibilityLabel="Loading Translangs" />
-							</BlockStack>
-						</Card>
-					</OnboardingPage>
-				</AppProvider>
-			</QueryClientProvider>
+	const content =
+		! state || ! view ? (
+			<OnboardingPage>
+				<Card>
+					<BlockStack inlineAlign="center">
+						<Spinner accessibilityLabel="Loading Translangs" />
+					</BlockStack>
+				</Card>
+			</OnboardingPage>
+		) : (
+			<MotionConfig reducedMotion="user">
+				<AnimatePresence initial={ false } mode="wait">
+					<motion.div
+						key={ view }
+						initial={ { opacity: 0, y: 8 } }
+						animate={ { opacity: 1, y: 0 } }
+						exit={ { opacity: 0, y: -8 } }
+						transition={ {
+							duration: 0.18,
+							ease: 'easeOut',
+						} }
+						style={ { width: '100%' } }
+					>
+						{ view === 'onboarding_configuration' && (
+							<Configuration
+								recommendedPrefixDefaultLanguage={
+									state.recommended_prefix_default_language
+								}
+								defaultLanguageSlug={
+									state.default_language_slug
+								}
+								onDone={ () => {
+									setState( ( s ) => ( {
+										...s,
+										onboarding_completed: true,
+									} ) )
+									setView( 'dashboard' )
+								} }
+							/>
+						) }
+						{ view === 'dashboard' && (
+							<Dashboard
+								defaultLanguage={ state.default_language }
+							/>
+						) }
+					</motion.div>
+				</AnimatePresence>
+			</MotionConfig>
 		)
-	}
 
 	return (
 		<QueryClientProvider client={ queryClient }>
 			<AppProvider i18n={ enTranslations }>
 				<PortalsManager container={ portalRoot }>
-					<MotionConfig reducedMotion="user">
-						<AnimatePresence initial={ false } mode="wait">
-							<motion.div
-								key={ view }
-								initial={ { opacity: 0, y: 8 } }
-								animate={ { opacity: 1, y: 0 } }
-								exit={ { opacity: 0, y: -8 } }
-								transition={ {
-									duration: 0.18,
-									ease: 'easeOut',
-								} }
-								style={ { width: '100%' } }
-							>
-								{ view === 'onboarding_configuration' && (
-									<Configuration
-										recommendedPrefixDefaultLanguage={
-											state.recommended_prefix_default_language
-										}
-										defaultLanguageSlug={
-											state.default_language_slug
-										}
-										onDone={ () => {
-											setState( ( s ) => ( {
-												...s,
-												onboarding_completed: true,
-											} ) )
-											setView( 'dashboard' )
-										} }
-									/>
-								) }
-								{ view === 'dashboard' && (
-									<Dashboard
-										defaultLanguage={
-											state.default_language
-										}
-									/>
-								) }
-							</motion.div>
-						</AnimatePresence>
-					</MotionConfig>
+					<Frame>{ content }</Frame>
 				</PortalsManager>
 			</AppProvider>
 		</QueryClientProvider>

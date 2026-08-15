@@ -18,6 +18,7 @@ import {
 	Text,
 	TextField,
 	Thumbnail,
+	Toast,
 	Tooltip,
 } from '@shopify/polaris'
 import {
@@ -35,6 +36,9 @@ import {
 	useState,
 } from '@wordpress/element'
 import {
+	AlertTriangleIcon,
+	CheckCircleIcon,
+	InfoIcon,
 	MenuHorizontalIcon,
 	PageIcon,
 	SettingsIcon,
@@ -63,25 +67,14 @@ const STATUS_BADGE = {
 	translated: { tone: 'success', label: 'Done' },
 }
 
-// Toast tone → colors, using Polaris's own design tokens so it themes with
-// the rest of the admin (light/dark) instead of a hardcoded palette.
-const TOAST_TONE_STYLE = {
-	success: {
-		background: 'var(--p-color-bg-fill-success)',
-		color: 'var(--p-color-text-success-on-bg-fill)',
-	},
-	warning: {
-		background: 'var(--p-color-bg-fill-caution)',
-		color: 'var(--p-color-text-caution-on-bg-fill)',
-	},
-	critical: {
-		background: 'var(--p-color-bg-fill-critical)',
-		color: 'var(--p-color-text-critical-on-bg-fill)',
-	},
-	info: {
-		background: 'var(--p-color-bg-fill-inverse)',
-		color: 'var(--p-color-text-inverse)',
-	},
+// Toast tone → icon. Polaris' Toast has no native warning/success color, only
+// a neutral default and a red `error` state — the icon is what keeps these
+// tones visually distinct. 'critical' isn't listed here: it uses Toast's own
+// `error` prop, which renders its own built-in icon.
+const TOAST_TONE_ICON = {
+	success: CheckCircleIcon,
+	warning: AlertTriangleIcon,
+	info: InfoIcon,
 }
 
 // Which SEO field a meta row represents — shown as a small badge alongside the
@@ -250,10 +243,10 @@ export default function Dashboard( { defaultLanguage } ) {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
-	// Bottom-center toast — every "action complete" message (AI translate,
-	// rescan, fallback copy, autosave hint, length warning, share link, …)
-	// goes through this one. Never a top-of-page Banner: that shifted the
-	// whole board down every time it appeared/disappeared.
+	// Toast — every "action complete" message (AI translate, rescan, fallback
+	// copy, autosave hint, length warning, share link, …) goes through this
+	// one. Never a top-of-page Banner: that shifted the whole board down every
+	// time it appeared/disappeared.
 	const [ toast, setToast ] = useState( null ) // { tone, content } | null
 	const [ statusFilter, setStatusFilter ] = useState( 'all' )
 	const [ originFilter, setOriginFilter ] = useState( [] )
@@ -283,19 +276,11 @@ export default function Dashboard( { defaultLanguage } ) {
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- one-time on mount
 	}, [] )
 
-	const toastTimerRef = useRef( null )
-
-	// tone: 'success' | 'warning' | 'critical' | 'info'. Warnings/errors stay
-	// up longer — more to read than a plain confirmation blip.
+	// tone: 'success' | 'warning' | 'critical' | 'info'. Dismiss timing is
+	// handled by Polaris' own Toast component (see the render below).
 	function showToast( tone, content ) {
 		setToast( { tone, content } )
-		clearTimeout( toastTimerRef.current )
-		toastTimerRef.current = setTimeout(
-			() => setToast( null ),
-			tone === 'success' || tone === 'info' ? 3000 : 5000
-		)
 	}
-	useEffect( () => () => clearTimeout( toastTimerRef.current ), [] )
 
 	// TextUnitRow's inline edit and CompareOverlay's autosave both report length
 	// warnings up through this same prop.
@@ -1966,27 +1951,17 @@ export default function Dashboard( { defaultLanguage } ) {
 				onClose={ () => setConfirm( null ) }
 			/>
 			{ toast && (
-				<div
-					role="status"
-					aria-live="polite"
-					style={ {
-						position: 'fixed',
-						left: '50%',
-						bottom: '24px',
-						transform: 'translateX(-50%)',
-						zIndex: 999999,
-						padding: '10px 14px',
-						borderRadius: '8px',
-						maxWidth: '420px',
-						textAlign: 'center',
-						boxShadow: 'var(--p-shadow-400)',
-						fontSize: '13px',
-						lineHeight: '20px',
-						...TOAST_TONE_STYLE[ toast.tone ],
-					} }
-				>
-					{ toast.content }
-				</div>
+				<Toast
+					content={ toast.content }
+					error={ toast.tone === 'critical' }
+					icon={ TOAST_TONE_ICON[ toast.tone ] }
+					duration={
+						toast.tone === 'success' || toast.tone === 'info'
+							? 3000
+							: 5000
+					}
+					onDismiss={ () => setToast( null ) }
+				/>
 			) }
 		</Page>
 	)

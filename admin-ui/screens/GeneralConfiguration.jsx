@@ -18,14 +18,6 @@ const languageLabel = ( item ) => {
 	return native && native !== english ? `${ english } — ${ native }` : english
 }
 
-// Toast tone → colors, same tokens Dashboard.jsx uses for its bottom toast.
-const TOAST_TONE_STYLE = {
-	warning: {
-		background: 'var(--p-color-bg-fill-caution)',
-		color: 'var(--p-color-text-caution-on-bg-fill)',
-	},
-}
-
 export default function GeneralConfiguration( { defaultLanguage } ) {
 	const [ prefix, setPrefix ] = useState( false )
 	const [ cookie, setCookie ] = useState( true )
@@ -243,6 +235,12 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 							/>
 						</BlockStack>
 
+						{ prefixToast && (
+							<Banner tone={ prefixToast.tone }>
+								{ prefixToast.content }
+							</Banner>
+						) }
+
 						<Divider />
 
 						<BlockStack gap="100">
@@ -308,30 +306,6 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 					</>
 				) }
 			</BlockStack>
-
-			{ prefixToast && (
-				<div
-					role="status"
-					aria-live="polite"
-					style={ {
-						position: 'fixed',
-						left: '50%',
-						bottom: '24px',
-						transform: 'translateX(-50%)',
-						zIndex: 999999,
-						padding: '10px 14px',
-						borderRadius: '8px',
-						maxWidth: '420px',
-						textAlign: 'center',
-						boxShadow: 'var(--p-shadow-400)',
-						fontSize: '13px',
-						lineHeight: '20px',
-						...TOAST_TONE_STYLE[ prefixToast.tone ],
-					} }
-				>
-					{ prefixToast.content }
-				</div>
-			) }
 		</div>
 	)
 }

@@ -85,3 +85,21 @@
 #translangs-portals li {
 	margin-bottom: 0;
 }
+
+/*
+ * Polaris <Frame> integration (Frame wraps the whole app — see App.jsx — to
+ * enable Toast/Loading/ContextualSaveBar later). Frame is used with no
+ * topBar/navigation, so two of its unconditional styles need neutralizing:
+ *
+ * 1. .Polaris-Frame forces min-height: 100vh/100svh — reserved for a
+ *    top bar/nav we don't have. Without this, short screens (e.g. onboarding's
+ *    centered card) pad out to a full viewport, pushing WP's admin footer down.
+ * 2. .Polaris-Frame__Main draws a permanent border-inline-end, meant to
+ *    separate content from a sidebar — with no sidebar it's a stray 1px line.
+ */
+#translangs-app .Polaris-Frame {
+	min-height: 0;
+}
+#translangs-app .Polaris-Frame__Main {
+	border-inline-end: none;
+}

@@ -4,18 +4,6 @@ import { api } from '../api'
 import { errorMessage } from '../errors'
 import OnboardingPage from './OnboardingPage'
 
-// Toast tone → colors, same tokens Dashboard.jsx uses for its bottom toast.
-const TOAST_TONE_STYLE = {
-	warning: {
-		background: 'var(--p-color-bg-fill-caution)',
-		color: 'var(--p-color-text-caution-on-bg-fill)',
-	},
-	info: {
-		background: 'var(--p-color-bg-fill-inverse)',
-		color: 'var(--p-color-text-inverse)',
-	},
-}
-
 // Step 1 of 2. Source/default language is intentionally NOT shown here — it is
 // inherited from WordPress. Toggle defaults follow the wireframe (cookie +
 // browser detection on), not stored options, since this is first-run config.
@@ -124,6 +112,12 @@ export default function Configuration( {
 					</BlockStack>
 				</Card>
 
+				{ prefixToast && (
+					<Banner tone={ prefixToast.tone }>
+						{ prefixToast.content }
+					</Banner>
+				) }
+
 				<Button
 					variant="primary"
 					size="large"
@@ -133,30 +127,6 @@ export default function Configuration( {
 					Continue
 				</Button>
 			</BlockStack>
-
-			{ prefixToast && (
-				<div
-					role="status"
-					aria-live="polite"
-					style={ {
-						position: 'fixed',
-						left: '50%',
-						bottom: '24px',
-						transform: 'translateX(-50%)',
-						zIndex: 999999,
-						padding: '10px 14px',
-						borderRadius: '8px',
-						maxWidth: '420px',
-						textAlign: 'center',
-						boxShadow: 'var(--p-shadow-400)',
-						fontSize: '13px',
-						lineHeight: '20px',
-						...TOAST_TONE_STYLE[ prefixToast.tone ],
-					} }
-				>
-					{ prefixToast.content }
-				</div>
-			) }
 		</OnboardingPage>
 	)
 }
