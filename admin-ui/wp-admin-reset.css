@@ -42,7 +42,18 @@
 	margin: 0 !important;
 }
 #translangs-app .Polaris-Page {
-	padding-inline: 0 !important;
+	padding-inline-start: 0 !important;
+	padding-inline-end: 12px !important;
+	max-width: none !important;
+}
+
+/* Same full-width treatment for the Billing screen's own mount root. */
+.wrap:has(> #translangs-billing-app) {
+	margin: 0 !important;
+}
+#translangs-billing-app .Polaris-Page {
+	padding-inline-start: 0 !important;
+	padding-inline-end: 12px !important;
 	max-width: none !important;
 }
 
@@ -101,5 +112,11 @@
 	min-height: 0;
 }
 #translangs-app .Polaris-Frame__Main {
+	border-inline-end: none;
+}
+#translangs-billing-app .Polaris-Frame {
+	min-height: 0;
+}
+#translangs-billing-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }

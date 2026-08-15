@@ -17,6 +17,7 @@ final class OnboardingPageController
     private const HANDLE    = 'translangs-app';
 
     private string $hookSuffix = '';
+    private string $billingHookSuffix = '';
 
     public function register(): void
     {
@@ -54,7 +55,7 @@ final class OnboardingPageController
             [$this, 'renderReportPage']
         );
 
-        add_submenu_page(
+        $billingHook = add_submenu_page(
             self::SLUG,
             __('Billing', 'translangs'),
             __('Billing', 'translangs'),
@@ -64,6 +65,7 @@ final class OnboardingPageController
         );
 
         $this->hookSuffix = is_string($hook) ? $hook : '';
+        $this->billingHookSuffix = is_string($billingHook) ? $billingHook : '';
     }
 
     private function menuIcon(): string
@@ -105,12 +107,12 @@ final class OnboardingPageController
             wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
         }
 
-        echo '<div class="wrap"></div>';
+        echo '<div class="wrap"><div id="translangs-billing-app"></div></div>';
     }
 
     public function enqueue(string $hook): void
     {
-        if ($hook !== $this->hookSuffix) {
+        if ($hook !== $this->hookSuffix && $hook !== $this->billingHookSuffix) {
             return;
         }
 
