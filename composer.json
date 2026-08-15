@@ -32,6 +32,8 @@
 			"@php tests/option_gate_check.php",
 			"@php tests/unit_structure_guard_check.php",
 			"@php tests/seo_var_guard_check.php",
+			"@php tests/batch_planner_check.php",
+			"@php tests/locale_forBackend_check.php",
 			"@php tests/fallback_chain_check.php",
 			"@php bin/check-split-field.php"
 		],

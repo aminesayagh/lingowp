@@ -18,10 +18,10 @@ use WP_REST_Response;
  * AI translation + quota endpoints (namespace translangs/v1).
  *
  * This is SYNCHRONOUS: a request resolves the pending source units for its scope,
- * checks the cached quota, then hands off to AiTranslationRunner, which
- * translates in batches of 50 via the backend and writes each result as
- * MACHINE (status 1, provider "ai"). This controller only does HTTP
- * concerns — param parsing, the quota pre-check short-circuit, and response
+ * checks the cached quota, then hands off to AiTranslationRunner, which batches
+ * via TranslationBatchPlanner (the backend caps at 25 items/group_id, 100/request)
+ * and writes each result as MACHINE (status 1, provider "ai"). This controller only
+ * does HTTP concerns — param parsing, the quota pre-check short-circuit, and response
  * shaping; large/language-wide jobs should move to an Action Scheduler job
  * (see arch-workflow-ai-translation.md) if request time becomes a problem —
  * the runner's batch/save loop transplants directly into a job worker.
@@ -176,11 +176,13 @@ final class AiTranslationController
     }
 
     /**
-     * Pending source units for a scope as [{ref, original, translated?, status?}].
-     * 'text' translates the one ref regardless; 'collection'/'language' take only
-     * missing + needs_review units. Returns null on a malformed scope/id.
+     * Pending source units for a scope as [{ref, original, group_id, type, translated?, status?}].
+     * 'text' translates the one ref regardless (a post_content paragraph also pulls
+     * in its untranslated siblings from the same post, see expandPostContentGroup());
+     * 'collection'/'language' take only missing + needs_review units. Returns null
+     * on a malformed scope/id.
      *
-     * @return array<int, array{ref:SourceRef, original:string}>|null
+     * @return array<int, array{ref:SourceRef, original:string, group_id:string, type:string}>|null
      */
     private function unitsForScope(string $scope, WP_REST_Request $request, string $lang): ?array
     {
@@ -190,9 +192,20 @@ final class AiTranslationController
                 return null;
             }
             $context = $this->repo->loadSourceValidationContext($ref);
-            return $context === null
-                ? []
-                : [['ref' => $ref, 'original' => $context['text'], 'meta_key' => $context['meta_key']]];
+            if ($context === null) {
+                return [];
+            }
+
+            $clicked = ['ref' => $ref, 'original' => $context['text'], 'meta_key' => $context['meta_key']];
+
+            if ($context['kind'] === 'post' && $context['field'] === 'post_content' && ($context['post_id'] ?? 0) > 0) {
+                return $this->expandPostContentGroup($ref, $clicked, (int) $context['post_id'], $lang);
+            }
+
+            return [$clicked + [
+                'group_id' => $ref->format(),
+                'type'     => $this->typeFor($context['kind'], ['field' => $context['field'] ?? null]),
+            ]];
         }
 
         if ($scope === 'collection') {
@@ -205,6 +218,36 @@ final class AiTranslationController
         }
 
         return null;
+    }
+
+    /**
+     * The clicked post_content paragraph plus every OTHER untranslated (or
+     * needs_review) post_content sibling of the same post, grouped together so
+     * the AI sees them as one contextual batch instead of translating a single
+     * paragraph in isolation. The clicked paragraph is always included regardless
+     * of its own status (preserves "re-translate this one on demand"); only
+     * siblings are filtered to pending via the same rule collection/language
+     * scope already uses. Paragraph order is best-effort natural id order from
+     * listPostTexts() — not a reconstruction of current document order.
+     *
+     * @return array<int, array{ref:SourceRef, original:string, meta_key:?string, group_id:string, type:string}>
+     */
+    private function expandPostContentGroup(SourceRef $clickedRef, array $clicked, int $postId, string $lang): array
+    {
+        $groupId  = "content:{$postId}";
+        $rows     = array_filter(
+            $this->repo->listPostTexts($postId, $lang),
+            static fn (array $r): bool => ($r['field'] ?? '') === 'post_content'
+        );
+        $siblings = array_values(array_filter(
+            $this->pending($this->unitsFromRows('post', $rows, $groupId)),
+            static fn (array $u): bool => $u['ref']->format() !== $clickedRef->format()
+        ));
+
+        return array_merge(
+            [$clicked + ['group_id' => $groupId, 'type' => 'html']],
+            $siblings
+        );
     }
 
     /** Keep only untranslated + needs_review units (skip already-done). */
@@ -227,22 +270,36 @@ final class AiTranslationController
     private function collectionUnits(string $id, string $lang): ?array
     {
         if ($id === 'option:site') {
-            return $this->unitsFromRows('option', $this->repo->listOptionTexts($lang));
+            return $this->unitsFromRows('option', $this->repo->listOptionTexts($lang), 'option:site');
         }
         if ($id === 'html:all') {
-            return $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang));
+            return $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang), $this->htmlGroupId());
         }
         if (preg_match('/^content:([0-9]+)$/', $id, $m)) {
             $pid = (int) $m[1];
             return array_merge(
-                $this->unitsFromRows('post', $this->repo->listPostTexts($pid, $lang)),
-                $this->unitsFromRows('meta', $this->repo->listMetaTexts($pid, $lang))
+                $this->unitsFromRows('post', $this->repo->listPostTexts($pid, $lang), "content:{$pid}"),
+                $this->unitsFromRows('meta', $this->repo->listMetaTexts($pid, $lang), "content:{$pid}")
             );
         }
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
-            return $this->unitsFromRows('term', $this->repo->listTaxonomyTexts($m[1], $lang));
+            return $this->unitsFromRows(
+                'term',
+                $this->repo->listTaxonomyTexts($m[1], $lang),
+                static fn (array $r): string => 'term:' . (string) ($r['term_id'] ?? '')
+            );
         }
         return null;
+    }
+
+    /** tl_html rows have no post link, so group by crawl source when known; a shared
+     *  fallback bucket for url-less rows still gets sub-chunked correctly downstream. */
+    private function htmlGroupId(): callable
+    {
+        return static fn (array $r): string =>
+            isset($r['source_url']) && $r['source_url'] !== ''
+                ? 'html:' . md5((string) $r['source_url'])
+                : 'html:all';
     }
 
     /**
@@ -252,37 +309,61 @@ final class AiTranslationController
     private function languageUnits(string $lang): array
     {
         $units = array_merge(
-            $this->unitsFromRows('option', $this->repo->listOptionTexts($lang)),
-            $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang))
+            $this->unitsFromRows('option', $this->repo->listOptionTexts($lang), 'option:site'),
+            $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang), $this->htmlGroupId())
         );
         foreach ($this->repo->listPostCollections($lang) as $c) {
             $pid   = $c['post_id'];
             $units = array_merge(
                 $units,
-                $this->unitsFromRows('post', $this->repo->listPostTexts($pid, $lang)),
-                $this->unitsFromRows('meta', $this->repo->listMetaTexts($pid, $lang))
+                $this->unitsFromRows('post', $this->repo->listPostTexts($pid, $lang), "content:{$pid}"),
+                $this->unitsFromRows('meta', $this->repo->listMetaTexts($pid, $lang), "content:{$pid}")
             );
         }
         foreach ($this->repo->listTermCollections($lang) as $t) {
-            $units = array_merge($units, $this->unitsFromRows('term', $this->repo->listTermTexts($t['term_taxonomy_id'], $lang)));
+            $ttid  = $t['term_taxonomy_id'];
+            $units = array_merge($units, $this->unitsFromRows('term', $this->repo->listTermTexts($ttid, $lang), "term:{$ttid}"));
         }
 
         return $units;
     }
 
-    /** @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int}> */
-    private function unitsFromRows(string $kind, array $rows): array
+    /**
+     * @param string|callable(array $r):string $groupId constant string, or a
+     *        per-row callable when the group varies per row (html: by source_url;
+     *        term via taxonomy scope: by term_id)
+     * @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int, meta_key:?string, group_id:string, type:string}>
+     */
+    private function unitsFromRows(string $kind, array $rows, $groupId): array
     {
         // meta rows already carry the key as `field` (listMetaTexts); keeping it on
         // the unit is what lets the write guard pick an SEO variable grammar without
         // a per-item query inside the result loop.
-        return array_map(static fn (array $r): array => [
-            'ref'        => SourceRef::make($kind, (int) $r['id']),
-            'original'   => (string) $r['original_text'],
-            'translated' => $r['translated_text'],
-            'status'     => $r['status'],
-            'meta_key'   => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
-        ], $rows);
+        return array_map(function (array $r) use ($kind, $groupId): array {
+            return [
+                'ref'        => SourceRef::make($kind, (int) $r['id']),
+                'original'   => (string) $r['original_text'],
+                'translated' => $r['translated_text'],
+                'status'     => $r['status'],
+                'meta_key'   => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
+                'group_id'   => is_string($groupId) ? $groupId : $groupId($r),
+                'type'       => $this->typeFor($kind, $r),
+            ];
+        }, $rows);
+    }
+
+    /** post_content is the only paragraph-split HTML kind; tl_html rows are always
+     *  full HTML blocks; everything else (titles, meta/SEO values, options, term
+     *  names/slugs) is short template-like text. */
+    private function typeFor(string $kind, array $r): string
+    {
+        if ($kind === 'html') {
+            return 'html';
+        }
+        if ($kind === 'post' && ($r['field'] ?? '') === 'post_content') {
+            return 'html';
+        }
+        return 'text';
     }
 
     private function resolveLang(WP_REST_Request $request): string

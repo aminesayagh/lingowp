@@ -4,22 +4,23 @@ namespace TransLangs\AiTranslation;
 
 use TransLangs\Backend\BackendClient;
 use TransLangs\Database\Repository\WpDbSourceRepository;
+use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
 
 /**
- * The synchronous AI-translate batch loop: chunk units of 50, call the
- * backend, validate each result in memory, save the ones that pass. Split
- * out of AiTranslationController so the quota check → batch → save flow is
- * one application-service call instead of being interleaved with HTTP
- * request/response handling (Problem 5 of the reorg plan). The controller
+ * The synchronous AI-translate batch loop: plan units into request-sized bins
+ * (TranslationBatchPlanner — the backend caps at 25 items/group_id, 100/request),
+ * call the backend once per bin, validate each result in memory, save the ones
+ * that pass. Split out of AiTranslationController so the quota check → batch →
+ * save flow is one application-service call instead of being interleaved with
+ * HTTP request/response handling (Problem 5 of the reorg plan). The controller
  * still owns the quota pre-check (a pure HTTP short-circuit) and response
  * shaping; this class owns everything that actually spends quota and writes.
  */
 final class AiTranslationRunner
 {
-    private const BATCH    = 50;
     private const PROVIDER = 'ai';
 
     public function __construct(
@@ -29,21 +30,26 @@ final class AiTranslationRunner
     ) {}
 
     /**
-     * @param array<int, array{ref:\TransLangs\Shared\Source\SourceRef, original:string, translated:?string, status:?int, meta_key?:?string}> $units
+     * @param array<int, array{ref:\TransLangs\Shared\Source\SourceRef, original:string, translated:?string, status:?int, meta_key?:?string, group_id:string, type:string}> $units
      * @return array{translated:int, words_used:int, failures:array, error:?string}
      */
     public function run(array $units, string $lang): array
     {
-        $source   = $this->registry->getDefaultLanguage();
+        $source   = LocaleNormalizer::forBackend($this->registry->getDefaultLanguage());
+        $target   = LocaleNormalizer::forBackend($lang);
         $done     = 0;
         $words    = 0;
         $failures = [];
 
-        foreach (array_chunk($units, self::BATCH) as $chunk) {
+        foreach (TranslationBatchPlanner::plan($units) as $bin) {
             $payload = [
                 'source_lang'  => $source,
-                'target_langs' => [$lang],
-                'texts'        => array_map(static fn (array $u): string => $u['original'], $chunk),
+                'target_langs' => [$target],
+                'texts'        => array_map(static fn (array $u): array => [
+                    'text'     => $u['original'],
+                    'group_id' => $u['group_id'],
+                    'type'     => $u['type'],
+                ], $bin),
             ];
 
             $res = $this->backend->translate($payload);
@@ -58,16 +64,19 @@ final class AiTranslationRunner
             }
             $failedReasons = [];
             foreach ((array) ($data['failed'] ?? []) as $f) {
-                $failedReasons[(string) ($f['text'] ?? '')] = (string) ($f['reason'] ?? 'ERR_BACKEND');
+                $failedReasons[(string) ($f['text'] ?? '')] = (string) ($f['reason'] ?? '');
             }
 
-            foreach ($chunk as $u) {
+            foreach ($bin as $u) {
                 $text = $byText[$u['original']] ?? null;
                 if ($text === null || $text === '') {
+                    // 'reason' is the backend's own free-text explanation (not a
+                    // stable code) — kept distinct from the guard's 'error' below
+                    // so nothing downstream mistakes it for one of our ERR_* codes.
                     if (isset($failedReasons[$u['original']])) {
                         $failures[] = [
-                            'ref'   => $u['ref']->format(),
-                            'error' => $failedReasons[$u['original']],
+                            'ref'    => $u['ref']->format(),
+                            'reason' => $failedReasons[$u['original']],
                         ];
                     }
                     continue;

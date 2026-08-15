@@ -669,13 +669,16 @@ final class WpDbSourceRepository
      * Manual saves only. The AI batch already carries both fields on its in-memory
      * units and must NOT call this per item (50 rows per batch).
      *
-     * @return array{text: string, kind: string, meta_key: ?string}|null
+     * @return array{text: string, kind: string, meta_key: ?string, field: ?string, post_id: ?int}|null
      */
     public function loadSourceValidationContext(SourceRef $ref): ?array
     {
-        $parent   = $this->parent($ref->parentTableKey());
-        $isMeta   = $ref->kind === 'meta';
-        $selected = $isMeta ? 'original_text, meta_key' : 'original_text';
+        $parent = $this->parent($ref->parentTableKey());
+        $isMeta = $ref->kind === 'meta';
+        $isPost = $ref->kind === 'post';
+        // 'field'/'post_id' are only needed (and only exist as columns) on tl_post —
+        // used to tell a post_content paragraph apart from post_title/post_excerpt.
+        $selected = $isMeta ? 'original_text, meta_key' : ($isPost ? 'original_text, field, post_id' : 'original_text');
 
         $row = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
@@ -694,6 +697,8 @@ final class WpDbSourceRepository
             'text'     => (string) $row['original_text'],
             'kind'     => $ref->kind,
             'meta_key' => $isMeta ? (string) ($row['meta_key'] ?? '') : null,
+            'field'    => $isPost ? (string) ($row['field'] ?? '') : null,
+            'post_id'  => $isPost ? (int) ($row['post_id'] ?? 0) : null,
         ];
     }
 

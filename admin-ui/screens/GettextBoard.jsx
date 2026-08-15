@@ -10,7 +10,6 @@ import {
 	Popover,
 	Spinner,
 	Text,
-	Tooltip
 } from '@shopify/polaris'
 import {
 	CheckIcon,

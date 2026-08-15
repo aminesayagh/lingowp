@@ -408,11 +408,20 @@ export default function Dashboard( { defaultLanguage } ) {
 		// run still succeeded, so this is a warning, not a failure — but it must be
 		// visible, or the user just sees rows that silently stayed untranslated.
 		const failed = res.failed || 0
+		// scope 'text' always targets exactly one ref, so res.translated > 1 here can
+		// only mean the backend expanded it to the rest of that post's untranslated
+		// paragraphs (AiTranslationController::expandPostContentGroup) — call that
+		// out explicitly instead of a generic count the user didn't ask for.
+		const expandedToPost = scope === 'text' && res.translated > 1
 		showToast(
 			failed > 0 ? 'warning' : 'success',
-			`Translated ${ res.translated } text${
-				res.translated === 1 ? '' : 's'
-			}.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
+			expandedToPost
+				? `Translated ${ res.translated } untranslated paragraphs from this post together.${
+						failed > 0 ? ` ${ failed } rejected.` : ''
+				  }`
+				: `Translated ${ res.translated } text${
+						res.translated === 1 ? '' : 's'
+				  }.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
 		)
 		if ( res.collection_summary ) {
 			patchCollectionSummary( res.collection_summary )

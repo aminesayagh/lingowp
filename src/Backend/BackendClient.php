@@ -113,10 +113,11 @@ final class BackendClient
     private function errorForStatus(int $status): string
     {
         return match ($status) {
-            401     => 'ERR_INVALID_TOKEN',
-            404     => 'ERR_NOT_FOUND',
-            422     => 'ERR_INVALID_PAYLOAD',
-            default => 'ERR_BACKEND',
+            400      => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group) — should be unreachable if the client batches correctly
+            401, 403 => 'ERR_INVALID_TOKEN',    // 403 = revoked token
+            404      => 'ERR_NOT_FOUND',
+            422      => 'ERR_INVALID_PAYLOAD',
+            default  => 'ERR_BACKEND',          // covers 503/500 — no retry here, see AiTranslationRunner
         };
     }
 
