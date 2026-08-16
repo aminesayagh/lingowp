@@ -161,10 +161,7 @@ export default function GettextOverlay( {
 				context: unit.context,
 			} )
 			if ( ! res.ok ) {
-				if (
-					res.error !== 'ERR_QUOTA' &&
-					res.error !== 'ERR_INVALID_INPUT'
-				) {
+				if ( res.error !== 'ERR_INVALID_INPUT' ) {
 					onAiUnavailable?.( res.error )
 				}
 				break
@@ -280,7 +277,9 @@ export default function GettextOverlay( {
 								>
 									<Button
 										size="micro"
-										icon={ AiIcon }
+										icon={ ( props ) => (
+											<AiIcon { ...props } size={ 12 } />
+										) }
 										disabled={ ! aiAvailable }
 										loading={ translating }
 										onClick={ translate }

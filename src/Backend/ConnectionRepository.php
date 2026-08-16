@@ -31,6 +31,30 @@ final class ConnectionRepository
         return (string) get_option(self::OPTION_SITE_ID, '');
     }
 
+    /** Canonical host this site presents to the backend — must match exactly what was sent at issue time. */
+    public function domain(): string
+    {
+        return (string) wp_parse_url(home_url(), PHP_URL_HOST);
+    }
+
+    /**
+     * Display-only, never the real key: a fixed placeholder plus the last 4
+     * real characters (Stripe/GitHub-style) — everything else is constant,
+     * independent of the actual stored value, so there is nothing here an
+     * attacker could use even if screenshotted or logged. 'tl_live_' is the
+     * real, confirmed prefix every issued key uses (backend's
+     * LICENSE_KEY_PREFIX), not a guess.
+     */
+    public function maskedKey(): string
+    {
+        $token = $this->token();
+        if ($token === '') {
+            return '';
+        }
+
+        return 'tl_live_' . str_repeat('•', 16) . substr($token, -4);
+    }
+
     public function store(string $siteId, string $token): void
     {
         update_option(self::OPTION_SITE_ID, $siteId, false);

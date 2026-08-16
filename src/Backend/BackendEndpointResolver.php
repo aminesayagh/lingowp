@@ -3,7 +3,7 @@
 namespace TransLangs\Backend;
 
 /**
- * Resolves the Translangs backend base URL and provision key.
+ * Resolves the Translangs backend base URL.
  *
  * This plugin is distributed publicly, so nothing here can depend on a site
  * owner editing wp-config.php — resolution is self-contained in the plugin.
@@ -19,13 +19,7 @@ final class BackendEndpointResolver
     private const VERSION_PATH = '/api/v1';
 
     // ponytail: dev placeholder — swap for the real production origin before release.
-    private const DEFAULT_ORIGIN = 'http://localhost:8000';
-
-    // Identifies this plugin to the backend for the one-time /auth/site call;
-    // the backend's own auth (token issuance + per-site checks) is what
-    // actually protects a connected site, so this ships baked-in like
-    // DEFAULT_ORIGIN rather than requiring site-owner configuration.
-    private const DEFAULT_PROVISION_KEY = 'tl_prov_WOFEFjWeTugfBX204lb5eeeMtzRm-hS3AIq4bfMpixk';
+    private const DEFAULT_ORIGIN = 'http://host.docker.internal:8000';
 
     /** Full API base, e.g. https://api.example.com/api/v1. */
     public function baseUrl(): string
@@ -49,21 +43,6 @@ final class BackendEndpointResolver
 
         // 3. Baked-in default — every public install works out of the box.
         return self::DEFAULT_ORIGIN;
-    }
-
-    /** Server-only provision key for the first POST /auth/site. */
-    public function provisionKey(): string
-    {
-        if (defined('TRANSLANGS_PROVISION_KEY') && is_string(TRANSLANGS_PROVISION_KEY)) {
-            return (string) TRANSLANGS_PROVISION_KEY;
-        }
-
-        $filtered = apply_filters('translangs_provision_key', '');
-        if (is_string($filtered) && $filtered !== '') {
-            return $filtered;
-        }
-
-        return self::DEFAULT_PROVISION_KEY;
     }
 
     /** Dev-only reset tool: drop back to the filter/baked-in default. */

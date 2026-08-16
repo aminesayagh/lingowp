@@ -187,6 +187,26 @@ const caretFromPoint = ( el, x, y ) => {
 		: el.textContent.length
 }
 
+// Drop the caret at the start/end of an EditableText span — used to hop
+// between segments on ArrowLeft/ArrowRight (see ChipField's jumpToNeighbor).
+const placeCaret = ( el, atStart ) => {
+	el.focus()
+	const sel = el.ownerDocument.defaultView.getSelection()
+	if ( ! sel ) {
+		return
+	}
+	const range = el.ownerDocument.createRange()
+	const node = el.firstChild
+	if ( node ) {
+		range.setStart( node, atStart ? 0 : node.textContent.length )
+	} else {
+		range.setStart( el, 0 )
+	}
+	range.collapse( true )
+	sel.removeAllRanges()
+	sel.addRange( range )
+}
+
 // A text segment as an inline, wrapping contentEditable span (an <input> can't
 // wrap, which overflowed long text). The DOM text is written only when it
 // differs from `value`, so typing never resets the caret.
@@ -199,6 +219,8 @@ function EditableText( {
 	onDrop,
 	dragActive,
 	pad,
+	registerRef,
+	onBoundary,
 } ) {
 	const ref = useRef( null )
 	useEffect( () => {
@@ -207,9 +229,38 @@ function EditableText( {
 		}
 	}, [ value ] )
 	const track = () => onCaret( getCaretOffset( ref.current ) )
+	const setRef = ( node ) => {
+		ref.current = node
+		registerRef?.( node )
+	}
+	// A separate contentEditable per segment never lets the browser carry the
+	// caret across a chip on its own (each span is its own isolated editable
+	// region) — without this, ArrowLeft/Right just stop dead at a tag. Hopping
+	// to the neighboring segment's near edge here is what keeps arrow-key
+	// navigation working without reaching for the mouse.
+	const onKeyDown = ( e ) => {
+		if ( e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' ) {
+			return
+		}
+		const el = ref.current
+		if ( ! el ) {
+			return
+		}
+		const offset = getCaretOffset( el )
+		if ( e.key === 'ArrowLeft' && offset === 0 ) {
+			e.preventDefault()
+			onBoundary?.( 'left' )
+		} else if (
+			e.key === 'ArrowRight' &&
+			offset === el.textContent.length
+		) {
+			e.preventDefault()
+			onBoundary?.( 'right' )
+		}
+	}
 	return (
 		<span
-			ref={ ref }
+			ref={ setRef }
 			contentEditable
 			suppressContentEditableWarning
 			role="textbox"
@@ -220,6 +271,7 @@ function EditableText( {
 			data-ph={ placeholder || '' }
 			aria-label="Translation text"
 			onInput={ () => onInput( ref.current.textContent ) }
+			onKeyDown={ onKeyDown }
 			onKeyUp={ track }
 			onMouseUp={ track }
 			onFocus={ track }
@@ -394,6 +446,7 @@ export function ChipField( {
 	const flashTimer = useRef( null )
 	const lastSent = useRef( null )
 	const dragRef = useRef( null ) // indices of the stack being dragged
+	const segElRefs = useRef( new Map() ) // segs index -> mounted EditableText span
 
 	const validation = useMemo(
 		() => validateStructure( segs, sourceSegs ),
@@ -441,6 +494,40 @@ export function ChipField( {
 		() => new Map( segs.map( ( s, i ) => [ s, i ] ) ),
 		[ segs ]
 	)
+
+	// Segs indices of every actually-mounted EditableText, in on-screen order —
+	// walked from `tree` (not a flat filter of `segs`) so whitespace-only text
+	// folded into a HiddenStructure run is correctly left out: it has no span
+	// to jump to.
+	const editableSegIndices = useMemo( () => {
+		const list = []
+		for ( const node of tree ) {
+			if ( node.type === 'text' ) {
+				list.push( idxOf.get( node ) )
+			} else if ( node.type === 'group' ) {
+				list.push( idxOf.get( node.inner ) )
+			}
+		}
+		return list
+	}, [ tree, idxOf ] )
+
+	// ArrowLeft/Right at a segment's edge: jump straight to the neighboring
+	// segment's near edge, skipping over however many chips sit between them.
+	const jumpToNeighbor = ( segIdx, direction ) => {
+		const pos = editableSegIndices.indexOf( segIdx )
+		if ( pos < 0 ) {
+			return
+		}
+		const targetSegIdx =
+			editableSegIndices[ direction === 'right' ? pos + 1 : pos - 1 ]
+		if ( targetSegIdx === undefined ) {
+			return
+		}
+		const el = segElRefs.current.get( targetSegIdx )
+		if ( el ) {
+			placeCaret( el, direction === 'right' )
+		}
+	}
 	// -- text editing (markers can never be typed: paste guard) --
 	const onTextChange = ( idx, raw ) => {
 		const cleaned = raw.replace( /\{\/?\d+\/?\}/g, '' )
@@ -574,6 +661,14 @@ export function ChipField( {
 				onCaret={ ( pos ) => rememberCaret( i, pos ) }
 				onDrop={ ( pos ) => dropStackAt( node, pos ) }
 				dragActive={ () => !! dragRef.current }
+				registerRef={ ( el ) => {
+					if ( el ) {
+						segElRefs.current.set( i, el )
+					} else {
+						segElRefs.current.delete( i )
+					}
+				} }
+				onBoundary={ ( direction ) => jumpToNeighbor( i, direction ) }
 			/>
 		)
 	}
@@ -613,6 +708,14 @@ export function ChipField( {
 				onCaret={ ( pos ) => rememberCaret( i, lead.length + pos ) }
 				onDrop={ ( pos ) => dropStackAt( node, lead.length + pos ) }
 				dragActive={ () => !! dragRef.current }
+				registerRef={ ( el ) => {
+					if ( el ) {
+						segElRefs.current.set( i, el )
+					} else {
+						segElRefs.current.delete( i )
+					}
+				} }
+				onBoundary={ ( direction ) => jumpToNeighbor( i, direction ) }
 			/>
 		)
 	}

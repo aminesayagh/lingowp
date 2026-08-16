@@ -45,7 +45,8 @@ final class GettextDomainRestController
         private GettextTranslationUnitsService $units,
         private BackendClient $backend,
         private AiQuotaService $quota,
-        private ConnectionStatus $connectionStatus
+        private ConnectionStatus $connectionStatus,
+        private GettextTranslatedPercentCache $percentCache
     ) {}
 
     public function register(): void
@@ -58,6 +59,7 @@ final class GettextDomainRestController
         $guard = ['permission_callback' => [$this, 'canManage']];
 
         register_rest_route(self::NS, '/gettext-domains', ['methods' => 'GET', 'callback' => [$this, 'list']] + $guard);
+        register_rest_route(self::NS, '/gettext-domains/percent', ['methods' => 'GET', 'callback' => [$this, 'percent']] + $guard);
         register_rest_route(self::NS, '/gettext-domains/find-online', ['methods' => 'POST', 'callback' => [$this, 'findOnline']] + $guard);
         register_rest_route(self::NS, '/gettext-domains/import', ['methods' => 'POST', 'callback' => [$this, 'import']] + $guard);
         register_rest_route(self::NS, '/gettext-domains/download', ['methods' => 'GET', 'callback' => [$this, 'download']] + $guard);
@@ -92,8 +94,7 @@ final class GettextDomainRestController
         $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
         $search = trim((string) $request->get_param('search'));
 
-        $rows  = [];
-        $paths = [];
+        $rows = [];
         foreach ($this->components->all() as $domain => $component) {
             if ($search !== '' && mb_stripos($component['label'], $search) === false && mb_stripos($domain, $search) === false) {
                 continue;
@@ -109,7 +110,6 @@ final class GettextDomainRestController
                 'status'        => $status,
                 'source_locale' => $sourceLocale,
             ];
-            $paths[$domain] = $component['path'];
         }
 
         $total    = count($rows);
@@ -117,16 +117,14 @@ final class GettextDomainRestController
         $returned = count($page);
         $next     = $offset + $returned;
 
-        // Scoped to just the page being returned — scanning every installed
-        // component's source on every request would dwarf the file_exists()
-        // check above, for domains the client may never scroll to.
+        // Cache-only: scanning a component's source (see translatedPercent())
+        // is too expensive to do for every row on every list request. A row
+        // shows a percent immediately if GET /gettext-domains/percent already
+        // cached one for it; otherwise the client fetches that endpoint per
+        // row in the background and patches it in once it lands.
         foreach ($page as &$row) {
-            $row['translated_percent'] = $this->translatedPercent(
-                $paths[$row['domain']],
-                $row['type'],
-                $row['domain'],
-                $row['locale']
-            );
+            $cached = $this->percentCache->get($row['type'], $row['domain'], $row['locale']);
+            $row['translated_percent'] = $cached['percent'] ?? null;
         }
         unset($row);
 
@@ -141,6 +139,34 @@ final class GettextDomainRestController
             'next_offset' => $next,
             'has_more'    => $next < $total,
         ]);
+    }
+
+    /**
+     * One domain+locale's translated percent, cached (see
+     * GettextTranslatedPercentCache) — the client calls this once per row,
+     * in the background, after GET /gettext-domains has already rendered
+     * the list without waiting on any scan.
+     */
+    public function percent(WP_REST_Request $request): WP_REST_Response
+    {
+        [$type, $domain, $locale, $error] = $this->componentParams($request);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $cached = $this->percentCache->get($type, $domain, $locale);
+        if ($cached !== null) {
+            return rest_ensure_response(['ok' => true, 'translated_percent' => $cached['percent']]);
+        }
+
+        $component = $this->components->all()[$domain] ?? null;
+        $percent   = $component !== null
+            ? $this->translatedPercent($component['path'], $type, $domain, $locale)
+            : null;
+
+        $this->percentCache->set($type, $domain, $locale, $percent);
+
+        return rest_ensure_response(['ok' => true, 'translated_percent' => $percent]);
     }
 
     public function findOnline(WP_REST_Request $request): WP_REST_Response
@@ -188,6 +214,7 @@ final class GettextDomainRestController
         }
 
         $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_IMPORTED);
+        $this->percentCache->invalidate($type, $domain, $locale);
 
         return rest_ensure_response(['ok' => true]);
     }
@@ -286,16 +313,18 @@ final class GettextDomainRestController
         if ($this->registry->get($type, $domain, $locale) === null) {
             $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_IMPORTED);
         }
+        $this->percentCache->invalidate($type, $domain, $locale);
 
         return rest_ensure_response(['ok' => true]);
     }
 
     /**
      * AI-translate one gettext string and save it, in place, same as
-     * saveUnit() — the overlay's "Translate" button. Same quota gate as
-     * Content's AiTranslationController::translate() (shared AiQuotaService),
-     * one string at a time rather than a batch, so a plugin/theme with 500
-     * strings never blocks the UI on a single all-or-nothing request.
+     * saveUnit() — the overlay's "Translate" button. One string at a time
+     * rather than a batch, so a plugin/theme with 500 strings never blocks the
+     * UI on a single all-or-nothing request. No client-side quota pre-check —
+     * see AiTranslationController's docblock for why (GET /usage doesn't
+     * return real numbers yet, so there's nothing to check against).
      */
     public function translateUnit(WP_REST_Request $request): WP_REST_Response
     {
@@ -307,17 +336,6 @@ final class GettextDomainRestController
         [$msgid, $context] = $this->unitIdentity($request);
         if ($msgid === '') {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
-        }
-
-        $estimate = str_word_count(wp_strip_all_tags($msgid));
-        $quota    = $this->quota->data();
-        if ($quota !== null && $quota['words_remaining'] < $estimate) {
-            return rest_ensure_response([
-                'ok'              => false,
-                'error'           => 'ERR_QUOTA',
-                'estimated_words' => $estimate,
-                'words_remaining' => $quota['words_remaining'],
-            ]);
         }
 
         $payload = [
@@ -366,6 +384,7 @@ final class GettextDomainRestController
         if ($this->registry->get($type, $domain, $locale) === null) {
             $this->registry->set($type, $domain, $locale, GettextDomainRegistry::STATUS_IMPORTED);
         }
+        $this->percentCache->invalidate($type, $domain, $locale);
 
         $this->quota->invalidate();
 
@@ -391,6 +410,7 @@ final class GettextDomainRestController
         }
 
         $this->units->ignoreUnit($type, $domain, $locale, $msgid, $context);
+        $this->percentCache->invalidate($type, $domain, $locale);
 
         return rest_ensure_response(['ok' => true]);
     }

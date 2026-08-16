@@ -19,6 +19,19 @@ const MESSAGES = {
 	ERR_NOT_CONNECTED:
 		'Translangs is not connected. Please finish setup first.',
 	ERR_INVALID_STATUS: 'Unknown status filter. Please refresh and try again.',
+	ERR_DOMAIN_ALREADY_LICENSED:
+		"This domain already has a Translangs license on file. We've emailed a recovery link to the site's admin address — open it to reconnect.",
+	ERR_DOMAIN_MISMATCH:
+		"This site's address doesn't match what Translangs has on file. Reconnect this domain to continue.",
+	ERR_RATE_LIMITED: 'Too many attempts. Please wait a moment and try again.',
+	ERR_REBIND_COOLDOWN:
+		'You can only reconnect a domain once per day. Please try again later.',
+	ERR_DOMAIN_NOT_ALLOWED:
+		"This domain isn't eligible to connect. Please contact support.",
+	ERR_DOMAIN_UNREACHABLE:
+		"We couldn't reach this domain to verify it. Make sure your site is publicly accessible.",
+	ERR_SITE_NOT_FOUND:
+		"We couldn't find a site matching this license and domain.",
 }
 
 export function errorMessage( code ) {

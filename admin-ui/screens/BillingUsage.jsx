@@ -89,11 +89,11 @@ export default function BillingUsage() {
 			</InlineGrid>
 
 			<BlockStack gap="200">
+				<Text as="h3" variant="headingSm">
+					Your monthly words
+				</Text>
 				<Card>
 					<BlockStack gap="150">
-						<Text as="h3" variant="headingSm">
-							Your monthly words
-						</Text>
 						<ProgressBar progress={ 38 } tone="primary" />
 						<Text as="span" tone="subdued" variant="bodySm">
 							38,420 of 100,000 used · resets 12 Sep
@@ -107,7 +107,7 @@ export default function BillingUsage() {
 					<BlockStack gap="050">
 						<Text as="span">Extra words</Text>
 						<Text as="span" tone="subdued" variant="bodySm">
-							50,000 left. These don't expire.
+							50,000 left. These don&apos;t expire.
 						</Text>
 					</BlockStack>
 					<Button>Add more words</Button>

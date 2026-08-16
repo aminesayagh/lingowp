@@ -108,9 +108,6 @@ final class SourceLanguageTransition
             throw $e;
         }
 
-        // 7. Backend sync: update_option() above already fired
-        // update_option_translangs_source_locale, which SiteMetadataSyncScheduler
-        // listens on, and translangs_language_roster_changed is a second trigger.
         set_transient(self::NOTICE_TRANSIENT, ['from' => $oldSourceCode, 'to' => $newCode], HOUR_IN_SECONDS);
     }
 

@@ -7,36 +7,32 @@ namespace TransLangs\Backend;
  *
  * The plugin works fully offline; only AI actions require the backend. This class
  * is the single source of truth for "AI available", cached in a transient so the
- * gate never blocks a page load. It is kept fresh by a recurring Action Scheduler
- * health check (GET /auth/me) while connected, and refreshed on demand by the
- * connection check/connect endpoints.
+ * gate never blocks a page load. There is no background poller: freshness comes
+ * from a live probe whenever it actually matters — on dashboard load (check(),
+ * connect()) and the instant a translate call itself hits a failure
+ * (markUnavailable()) — rather than a fixed interval ticking independent of
+ * anyone looking. Good information at the moment it's needed, not perpetual sync.
  *
- * The probe is /auth/me (not /health): AI needs a *valid token*, so the check must
- * distinguish backend-down from a revoked/expired token — /health only proves
- * reachability. Status shape: ['available' => bool, 'error' => string] where error
- * is an ERR_* code ('' when available): ERR_NOT_CONNECTED | ERR_INVALID_TOKEN |
- * ERR_UNREACHABLE.
+ * The probe is /usage (not /health): AI needs a *valid license for this domain*,
+ * so the check must distinguish backend-down from an invalid/mismatched
+ * credential — /health only proves reachability. There is no dedicated probe
+ * route; /usage is reused because it already sits behind the same bearer +
+ * X-Site-Domain auth every protected route requires — and reused via
+ * AiQuotaService::rawUsage() specifically, not a direct BackendClient call, so
+ * a near-simultaneous quota read (Dashboard also asks for one on mount) shares
+ * the same cached call instead of doubling /usage traffic. Status shape:
+ * ['available' => bool, 'error' => string] where error is an ERR_* code ('' when
+ * available): ERR_NOT_CONNECTED | ERR_INVALID_TOKEN | ERR_UNREACHABLE.
  */
 final class ConnectionStatus
 {
-    public const HOOK      = 'translangs_backend_health_check';
-    public const GROUP     = 'translangs';
     private const TRANSIENT = 'translangs_backend_status';
     private const TTL       = 15 * MINUTE_IN_SECONDS;
-    private const INTERVAL  = 15 * MINUTE_IN_SECONDS;
 
     public function __construct(
-        private BackendClient $backend,
+        private AiQuotaService $quota,
         private ConnectionRepository $connection
     ) {}
-
-    public function register(): void
-    {
-        add_action(self::HOOK, [$this, 'refresh']);
-        // Defer scheduling to init: the Action Scheduler data store is not ready at
-        // plugins_loaded (boot), so as_*_action() must not be called before then.
-        add_action('init', [$this, 'syncSchedule']);
-    }
 
     /** @return array{available: bool, error: string} */
     public function current(): array
@@ -54,8 +50,8 @@ final class ConnectionStatus
             return $this->store(false, 'ERR_NOT_CONNECTED');
         }
 
-        // /auth/me proves reachability AND token validity in one call.
-        $result = $this->backend->me();
+        // /usage proves reachability AND credential validity in one call.
+        $result = $this->quota->rawUsage();
 
         return $result['ok']
             ? $this->store(true, '')
@@ -66,38 +62,16 @@ final class ConnectionStatus
      * Record a failure already observed by a caller (e.g. a translate request
      * that hit the backend and got a connection-level error) — no extra live
      * probe, just persist what's already known so the next status read is
-     * accurate immediately instead of waiting for the next cron tick.
+     * accurate immediately instead of waiting for the next live check.
      */
     public function markUnavailable(string $error): void
     {
         $this->store(false, $error);
     }
 
-    /** Keep the recurring check scheduled only while connected. */
-    public function syncSchedule(): void
+    /** Dev-only reset tool: drop the cached status. */
+    public function clearCache(): void
     {
-        if (!function_exists('as_schedule_recurring_action') || !function_exists('as_next_scheduled_action')) {
-            return;
-        }
-
-        $scheduled = as_next_scheduled_action(self::HOOK, [], self::GROUP);
-
-        if ($this->connection->isConnected()) {
-            if (!$scheduled) {
-                as_schedule_recurring_action(time() + self::INTERVAL, self::INTERVAL, self::HOOK, [], self::GROUP);
-            }
-        } elseif ($scheduled && function_exists('as_unschedule_all_actions')) {
-            as_unschedule_all_actions(self::HOOK, [], self::GROUP);
-            delete_transient(self::TRANSIENT);
-        }
-    }
-
-    /** Dev-only reset tool: stop the recurring health check and drop the cached status. */
-    public function unschedule(): void
-    {
-        if (function_exists('as_unschedule_all_actions')) {
-            as_unschedule_all_actions(self::HOOK, [], self::GROUP);
-        }
         delete_transient(self::TRANSIENT);
     }
 

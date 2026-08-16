@@ -3,8 +3,18 @@ import { BlockStack, Button, Card, ProgressBar, Text } from '@shopify/polaris'
 // Rail quota card (wireframe 2.1 footer / 3.2). Fed by GET /quota; shows a
 // placeholder until the backend usage endpoint answers. When AI is unavailable
 // (backend off / disconnected) it says so — the plugin still works offline, only
-// AI actions are disabled.
-export default function QuotaCard( { quota, aiAvailable } ) {
+// AI actions are disabled. A recovery email already on its way (this exact
+// domain has a license on file, just not stored locally) gets its own copy
+// here instead of the generic "reconnect" line, since there's nothing to
+// retry — the fix is in the admin's inbox, not a button in this UI.
+function unavailableCopy( aiError ) {
+	if ( aiError === 'ERR_DOMAIN_ALREADY_LICENSED' ) {
+		return 'This site already has a license on file — check the admin inbox for a recovery email to reconnect it.'
+	}
+	return 'AI is off — reconnect Translangs in Settings to enable AI translation.'
+}
+
+export default function QuotaCard( { quota, aiAvailable, aiError } ) {
 	if ( ! quota ) {
 		return (
 			<Card>
@@ -19,7 +29,7 @@ export default function QuotaCard( { quota, aiAvailable } ) {
 					>
 						{ aiAvailable
 							? 'Usage shown after connect'
-							: 'AI is off — reconnect Translangs in Settings to enable AI translation.' }
+							: unavailableCopy( aiError ) }
 					</Text>
 				</BlockStack>
 			</Card>

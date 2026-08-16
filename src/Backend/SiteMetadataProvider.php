@@ -5,12 +5,14 @@ namespace TransLangs\Backend;
 use TransLangs\Language\Domain\LanguageRegistry;
 
 /**
- * Builds the site payloads sent to POST/PUT /auth/site at call time.
+ * Builds the site payload sent to POST /license/issue at call time.
  *
- * The backend only accepts a minimal shape per verb: POST /auth/site takes
- * {email, domain, default_language}; PUT /auth/site takes {default_language}
- * only. default_language is the frozen source locale
- * (translangs_source_locale), never onboarding input.
+ * The backend takes {domain, admin_email, default_language}. admin_email is
+ * WordPress's own site contact (get_option('admin_email')) — the recovery
+ * contact for this domain, not a new onboarding field. default_language is
+ * the frozen source locale (translangs_source_locale), never onboarding
+ * input. There is no update endpoint post-issue in this version, so there is
+ * nothing to build for a later sync.
  *
  * translangs_categories is unrelated to the site-connect payload — it is a
  * local-only selection read by the /translate flow (AiTranslationRunner,
@@ -21,22 +23,17 @@ final class SiteMetadataProvider
 {
     public const OPTION_CATEGORIES = 'translangs_categories';
 
-    public function __construct(private LanguageRegistry $languages) {}
+    public function __construct(
+        private LanguageRegistry $languages,
+        private ConnectionRepository $connection
+    ) {}
 
-    /** @return array{email: string, domain: string, default_language: string} */
+    /** @return array{domain: string, admin_email: string, default_language: string} */
     public function buildForCreate(): array
     {
         return [
-            'email'            => (string) get_option('admin_email', ''),
-            'domain'           => (string) wp_parse_url(home_url(), PHP_URL_HOST),
-            'default_language' => $this->languages->getDefaultLanguage(),
-        ];
-    }
-
-    /** @return array{default_language: string} */
-    public function buildForSync(): array
-    {
-        return [
+            'domain'           => $this->connection->domain(),
+            'admin_email'      => (string) get_option('admin_email', ''),
             'default_language' => $this->languages->getDefaultLanguage(),
         ];
     }

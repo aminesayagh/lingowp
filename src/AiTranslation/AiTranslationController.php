@@ -18,16 +18,21 @@ use WP_REST_Response;
  * AI translation + quota endpoints (namespace translangs/v1).
  *
  * This is SYNCHRONOUS: a request resolves the pending source units for its scope,
- * checks the cached quota, then hands off to AiTranslationRunner, which batches
- * via TranslationBatchPlanner (the backend caps at 25 items/group_id, 100/request)
- * and writes each result as MACHINE (status 1, provider "ai"). This controller only
- * does HTTP concerns — param parsing, the quota pre-check short-circuit, and response
- * shaping; large/language-wide jobs should move to an Action Scheduler job
- * (see arch-workflow-ai-translation.md) if request time becomes a problem —
- * the runner's batch/save loop transplants directly into a job worker.
+ * then hands off to AiTranslationRunner, which batches via TranslationBatchPlanner
+ * (the backend caps at 25 items/group_id, 100/request) and writes each result as
+ * MACHINE (status 1, provider "ai"). This controller only does HTTP concerns —
+ * param parsing and response shaping; large/language-wide jobs should move to an
+ * Action Scheduler job (see arch-workflow-ai-translation.md) if request time
+ * becomes a problem — the runner's batch/save loop transplants directly into a
+ * job worker.
  *
- * "AI translate all" targets missing + needs_review units (already-done ones are
- * skipped). Blocked cleanly (ERR_QUOTA) when the estimate exceeds remaining words.
+ * There is no client-side quota pre-check here — GET /usage (what a quota
+ * snapshot would be built on) doesn't return real numbers yet, so a pre-check
+ * against it can never do anything but pass; whatever quota enforcement exists
+ * belongs to /translations itself, not a separate gate in front of it.
+ *
+ * "AI translate all" targets missing + needs_review units (already-done ones
+ * are skipped).
  */
 final class AiTranslationController
 {
@@ -76,21 +81,6 @@ final class AiTranslationController
         }
         if ($units === []) {
             return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0] + $this->summaryPatch($scope, $request, $lang));
-        }
-
-        // Quota pre-check against the (cached) backend snapshot.
-        $estimate = 0;
-        foreach ($units as $u) {
-            $estimate += str_word_count(wp_strip_all_tags($u['original']));
-        }
-        $quota = $this->quota->data();
-        if ($quota !== null && $quota['words_remaining'] < $estimate) {
-            return rest_ensure_response([
-                'ok'              => false,
-                'error'           => 'ERR_QUOTA',
-                'estimated_words' => $estimate,
-                'words_remaining' => $quota['words_remaining'],
-            ]);
         }
 
         $result = $this->runner->run($units, $lang);
@@ -177,10 +167,11 @@ final class AiTranslationController
 
     /**
      * Pending source units for a scope as [{ref, original, group_id, type, translated?, status?}].
-     * 'text' translates the one ref regardless (a post_content paragraph also pulls
-     * in its untranslated siblings from the same post, see expandPostContentGroup());
-     * 'collection'/'language' take only missing + needs_review units. Returns null
-     * on a malformed scope/id.
+     * 'text' translates only the one clicked ref, regardless of its own status
+     * (preserves "re-translate this one on demand") — never siblings from the
+     * same post, so a single-text click stays a single-item request no matter
+     * how large the surrounding post is. 'collection'/'language' take only
+     * missing + needs_review units. Returns null on a malformed scope/id.
      *
      * @return array<int, array{ref:SourceRef, original:string, group_id:string, type:string}>|null
      */
@@ -196,13 +187,10 @@ final class AiTranslationController
                 return [];
             }
 
-            $clicked = ['ref' => $ref, 'original' => $context['text'], 'meta_key' => $context['meta_key']];
-
-            if ($context['kind'] === 'post' && $context['field'] === 'post_content' && ($context['post_id'] ?? 0) > 0) {
-                return $this->expandPostContentGroup($ref, $clicked, (int) $context['post_id'], $lang);
-            }
-
-            return [$clicked + [
+            return [[
+                'ref'      => $ref,
+                'original' => $context['text'],
+                'meta_key' => $context['meta_key'],
                 'group_id' => $ref->format(),
                 'type'     => $this->typeFor($context['kind'], ['field' => $context['field'] ?? null]),
             ]];
@@ -218,36 +206,6 @@ final class AiTranslationController
         }
 
         return null;
-    }
-
-    /**
-     * The clicked post_content paragraph plus every OTHER untranslated (or
-     * needs_review) post_content sibling of the same post, grouped together so
-     * the AI sees them as one contextual batch instead of translating a single
-     * paragraph in isolation. The clicked paragraph is always included regardless
-     * of its own status (preserves "re-translate this one on demand"); only
-     * siblings are filtered to pending via the same rule collection/language
-     * scope already uses. Paragraph order is best-effort natural id order from
-     * listPostTexts() — not a reconstruction of current document order.
-     *
-     * @return array<int, array{ref:SourceRef, original:string, meta_key:?string, group_id:string, type:string}>
-     */
-    private function expandPostContentGroup(SourceRef $clickedRef, array $clicked, int $postId, string $lang): array
-    {
-        $groupId  = "content:{$postId}";
-        $rows     = array_filter(
-            $this->repo->listPostTexts($postId, $lang),
-            static fn (array $r): bool => ($r['field'] ?? '') === 'post_content'
-        );
-        $siblings = array_values(array_filter(
-            $this->pending($this->unitsFromRows('post', $rows, $groupId)),
-            static fn (array $u): bool => $u['ref']->format() !== $clickedRef->format()
-        ));
-
-        return array_merge(
-            [$clicked + ['group_id' => $groupId, 'type' => 'html']],
-            $siblings
-        );
     }
 
     /** Keep only untranslated + needs_review units (skip already-done). */

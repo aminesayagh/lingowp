@@ -1,22 +1,63 @@
 import {
 	BlockStack,
+	Banner,
 	Button,
 	Card,
 	InlineStack,
+	Modal,
 	Select,
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { DuplicateIcon, ViewIcon } from '@shopify/polaris-icons'
-import { useState } from '@wordpress/element'
+import { useEffect, useState } from '@wordpress/element'
+import { api } from '../api'
+import { errorMessage } from '../errors'
 
-const MASKED_KEY = 'tl_live_8f3a....................4c7d'
-
-// ponytail: static mock content for the layout pass — real key/BYO-account storage
-// (option.translangs_token, encrypted option.translangs_byo) lands in a follow-up step.
+// ponytail: BYO-account storage (encrypted option.translangs_byo) is still
+// mock/local-only — lands in a follow-up step. The connection-key section
+// above it is real (GET /connection/status, POST /connection/recover).
 export default function BillingToken() {
 	const [ byoEnabled, setByoEnabled ] = useState( true )
 	const [ provider, setProvider ] = useState( 'openai' )
+
+	const [ status, setStatus ] = useState( null ) // null = loading
+	const [ fetchError, setFetchError ] = useState( '' )
+	const [ confirmOpen, setConfirmOpen ] = useState( false )
+	const [ recovering, setRecovering ] = useState( false )
+	const [ recoverBanner, setRecoverBanner ] = useState( null ) // { tone, content } | null
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/connection/status' ).then( ( res ) => {
+			if ( cancelled ) {
+				return
+			}
+			if ( res.ok ) {
+				setStatus( res )
+			} else {
+				setFetchError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	async function doRecover() {
+		setRecovering( true )
+		const res = await api.post( '/connection/recover' )
+		setRecovering( false )
+		setConfirmOpen( false )
+		setRecoverBanner(
+			res.ok
+				? {
+						tone: 'success',
+						content:
+							"New key emailed to the site admin. Your current key keeps working as normal — apply the new one from that email within 24 hours to complete the switch, or it'll switch over automatically once that window passes.",
+				  }
+				: { tone: 'critical', content: errorMessage( res.error ) }
+		)
+	}
 
 	return (
 		<BlockStack gap="400">
@@ -27,33 +68,31 @@ export default function BillingToken() {
 				<Text as="span" tone="subdued">
 					Links your site to your TransLangs account. Keep it private.
 				</Text>
+				{ fetchError && (
+					<Banner tone="critical">
+						{ errorMessage( fetchError ) }
+					</Banner>
+				) }
+				{ recoverBanner && (
+					<Banner tone={ recoverBanner.tone }>
+						{ recoverBanner.content }
+					</Banner>
+				) }
 				<Card>
-					<InlineStack gap="200" blockAlign="center" wrap={ false }>
-						<div style={ { flex: 1 } }>
-							<TextField
-								label="Connection key"
-								labelHidden
-								value={ MASKED_KEY }
-								readOnly
-								autoComplete="off"
-							/>
-						</div>
-						<Button
-							icon={ DuplicateIcon }
-							accessibilityLabel="Copy key"
-							onClick={ () =>
-								navigator.clipboard?.writeText( MASKED_KEY )
-							}
-						/>
-						<Button
-							icon={ ViewIcon }
-							accessibilityLabel="Show key"
-						/>
-					</InlineStack>
+					<Text as="span" tone={ status ? undefined : 'subdued' }>
+						{ status?.masked_key || '—' }
+					</Text>
 				</Card>
-				<Text as="span" tone="success" variant="bodySm">
-					● Connected · last used 3 min ago
-				</Text>
+				{ status &&
+					( status.connected ? (
+						<Text as="span" tone="success" variant="bodySm">
+							● Connected
+						</Text>
+					) : (
+						<Text as="span" tone="critical" variant="bodySm">
+							● { errorMessage( 'ERR_NOT_CONNECTED' ) }
+						</Text>
+					) ) }
 			</BlockStack>
 
 			<BlockStack gap="200">
@@ -113,7 +152,7 @@ export default function BillingToken() {
 										autoComplete="off"
 									/>
 								</div>
-								<Button variant="primary" size="medium">
+								<Button variant="primary" size="large">
 									Save
 								</Button>
 							</InlineStack>
@@ -131,19 +170,52 @@ export default function BillingToken() {
 			<BlockStack gap="200">
 				<Card>
 					<InlineStack align="space-between" blockAlign="center">
-						<BlockStack gap="050">
+						<BlockStack gap="100">
 							<Text as="span">Create a new key</Text>
 							<Text as="span" tone="subdued" variant="bodySm">
-								Your site stops translating until you paste the
-								new key in.
+								We&apos;ll email a new key to the site admin.
+								Your current key keeps working until you apply
+								it (or for 24 hours, whichever comes first).
 							</Text>
 						</BlockStack>
-						<Button tone="critical" variant="primary">
+						<Button
+							variant="primary"
+							tone="critical"
+							onClick={ () => setConfirmOpen( true ) }
+						>
 							Create new key
 						</Button>
 					</InlineStack>
 				</Card>
 			</BlockStack>
+
+			<Modal
+				open={ confirmOpen }
+				onClose={ () => setConfirmOpen( false ) }
+				title="Create a new connection key?"
+				primaryAction={ {
+					content: 'Create new key',
+					loading: recovering,
+					onAction: doRecover,
+				} }
+				secondaryActions={ [
+					{
+						content: 'Cancel',
+						onAction: () => setConfirmOpen( false ),
+					},
+				] }
+			>
+				<Modal.Section>
+					<Text as="p">
+						Your site keeps translating normally on its current key
+						— nothing changes right away. We&apos;ll email a new key
+						to the site&apos;s admin address; opening that email and
+						applying the key completes the switch. If it&apos;s
+						never applied, the switch happens on its own after 24
+						hours and the current key stops working at that point.
+					</Text>
+				</Modal.Section>
+			</Modal>
 		</BlockStack>
 	)
 }

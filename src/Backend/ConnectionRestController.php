@@ -2,10 +2,10 @@
 
 namespace TransLangs\Backend;
 
-use TransLangs\Backend\BackendClient;
 use TransLangs\Backend\ConnectionRepository;
 use TransLangs\Backend\ConnectionStatus;
 use TransLangs\Backend\SiteConnector;
+use WP_REST_Request;
 use WP_REST_Response;
 
 /**
@@ -21,10 +21,10 @@ final class ConnectionRestController
     private const NS = 'translangs/v1';
 
     public function __construct(
-        private BackendClient $backend,
         private ConnectionRepository $connection,
         private ConnectionStatus $status,
-        private SiteConnector $siteConnector
+        private SiteConnector $siteConnector,
+        private AiQuotaService $quota
     ) {}
 
     public function register(): void
@@ -39,8 +39,8 @@ final class ConnectionRestController
         register_rest_route(self::NS, '/connection/status', ['methods' => 'GET', 'callback' => [$this, 'status']] + $guard);
         register_rest_route(self::NS, '/connection/check', ['methods' => 'POST', 'callback' => [$this, 'check']] + $guard);
         register_rest_route(self::NS, '/connection/connect', ['methods' => 'POST', 'callback' => [$this, 'connect']] + $guard);
-        register_rest_route(self::NS, '/connection/rotate-token', ['methods' => 'POST', 'callback' => [$this, 'rotate']] + $guard);
-        register_rest_route(self::NS, '/connection/disconnect', ['methods' => 'POST', 'callback' => [$this, 'disconnect']] + $guard);
+        register_rest_route(self::NS, '/connection/apply-license', ['methods' => 'POST', 'callback' => [$this, 'applyLicense']] + $guard);
+        register_rest_route(self::NS, '/connection/recover', ['methods' => 'POST', 'callback' => [$this, 'recover']] + $guard);
     }
 
     public function canManage(): bool
@@ -50,26 +50,27 @@ final class ConnectionRestController
 
     public function status(): WP_REST_Response
     {
-        $status = $this->status->current();
-
-        return rest_ensure_response([
-            'ok'           => true,
-            'connected'    => $this->connection->isConnected(),
-            'ai_available' => $status['available'],
-            'ai_error'     => $status['error'],
-        ]);
+        return $this->respond(true, $this->status->current());
     }
 
-    /** Verify the token against GET /auth/me and refresh the cached AI status. */
+    /** Verify the credential against GET /usage and refresh the cached AI status. */
     public function check(): WP_REST_Response
     {
         $status = $this->status->refresh();
 
+        return $this->respond($status['available'], $status);
+    }
+
+    /** @param array{available: bool, error: string} $status */
+    private function respond(bool $ok, array $status): WP_REST_Response
+    {
         return rest_ensure_response([
-            'ok'           => $status['available'],
+            'ok'           => $ok,
             'connected'    => $this->connection->isConnected(),
+            'masked_key'   => $this->connection->maskedKey(),
             'ai_available' => $status['available'],
             'ai_error'     => $status['error'],
+            'quota'        => $this->quota->data(),
         ]);
     }
 
@@ -90,48 +91,49 @@ final class ConnectionRestController
         // now-warm cache instead of probing the backend a second time.
         $status = $this->status->current();
 
-        return rest_ensure_response(['ok' => true, 'connected' => true, 'ai_available' => $status['available']]);
+        return $this->respond($status['available'], $status);
     }
 
-    public function rotate(): WP_REST_Response
+    /**
+     * Applies a license key recovered out-of-band — the "Refresh license in
+     * WordPress" link in a /license/recover email deep-links here with the new
+     * raw key as a query param; the SPA reads it and posts it to this route.
+     * The site id is left as whatever is already stored (recovery repoints the
+     * same site at a new license, it never creates a new one), or empty on a
+     * fully wiped install — site_id isn't sent on any request, so an empty
+     * value is harmless.
+     */
+    public function applyLicense(WP_REST_Request $request): WP_REST_Response
     {
-        if (!$this->connection->isConnected()) {
-            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_NOT_CONNECTED'], 200);
+        $licenseKey = sanitize_text_field((string) $request->get_param('license_key'));
+
+        if ($licenseKey === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
         }
 
-        $result = $this->backend->rotateToken();
+        $this->siteConnector->applyCredential($this->connection->siteId(), $licenseKey);
 
-        if (!$result['ok']) {
-            return new WP_REST_Response(['ok' => false, 'error' => $result['error']], 200);
-        }
+        // applyCredential() already called status->refresh() — read the
+        // now-warm cache instead of probing the backend a second time.
+        $status = $this->status->current();
 
-        $data  = is_array($result['data']) ? $result['data'] : [];
-        $token = (string) ($data['api_token'] ?? $data['token'] ?? '');
-
-        if ($token !== '') {
-            $this->connection->store($this->connection->siteId(), $token);
-            $this->status->refresh();
-        }
-
-        return rest_ensure_response(['ok' => true]);
+        return $this->respond($status['available'], $status);
     }
 
-    /** Revoke remotely if possible, then always clear local credentials. */
-    public function disconnect(): WP_REST_Response
+    /**
+     * Manually request a recovery email for this domain (Billing page's
+     * "Create a new key"). Deliberately does not call respond(): nothing about
+     * local connection state changes here — the current key keeps working
+     * normally (backend-side it's now only a *pending* rotation) until either
+     * the admin follows the emailed link into applyLicense() above, or the
+     * backend's 24h grace window lapses unused, so returning the full
+     * connected/masked-key/quota envelope would imply a change that hasn't
+     * happened yet.
+     */
+    public function recover(): WP_REST_Response
     {
-        $warning = '';
+        $result = $this->siteConnector->recover();
 
-        if ($this->connection->isConnected()) {
-            $result = $this->backend->revokeToken();
-            if (!$result['ok']) {
-                $warning = $result['error']; // surface once; do not persist
-            }
-        }
-
-        $this->connection->clear();
-        $this->status->refresh();      // now ERR_NOT_CONNECTED → AI disabled
-        $this->status->syncSchedule(); // stop the recurring health check
-
-        return rest_ensure_response(['ok' => true, 'warning' => $warning]);
+        return new WP_REST_Response(['ok' => $result['ok'], 'error' => $result['error']], 200);
     }
 }

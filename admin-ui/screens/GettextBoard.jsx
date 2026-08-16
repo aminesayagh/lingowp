@@ -10,6 +10,7 @@ import {
 	Popover,
 	Spinner,
 	Text,
+	Tooltip,
 } from '@shopify/polaris'
 import {
 	CheckIcon,
@@ -79,6 +80,8 @@ export default function GettextBoard( {
 	const [ manualKeys, setManualKeys ] = useState( () => new Set() )
 	const checkedRef = useRef( new Set() )
 	const runningRef = useRef( false )
+	const percentCheckedRef = useRef( new Set() )
+	const percentRunningRef = useRef( false )
 
 	const rowsQ = useInfiniteQuery( {
 		queryKey: [ 'gettext-domains', language, search ],
@@ -145,6 +148,79 @@ export default function GettextBoard( {
 			reload()
 		} )()
 	}, [ reload, rows, rowsQ.isPending ] )
+
+	// translated_percent is never computed by GET /gettext-domains itself
+	// (a full source scan per row would be as slow as the old all-in-one
+	// endpoint) — it arrives cached-or-null, and this backfills any row
+	// still missing one, one domain at a time, patching each row into the
+	// cache as its own response lands rather than waiting to reload() the
+	// whole list.
+	useEffect( () => {
+		if ( rowsQ.isPending || percentRunningRef.current ) {
+			return
+		}
+		const pending = rows.filter(
+			( r ) =>
+				( r.translated_percent === null ||
+					r.translated_percent === undefined ) &&
+				! percentCheckedRef.current.has( rowKey( r ) )
+		)
+		if ( pending.length === 0 ) {
+			return
+		}
+
+		percentRunningRef.current = true
+		;( async () => {
+			for ( const row of pending ) {
+				percentCheckedRef.current.add( rowKey( row ) )
+				try {
+					const params = new URLSearchParams( {
+						type: row.type,
+						domain: row.domain,
+						locale: row.locale,
+					} )
+					const res = await api.get(
+						`/gettext-domains/percent?${ params.toString() }`
+					)
+					if ( res.ok ) {
+						patchPercent( rowKey( row ), res.translated_percent )
+					}
+				} catch {
+					// best-effort; row just stays blank until a future reload
+				}
+			}
+			percentRunningRef.current = false
+		} )()
+	}, [ rows, rowsQ.isPending ] )
+
+	// Patches one row's percent across every cached search variant for this
+	// language — same setQueriesData-over-paginated-pages shape as
+	// Dashboard's patchCollectionSummary().
+	function patchPercent( key, percent ) {
+		queryClient.setQueriesData(
+			{
+				predicate: ( q ) =>
+					q.queryKey[ 0 ] === 'gettext-domains' &&
+					q.queryKey[ 1 ] === language,
+			},
+			( old ) => {
+				if ( ! old ) {
+					return old
+				}
+				return {
+					...old,
+					pages: old.pages.map( ( p ) => ( {
+						...p,
+						rows: p.rows.map( ( r ) =>
+							rowKey( r ) === key
+								? { ...r, translated_percent: percent }
+								: r
+						),
+					} ) ),
+				}
+			}
+		)
+	}
 
 	function toggle( key ) {
 		setOpenKeys( ( prev ) => {
@@ -719,10 +795,7 @@ function GettextUnitRow( {
 		if ( res.ok ) {
 			setDraft( res.msgstr )
 			onSaved( res.msgstr )
-		} else if (
-			res.error !== 'ERR_QUOTA' &&
-			res.error !== 'ERR_INVALID_INPUT'
-		) {
+		} else if ( res.error !== 'ERR_INVALID_INPUT' ) {
 			onAiUnavailable?.( res.error )
 		}
 	}
@@ -937,79 +1010,94 @@ function GettextUnitRow( {
 									blockAlign="center"
 									wrap={ false }
 								>
-									<div
-										style={ {
-											position: 'relative',
-											flexShrink: 0,
-										} }
-									>
-										{ /* Invisible ghost, same markup as the
-										real button below — reserves its exact
-										footprint so the slot never shifts when
-										the real button mounts/unmounts. */ }
+									{ aiAvailable && (
 										<div
-											aria-hidden="true"
-											style={ { visibility: 'hidden' } }
+											style={ {
+												position: 'relative',
+												flexShrink: 0,
+											} }
 										>
-											<Tooltip content="AI translate">
-												<Button
-													variant="secondary"
-													size="micro"
-													icon={ AiIcon }
-												/>
-											</Tooltip>
-										</div>
-										<AnimatePresence initial={ false }>
-											{ ! translating && (
-												<motion.div
-													key="ai-translate"
-													initial={ {
-														opacity: 0,
-														scale: 0.92,
-													} }
-													animate={ {
-														opacity: 1,
-														scale: 1,
-													} }
-													exit={ {
-														opacity: 0,
-														scale: 0.92,
-													} }
-													transition={ {
-														duration: 0.2,
-														ease: [
-															0.4, 0, 0.2, 1,
-														],
-													} }
-													style={ {
-														position: 'absolute',
-														inset: 0,
-													} }
-												>
-													<Tooltip
-														content={
-															aiAvailable
-																? 'AI translate'
-																: 'AI translation is not available'
-														}
+											{ /* Invisible ghost, same markup as
+											the real button below — reserves
+											its exact footprint so the slot
+											never shifts when the real button
+											mounts/unmounts. */ }
+											<div
+												aria-hidden="true"
+												style={ {
+													visibility: 'hidden',
+												} }
+											>
+												<Tooltip content="AI translate">
+													<Button
+														variant="secondary"
+														size="micro"
+														icon={ ( props ) => (
+															<AiIcon
+																{ ...props }
+																size={ 12 }
+															/>
+														) }
+													/>
+												</Tooltip>
+											</div>
+											<AnimatePresence
+												initial={ false }
+											>
+												{ ! translating && (
+													<motion.div
+														key="ai-translate"
+														initial={ {
+															opacity: 0,
+															scale: 0.92,
+														} }
+														animate={ {
+															opacity: 1,
+															scale: 1,
+														} }
+														exit={ {
+															opacity: 0,
+															scale: 0.92,
+														} }
+														transition={ {
+															duration: 0.2,
+															ease: [
+																0.4, 0, 0.2, 1,
+															],
+														} }
+														style={ {
+															position:
+																'absolute',
+															inset: 0,
+														} }
 													>
-														<Button
-															variant="secondary"
-															size="micro"
-															disabled={
-																! aiAvailable
-															}
-															icon={ AiIcon }
-															accessibilityLabel="AI translate"
-															onClick={
-																handleAiClick
-															}
-														/>
-													</Tooltip>
-												</motion.div>
-											) }
-										</AnimatePresence>
-									</div>
+														<Tooltip content="AI translate">
+															<Button
+																variant="secondary"
+																size="micro"
+																icon={ (
+																	props
+																) => (
+																	<AiIcon
+																		{
+																			...props
+																		}
+																		size={
+																			12
+																		}
+																	/>
+																) }
+																accessibilityLabel="AI translate"
+																onClick={
+																	handleAiClick
+																}
+															/>
+														</Tooltip>
+													</motion.div>
+												) }
+											</AnimatePresence>
+										</div>
+									) }
 									<span
 										ref={ moreActionsRef }
 										style={ { display: 'contents' } }

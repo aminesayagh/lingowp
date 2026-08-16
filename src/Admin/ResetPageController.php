@@ -6,8 +6,6 @@ use TransLangs\Backend\BackendEndpointResolver;
 use TransLangs\Backend\ConnectionRepository;
 use TransLangs\Backend\ConnectionStatus;
 use TransLangs\Backend\SiteMetadataProvider;
-use TransLangs\Backend\SiteMetadataSyncJob;
-use TransLangs\Backend\TokenRotationJob;
 use TransLangs\Extraction\Html\HtmlDiscoveryCrawl;
 use TransLangs\Extraction\Structured\InitialDiscoveryScan;
 use TransLangs\Database\TranslationMemorySchema;
@@ -44,11 +42,9 @@ class ResetPageController
         private ConnectionRepository $connection,
         private BackendEndpointResolver $endpointResolver,
         private ConnectionStatus $connectionStatus,
-        private SiteMetadataSyncJob $siteMetadataSyncJob,
         private SiteMetadataProvider $siteMetadata,
         private OptionLanguageRegistry $languageRegistry,
-        private LanguageMetadataStore $languageMetadata,
-        private TokenRotationJob $tokenRotationJob
+        private LanguageMetadataStore $languageMetadata
     ) {
     }
 
@@ -115,19 +111,17 @@ class ResetPageController
     }
 
     /**
-     * Delete the API connection entirely: credentials, cached status, the
-     * health-check job. Deliberately deletes (not resets-to-default) —
-     * credentials are never seeded with a default (see Activator's own
-     * comment: "written on connect with autoload=false and are deliberately
-     * not seeded here"), so absence IS the first-activation state.
+     * Delete the API connection entirely: credentials and cached status.
+     * Deliberately deletes (not resets-to-default) — credentials are never
+     * seeded with a default (see Activator's own comment: "written on connect
+     * with autoload=false and are deliberately not seeded here"), so absence
+     * IS the first-activation state.
      */
     private function resetConnection(): void
     {
         $this->connection->forgetAll();
         $this->endpointResolver->resetOrigin();
-        $this->connectionStatus->unschedule();
-        $this->siteMetadataSyncJob->clearError();
-        $this->tokenRotationJob->unschedule();
+        $this->connectionStatus->clearCache();
     }
 
     /**

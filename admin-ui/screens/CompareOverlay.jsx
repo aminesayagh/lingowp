@@ -533,10 +533,30 @@ export default function CompareOverlay( {
 						}
 					/>
 					{ composed ? (
-						<SourceChips
-							unit={ unit.original }
-							tags={ unit.tags }
-						/>
+						<div
+							style={ {
+								flex: 1,
+								minHeight: 0,
+								display: 'flex',
+								flexDirection: 'column',
+							} }
+						>
+							<SourceChips
+								unit={ unit.original }
+								tags={ unit.tags }
+							/>
+							<div
+								style={ {
+									height: 1,
+									background: 'var(--p-color-border)',
+								} }
+							/>
+							{ /* Same original, tags stripped — a quick, noise-free
+							read of the plain copy alongside the tagged one. */ }
+							<div style={ textareaStyle( true ) }>
+								{ stripMarkers( unit.original ) }
+							</div>
+						</div>
 					) : (
 						<div style={ textareaStyle( false ) }>
 							{ unit.original }

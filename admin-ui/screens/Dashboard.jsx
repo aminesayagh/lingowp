@@ -28,6 +28,8 @@ import {
 } from '@tanstack/react-query'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import {
+	lazy,
+	Suspense,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
@@ -48,15 +50,30 @@ import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api'
 import { errorMessage } from '../errors'
 import { AiIcon } from './AiIcon'
-import ExportImportModal from './ExportImportModal'
-import GettextBoard from './GettextBoard'
-import LanguageManagerModal from './LanguageManagerModal'
 import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList'
 import { flagIconUrl } from './FlagIcon'
 import CompareOverlay from './CompareOverlay'
 import QuotaCard from './QuotaCard'
 import { hasMarkers, stripMarkers } from './TranslationUnitEditor'
 import { lengthWarningMessage } from './lengthWarning.mjs'
+
+// Split out of the main bundle: each is a modal/screen opened only by an
+// explicit action, never needed for first paint — GettextBoard behind the
+// Plugins & Themes tab (Content is the default), the other two behind their
+// own "open" state (see managerEverOpened/exportImportEverOpened below,
+// which keep them mounted after their first open so Polaris' Modal still
+// gets to run its own close transition instead of being yanked out mid-exit).
+const GettextBoard = lazy( () =>
+	import( /* webpackChunkName: "gettext-board" */ './GettextBoard' )
+)
+const LanguageManagerModal = lazy( () =>
+	import(
+		/* webpackChunkName: "language-manager-modal" */ './LanguageManagerModal'
+	)
+)
+const ExportImportModal = lazy( () =>
+	import( /* webpackChunkName: "export-import-modal" */ './ExportImportModal' )
+)
 
 // Schema status → workspace pill. Completed rows keep a visible marker so table
 // progress is scannable even when the row is not hovered.
@@ -232,7 +249,14 @@ export default function Dashboard( { defaultLanguage } ) {
 	} )
 	const [ managerOpen, setManagerOpen ] = useState( false )
 	const [ managerInitial, setManagerInitial ] = useState( null )
+	// Latches true on first open and never resets — lets LanguageManagerModal's
+	// lazy chunk load only when actually needed, while staying mounted for
+	// every open/close after that (so its own Polaris close transition still
+	// gets to run, instead of the component being unmounted mid-exit).
+	const [ managerEverOpened, setManagerEverOpened ] = useState( false )
 	const [ exportImportOpen, setExportImportOpen ] = useState( false )
+	const [ exportImportEverOpened, setExportImportEverOpened ] =
+		useState( false )
 	const [ pageMenuOpen, setPageMenuOpen ] = useState( false )
 	const [ refreshing, setRefreshing ] = useState( false )
 	// True right after the first language is created, until the initial
@@ -307,6 +331,7 @@ export default function Dashboard( { defaultLanguage } ) {
 	function openManager( code ) {
 		setManagerInitial( code || 'new' )
 		setManagerOpen( true )
+		setManagerEverOpened( true )
 	}
 
 	function loadQuota() {
@@ -327,6 +352,19 @@ export default function Dashboard( { defaultLanguage } ) {
 					available: !! res.ai_available,
 					error: res.ai_error || '',
 				} )
+				setQuota( res.quota ?? null )
+				// A stored credential exists but isn't usable right now (revoked
+				// key, domain mismatch, backend down, ...) — surface it on this
+				// load instead of staying silent until the user tries to
+				// translate something. ERR_DOMAIN_ALREADY_LICENSED is excluded:
+				// that case already has its own quiet explanation in the quota
+				// card (a recovery email was just sent), not a toast.
+				if (
+					! res.ai_available &&
+					res.ai_error !== 'ERR_DOMAIN_ALREADY_LICENSED'
+				) {
+					showToast( 'warning', errorMessage( res.ai_error ) )
+				}
 				return
 			}
 			api.post( '/connection/connect' ).then( ( reconnectRes ) => {
@@ -335,6 +373,7 @@ export default function Dashboard( { defaultLanguage } ) {
 						available: !! reconnectRes.ai_available,
 						error: '',
 					} )
+					setQuota( reconnectRes.quota ?? null )
 					return
 				}
 				const error = reconnectRes.error || 'ERR_BACKEND'
@@ -342,7 +381,6 @@ export default function Dashboard( { defaultLanguage } ) {
 				showToast( 'warning', errorMessage( error ) )
 			} )
 		} )
-		loadQuota()
 	}, [] )
 
 	useEffect( () => {
@@ -381,13 +419,6 @@ export default function Dashboard( { defaultLanguage } ) {
 			language: selectedLang,
 			...opts,
 		} )
-		if ( res.error === 'ERR_QUOTA' ) {
-			showToast(
-				'warning',
-				`Needs ~${ res.estimated_words } words, ${ res.words_remaining } left.`
-			)
-			return
-		}
 		if ( ! res.ok ) {
 			// Anything other than quota/input errors here means the backend call
 			// itself failed — PHP already recorded that (ConnectionStatus), so
@@ -403,22 +434,11 @@ export default function Dashboard( { defaultLanguage } ) {
 		// run still succeeded, so this is a warning, not a failure — but it must be
 		// visible, or the user just sees rows that silently stayed untranslated.
 		const failed = res.failed || 0
-		// scope 'text' always targets exactly one ref, so res.translated > 1 here can
-		// only mean the backend expanded it to the rest of that post's untranslated
-		// paragraphs (AiTranslationController::expandPostContentGroup) — call that
-		// out explicitly instead of a generic count the user didn't ask for.
-		const expandedToPost = scope === 'text' && res.translated > 1
 		showToast(
 			failed > 0 ? 'warning' : 'success',
-			expandedToPost
-				? `Translated ${
-						res.translated
-				  } untranslated paragraphs from this post together.${
-						failed > 0 ? ` ${ failed } rejected.` : ''
-				  }`
-				: `Translated ${ res.translated } text${
-						res.translated === 1 ? '' : 's'
-				  }.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
+			`Translated ${ res.translated } text${
+				res.translated === 1 ? '' : 's'
+			}.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
 		)
 		if ( res.collection_summary ) {
 			patchCollectionSummary( res.collection_summary, lang )
@@ -952,19 +972,54 @@ export default function Dashboard( { defaultLanguage } ) {
 	// then scroll it into view and drop the hash so a later refresh doesn't
 	// re-trigger the jump. Gives up once every page is loaded and it's still
 	// not there (removed, or filtered out on the visitor's language).
+	const scrollSettlingRef = useRef( false )
 	useEffect( () => {
-		if ( ! pendingScrollId || groupsQ.isPending ) {
+		if (
+			! pendingScrollId ||
+			groupsQ.isPending ||
+			scrollSettlingRef.current
+		) {
 			return
 		}
 		const index = groups.findIndex( ( g ) => g.id === pendingScrollId )
 		if ( index >= 0 ) {
-			v.scrollToIndex( index, { align: 'start' } )
-			window.history.replaceState(
-				null,
-				'',
-				window.location.pathname + window.location.search
-			)
-			setPendingScrollId( null )
+			// Rows above the target are still at estimateSize() until they've
+			// actually mounted and measureElement reports their real height —
+			// react-virtual never renders far-off-screen rows just to measure
+			// them. A single scrollToIndex lands using those estimates, and
+			// nothing re-corrects it afterwards, which reads as "jumps near
+			// the target, then the final resting spot is off." Re-issuing the
+			// jump across frames lets each pass mount a bit more of the path
+			// and pull the estimate closer to reality; we stop once
+			// v.scrollOffset (the virtualizer's own settled position) stops
+			// moving between two consecutive frames, capped as a safety valve.
+			scrollSettlingRef.current = true
+			let previousOffset = null
+			let stableFrames = 0
+			let frame = 0
+			const settle = () => {
+				v.scrollToIndex( index, { align: 'start' } )
+				const offset = v.scrollOffset
+				stableFrames =
+					previousOffset !== null &&
+					Math.abs( offset - previousOffset ) < 1
+						? stableFrames + 1
+						: 0
+				previousOffset = offset
+				frame += 1
+				if ( stableFrames < 2 && frame < 30 ) {
+					requestAnimationFrame( settle )
+					return
+				}
+				scrollSettlingRef.current = false
+				window.history.replaceState(
+					null,
+					'',
+					window.location.pathname + window.location.search
+				)
+				setPendingScrollId( null )
+			}
+			requestAnimationFrame( settle )
 			return
 		}
 		if ( hasNextGroupsPage ) {
@@ -1408,6 +1463,9 @@ export default function Dashboard( { defaultLanguage } ) {
 															setExportImportOpen(
 																true
 															)
+															setExportImportEverOpened(
+																true
+															)
 														},
 													},
 													{
@@ -1511,6 +1569,7 @@ export default function Dashboard( { defaultLanguage } ) {
 						<QuotaCard
 							quota={ quota }
 							aiAvailable={ ai.available }
+							aiError={ ai.error }
 						/>
 					</div>
 				</div>
@@ -1657,21 +1716,35 @@ export default function Dashboard( { defaultLanguage } ) {
 						{ showGettextBoard &&
 							! showNoLanguages &&
 							! extractionPending && (
-								<GettextBoard
-									language={ selectedLang }
-									search={ query }
-									originalLabel={ originalLabel }
-									translationLabel={ translationLabel }
-									sourceLabel={ originalLabel }
-									sourceFlag={ sourceFlag }
-									languages={ languages }
-									aiAvailable={ ai.available }
-									onPickLanguage={ setSelectedLang }
-									onConfirm={ setConfirm }
-									onAiUnavailable={ ( error ) =>
-										setAi( { available: false, error } )
+								<Suspense
+									fallback={
+										<Box padding="500">
+											<Spinner
+												accessibilityLabel="Loading Plugins & Themes"
+												size="small"
+											/>
+										</Box>
 									}
-								/>
+								>
+									<GettextBoard
+										language={ selectedLang }
+										search={ query }
+										originalLabel={ originalLabel }
+										translationLabel={ translationLabel }
+										sourceLabel={ originalLabel }
+										sourceFlag={ sourceFlag }
+										languages={ languages }
+										aiAvailable={ ai.available }
+										onPickLanguage={ setSelectedLang }
+										onConfirm={ setConfirm }
+										onAiUnavailable={ ( error ) =>
+											setAi( {
+												available: false,
+												error,
+											} )
+										}
+									/>
+								</Suspense>
 							) }
 						{ showGroupsLoading && (
 							<Box padding="500">
@@ -1911,33 +1984,44 @@ export default function Dashboard( { defaultLanguage } ) {
 				</div>
 			</InlineStack>
 
-			<LanguageManagerModal
-				open={ managerOpen }
-				languages={ languages }
-				catalog={ languageCatalog }
-				defaultCode={ defaultCode }
-				initialCode={ managerInitial }
-				onClose={ () => setManagerOpen( false ) }
-				onConfirm={ setConfirm }
-				onChanged={ () => {
-					const wasFirstLanguage = languages.length === 0
-					refreshLanguages()
-					if ( wasFirstLanguage ) {
-						api.get( '/scan/status' ).then( ( res ) => {
-							if ( ( res.status || 'running' ) === 'running' ) {
-								setExtractionPending( true )
-								setTimeout( pollFirstScan, 3000 )
+			{ managerEverOpened && (
+				<Suspense fallback={ null }>
+					<LanguageManagerModal
+						open={ managerOpen }
+						languages={ languages }
+						catalog={ languageCatalog }
+						defaultCode={ defaultCode }
+						initialCode={ managerInitial }
+						onClose={ () => setManagerOpen( false ) }
+						onConfirm={ setConfirm }
+						onChanged={ () => {
+							const wasFirstLanguage = languages.length === 0
+							refreshLanguages()
+							if ( wasFirstLanguage ) {
+								api.get( '/scan/status' ).then( ( res ) => {
+									if (
+										( res.status || 'running' ) ===
+										'running'
+									) {
+										setExtractionPending( true )
+										setTimeout( pollFirstScan, 3000 )
+									}
+								} )
 							}
-						} )
-					}
-				} }
-			/>
-			<ExportImportModal
-				open={ exportImportOpen }
-				languages={ languages }
-				initialLanguage={ selectedLang }
-				onClose={ () => setExportImportOpen( false ) }
-			/>
+						} }
+					/>
+				</Suspense>
+			) }
+			{ exportImportEverOpened && (
+				<Suspense fallback={ null }>
+					<ExportImportModal
+						open={ exportImportOpen }
+						languages={ languages }
+						initialLanguage={ selectedLang }
+						onClose={ () => setExportImportOpen( false ) }
+					/>
+				</Suspense>
+			) }
 			<CompareOverlay
 				open={ !! overlayUnit }
 				unit={ overlayUnit }
@@ -2757,6 +2841,28 @@ function TextUnitRow( {
 										setDraft( e.target.value )
 									}
 									onBlur={ saveTranslation }
+									onKeyDown={ ( e ) => {
+										if ( e.key !== 'Enter' ) {
+											return
+										}
+										e.preventDefault()
+										const inputs = Array.from(
+											document.querySelectorAll(
+												'input[aria-label="Translation"]'
+											)
+										)
+										const next =
+											inputs[
+												inputs.indexOf(
+													e.currentTarget
+												) + 1
+											]
+										if ( next ) {
+											next.focus()
+										} else {
+											e.currentTarget.blur()
+										}
+									} }
 									placeholder={ unit.fallback || '' }
 									animate={ {
 										opacity: showShimmer ? 0 : 1,

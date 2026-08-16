@@ -11,12 +11,24 @@ namespace TransLangs\Backend;
  * 'error' is a stable ERR_* code (empty on success), never a human sentence.
  * All user-facing copy is resolved in the React SPA by mapping the ERR_* code to
  * localized text — PHP stays language-agnostic (see the error-code convention in
- * arch-onboarding-auth-lifecycle.md). The raw token, Authorization, and
- * X-Provision-Key headers are never logged.
+ * arch-onboarding-auth-lifecycle.md). The raw license key and Authorization
+ * header are never logged.
  */
 final class BackendClient
 {
     private const TIMEOUT = 15;
+
+    // /translations runs real model inference (batches of up to 25 items),
+    // which routinely exceeds a normal API timeout — a cold model in
+    // particular can take well over TIMEOUT before the first token, even
+    // though the backend keeps working and eventually answers. PHP's own
+    // max_execution_time (300s, docker/php/custom.ini) leaves plenty of room,
+    // but this site is fronted by a Cloudflare Tunnel, whose edge enforces a
+    // fixed ~100s origin response timeout (its own "524" limit, not something
+    // cloudflared's local config can raise) — staying under that matters more
+    // than PHP's own ceiling: past it, Cloudflare tears the connection down
+    // before we ever get the chance to time out on our own terms.
+    private const TRANSLATE_TIMEOUT = 120;
 
     public function __construct(
         private BackendEndpointResolver $resolver,
@@ -29,53 +41,44 @@ final class BackendClient
         return $this->request('GET', '/health');
     }
 
-    /** POST /auth/site — first connect; returns the raw token once. */
-    public function createSite(array $payload): array
+    /**
+     * POST /license/issue — first connect; returns the raw license key once.
+     * Self-serve (no auth header) — defended backend-side by IP rate limiting
+     * and domain validation instead.
+     */
+    public function issueLicense(array $payload): array
     {
-        return $this->request('POST', '/auth/site', $payload, $this->provisionHeaders());
-    }
-
-    /** PUT /auth/site — sync site metadata (bearer). */
-    public function syncSite(array $payload): array
-    {
-        return $this->request('PUT', '/auth/site', $payload, $this->bearerHeaders());
-    }
-
-    /** GET /auth/me — verify token/connection (bearer). */
-    public function me(): array
-    {
-        return $this->request('GET', '/auth/me', null, $this->bearerHeaders());
-    }
-
-    /** POST /auth/rotate-token — replace token (bearer). */
-    public function rotateToken(): array
-    {
-        return $this->request('POST', '/auth/rotate-token', null, $this->bearerHeaders());
-    }
-
-    /** POST /auth/revoke-token — disconnect (bearer). */
-    public function revokeToken(): array
-    {
-        return $this->request('POST', '/auth/revoke-token', null, $this->bearerHeaders());
+        return $this->request('POST', '/license/issue', $payload);
     }
 
     /**
-     * POST /translations — batch translate (bearer). Payload:
+     * POST /license/recover — no auth; always returns {sent: true} regardless
+     * of whether the domain matched anything. If it did, the backend rotates
+     * the license server-side and emails the new raw key to the site's
+     * stored admin_email — safe to call speculatively, no rate limit/cooldown.
+     */
+    public function recover(array $payload): array
+    {
+        return $this->request('POST', '/license/recover', $payload);
+    }
+
+    /**
+     * POST /translations — batch translate (bearer + domain). Payload:
      *   { source_lang, target_langs:[], texts:[""] }
      * Success data: { translations:[{text,target_lang,translation}], failed:[{text,target_lang,reason}] }.
      */
     public function translate(array $payload): array
     {
-        return $this->request('POST', '/translations', $payload, $this->bearerHeaders());
+        return $this->request('POST', '/translations', $payload, $this->authHeaders(), self::TRANSLATE_TIMEOUT);
     }
 
-    /** GET /usage — AI word quota snapshot (bearer). */
+    /** GET /usage — AI word quota snapshot (bearer + domain); also doubles as the connection health probe. */
     public function usage(): array
     {
-        return $this->request('GET', '/usage', null, $this->bearerHeaders());
+        return $this->request('GET', '/usage', null, $this->authHeaders());
     }
 
-    private function request(string $method, string $path, ?array $body = null, array $headers = []): array
+    private function request(string $method, string $path, ?array $body = null, array $headers = [], ?int $timeout = null): array
     {
         $base = $this->resolver->baseUrl();
         if ($base === '') {
@@ -84,7 +87,7 @@ final class BackendClient
 
         $args = [
             'method'  => $method,
-            'timeout' => self::TIMEOUT,
+            'timeout' => $timeout ?? self::TIMEOUT,
             'headers' => array_merge(['Accept' => 'application/json'], $headers),
         ];
 
@@ -107,17 +110,34 @@ final class BackendClient
             return ['ok' => true, 'status' => $status, 'data' => $data, 'error' => ''];
         }
 
-        return ['ok' => false, 'status' => $status, 'data' => $data, 'error' => $this->errorForStatus($status)];
+        return ['ok' => false, 'status' => $status, 'data' => $data, 'error' => $this->errorForStatus($status, $data)];
     }
 
-    private function errorForStatus(int $status): string
+    /**
+     * Most errors are a stable status code; a few (409/429/400/404 from the
+     * /license/* routes) also carry a stable snake_case `detail` slug that
+     * means something different per slug — read it where it matters. The 401
+     * case is deliberately NOT slug-matched: the backend still returns a
+     * human sentence there, not a slug, so any 401 is treated as "credential
+     * invalid" regardless of its detail text.
+     */
+    private function errorForStatus(int $status, mixed $data): string
     {
-        return match ($status) {
-            400      => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group) — should be unreachable if the client batches correctly
-            401, 403 => 'ERR_INVALID_TOKEN',    // 403 = revoked token
-            404      => 'ERR_NOT_FOUND',
-            422      => 'ERR_INVALID_PAYLOAD',
-            default  => 'ERR_BACKEND',          // covers 503/500 — no retry here, see AiTranslationRunner
+        $detail = is_array($data) ? (string) ($data['detail'] ?? '') : '';
+
+        return match (true) {
+            $status === 409 && $detail === 'domain_mismatch'         => 'ERR_DOMAIN_MISMATCH',
+            $status === 409 && $detail === 'domain_already_licensed' => 'ERR_DOMAIN_ALREADY_LICENSED',
+            $status === 429 && $detail === 'rebind_cooldown_active'  => 'ERR_REBIND_COOLDOWN',
+            $status === 429                                          => 'ERR_RATE_LIMITED',
+            $status === 400 && $detail === 'domain_not_allowed'      => 'ERR_DOMAIN_NOT_ALLOWED',
+            $status === 400 && $detail === 'domain_unreachable'      => 'ERR_DOMAIN_UNREACHABLE',
+            $status === 404 && $detail === 'site_not_found'          => 'ERR_SITE_NOT_FOUND',
+            $status === 400                                          => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group)
+            $status === 401 || $status === 403                       => 'ERR_INVALID_TOKEN',    // 403 = revoked token; 401 detail is a sentence, never slug-matched
+            $status === 404                                          => 'ERR_NOT_FOUND',
+            $status === 422                                          => 'ERR_INVALID_PAYLOAD',
+            default                                                   => 'ERR_BACKEND', // covers 503/500 — no retry here, see AiTranslationRunner
         };
     }
 
@@ -126,14 +146,12 @@ final class BackendClient
         return ['ok' => false, 'status' => 0, 'data' => null, 'error' => $code];
     }
 
-    /** Server-only provision key for the first POST /auth/site. */
-    private function provisionHeaders(): array
+    /** Every protected route needs both — the license key and the domain it's licensed for. */
+    private function authHeaders(): array
     {
-        return ['X-Provision-Key' => $this->resolver->provisionKey()];
-    }
-
-    private function bearerHeaders(): array
-    {
-        return ['Authorization' => 'Bearer ' . $this->connection->token()];
+        return [
+            'Authorization' => 'Bearer ' . $this->connection->token(),
+            'X-Site-Domain' => $this->connection->domain(),
+        ];
     }
 }
