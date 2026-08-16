@@ -12,9 +12,13 @@ import {
 // ponytail: static mock content for the layout pass — real numbers come from
 // stats.daily + paypal.subscription in a follow-up step.
 const METRICS = [
-	{ label: 'Words used', value: '38,420' },
-	{ label: 'Cache hit rate', value: '71%' },
-	{ label: 'Pages served', value: '12,905' },
+	{ label: 'Words translated', value: '38,420' },
+	{
+		label: 'Words reused',
+		value: '27,180 words',
+		note: 'Already translated before, so they cost you nothing',
+	},
+	{ label: 'Translated pages viewed', value: '12,905' },
 ]
 
 const DAILY_WORDS = [
@@ -60,7 +64,7 @@ export default function BillingUsage() {
 		<BlockStack gap="400">
 			<InlineStack align="space-between" blockAlign="center">
 				<Text as="h2" variant="headingMd">
-					This billing period · 12 Aug – 12 Sep
+					This month · 12 Aug to 12 Sep
 				</Text>
 			</InlineStack>
 
@@ -74,20 +78,25 @@ export default function BillingUsage() {
 							<Text as="span" variant="headingLg">
 								{ m.value }
 							</Text>
+							{ m.note && (
+								<Text as="span" tone="subdued" variant="bodySm">
+									{ m.note }
+								</Text>
+							) }
 						</BlockStack>
 					</Card>
 				) ) }
 			</InlineGrid>
 
 			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					Plan quota
-				</Text>
 				<Card>
 					<BlockStack gap="150">
+						<Text as="h3" variant="headingSm">
+							Your monthly words
+						</Text>
 						<ProgressBar progress={ 38 } tone="primary" />
 						<Text as="span" tone="subdued" variant="bodySm">
-							38,420 of 100,000 words · resets 12 Sep
+							38,420 of 100,000 used · resets 12 Sep
 						</Text>
 					</BlockStack>
 				</Card>
@@ -96,18 +105,18 @@ export default function BillingUsage() {
 			<Card>
 				<InlineStack align="space-between" blockAlign="center">
 					<BlockStack gap="050">
-						<Text as="span">Extra word credits</Text>
+						<Text as="span">Extra words</Text>
 						<Text as="span" tone="subdued" variant="bodySm">
-							50,000 left, never expire
+							50,000 left. These don't expire.
 						</Text>
 					</BlockStack>
-					<Button>Buy credits</Button>
+					<Button>Add more words</Button>
 				</InlineStack>
 			</Card>
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
-					Daily words
+					Day by day
 				</Text>
 				<Card>
 					<DailyWordsChart values={ DAILY_WORDS } />
@@ -120,8 +129,18 @@ export default function BillingUsage() {
 				</Text>
 				<Card padding="0">
 					<DataTable
-						columnContentTypes={ [ 'text', 'numeric', 'numeric', 'numeric' ] }
-						headings={ [ 'Language', 'Words', 'Cached', 'New' ] }
+						columnContentTypes={ [
+							'text',
+							'numeric',
+							'numeric',
+							'numeric',
+						] }
+						headings={ [
+							'Language',
+							'Words',
+							'Already translated',
+							'Newly translated',
+						] }
 						rows={ LANGUAGE_ROWS }
 					/>
 				</Card>

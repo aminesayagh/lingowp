@@ -14,56 +14,61 @@ import {
 const PLANS = [
 	{
 		name: 'Free',
-		meta: '2 languages · 5k words / mo',
-		action: 'Downgrade',
+		meta: '5,000 words a month, in 2 languages',
+		action: 'Switch to Free',
 		current: false,
 	},
 	{
 		name: 'Pro',
-		meta: '10 languages · 100k words / mo',
-		action: 'Current plan',
+		meta: '100,000 words a month, in 10 languages',
+		action: 'Your current plan',
 		current: true,
 	},
 	{
 		name: 'Business',
-		meta: 'Unlimited languages · 1M words / mo',
-		action: 'Upgrade',
+		meta: '1,000,000 words a month, in any language',
+		action: 'Switch to Business',
 		current: false,
 	},
 ]
 
 const INVOICE_ROWS = [
-	[ '12 Aug 26', 'Pro · monthly', '$19.00', 'Paid', 'PDF' ],
-	[ '02 Aug 26', '50k word pack', '$12.00', 'Paid', 'PDF' ],
-	[ '12 Jul 26', 'Pro · monthly', '$19.00', 'Paid', 'PDF' ],
+	[ '12 Aug 26', 'Monthly plan', '$19.00', 'Paid' ],
+	[ '02 Aug 26', 'Extra words (50,000)', '$12.00', 'Paid' ],
+	[ '12 Jul 26', 'Monthly plan', '$19.00', 'Paid' ],
 ]
 
 export default function BillingSubscription() {
 	return (
 		<BlockStack gap="400">
-			<Card>
-				<BlockStack gap="300">
-					<InlineStack gap="200" blockAlign="center">
-						<Text as="h2" variant="headingMd">
-							Pro
+			<BlockStack gap="200">
+				<Text as="h3" variant="headingSm">
+					Your plan
+				</Text>
+				<Card>
+					<BlockStack gap="300">
+						<InlineStack gap="200" blockAlign="center">
+							<Text as="h2" variant="headingMd">
+								Pro
+							</Text>
+							<Badge tone="success">Active</Badge>
+						</InlineStack>
+						<Text as="span" tone="subdued">
+							$19 a month · next charge 12 Sep 2026
 						</Text>
-						<Badge tone="success">Active</Badge>
-					</InlineStack>
-					<Text as="span" tone="subdued">
-						$19 / month · renews 12 Sep 2026 · billed through PayPal
-					</Text>
-					<InlineStack gap="200">
-						<Button>Manage in PayPal</Button>
-						<Button variant="plain" tone="critical">
-							Cancel plan
-						</Button>
-					</InlineStack>
-				</BlockStack>
-			</Card>
+						<InlineStack gap="200">
+							<Button>Update billing</Button>
+							<Button variant="plain" tone="critical">
+								Cancel plan
+							</Button>
+						</InlineStack>
+					</BlockStack>
+				</Card>
+			</BlockStack>
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
-					Adjust plan
+					Change plan
 				</Text>
 				<InlineGrid columns={ 3 } gap="300">
 					{ PLANS.map( ( plan ) => (
@@ -71,12 +76,6 @@ export default function BillingSubscription() {
 							<BlockStack gap="200">
 								<Text as="h4" variant="headingSm">
 									{ plan.name }
-									{ plan.current && (
-										<Text as="span" tone="subdued">
-											{ ' ' }
-											· current
-										</Text>
-									) }
 								</Text>
 								<Text as="span" tone="subdued">
 									{ plan.meta }
@@ -98,16 +97,11 @@ export default function BillingSubscription() {
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
-					Payment method
+					How you pay
 				</Text>
 				<Card>
 					<InlineStack align="space-between" blockAlign="center">
-						<BlockStack gap="050">
-							<Text as="span">PayPal · a...e@mail.com</Text>
-							<Text as="span" tone="subdued" variant="bodySm">
-								Agreement I-9XK2....
-							</Text>
-						</BlockStack>
+						<Text as="span">PayPal · a...e@mail.com</Text>
 						<Button>Change</Button>
 					</InlineStack>
 				</Card>
@@ -115,34 +109,25 @@ export default function BillingSubscription() {
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
-					Invoices
+					Receipts
 				</Text>
 				<Card padding="0">
 					<DataTable
-						columnContentTypes={ [
-							'text',
-							'text',
-							'text',
-							'text',
-							'text',
-						] }
-						headings={ [
-							'Date',
-							'Item',
-							'Amount',
-							'Status',
-							'',
-						] }
+						columnContentTypes={ [ 'text', 'text', 'text', 'text' ] }
+						headings={ [ 'Date', 'What for', 'Amount', 'Status' ] }
 						rows={ INVOICE_ROWS.map( ( row ) => [
 							row[ 0 ],
 							row[ 1 ],
 							row[ 2 ],
-							<Badge key={ row[ 0 ] } tone="success">
-								{ row[ 3 ] }
-							</Badge>,
-							<Button key={ `${ row[ 0 ] }-pdf` } variant="plain">
-								{ row[ 4 ] }
-							</Button>,
+							<InlineStack
+								key={ row[ 0 ] }
+								align="space-between"
+								blockAlign="center"
+								gap="200"
+							>
+								<Badge tone="success">{ row[ 3 ] }</Badge>
+								<Button variant="plain">Receipt</Button>
+							</InlineStack>,
 						] ) }
 					/>
 				</Card>

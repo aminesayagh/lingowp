@@ -10,9 +10,9 @@ import {
 import { DuplicateIcon, ViewIcon } from '@shopify/polaris-icons'
 import { useState } from '@wordpress/element'
 
-const MASKED_TOKEN = 'tl_live_8f3a....................4c7d'
+const MASKED_KEY = 'tl_live_8f3a....................4c7d'
 
-// ponytail: static mock content for the layout pass — real token/BYO-key storage
+// ponytail: static mock content for the layout pass — real key/BYO-account storage
 // (option.translangs_token, encrypted option.translangs_byo) lands in a follow-up step.
 export default function BillingToken() {
 	const [ byoEnabled, setByoEnabled ] = useState( true )
@@ -22,66 +22,82 @@ export default function BillingToken() {
 		<BlockStack gap="400">
 			<BlockStack gap="200">
 				<Text as="h2" variant="headingMd">
-					Site token
+					Connection key
 				</Text>
 				<Text as="span" tone="subdued">
-					Authenticates this site with the TransLangs service.
+					Links your site to your TransLangs account. Keep it private.
 				</Text>
 				<Card>
 					<InlineStack gap="200" blockAlign="center" wrap={ false }>
 						<div style={ { flex: 1 } }>
 							<TextField
-								label="Site token"
+								label="Connection key"
 								labelHidden
-								value={ MASKED_TOKEN }
+								value={ MASKED_KEY }
 								readOnly
 								autoComplete="off"
 							/>
 						</div>
 						<Button
 							icon={ DuplicateIcon }
-							accessibilityLabel="Copy token"
+							accessibilityLabel="Copy key"
 							onClick={ () =>
-								navigator.clipboard?.writeText( MASKED_TOKEN )
+								navigator.clipboard?.writeText( MASKED_KEY )
 							}
 						/>
-						<Button icon={ ViewIcon } accessibilityLabel="Reveal token" />
+						<Button
+							icon={ ViewIcon }
+							accessibilityLabel="Show key"
+						/>
 					</InlineStack>
 				</Card>
 				<Text as="span" tone="success" variant="bodySm">
-					● Connected · last used 3 min ago · created 04 Jun 2026
+					● Connected · last used 3 min ago
 				</Text>
 			</BlockStack>
 
 			<BlockStack gap="200">
-				<InlineStack align="space-between" blockAlign="center">
-					<Text as="h3" variant="headingSm">
-						Bring your own key
-					</Text>
-				</InlineStack>
+				<Text as="h3" variant="headingSm">
+					Use your own translation account
+				</Text>
 				<Card>
 					<BlockStack gap="300">
-						<InlineStack align="space-between" blockAlign="center">
+						<InlineStack
+							align="space-between"
+							blockAlign="center"
+							gap="200"
+						>
 							<Text as="span" tone="subdued">
-								Route translations through your own provider key
-								instead of the built-in engine. Stored
-								encrypted, used server-side only.
+								Send translations through your own OpenAI or
+								DeepL account instead of ours. Your translation
+								costs go to them. We encrypt your key and never
+								show it again.
 							</Text>
 							<Button
 								pressed={ byoEnabled }
 								onClick={ () => setByoEnabled( ( v ) => ! v ) }
 							>
-								{ byoEnabled ? 'Enabled' : 'Disabled' }
+								Use my own account
 							</Button>
 						</InlineStack>
 						{ byoEnabled && (
-							<InlineStack gap="200" blockAlign="end" wrap={ false }>
+							<InlineStack
+								gap="200"
+								blockAlign="end"
+								wrap={ false }
+							>
 								<div style={ { width: 180 } }>
 									<Select
-										label="Provider"
+										label="Service"
 										options={ [
-											{ label: 'OpenAI', value: 'openai' },
-											{ label: 'Anthropic', value: 'anthropic' },
+											{
+												label: 'OpenAI',
+												value: 'openai',
+											},
+											{
+												label: 'Anthropic',
+												value: 'anthropic',
+											},
 											{ label: 'DeepL', value: 'deepl' },
 										] }
 										value={ provider }
@@ -90,20 +106,22 @@ export default function BillingToken() {
 								</div>
 								<div style={ { flex: 1 } }>
 									<TextField
-										label="API key"
+										label="Your key"
 										labelHidden
 										type="password"
 										placeholder="sk-proj-...."
 										autoComplete="off"
 									/>
 								</div>
-								<Button variant="primary">Save</Button>
+								<Button variant="primary" size="medium">
+									Save
+								</Button>
 							</InlineStack>
 						) }
 						{ byoEnabled && (
 							<Text as="span" tone="success" variant="bodySm">
-								● Key validated · calls billed to your provider
-								account
+								● Key works. Translations will go through your
+								account.
 							</Text>
 						) }
 					</BlockStack>
@@ -111,47 +129,17 @@ export default function BillingToken() {
 			</BlockStack>
 
 			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					Endpoint
-				</Text>
-				<Card>
-					<InlineStack gap="200" blockAlign="center" wrap={ false }>
-						<div style={ { flex: 1 } }>
-							<TextField
-								label="Endpoint"
-								labelHidden
-								value="https://api.translangs.io/v1"
-								readOnly
-								autoComplete="off"
-							/>
-						</div>
-						<Button
-							icon={ DuplicateIcon }
-							accessibilityLabel="Copy endpoint"
-							onClick={ () =>
-								navigator.clipboard?.writeText(
-									'https://api.translangs.io/v1'
-								)
-							}
-						/>
-					</InlineStack>
-				</Card>
-			</BlockStack>
-
-			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm" tone="critical">
-					Danger zone
-				</Text>
 				<Card>
 					<InlineStack align="space-between" blockAlign="center">
 						<BlockStack gap="050">
-							<Text as="span">Regenerate token</Text>
+							<Text as="span">Create a new key</Text>
 							<Text as="span" tone="subdued" variant="bodySm">
-								The current token stops working immediately.
+								Your site stops translating until you paste the
+								new key in.
 							</Text>
 						</BlockStack>
 						<Button tone="critical" variant="primary">
-							Regenerate
+							Create new key
 						</Button>
 					</InlineStack>
 				</Card>

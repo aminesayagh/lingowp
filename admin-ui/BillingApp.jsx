@@ -40,9 +40,9 @@ const tabParser = parseAsStringLiteral( [
 ] ).withDefault( 'subscription' )
 
 const TABS = [
-	{ id: 'subscription', label: 'Subscription' },
+	{ id: 'subscription', label: 'Plan & billing' },
 	{ id: 'usage', label: 'Usage' },
-	{ id: 'token', label: 'API token' },
+	{ id: 'token', label: 'Connection' },
 ]
 
 export default function BillingApp() {
