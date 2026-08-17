@@ -78,6 +78,27 @@ final class BackendClient
         return $this->request('GET', '/usage', null, $this->authHeaders());
     }
 
+    /** GET /provider-keys — masked list of stored BYOK keys (bearer + domain). */
+    public function getProviderKeys(): array
+    {
+        return $this->request('GET', '/provider-keys', null, $this->authHeaders());
+    }
+
+    /**
+     * POST /provider-keys — validates the key against the provider, then stores it
+     * encrypted. Payload: { provider, api_key }. Writes nothing on validation failure.
+     */
+    public function saveProviderKey(array $payload): array
+    {
+        return $this->request('POST', '/provider-keys', $payload, $this->authHeaders());
+    }
+
+    /** DELETE /provider-keys/{provider} — hard delete. */
+    public function deleteProviderKey(string $provider): array
+    {
+        return $this->request('DELETE', '/provider-keys/' . rawurlencode($provider), null, $this->authHeaders());
+    }
+
     private function request(string $method, string $path, ?array $body = null, array $headers = [], ?int $timeout = null): array
     {
         $base = $this->resolver->baseUrl();
@@ -132,6 +153,8 @@ final class BackendClient
             $status === 429                                          => 'ERR_RATE_LIMITED',
             $status === 400 && $detail === 'domain_not_allowed'      => 'ERR_DOMAIN_NOT_ALLOWED',
             $status === 400 && $detail === 'domain_unreachable'      => 'ERR_DOMAIN_UNREACHABLE',
+            $status === 400 && $detail === 'invalid_key'             => 'ERR_INVALID_API_KEY',     // /provider-keys: provider rejected the key
+            $status === 502 && $detail === 'provider_unreachable'    => 'ERR_PROVIDER_UNREACHABLE', // /provider-keys: couldn't reach provider to validate
             $status === 404 && $detail === 'site_not_found'          => 'ERR_SITE_NOT_FOUND',
             $status === 400                                          => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group)
             $status === 401 || $status === 403                       => 'ERR_INVALID_TOKEN',    // 403 = revoked token; 401 detail is a sentence, never slug-matched

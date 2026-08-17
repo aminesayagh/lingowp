@@ -42,7 +42,7 @@ const tabParser = parseAsStringLiteral( [
 const TABS = [
 	{ id: 'subscription', label: 'Plan & billing' },
 	{ id: 'usage', label: 'Usage' },
-	{ id: 'token', label: 'Connection' },
+	{ id: 'token', label: 'API token' },
 ]
 
 export default function BillingApp() {
@@ -134,7 +134,13 @@ export default function BillingApp() {
 								</div>
 
 								{ /* ── Main — active tab body ──────────────────────── */ }
-								<div style={ { flex: 1, minWidth: 0, marginBlockStart: 8 } }>
+								<div
+									style={ {
+										flex: 1,
+										minWidth: 0,
+										marginBlockStart: 8,
+									} }
+								>
 									<MotionConfig reducedMotion="user">
 										<AnimatePresence
 											initial={ false }

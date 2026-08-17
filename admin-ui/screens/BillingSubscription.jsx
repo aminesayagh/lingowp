@@ -21,7 +21,7 @@ const PLANS = [
 	{
 		name: 'Pro',
 		meta: '100,000 words a month, in 10 languages',
-		action: 'Your current plan',
+		action: 'Current plan',
 		current: true,
 	},
 	{
@@ -57,7 +57,7 @@ export default function BillingSubscription() {
 							$19 a month · next charge 12 Sep 2026
 						</Text>
 						<InlineStack gap="200">
-							<Button>Update billing</Button>
+							<Button>Manage in PayPal</Button>
 							<Button variant="plain" tone="critical">
 								Cancel plan
 							</Button>
@@ -97,12 +97,12 @@ export default function BillingSubscription() {
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
-					How you pay
+					Payment method
 				</Text>
 				<Card>
 					<InlineStack align="space-between" blockAlign="center">
 						<Text as="span">PayPal · a...e@mail.com</Text>
-						<Button>Change</Button>
+						<Button>Manage in PayPal</Button>
 					</InlineStack>
 				</Card>
 			</BlockStack>
@@ -113,8 +113,18 @@ export default function BillingSubscription() {
 				</Text>
 				<Card padding="0">
 					<DataTable
-						columnContentTypes={ [ 'text', 'text', 'text', 'text' ] }
-						headings={ [ 'Date', 'What for', 'Amount', 'Status' ] }
+						columnContentTypes={ [
+							'text',
+							'text',
+							'text',
+							'text',
+						] }
+						headings={ [
+							'Date',
+							'Description',
+							'Amount',
+							'Status',
+						] }
 						rows={ INVOICE_ROWS.map( ( row ) => [
 							row[ 0 ],
 							row[ 1 ],

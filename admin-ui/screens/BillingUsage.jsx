@@ -15,8 +15,8 @@ const METRICS = [
 	{ label: 'Words translated', value: '38,420' },
 	{
 		label: 'Words reused',
-		value: '27,180 words',
-		note: 'Already translated before, so they cost you nothing',
+		value: '27,180',
+		note: 'Already translated — no extra cost',
 	},
 	{ label: 'Translated pages viewed', value: '12,905' },
 ]
@@ -116,7 +116,7 @@ export default function BillingUsage() {
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
-					Day by day
+					Daily words
 				</Text>
 				<Card>
 					<DailyWordsChart values={ DAILY_WORDS } />

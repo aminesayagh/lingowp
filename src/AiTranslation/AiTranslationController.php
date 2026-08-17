@@ -192,7 +192,7 @@ final class AiTranslationController
                 'original' => $context['text'],
                 'meta_key' => $context['meta_key'],
                 'group_id' => $ref->format(),
-                'type'     => $this->typeFor($context['kind'], ['field' => $context['field'] ?? null]),
+                'type'     => $this->typeFor($context['kind']),
             ]];
         }
 
@@ -305,23 +305,21 @@ final class AiTranslationController
                 'status'     => $r['status'],
                 'meta_key'   => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
                 'group_id'   => is_string($groupId) ? $groupId : $groupId($r),
-                'type'       => $this->typeFor($kind, $r),
+                'type'       => $this->typeFor($kind),
             ];
         }, $rows);
     }
 
-    /** post_content is the only paragraph-split HTML kind; tl_html rows are always
-     *  full HTML blocks; everything else (titles, meta/SEO values, options, term
-     *  names/slugs) is short template-like text. */
-    private function typeFor(string $kind, array $r): string
+    /** tl_html rows are the only kind that are still raw, unencoded HTML blocks —
+     *  everything else, including post_content, is a type-5 composed unit whose
+     *  inline tags are already flattened into `{n}` markers by TranslationUnitCodec
+     *  (see HtmlUnitExtractor). A composed unit must go through as plain text: the
+     *  backend's text-path protection regex treats `{n}` as an opaque token, but
+     *  its HTML path expects real `<tag>` markup and would either misparse the
+     *  markers or, worse, let the model rewrite them. */
+    private function typeFor(string $kind): string
     {
-        if ($kind === 'html') {
-            return 'html';
-        }
-        if ($kind === 'post' && ($r['field'] ?? '') === 'post_content') {
-            return 'html';
-        }
-        return 'text';
+        return $kind === 'html' ? 'html' : 'text';
     }
 
     private function resolveLang(WP_REST_Request $request): string

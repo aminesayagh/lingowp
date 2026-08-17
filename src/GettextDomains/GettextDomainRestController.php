@@ -339,8 +339,8 @@ final class GettextDomainRestController
         }
 
         $payload = [
-            'source_lang'  => LocaleNormalizer::forBackend($this->languageRegistry->getDefaultLanguage()),
-            'target_langs' => [LocaleNormalizer::forBackend($locale)],
+            'source_lang'  => $this->languageRegistry->getDefaultLanguage(),
+            'target_langs' => [$locale],
             'texts'        => [[
                 'text'     => $msgid,
                 'group_id' => "{$type}:{$domain}",

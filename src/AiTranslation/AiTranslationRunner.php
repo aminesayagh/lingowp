@@ -4,7 +4,6 @@ namespace TransLangs\AiTranslation;
 
 use TransLangs\Backend\BackendClient;
 use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
 use TransLangs\Shared\Source\TranslationStatus;
 use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
@@ -35,8 +34,8 @@ final class AiTranslationRunner
      */
     public function run(array $units, string $lang): array
     {
-        $source   = LocaleNormalizer::forBackend($this->registry->getDefaultLanguage());
-        $target   = LocaleNormalizer::forBackend($lang);
+        $source   = $this->registry->getDefaultLanguage();
+        $target   = $lang;
         $done     = 0;
         $words    = 0;
         $failures = [];

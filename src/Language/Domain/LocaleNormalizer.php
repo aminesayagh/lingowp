@@ -47,10 +47,4 @@ final class LocaleNormalizer
     {
         return self::normalize((string) get_locale());
     }
-
-    /** xx_YY (this plugin's internal form) -> xx-yy for the backend's ^[a-z]{2}(-[a-z]{2})?$ contract. */
-    public static function forBackend(string $normalizedLocale): string
-    {
-        return strtolower(str_replace('_', '-', $normalizedLocale));
-    }
 }

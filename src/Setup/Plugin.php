@@ -54,6 +54,7 @@ use TransLangs\Backend\SiteMetadataProvider;
 use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Onboarding\OnboardingRestController;
 use TransLangs\Backend\ConnectionRestController;
+use TransLangs\Backend\ProviderKeyRestController;
 use TransLangs\Language\LanguageRestController;
 use TransLangs\Board\CollectionsRestController;
 use TransLangs\Board\CollectionBoard;
@@ -305,6 +306,7 @@ class Plugin
         // REST API for the onboarding SPA (registers on rest_api_init).
         (new OnboardingRestController($siteConnector, $connection, $languageRegistry, $connectionStatus))->register();
         (new ConnectionRestController($connection, $connectionStatus, $siteConnector, $aiQuota))->register();
+        (new ProviderKeyRestController($backendClient))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
