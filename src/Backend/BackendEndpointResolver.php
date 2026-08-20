@@ -18,8 +18,7 @@ final class BackendEndpointResolver
 
     private const VERSION_PATH = '/api/v1';
 
-    // ponytail: dev placeholder — swap for the real production origin before release.
-    private const DEFAULT_ORIGIN = 'http://host.docker.internal:8000';
+    private const DEFAULT_ORIGIN = 'https://translangs-api.masayagh.com';
 
     /** Full API base, e.g. https://api.example.com/api/v1. */
     public function baseUrl(): string
