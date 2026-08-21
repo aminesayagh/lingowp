@@ -1934,9 +1934,6 @@ export default function Dashboard( { defaultLanguage } ) {
 														bulkTranslating={
 															bulkTranslating
 														}
-														onBulkTranslatingChange={
-															setBulkTranslating
-														}
 														onOpenOverlay={ (
 															unit,
 															cid
@@ -2119,7 +2116,6 @@ function CollectionGroup( {
 	aiAvailable,
 	onAiTranslate,
 	bulkTranslating,
-	onBulkTranslatingChange,
 	onLengthWarning,
 	onShare,
 } ) {
@@ -2183,19 +2179,6 @@ function CollectionGroup( {
 		enabled: c.id === 'html:all' && ! collapsed && settled,
 	} )
 	const staleCount = staleQ.data?.texts?.length ?? 0
-
-	function confirmAiGroup() {
-		onConfirm( {
-			title: 'AI translate this group?',
-			body: 'Untranslated text in this group will be sent to AI translation.',
-			actionLabel: 'Translate',
-			onConfirm: async () => {
-				onBulkTranslatingChange( c.id )
-				await onAiTranslate( 'collection', { id: c.id } )
-				onBulkTranslatingChange( null )
-			},
-		} )
-	}
 
 	async function bulk( action ) {
 		setMenuOpen( false )
@@ -2380,30 +2363,11 @@ function CollectionGroup( {
 									hovered || menuOpen ? 'visible' : 'hidden',
 							} }
 						>
-							{ /* stretch, not center — Polaris gives an icon+label
-							button ("Translate all") taller block padding than
-							an icon-only one (the "..." button), so centering
-							them left a visible height mismatch; stretching
-							lets each button's own internal centering do the
-							rest. */ }
 							<InlineStack
 								gap="100"
 								blockAlign="stretch"
 								wrap={ false }
 							>
-								{ ! searching && (
-									<Button
-										variant="tertiary"
-										size="micro"
-										disabled={ ! aiAvailable }
-										icon={ ( props ) => (
-											<AiIcon { ...props } size={ 14 } />
-										) }
-										onClick={ confirmAiGroup }
-									>
-										Translate all
-									</Button>
-								) }
 								{ /* Popover wraps its activator in its own bare,
 								unstyleable <div> — stretching the InlineStack
 								stretches that wrapper, but the button inside
@@ -2477,8 +2441,7 @@ function CollectionGroup( {
 									aiAvailable={ aiAvailable }
 									onAiTranslate={ onAiTranslate }
 									bulkActive={
-										bulkTranslating === 'language' ||
-										bulkTranslating === c.id
+										bulkTranslating === 'language'
 									}
 									onOpenOverlay={ ( unit ) =>
 										onOpenOverlay( unit, c.id )

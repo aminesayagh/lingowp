@@ -12,7 +12,6 @@ final class OnboardingPageController
 {
     public const CAPABILITY = 'manage_options';
     public const SLUG       = 'translangs';
-    private const REPORT_SLUG = 'translangs-report';
     private const BILLING_SLUG = 'translangs-billing';
     private const HANDLE    = 'translangs-app';
 
@@ -44,15 +43,6 @@ final class OnboardingPageController
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
-        );
-
-        add_submenu_page(
-            self::SLUG,
-            __('Report', 'translangs'),
-            __('Report', 'translangs'),
-            self::CAPABILITY,
-            self::REPORT_SLUG,
-            [$this, 'renderReportPage']
         );
 
         $billingHook = add_submenu_page(
@@ -90,15 +80,6 @@ final class OnboardingPageController
         }
 
         echo '<div class="wrap"><div id="translangs-app"></div></div>';
-    }
-
-    public function renderReportPage(): void
-    {
-        if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
-        }
-
-        echo '<div class="wrap"></div>';
     }
 
     public function renderBillingPage(): void
