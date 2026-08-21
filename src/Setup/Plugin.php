@@ -71,6 +71,8 @@ use TransLangs\GettextDomains\GettextPoImporter;
 use TransLangs\GettextDomains\GettextTemplateGenerator;
 use TransLangs\GettextDomains\GettextTranslatedPercentCache;
 use TransLangs\GettextDomains\GettextTranslationUnitsService;
+use TransLangs\Insights\InsightsRestController;
+use TransLangs\Insights\NotifyEmailResolver;
 
 /**
  * @phpstan-type BackendBundle array{connection: ConnectionRepository, backendClient: BackendClient,
@@ -320,6 +322,8 @@ class Plugin
         (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
         (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
 
+        (new InsightsRestController($backendClient, $connection, new NotifyEmailResolver()))->register();
+
         $gettextImporter = new GettextPoImporter();
         (new GettextDomainRestController(
             $gettextComponents,
@@ -353,7 +357,7 @@ class Plugin
     {
         (new DatabaseHealthReport(new DatabaseHealthCheck($wpdb)))->register();
         (new AdminAssets())->register();
-        (new OnboardingPageController())->register();
+        (new OnboardingPageController(new NotifyEmailResolver()))->register();
 
         // Dev-only "reset translation data" tool. Never registered on a
         // real customer site — see ResetPageController's class doc.

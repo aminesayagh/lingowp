@@ -99,6 +99,16 @@ final class BackendClient
         return $this->request('DELETE', '/provider-keys/' . rawurlencode($provider), null, $this->authHeaders());
     }
 
+    /**
+     * POST /insights/notify — Insights preview screen's "Notify me at launch"
+     * button. Payload: { domain, email, plugin_version }. No auth: an
+     * unlicensed/trial site can ask to be notified too.
+     */
+    public function notifyInsightsLaunch(array $payload): array
+    {
+        return $this->request('POST', '/insights/notify', $payload);
+    }
+
     private function request(string $method, string $path, ?array $body = null, array $headers = [], ?int $timeout = null): array
     {
         $base = $this->resolver->baseUrl();

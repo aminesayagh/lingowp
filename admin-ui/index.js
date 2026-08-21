@@ -5,6 +5,7 @@ import './wp-admin-reset.css' // strip wp-admin form-style bleed from Polaris in
 import './tailwind.css'
 import App from './App'
 import BillingApp from './BillingApp'
+import InsightsApp from './InsightsApp'
 
 const mount = document.getElementById( 'translangs-app' )
 if ( mount ) {
@@ -20,6 +21,15 @@ if ( billingMount ) {
 	createRoot( billingMount ).render(
 		<NuqsAdapter>
 			<BillingApp />
+		</NuqsAdapter>
+	)
+}
+
+const insightsMount = document.getElementById( 'translangs-insights-app' )
+if ( insightsMount ) {
+	createRoot( insightsMount ).render(
+		<NuqsAdapter>
+			<InsightsApp />
 		</NuqsAdapter>
 	)
 }

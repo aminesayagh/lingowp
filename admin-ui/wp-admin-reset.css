@@ -57,6 +57,16 @@
 	max-width: none !important;
 }
 
+/* Same full-width treatment for the Insights screen's own mount root. */
+.wrap:has(> #translangs-insights-app) {
+	margin: 0 !important;
+}
+#translangs-insights-app .Polaris-Page {
+	padding-inline-start: 0 !important;
+	padding-inline-end: 12px !important;
+	max-width: none !important;
+}
+
 /*
  * Minimal filter row: Polaris Filters draws its own divider/box-shadow to
  * separate itself from a list. We embed it in the header, so strip that chrome
@@ -118,5 +128,11 @@
 	min-height: 0;
 }
 #translangs-billing-app .Polaris-Frame__Main {
+	border-inline-end: none;
+}
+#translangs-insights-app .Polaris-Frame {
+	min-height: 0;
+}
+#translangs-insights-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }

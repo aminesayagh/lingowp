@@ -2,6 +2,8 @@
 
 namespace TransLangs\Onboarding;
 
+use TransLangs\Insights\NotifyEmailResolver;
+
 /**
  * Mounts the React + Polaris onboarding/dashboard SPA on the top-level TransLangs
  * admin page. The SPA (built by @wordpress/scripts into assets/admin/build) renders
@@ -12,11 +14,15 @@ final class OnboardingPageController
 {
     public const CAPABILITY = 'manage_options';
     public const SLUG       = 'translangs';
-    private const BILLING_SLUG = 'translangs-billing';
+    private const BILLING_SLUG  = 'translangs-billing';
+    private const INSIGHTS_SLUG = 'translangs-insights';
     private const HANDLE    = 'translangs-app';
 
     private string $hookSuffix = '';
     private string $billingHookSuffix = '';
+    private string $insightsHookSuffix = '';
+
+    public function __construct(private NotifyEmailResolver $notifyEmailResolver) {}
 
     public function register(): void
     {
@@ -45,6 +51,15 @@ final class OnboardingPageController
             [$this, 'renderPage']
         );
 
+        $insightsHook = add_submenu_page(
+            self::SLUG,
+            __('Insights', 'translangs'),
+            __('Insights', 'translangs'),
+            self::CAPABILITY,
+            self::INSIGHTS_SLUG,
+            [$this, 'renderInsightsPage']
+        );
+
         $billingHook = add_submenu_page(
             self::SLUG,
             __('Billing', 'translangs'),
@@ -55,6 +70,7 @@ final class OnboardingPageController
         );
 
         $this->hookSuffix = is_string($hook) ? $hook : '';
+        $this->insightsHookSuffix = is_string($insightsHook) ? $insightsHook : '';
         $this->billingHookSuffix = is_string($billingHook) ? $billingHook : '';
     }
 
@@ -91,9 +107,18 @@ final class OnboardingPageController
         echo '<div class="wrap"><div id="translangs-billing-app"></div></div>';
     }
 
+    public function renderInsightsPage(): void
+    {
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
+        }
+
+        echo '<div class="wrap"><div id="translangs-insights-app"></div></div>';
+    }
+
     public function enqueue(string $hook): void
     {
-        if ($hook !== $this->hookSuffix && $hook !== $this->billingHookSuffix) {
+        if ($hook !== $this->hookSuffix && $hook !== $this->billingHookSuffix && $hook !== $this->insightsHookSuffix) {
             return;
         }
 
@@ -133,11 +158,15 @@ final class OnboardingPageController
             wp_style_add_data(self::HANDLE, 'rtl', 'replace');
         }
 
+        $notifyEmail = $this->notifyEmailResolver->resolve();
+
         wp_localize_script(self::HANDLE, 'Translangs', [
-            'rest'           => esc_url_raw(rest_url('translangs/v1')),
-            'nonce'          => wp_create_nonce('wp_rest'),
-            'logo'           => esc_url_raw(TRANSLANGS_URL . 'assets/images/Logo-blue.svg'),
-            'flags_base_url' => esc_url_raw(TRANSLANGS_URL . 'assets/flags/'),
+            'rest'                => esc_url_raw(rest_url('translangs/v1')),
+            'nonce'               => wp_create_nonce('wp_rest'),
+            'logo'                => esc_url_raw(TRANSLANGS_URL . 'assets/images/Logo-blue.svg'),
+            'flags_base_url'      => esc_url_raw(TRANSLANGS_URL . 'assets/flags/'),
+            'notify_email'        => $notifyEmail['email'],
+            'notify_email_source' => $notifyEmail['source'],
         ]);
     }
 }
