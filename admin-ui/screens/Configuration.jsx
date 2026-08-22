@@ -1,8 +1,14 @@
-import { Banner, BlockStack, Button, Card, Checkbox } from '@shopify/polaris'
+import {
+	Banner,
+	BlockStack,
+	Button,
+	Card,
+	Checkbox,
+	Text,
+} from '@shopify/polaris'
 import { useState } from '@wordpress/element'
 import { api } from '../api'
 import { errorMessage } from '../errors'
-import OnboardingPage from './OnboardingPage'
 
 // Step 1 of 2. Source/default language is intentionally NOT shown here — it is
 // inherited from WordPress. Toggle defaults follow the wireframe (cookie +
@@ -69,64 +75,64 @@ export default function Configuration( {
 	}
 
 	return (
-		<OnboardingPage
-			title="Configure Translangs"
-			subtitle="Tell us about your site and how visitors should reach translated pages."
-		>
-			<BlockStack gap="400">
-				{ error && (
-					<Banner tone="critical">{ errorMessage( error ) }</Banner>
-				) }
+		<BlockStack gap="400">
+			<Text as="p" tone="subdued">
+				Tell us about your site and how visitors should reach translated
+				pages.
+			</Text>
 
-				<Card>
-					<BlockStack gap="300">
-						<Checkbox
-							label="Prefix default language"
-							helpText={ `Add /${ slug } to default-language URLs. Example: example.com/${ slug }/about/` }
-							checked={ prefix }
-							onChange={ handlePrefixChange }
-						/>
-						<Checkbox
-							label="Cookie preference"
-							helpText="Remember a visitor's chosen language."
-							checked={ cookie }
-							onChange={ setCookie }
-						/>
-						<Checkbox
-							label="Browser detection"
-							helpText="Detect language from the browser."
-							checked={ browser }
-							onChange={ setBrowser }
-						/>
-						<Checkbox
-							label="Auto redirect"
-							helpText={
-								canAutoRedirect
-									? 'Send visitors to their detected language. Visitors may be redirected automatically based on their browser language.'
-									: 'Enable browser detection before using auto redirect.'
-							}
-							checked={ effectiveAutoRedirect }
-							disabled={ ! canAutoRedirect }
-							onChange={ setAutoRedirect }
-						/>
-					</BlockStack>
-				</Card>
+			{ error && (
+				<Banner tone="critical">{ errorMessage( error ) }</Banner>
+			) }
 
-				{ prefixToast && (
-					<Banner tone={ prefixToast.tone }>
-						{ prefixToast.content }
-					</Banner>
-				) }
+			<Card>
+				<BlockStack gap="300">
+					<Checkbox
+						label="Prefix default language"
+						helpText={ `Add /${ slug } to default-language URLs. Example: example.com/${ slug }/about/` }
+						checked={ prefix }
+						onChange={ handlePrefixChange }
+					/>
+					<Checkbox
+						label="Cookie preference"
+						helpText="Remember a visitor's chosen language."
+						checked={ cookie }
+						onChange={ setCookie }
+					/>
+					<Checkbox
+						label="Browser detection"
+						helpText="Detect language from the browser."
+						checked={ browser }
+						onChange={ setBrowser }
+					/>
+					<Checkbox
+						label="Auto redirect"
+						helpText={
+							canAutoRedirect
+								? 'Send visitors to their detected language. Visitors may be redirected automatically based on their browser language.'
+								: 'Enable browser detection before using auto redirect.'
+						}
+						checked={ effectiveAutoRedirect }
+						disabled={ ! canAutoRedirect }
+						onChange={ setAutoRedirect }
+					/>
+				</BlockStack>
+			</Card>
 
-				<Button
-					variant="primary"
-					size="large"
-					loading={ submitting }
-					onClick={ submit }
-				>
-					Continue
-				</Button>
-			</BlockStack>
-		</OnboardingPage>
+			{ prefixToast && (
+				<Banner tone={ prefixToast.tone }>
+					{ prefixToast.content }
+				</Banner>
+			) }
+
+			<Button
+				variant="primary"
+				size="large"
+				loading={ submitting }
+				onClick={ submit }
+			>
+				Continue
+			</Button>
+		</BlockStack>
 	)
 }

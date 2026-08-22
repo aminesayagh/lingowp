@@ -40,6 +40,7 @@ final class LanguageRestController
         register_rest_route(self::NS, '/languages', ['methods' => 'GET', 'callback' => [$this, 'index']] + $guard);
         register_rest_route(self::NS, '/languages', ['methods' => 'POST', 'callback' => [$this, 'create']] + $guard);
         register_rest_route(self::NS, '/languages/catalog', ['methods' => 'GET', 'callback' => [$this, 'catalog']] + $guard);
+        register_rest_route(self::NS, '/languages/targets', ['methods' => 'GET', 'callback' => [$this, 'targets']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)/use-fallback', ['methods' => 'POST', 'callback' => [$this, 'useFallback']] + $guard);
@@ -83,6 +84,12 @@ final class LanguageRestController
             'languages'        => $languages,
             'catalog'          => array_values(WordPressLanguageCatalog::all()),
         ]);
+    }
+
+    /** GET /languages/targets — active target languages only, with display names. Light: no DB progress queries. */
+    public function targets(): WP_REST_Response
+    {
+        return rest_ensure_response(['ok' => true, 'languages' => $this->registry->getTargetLanguageDetails()]);
     }
 
     public function catalog(): WP_REST_Response

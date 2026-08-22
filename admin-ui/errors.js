@@ -31,6 +31,17 @@ const MESSAGES = {
 		'This key was rejected by the provider. Double-check it and try again.',
 	ERR_PROVIDER_UNREACHABLE:
 		"Couldn't reach the provider to validate this key. Try again in a moment.",
+	ERR_UNKNOWN_PLAN:
+		"That plan isn't available anymore. Refresh and try again.",
+	ERR_ALREADY_SUBSCRIBED: 'You already have an active subscription.',
+	ERR_NO_ACTIVE_SUBSCRIPTION:
+		"You don't have an active subscription to change.",
+	ERR_ALREADY_ON_PLAN: "You're already on this plan.",
+	ERR_SUBSCRIPTION_REQUIRED: 'Subscribe to a plan before buying extra words.',
+	ERR_ORDER_NOT_OWNED:
+		"This order doesn't belong to this site. Contact support.",
+	ERR_UNKNOWN_PACK:
+		"That word pack isn't available anymore. Refresh and try again.",
 }
 
 export function errorMessage( code ) {

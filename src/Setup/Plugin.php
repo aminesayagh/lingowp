@@ -55,6 +55,8 @@ use TransLangs\Language\Infrastructure\LanguageMetadataStore;
 use TransLangs\Onboarding\OnboardingRestController;
 use TransLangs\Backend\ConnectionRestController;
 use TransLangs\Backend\ProviderKeyRestController;
+use TransLangs\Backend\BillingEntitlementsService;
+use TransLangs\Backend\BillingRestController;
 use TransLangs\Language\LanguageRestController;
 use TransLangs\Board\CollectionsRestController;
 use TransLangs\Board\CollectionBoard;
@@ -301,14 +303,16 @@ class Plugin
         $backendClient    = new BackendClient(new BackendEndpointResolver(), $connection);
         $siteMetadata     = new SiteMetadataProvider($languageRegistry, $connection);
         $languageMetadata = new LanguageMetadataStore();
-        $aiQuota          = new AiQuotaService($backendClient);
-        $connectionStatus = new ConnectionStatus($aiQuota, $connection);
-        $siteConnector    = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus);
+        $aiQuota             = new AiQuotaService($backendClient);
+        $connectionStatus    = new ConnectionStatus($aiQuota, $connection);
+        $siteConnector       = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus);
+        $billingEntitlements = new BillingEntitlementsService($backendClient);
 
         // REST API for the onboarding SPA (registers on rest_api_init).
         (new OnboardingRestController($siteConnector, $connection, $languageRegistry, $connectionStatus))->register();
         (new ConnectionRestController($connection, $connectionStatus, $siteConnector, $aiQuota))->register();
         (new ProviderKeyRestController($backendClient))->register();
+        (new BillingRestController($backendClient, $billingEntitlements))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();

@@ -165,6 +165,7 @@ final class OnboardingPageController
             'nonce'               => wp_create_nonce('wp_rest'),
             'logo'                => esc_url_raw(TRANSLANGS_URL . 'assets/images/Logo-blue.svg'),
             'flags_base_url'      => esc_url_raw(TRANSLANGS_URL . 'assets/flags/'),
+            'billing_url'         => esc_url_raw(admin_url('admin.php?page=' . self::BILLING_SLUG)),
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
         ]);

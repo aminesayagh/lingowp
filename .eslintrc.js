@@ -7,6 +7,7 @@ module.exports = {
 		navigator: 'readonly',
 		NodeFilter: 'readonly',
 		ResizeObserver: 'readonly',
+		sessionStorage: 'readonly',
 	},
 	rules: {
 		...wordpressConfig.rules,

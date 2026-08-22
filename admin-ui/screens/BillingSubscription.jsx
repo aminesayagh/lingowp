@@ -11,53 +11,10 @@ import {
 	ProgressBar,
 	Text,
 } from '@shopify/polaris'
-import { useState } from '@wordpress/element'
-
-// ponytail: static mock content for this layout pass — real data
-// (billing_subscriptions, allowance_periods, licenses, paypal.receipts)
-// lands in a follow-up step once the backend billing endpoints exist.
-const PLANS = [
-	{
-		id: 'starter',
-		name: 'Starter',
-		price_monthly: '$9',
-		allowance_words: 50000,
-		site_limit: 1,
-	},
-	{
-		id: 'pro',
-		name: 'Pro',
-		price_monthly: '$19',
-		allowance_words: 200000,
-		site_limit: 3,
-		badge: 'Most popular',
-	},
-	{
-		id: 'business',
-		name: 'Business',
-		price_monthly: '$49',
-		allowance_words: 1000000,
-		site_limit: 10,
-	},
-]
-
-const WORD_PACKS = [
-	{ id: 'pack_50k', words: 50000, price: '$5', label: '50,000 words' },
-	{
-		id: 'pack_200k',
-		words: 200000,
-		price: '$15',
-		label: '200,000 words',
-		badge: 'Best value',
-	},
-	{ id: 'pack_1m', words: 1000000, price: '$49', label: '1,000,000 words' },
-]
-
-const EXPIRY_REASON_TEXT = {
-	payment_failed: "last payment didn't go through",
-	cancelled: 'you cancelled this plan',
-	term_ended: 'the paid term ended',
-}
+import { useCallback, useEffect, useState } from '@wordpress/element'
+import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
+import { api } from '../api'
+import { errorMessage } from '../errors'
 
 const RECEIPT_STATUS = {
 	COMPLETED: { label: 'Paid', tone: 'success' },
@@ -66,64 +23,47 @@ const RECEIPT_STATUS = {
 	FAILED: { label: 'Failed', tone: 'critical' },
 }
 
-const RECEIPT_ROWS = [
-	{
-		time: '12 Aug 26',
-		item_label: 'Monthly plan',
-		gross_amount: '$19.00',
-		status: 'COMPLETED',
-	},
-	{
-		time: '02 Aug 26',
-		item_label: 'Extra words (200,000)',
-		gross_amount: '$15.00',
-		status: 'COMPLETED',
-	},
-	{
-		time: '12 Jul 26',
-		item_label: 'Monthly plan',
-		gross_amount: '$19.00',
-		status: 'PENDING',
-	},
-]
+// Both survive the full-page round trip to PayPal and back (a real
+// navigation, not a fetch — React state doesn't survive that, sessionStorage
+// does). Self-cleaning: each is read once on return and removed immediately.
+const PENDING_ACTION_KEY = 'translangs_pending_billing_action'
+const PENDING_WORDS_KEY = 'translangs_pending_words_before'
 
-// ponytail: one mock "current subscription" per state, just enough to
-// drive the copy — swap for billing_subscriptions + allowance_periods.
-const MOCK = {
-	active: {
-		plan: PLANS[ 1 ],
-		next_billing_date: '12 Sep 2026',
-		period: {
-			starts_at: '12 Aug',
-			ends_at: '12 Sep',
-			consumed_words: 172000,
-			allowance_words: 200000,
-		},
-		purchased_words: 50000,
-		sites_used: 2,
-		payer_email_masked: 'a...e@mail.com',
-	},
-	expired: {
-		plan: PLANS[ 1 ],
-		ended_at: '02 Jul 2026',
-		expiry_reason: 'cancelled',
-		purchased_words: 25000,
-	},
+function planLabel( plan ) {
+	return plan.tier.charAt( 0 ).toUpperCase() + plan.tier.slice( 1 )
 }
 
 function planMeta( plan ) {
-	return `${ plan.allowance_words.toLocaleString() } words a month · ${
-		plan.site_limit
-	} site${ plan.site_limit > 1 ? 's' : '' }`
+	return `${ plan.monthly_words.toLocaleString() } words a month · ${
+		plan.sites
+	} site${ plan.sites > 1 ? 's' : '' }`
 }
 
-function PlanCard( { plan, badge, actionLabel, disabled, onAction } ) {
+function money( amount, currency ) {
+	return new Intl.NumberFormat( 'en-US', {
+		style: 'currency',
+		currency,
+	} ).format( parseFloat( amount ) )
+}
+
+function formatDate( iso ) {
+	if ( ! iso ) {
+		return '—'
+	}
+	return new Date( iso ).toLocaleDateString( 'en-US', {
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric',
+	} )
+}
+
+function PlanCard( { plan, badge, actionLabel, disabled, loading, onAction } ) {
 	return (
-		<Card key={ plan.id }>
+		<Card key={ plan.plan_key }>
 			<BlockStack gap="200">
 				<InlineStack gap="150" blockAlign="center">
 					<Text as="h4" variant="headingSm">
-						{ plan.name }
+						{ planLabel( plan ) }
 					</Text>
 					{ badge && (
 						<Badge tone={ badge.tone || 'info' }>
@@ -132,7 +72,7 @@ function PlanCard( { plan, badge, actionLabel, disabled, onAction } ) {
 					) }
 				</InlineStack>
 				<Text as="span" tone="subdued">
-					{ plan.price_monthly } a month
+					{ money( plan.price, plan.currency ) } a month
 				</Text>
 				<Text as="span" tone="subdued" variant="bodySm">
 					{ planMeta( plan ) }
@@ -140,6 +80,7 @@ function PlanCard( { plan, badge, actionLabel, disabled, onAction } ) {
 				<Button
 					fullWidth
 					disabled={ disabled }
+					loading={ loading }
 					variant={ disabled ? 'secondary' : 'primary' }
 					onClick={ onAction }
 				>
@@ -150,21 +91,25 @@ function PlanCard( { plan, badge, actionLabel, disabled, onAction } ) {
 	)
 }
 
-function ReceiptsCard() {
+function ReceiptsCard( { transactions } ) {
 	return (
 		<Card padding="0">
 			<DataTable
 				columnContentTypes={ [ 'text', 'text', 'text', 'text' ] }
 				headings={ [ 'Date', 'What for', 'Amount', 'Status' ] }
-				rows={ RECEIPT_ROWS.map( ( r ) => {
-					const s = RECEIPT_STATUS[ r.status ]
+				rows={ transactions.map( ( t ) => {
+					const s = RECEIPT_STATUS[ t.status ]
 					return [
-						r.time,
-						r.item_label,
-						r.gross_amount,
-						<Badge key={ r.time } tone={ s.tone }>
-							{ s.label }
-						</Badge>,
+						formatDate( t.time ),
+						t.plan ?? '—',
+						`${ t.amount } ${ t.currency }`,
+						s ? (
+							<Badge key={ t.id } tone={ s.tone }>
+								{ s.label }
+							</Badge>
+						) : (
+							<Badge key={ t.id }>{ t.status }</Badge>
+						),
 					]
 				} ) }
 			/>
@@ -182,9 +127,21 @@ function EmptyReceipts() {
 	)
 }
 
-function BuyWordsModal( { open, onClose, purchasedWords } ) {
-	const [ selected, setSelected ] = useState( 'pack_200k' )
-	const pack = WORD_PACKS.find( ( p ) => p.id === selected )
+function BuyWordsModal( {
+	open,
+	onClose,
+	packs,
+	purchasedWords,
+	onBuy,
+	loading,
+	error,
+} ) {
+	const [ selected, setSelected ] = useState( packs[ 0 ]?.pack_id )
+	const pack = packs.find( ( p ) => p.pack_id === selected ) || packs[ 0 ]
+
+	if ( ! pack ) {
+		return null
+	}
 
 	return (
 		<Modal
@@ -192,49 +149,51 @@ function BuyWordsModal( { open, onClose, purchasedWords } ) {
 			onClose={ onClose }
 			title="Add extra words"
 			primaryAction={ {
-				content: `Pay ${ pack.price }`,
-				onAction: onClose,
+				content: `Pay ${ money( pack.price, pack.currency ) }`,
+				loading,
+				onAction: () => onBuy( pack.pack_id ),
 			} }
-			secondaryActions={ [ { content: 'Cancel', onAction: onClose } ] }
+			secondaryActions={ [
+				{ content: 'Cancel', onAction: onClose, disabled: loading },
+			] }
 		>
 			<Modal.Section>
 				<BlockStack gap="300">
+					{ error && (
+						<Banner tone="critical">
+							{ errorMessage( error ) }
+						</Banner>
+					) }
 					<Text as="p" tone="subdued">
 						Extra words never expire. They&apos;re used after your
 						monthly words run out.
 					</Text>
 					<BlockStack gap="200">
-						{ WORD_PACKS.map( ( p ) => (
-							<Card key={ p.id }>
+						{ packs.map( ( p ) => (
+							<Card key={ p.pack_id }>
 								<InlineStack
 									align="space-between"
 									blockAlign="center"
 								>
-									<InlineStack gap="150" blockAlign="center">
-										<Text as="span" variant="headingSm">
-											{ p.label }
-										</Text>
-										{ p.badge && (
-											<Badge tone="info">
-												{ p.badge }
-											</Badge>
-										) }
-									</InlineStack>
+									<Text as="span" variant="headingSm">
+										{ p.words.toLocaleString() } words
+									</Text>
 									<InlineStack gap="200" blockAlign="center">
 										<Text as="span" variant="headingSm">
-											{ p.price }
+											{ money( p.price, p.currency ) }
 										</Text>
 										<Button
+											disabled={ loading }
 											variant={
-												selected === p.id
+												selected === p.pack_id
 													? 'primary'
 													: 'secondary'
 											}
 											onClick={ () =>
-												setSelected( p.id )
+												setSelected( p.pack_id )
 											}
 										>
-											{ selected === p.id
+											{ selected === p.pack_id
 												? 'Selected'
 												: 'Select' }
 										</Button>
@@ -258,26 +217,63 @@ function BuyWordsModal( { open, onClose, purchasedWords } ) {
 	)
 }
 
-function NoneState() {
+function NotSubscribedState( {
+	plans,
+	transactions,
+	actionLoading,
+	actionError,
+	onChoose,
+} ) {
+	const hasHistory = transactions.length > 0
+	const monthlyPlans = plans.filter( ( p ) => p.interval === 'monthly' )
+
 	return (
 		<BlockStack gap="400">
+			{ hasHistory && (
+				<Banner tone="warning">
+					<Text as="span">
+						Your subscription isn&apos;t active. Your site stays
+						translated — new content won&apos;t be translated
+						automatically until you restart.
+					</Text>
+				</Banner>
+			) }
+
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
-					Add AI translation
+					{ hasHistory ? 'Start again' : 'Add AI translation' }
 				</Text>
-				<Text as="span" tone="subdued">
-					We translate new content for you automatically, as you
-					publish it.
-				</Text>
+				{ ! hasHistory && (
+					<Text as="span" tone="subdued">
+						We translate new content for you automatically, as you
+						publish it.
+					</Text>
+				) }
+				{ actionError && (
+					<Banner tone="critical">
+						{ errorMessage( actionError ) }
+					</Banner>
+				) }
 				<InlineGrid columns={ 3 } gap="300">
-					{ PLANS.map( ( plan ) => (
+					{ monthlyPlans.map( ( plan ) => (
 						<PlanCard
-							key={ plan.id }
+							key={ plan.plan_key }
 							plan={ plan }
 							badge={
-								plan.badge ? { text: plan.badge } : undefined
+								plan.tier === 'pro'
+									? { text: 'Most popular' }
+									: undefined
 							}
-							actionLabel={ `Choose ${ plan.name }` }
+							actionLabel={
+								hasHistory
+									? `Restart ${ planLabel( plan ) }`
+									: `Choose ${ planLabel( plan ) }`
+							}
+							loading={ actionLoading === plan.plan_key }
+							disabled={
+								actionLoading && actionLoading !== plan.plan_key
+							}
+							onAction={ () => onChoose( plan.plan_key ) }
 						/>
 					) ) }
 				</InlineGrid>
@@ -290,36 +286,53 @@ function NoneState() {
 				<Text as="h3" variant="headingSm">
 					Receipts
 				</Text>
-				<EmptyReceipts />
+				{ transactions.length === 0 ? (
+					<EmptyReceipts />
+				) : (
+					<ReceiptsCard transactions={ transactions } />
+				) }
 			</BlockStack>
 		</BlockStack>
 	)
 }
 
-function ActiveState( { onBuyWords } ) {
-	const {
-		plan,
-		next_billing_date: nextBillingDate,
-		period,
-		purchased_words: purchasedWords,
-		sites_used: sitesUsed,
-		payer_email_masked: payerEmailMasked,
-	} = MOCK.active
-	const [ cancelOpen, setCancelOpen ] = useState( false )
+function ActiveState( {
+	entitlements,
+	plans,
+	transactions,
+	onBuyWords,
+	onChangePlan,
+	changeLoading,
+	changeError,
+	changeConfirmed,
+	confirmedPlanName,
+} ) {
 	const [ downgradeWarning, setDowngradeWarning ] = useState( null )
 
-	const pct = Math.round(
-		( period.consumed_words / period.allowance_words ) * 100
-	)
-	const nearLimit = period.consumed_words / period.allowance_words >= 0.85
-	const showSites = plan.site_limit > 1
+	const plan = plans.find( ( p ) => p.plan_key === entitlements.plan )
+
+	if ( ! plan ) {
+		return null
+	}
+
+	const monthlyPlans = plans.filter( ( p ) => p.interval === 'monthly' )
+
+	const allowance = entitlements.monthly_allowance ?? 0
+	const remaining = entitlements.monthly_remaining ?? 0
+	const consumed = Math.max( 0, allowance - remaining )
+	const pct = allowance > 0 ? Math.round( ( consumed / allowance ) * 100 ) : 0
+	const nearLimit = allowance > 0 && consumed / allowance >= 0.85
+	const showSites = ( entitlements.sites_limit ?? 1 ) > 1
 
 	function trySwitch( target ) {
-		if ( target.site_limit < sitesUsed ) {
+		// entitlements has no sites_used field, only sites_limit — this can
+		// only warn on a lower site *limit*, not a real usage conflict.
+		if ( ( entitlements.sites_limit ?? 1 ) > ( target.sites ?? 1 ) ) {
 			setDowngradeWarning( target )
 			return
 		}
 		setDowngradeWarning( null )
+		onChangePlan( target.plan_key )
 	}
 
 	return (
@@ -332,48 +345,41 @@ function ActiveState( { onBuyWords } ) {
 					<BlockStack gap="300">
 						<InlineStack gap="200" blockAlign="center">
 							<Text as="h2" variant="headingMd">
-								{ plan.name }
+								{ planLabel( plan ) }
 							</Text>
 							<Badge tone="success">Active</Badge>
 						</InlineStack>
 						<Text as="span" tone="subdued">
-							{ plan.price_monthly } a month · next charge{ ' ' }
-							{ nextBillingDate }
+							{ money( plan.price, plan.currency ) } a month ·
+							renews { formatDate( entitlements.period_end ) }
 						</Text>
-						<BlockStack gap="150">
-							<Text as="span" tone="subdued" variant="bodySm">
-								Words this period · { period.starts_at } to{ ' ' }
-								{ period.ends_at }
-							</Text>
-							<ProgressBar
-								progress={ pct }
-								tone={ nearLimit ? 'critical' : 'primary' }
-							/>
-							<Text as="span" tone="subdued" variant="bodySm">
-								{ period.consumed_words.toLocaleString() } of{ ' ' }
-								{ period.allowance_words.toLocaleString() } used
-							</Text>
-							{ nearLimit && (
-								<Text
-									as="span"
-									tone="critical"
-									variant="bodySm"
-								>
-									You&apos;re close to your limit for this
-									period. Add extra words to keep going.
+						{ allowance > 0 && (
+							<BlockStack gap="150">
+								<Text as="span" tone="subdued" variant="bodySm">
+									Words this period ·{ ' ' }
+									{ formatDate( entitlements.period_start ) }{ ' ' }
+									to { formatDate( entitlements.period_end ) }
 								</Text>
-							) }
-						</BlockStack>
-						<InlineStack gap="200">
-							<Button>Update billing</Button>
-							<Button
-								variant="plain"
-								tone="critical"
-								onClick={ () => setCancelOpen( true ) }
-							>
-								Cancel plan
-							</Button>
-						</InlineStack>
+								<ProgressBar
+									progress={ pct }
+									tone={ nearLimit ? 'critical' : 'primary' }
+								/>
+								<Text as="span" tone="subdued" variant="bodySm">
+									{ consumed.toLocaleString() } of{ ' ' }
+									{ allowance.toLocaleString() } used
+								</Text>
+								{ nearLimit && (
+									<Text
+										as="span"
+										tone="critical"
+										variant="bodySm"
+									>
+										You&apos;re close to your limit for this
+										period. Add extra words to keep going.
+									</Text>
+								) }
+							</BlockStack>
+						) }
 					</BlockStack>
 				</Card>
 			</BlockStack>
@@ -386,9 +392,8 @@ function ActiveState( { onBuyWords } ) {
 								Connected sites
 							</Text>
 							<Text as="span" variant="headingLg">
-								{ sitesUsed } of { plan.site_limit } used
+								Up to { entitlements.sites_limit }
 							</Text>
-							<Button>Manage sites</Button>
 						</BlockStack>
 					</Card>
 				) }
@@ -398,7 +403,7 @@ function ActiveState( { onBuyWords } ) {
 							Extra words in reserve
 						</Text>
 						<Text as="span" variant="headingLg">
-							{ purchasedWords.toLocaleString() }
+							{ entitlements.purchased_words.toLocaleString() }
 						</Text>
 						<Text as="span" tone="subdued" variant="bodySm">
 							Don&apos;t expire
@@ -412,22 +417,33 @@ function ActiveState( { onBuyWords } ) {
 				<Text as="h3" variant="headingSm">
 					Change plan
 				</Text>
+				{ changeError && (
+					<Banner tone="critical">
+						{ errorMessage( changeError ) }
+					</Banner>
+				) }
+				{ changeConfirmed && (
+					<Banner tone="success">
+						Plan change to { confirmedPlanName } confirmed — it
+						takes effect on your next billing date,{ ' ' }
+						{ formatDate( entitlements.period_end ) }.
+					</Banner>
+				) }
 				{ downgradeWarning && (
 					<Banner
 						tone="warning"
 						onDismiss={ () => setDowngradeWarning( null ) }
 					>
-						You have { sitesUsed } sites connected.{ ' ' }
-						{ downgradeWarning.name } allows{ ' ' }
-						{ downgradeWarning.site_limit }. Disconnect the extras
+						{ planLabel( downgradeWarning ) } allows fewer connected
+						sites than your current plan. Disconnect the extras
 						first.
 					</Banner>
 				) }
 				<InlineGrid columns={ 3 } gap="300">
-					{ PLANS.map( ( target ) =>
-						target.id === plan.id ? (
+					{ monthlyPlans.map( ( target ) =>
+						target.plan_key === plan.plan_key ? (
 							<PlanCard
-								key={ target.id }
+								key={ target.plan_key }
 								plan={ target }
 								badge={ { text: 'Your plan', tone: 'success' } }
 								actionLabel="Your plan"
@@ -435,192 +451,401 @@ function ActiveState( { onBuyWords } ) {
 							/>
 						) : (
 							<PlanCard
-								key={ target.id }
+								key={ target.plan_key }
 								plan={ target }
-								actionLabel={ `Switch to ${ target.name }` }
+								actionLabel={ `Switch to ${ planLabel(
+									target
+								) }` }
+								loading={ changeLoading === target.plan_key }
+								disabled={
+									changeLoading &&
+									changeLoading !== target.plan_key
+								}
 								onAction={ () => trySwitch( target ) }
 							/>
 						)
 					) }
 				</InlineGrid>
-			</BlockStack>
-
-			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					How you pay
+				<Text as="span" tone="subdued" variant="bodySm">
+					Changes take effect on your next billing date, not
+					immediately.
 				</Text>
-				<Card>
-					<InlineStack align="space-between" blockAlign="center">
-						<Text as="span">PayPal · { payerEmailMasked }</Text>
-						<Button>Change</Button>
-					</InlineStack>
-				</Card>
 			</BlockStack>
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
 					Receipts
 				</Text>
-				<ReceiptsCard />
-			</BlockStack>
-
-			<Modal
-				open={ cancelOpen }
-				onClose={ () => setCancelOpen( false ) }
-				title="Cancel your plan?"
-				primaryAction={ {
-					content: 'Cancel plan',
-					destructive: true,
-					onAction: () => setCancelOpen( false ),
-				} }
-				secondaryActions={ [
-					{
-						content: 'Keep plan',
-						onAction: () => setCancelOpen( false ),
-					},
-				] }
-			>
-				<Modal.Section>
-					<Text as="p">
-						Your site stays translated, but new content won&apos;t
-						be translated automatically.
-					</Text>
-				</Modal.Section>
-			</Modal>
-		</BlockStack>
-	)
-}
-
-function ExpiredState() {
-	const {
-		plan,
-		ended_at: endedAt,
-		expiry_reason: expiryReason,
-		purchased_words: purchasedWords,
-	} = MOCK.expired
-
-	function scrollToRestart() {
-		document
-			.getElementById( 'restart' )
-			?.scrollIntoView( { behavior: 'smooth' } )
-	}
-
-	return (
-		<BlockStack gap="400">
-			<Banner tone="warning">
-				<BlockStack gap="150">
-					<Text as="h3" variant="headingSm">
-						AI translation is paused
-					</Text>
-					<Text as="span">
-						Your plan ended on { endedAt }. Your site is still fully
-						translated — new content just won&apos;t be translated
-						automatically until you restart.
-					</Text>
-					<Button onClick={ scrollToRestart }>Restart my plan</Button>
-				</BlockStack>
-			</Banner>
-
-			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					Your last plan
-				</Text>
-				<Card>
-					<BlockStack gap="200">
-						<InlineStack gap="200" blockAlign="center">
-							<Text as="h2" variant="headingMd">
-								{ plan.name }
-							</Text>
-							<Badge tone="warning">Ended</Badge>
-						</InlineStack>
-						<Text as="span" tone="subdued">
-							Ended { endedAt } ·{ ' ' }
-							{ EXPIRY_REASON_TEXT[ expiryReason ] }
-						</Text>
-					</BlockStack>
-				</Card>
-			</BlockStack>
-
-			{ purchasedWords > 0 && (
-				<Card>
-					<Text as="span">
-						You have { purchasedWords.toLocaleString() } extra
-						words.
-					</Text>
-				</Card>
-			) }
-
-			<BlockStack id="restart" gap="200">
-				<Text as="h3" variant="headingSm">
-					Start again
-				</Text>
-				<InlineGrid columns={ 3 } gap="300">
-					{ PLANS.map( ( target ) =>
-						target.id === plan.id ? (
-							<PlanCard
-								key={ target.id }
-								plan={ target }
-								badge={ { text: 'Your last plan' } }
-								actionLabel={ `Restart ${ target.name }` }
-							/>
-						) : (
-							<PlanCard
-								key={ target.id }
-								plan={ target }
-								actionLabel={ `Choose ${ target.name }` }
-							/>
-						)
-					) }
-				</InlineGrid>
-			</BlockStack>
-
-			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					Receipts
-				</Text>
-				<ReceiptsCard />
+				{ transactions.length === 0 ? (
+					<EmptyReceipts />
+				) : (
+					<ReceiptsCard transactions={ transactions } />
+				) }
 			</BlockStack>
 		</BlockStack>
 	)
 }
-
-const STATUS_OPTIONS = [
-	{ id: 'none', label: 'No subscription' },
-	{ id: 'active', label: 'Active' },
-	{ id: 'expired', label: 'Expired' },
-]
 
 export default function BillingSubscription() {
-	// ponytail: preview switcher for this mocked pass — subscription.status
-	// comes from the backend once billing endpoints are wired.
-	const [ status, setStatus ] = useState( 'active' )
+	const [ plans, setPlans ] = useState( null )
+	const [ plansError, setPlansError ] = useState( '' )
+	const [ packs, setPacks ] = useState( null )
+	const [ packsError, setPacksError ] = useState( '' )
+	const [ entitlements, setEntitlements ] = useState( null )
+	const [ entitlementsError, setEntitlementsError ] = useState( '' )
+	const [ transactions, setTransactions ] = useState( null )
+	const [ transactionsError, setTransactionsError ] = useState( '' )
+
 	const [ buyWordsOpen, setBuyWordsOpen ] = useState( false )
+	const [ buyLoading, setBuyLoading ] = useState( false )
+	const [ buyError, setBuyError ] = useState( '' )
+
+	const [ actionLoading, setActionLoading ] = useState( null ) // plan_key in flight, or null
+	const [ actionError, setActionError ] = useState( '' )
+
+	const [ changeLoading, setChangeLoading ] = useState( null ) // plan_key in flight, or null
+	const [ changeError, setChangeError ] = useState( '' )
+	const [ changeConfirmed, setChangeConfirmed ] = useState( null ) // confirmed plan_key, or null
+
+	// Never used for subscribe/pack-order — see the note above doChangePlan.
+	const [ polling, setPolling ] = useState( null ) // { kind: 'subscribe' | 'purchase', attempts, gaveUp, before? } | null
+	const [ noticeBanner, setNoticeBanner ] = useState( '' )
+
+	const [ status, setStatus ] = useQueryState(
+		'status',
+		parseAsStringLiteral( [ 'success', 'cancel' ] )
+	)
+	const [ planKeyParam, setPlanKeyParam ] = useQueryState(
+		'plan_key',
+		parseAsString
+	)
+	const [ packIdParam, setPackIdParam ] = useQueryState(
+		'pack_id',
+		parseAsString
+	)
+	const [ tokenParam, setTokenParam ] = useQueryState(
+		'token',
+		parseAsString
+	)
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/billing/plans' ).then( ( res ) => {
+			if ( cancelled ) {
+				return
+			}
+			if ( res.ok ) {
+				setPlans( res.plans )
+			} else {
+				setPlansError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/billing/packs' ).then( ( res ) => {
+			if ( cancelled ) {
+				return
+			}
+			if ( res.ok ) {
+				setPacks( res.packs )
+			} else {
+				setPacksError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/billing/transactions' ).then( ( res ) => {
+			if ( cancelled ) {
+				return
+			}
+			if ( res.ok ) {
+				setTransactions( res.transactions )
+			} else {
+				setTransactionsError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	// The one place entitlements gets fetched — the initial load, and the
+	// poll-until-settled loop below both call this, the latter with
+	// fresh: true to bypass the 60s server-side cache.
+	const refetchEntitlements = useCallback( ( { fresh = false } = {} ) => {
+		return api
+			.get( `/billing/entitlements${ fresh ? '?fresh=1' : '' }` )
+			.then( ( res ) => {
+				if ( res.ok ) {
+					setEntitlements( res.entitlements )
+				} else {
+					setEntitlementsError( res.error || 'ERR_UNREACHABLE' )
+				}
+				return res
+			} )
+	}, [] )
+
+	useEffect( () => {
+		refetchEntitlements()
+	}, [ refetchEntitlements ] )
+
+	// Redirect-back handling — PayPal always returns with ?status=..., same
+	// one-shot deep-link pattern as App.jsx's license_key handling. `status`
+	// is a routing signal only, never proof of anything — it only decides
+	// which follow-up call to make, never sets entitlements/active directly.
+	useEffect( () => {
+		if ( ! status ) {
+			return
+		}
+
+		const clearParams = () => {
+			setStatus( null )
+			setPlanKeyParam( null )
+			setPackIdParam( null )
+			setTokenParam( null )
+		}
+
+		if ( status === 'cancel' ) {
+			sessionStorage.removeItem( PENDING_ACTION_KEY )
+			sessionStorage.removeItem( PENDING_WORDS_KEY )
+			setNoticeBanner( 'Checkout cancelled.' )
+			clearParams()
+			return
+		}
+
+		if ( packIdParam ) {
+			// Pack purchase return. order_id can't be one of our own params —
+			// our redirect URL is built before PayPal generates an order id —
+			// so it has to come from whatever param PayPal itself appends.
+			// Working assumption: `token` (PayPal's long-standing
+			// convention) — UNVERIFIED against a live sandbox redirect, must
+			// be confirmed before relying on this in production.
+			const orderId = tokenParam
+			const before = Number(
+				sessionStorage.getItem( PENDING_WORDS_KEY ) || 0
+			)
+			sessionStorage.removeItem( PENDING_WORDS_KEY )
+			clearParams()
+
+			const afterCapture = orderId
+				? api.post( `/billing/packs/order/${ orderId }/capture` )
+				: Promise.resolve()
+
+			afterCapture.then( () => {
+				setPolling( {
+					kind: 'purchase',
+					attempts: 0,
+					gaveUp: false,
+					before,
+				} )
+			} )
+			return
+		}
+
+		// subscribe and change-plan share the same redirect shape
+		// (status + plan_key, no action-type flag) — a sessionStorage flag
+		// set right before the change-plan redirect is what tells them apart.
+		const pendingAction = sessionStorage.getItem( PENDING_ACTION_KEY )
+		const returnedPlanKey = planKeyParam
+		clearParams()
+
+		if ( pendingAction === 'change_plan' ) {
+			sessionStorage.removeItem( PENDING_ACTION_KEY )
+			// change-plan writes nothing locally, ever, on approval — the new
+			// plan only becomes real entitlement at the next renewal payment,
+			// which can be weeks away. No poll loop here; the confirmation is
+			// a static message built from data already on hand.
+			setChangeConfirmed( returnedPlanKey )
+			return
+		}
+
+		setPolling( { kind: 'subscribe', attempts: 0, gaveUp: false } )
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ status ] )
+
+	// Poll-until-settled — subscribe/purchase only, never change-plan (see
+	// the redirect-handling effect above for why).
+	useEffect( () => {
+		if ( ! polling || polling.gaveUp ) {
+			return
+		}
+
+		const timer = setTimeout( async () => {
+			const res = await refetchEntitlements( { fresh: true } )
+			if ( ! res.ok || ! res.entitlements ) {
+				return
+			}
+
+			const settled =
+				polling.kind === 'subscribe'
+					? res.entitlements.active === true
+					: res.entitlements.purchased_words > polling.before
+
+			if ( settled ) {
+				setPolling( null )
+				return
+			}
+
+			setPolling( ( p ) =>
+				p && p.attempts + 1 >= 10
+					? { ...p, attempts: p.attempts + 1, gaveUp: true }
+					: { ...p, attempts: p.attempts + 1 }
+			)
+		}, 3000 )
+
+		return () => clearTimeout( timer )
+	}, [ polling, refetchEntitlements ] )
+
+	async function doSubscribe( planKey ) {
+		setActionLoading( planKey )
+		setActionError( '' )
+		const res = await api.post( '/billing/subscription', {
+			plan_key: planKey,
+		} )
+		if ( res.ok && res.approve_url ) {
+			window.location.assign( res.approve_url )
+			return
+		}
+		setActionLoading( null )
+		setActionError( res.error || 'ERR_UNREACHABLE' )
+	}
+
+	async function doChangePlan( planKey ) {
+		setChangeLoading( planKey )
+		setChangeError( '' )
+		setChangeConfirmed( null )
+		const res = await api.post( '/billing/subscription/plan', {
+			plan_key: planKey,
+		} )
+		if ( ! res.ok ) {
+			setChangeLoading( null )
+			setChangeError( res.error || 'ERR_UNREACHABLE' )
+			return
+		}
+		if ( res.approve_url ) {
+			sessionStorage.setItem( PENDING_ACTION_KEY, 'change_plan' )
+			window.location.assign( res.approve_url )
+			return
+		}
+		// PayPal skipped re-consent for this revision — already applied,
+		// nothing to redirect to. Same static-confirmation completion as the
+		// redirect-return path above; no poll loop, no new fetch needed.
+		setChangeLoading( null )
+		setChangeConfirmed( planKey )
+	}
+
+	async function doBuyWords( packId ) {
+		setBuyLoading( true )
+		setBuyError( '' )
+		sessionStorage.setItem(
+			PENDING_WORDS_KEY,
+			String( entitlements?.purchased_words ?? 0 )
+		)
+		const res = await api.post( '/billing/packs/order', {
+			pack_id: packId,
+		} )
+		if ( res.ok && res.approve_url ) {
+			window.location.assign( res.approve_url )
+			return
+		}
+		sessionStorage.removeItem( PENDING_WORDS_KEY )
+		setBuyLoading( false )
+		setBuyError( res.error || 'ERR_UNREACHABLE' )
+	}
+
+	if (
+		entitlements === null ||
+		plans === null ||
+		packs === null ||
+		transactions === null
+	) {
+		return (
+			<Text as="span" tone="subdued">
+				Loading…
+			</Text>
+		)
+	}
+
+	const confirmedPlan = changeConfirmed
+		? plans.find( ( p ) => p.plan_key === changeConfirmed )
+		: null
 
 	return (
 		<BlockStack gap="400">
-			<InlineStack gap="100">
-				{ STATUS_OPTIONS.map( ( o ) => (
-					<Button
-						key={ o.id }
-						size="slim"
-						variant={ status === o.id ? 'primary' : 'tertiary' }
-						onClick={ () => setStatus( o.id ) }
-					>
-						{ o.label }
-					</Button>
-				) ) }
-			</InlineStack>
-
-			{ status === 'none' && <NoneState /> }
-			{ status === 'active' && (
-				<ActiveState onBuyWords={ () => setBuyWordsOpen( true ) } />
+			{ ( plansError ||
+				packsError ||
+				entitlementsError ||
+				transactionsError ) && (
+				<Banner tone="critical">
+					{ errorMessage(
+						plansError ||
+							packsError ||
+							entitlementsError ||
+							transactionsError
+					) }
+				</Banner>
 			) }
-			{ status === 'expired' && <ExpiredState /> }
+			{ noticeBanner && (
+				<Banner tone="info" onDismiss={ () => setNoticeBanner( '' ) }>
+					{ noticeBanner }
+				</Banner>
+			) }
+			{ polling && ! polling.gaveUp && (
+				<Banner tone="info">
+					Payment received — updating your account…
+				</Banner>
+			) }
+			{ polling?.gaveUp && (
+				<Banner tone="warning">
+					Still processing — this can take a minute. Refresh shortly
+					to see the update.
+				</Banner>
+			) }
+
+			{ entitlements.active ? (
+				<ActiveState
+					entitlements={ entitlements }
+					plans={ plans }
+					transactions={ transactions }
+					onBuyWords={ () => setBuyWordsOpen( true ) }
+					onChangePlan={ doChangePlan }
+					changeLoading={ changeLoading }
+					changeError={ changeError }
+					changeConfirmed={ !! changeConfirmed }
+					confirmedPlanName={
+						confirmedPlan
+							? planLabel( confirmedPlan )
+							: 'your new plan'
+					}
+				/>
+			) : (
+				<NotSubscribedState
+					plans={ plans }
+					transactions={ transactions }
+					actionLoading={ actionLoading }
+					actionError={ actionError }
+					onChoose={ doSubscribe }
+				/>
+			) }
 
 			<BuyWordsModal
 				open={ buyWordsOpen }
 				onClose={ () => setBuyWordsOpen( false ) }
-				purchasedWords={ MOCK.active.purchased_words }
+				packs={ packs }
+				purchasedWords={ entitlements.purchased_words }
+				onBuy={ doBuyWords }
+				loading={ buyLoading }
+				error={ buyError }
 			/>
 		</BlockStack>
 	)

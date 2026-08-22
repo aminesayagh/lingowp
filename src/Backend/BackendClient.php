@@ -109,6 +109,85 @@ final class BackendClient
         return $this->request('POST', '/insights/notify', $payload);
     }
 
+    /** GET /billing/plans — public, no auth. Subscription plan catalog. */
+    public function getPlans(): array
+    {
+        return $this->request('GET', '/billing/plans');
+    }
+
+    /** GET /billing/packs — public, no auth. One-off word-pack catalog. */
+    public function getPacks(): array
+    {
+        return $this->request('GET', '/billing/packs');
+    }
+
+    /** GET /me/entitlements — bearer + domain. Canonical read for all billing UI state. */
+    public function getEntitlements(): array
+    {
+        return $this->request('GET', '/me/entitlements', null, $this->authHeaders());
+    }
+
+    /**
+     * POST /billing/subscription — start a new subscription (bearer + domain).
+     * Payload: { plan_key }. Success data: { approve_url } — caller must
+     * full-page-redirect the browser there, nothing is confirmed yet.
+     */
+    public function subscribe(string $planKey): array
+    {
+        return $this->request('POST', '/billing/subscription', ['plan_key' => $planKey], $this->authHeaders());
+    }
+
+    /**
+     * POST /billing/subscription/plan — change plan on an active subscription
+     * (bearer + domain). Payload: { plan_key }. Writes nothing locally; the new
+     * allowance only applies from the next successful payment. approve_url can
+     * be null (PayPal skips re-consent for some revisions) — the change is
+     * still confirmed-but-deferred in that case, there is just nothing to
+     * redirect to.
+     */
+    public function changePlan(string $planKey): array
+    {
+        return $this->request('POST', '/billing/subscription/plan', ['plan_key' => $planKey], $this->authHeaders());
+    }
+
+    /**
+     * POST /billing/packs/order — buy a one-off word pack (bearer + domain).
+     * Payload: { pack_id }. Requires an active subscription. Success data:
+     * { order_id, approve_url } — redirect the browser, nothing is charged yet.
+     */
+    public function orderPack(string $packId): array
+    {
+        return $this->request('POST', '/billing/packs/order', ['pack_id' => $packId], $this->authHeaders());
+    }
+
+    /**
+     * POST /billing/packs/order/{order_id}/capture — confirm a pack order after
+     * the PayPal approval redirect returns (bearer + domain). Success data:
+     * { status } — NOT proof of credit; crediting happens async via webhook, so
+     * the caller must keep polling entitlements afterward.
+     */
+    public function capturePackOrder(string $orderId): array
+    {
+        return $this->request('POST', '/billing/packs/order/' . rawurlencode($orderId) . '/capture', null, $this->authHeaders());
+    }
+
+    /** GET /billing/subscription/transactions — receipts/billing history (bearer + domain), read-only. */
+    public function getTransactions(): array
+    {
+        return $this->request('GET', '/billing/subscription/transactions', null, $this->authHeaders());
+    }
+
+    /**
+     * GET /billing/usage — current-period usage (bearer + domain), read-only.
+     * Success data: { words_translated, daily:[{date, words}] }. words_translated
+     * is total words charged (allowance + purchased combined) — the backend has
+     * no translated/reused split. daily omits zero-usage days entirely.
+     */
+    public function getUsageStats(): array
+    {
+        return $this->request('GET', '/billing/usage', null, $this->authHeaders());
+    }
+
     private function request(string $method, string $path, ?array $body = null, array $headers = [], ?int $timeout = null): array
     {
         $base = $this->resolver->baseUrl();
@@ -166,6 +245,13 @@ final class BackendClient
             $status === 400 && $detail === 'invalid_key'             => 'ERR_INVALID_API_KEY',     // /provider-keys: provider rejected the key
             $status === 502 && $detail === 'provider_unreachable'    => 'ERR_PROVIDER_UNREACHABLE', // /provider-keys: couldn't reach provider to validate
             $status === 404 && $detail === 'site_not_found'          => 'ERR_SITE_NOT_FOUND',
+            $status === 400 && $detail === 'unknown_plan'            => 'ERR_UNKNOWN_PLAN',        // /billing/subscription(/plan)
+            $status === 400 && $detail === 'unknown_pack'            => 'ERR_UNKNOWN_PACK',        // /billing/packs/order
+            $status === 409 && $detail === 'already_subscribed'     => 'ERR_ALREADY_SUBSCRIBED',
+            $status === 409 && $detail === 'no_active_subscription' => 'ERR_NO_ACTIVE_SUBSCRIPTION',
+            $status === 409 && $detail === 'already_on_plan'        => 'ERR_ALREADY_ON_PLAN',
+            $status === 409 && $detail === 'active_subscription_required' => 'ERR_SUBSCRIPTION_REQUIRED',
+            $status === 403 && $detail === 'order_not_owned'         => 'ERR_ORDER_NOT_OWNED',      // /billing/packs/order/{id}/capture
             $status === 400                                          => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group)
             $status === 401 || $status === 403                       => 'ERR_INVALID_TOKEN',    // 403 = revoked token; 401 detail is a sentence, never slug-matched
             $status === 404                                          => 'ERR_NOT_FOUND',

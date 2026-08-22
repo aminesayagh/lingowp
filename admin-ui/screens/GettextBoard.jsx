@@ -71,6 +71,8 @@ export default function GettextBoard( {
 	sourceFlag,
 	languages,
 	aiAvailable,
+	billingBlocked,
+	onAiBlocked,
 	onPickLanguage,
 	onConfirm,
 	onAiUnavailable,
@@ -430,6 +432,8 @@ export default function GettextBoard( {
 										sourceFlag={ sourceFlag }
 										languages={ languages }
 										aiAvailable={ aiAvailable }
+										billingBlocked={ billingBlocked }
+										onAiBlocked={ onAiBlocked }
 										onPickLanguage={ onPickLanguage }
 										onAiUnavailable={ onAiUnavailable }
 									/>
@@ -553,6 +557,8 @@ function GettextUnitList( {
 	sourceFlag,
 	languages,
 	aiAvailable,
+	billingBlocked,
+	onAiBlocked,
 	onPickLanguage,
 	onAiUnavailable,
 } ) {
@@ -678,6 +684,8 @@ function GettextUnitList( {
 					unit={ unit }
 					row={ row }
 					aiAvailable={ aiAvailable }
+					billingBlocked={ billingBlocked }
+					onAiBlocked={ onAiBlocked }
 					onSaved={ ( msgstr ) => updateUnit( i, msgstr ) }
 					onOpenOverlay={ () => setOverlayIndex( i ) }
 					onIgnore={ () => confirmIgnore( i ) }
@@ -725,6 +733,8 @@ function GettextUnitRow( {
 	unit,
 	row,
 	aiAvailable,
+	billingBlocked,
+	onAiBlocked,
 	onSaved,
 	onOpenOverlay,
 	onIgnore,
@@ -1041,9 +1051,7 @@ function GettextUnitRow( {
 													/>
 												</Tooltip>
 											</div>
-											<AnimatePresence
-												initial={ false }
-											>
+											<AnimatePresence initial={ false }>
 												{ ! translating && (
 													<motion.div
 														key="ai-translate"
@@ -1071,7 +1079,16 @@ function GettextUnitRow( {
 															inset: 0,
 														} }
 													>
-														<Tooltip content="AI translate">
+														<span
+															style={
+																billingBlocked
+																	? {
+																			opacity: 0.5,
+																			cursor: 'not-allowed',
+																	  }
+																	: undefined
+															}
+														>
 															<Button
 																variant="secondary"
 																size="micro"
@@ -1079,9 +1096,7 @@ function GettextUnitRow( {
 																	props
 																) => (
 																	<AiIcon
-																		{
-																			...props
-																		}
+																		{ ...props }
 																		size={
 																			12
 																		}
@@ -1089,10 +1104,12 @@ function GettextUnitRow( {
 																) }
 																accessibilityLabel="AI translate"
 																onClick={
-																	handleAiClick
+																	billingBlocked
+																		? onAiBlocked
+																		: handleAiClick
 																}
 															/>
-														</Tooltip>
+														</span>
 													</motion.div>
 												) }
 											</AnimatePresence>

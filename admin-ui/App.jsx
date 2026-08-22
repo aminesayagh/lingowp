@@ -1,20 +1,11 @@
-import {
-	AppProvider,
-	BlockStack,
-	Card,
-	Frame,
-	PortalsManager,
-	Spinner,
-} from '@shopify/polaris'
+import { AppProvider, Frame, Modal, PortalsManager } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useCallback, useEffect, useState } from '@wordpress/element'
-import { AnimatePresence, motion, MotionConfig } from 'motion/react'
-import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
+import { useEffect, useState } from '@wordpress/element'
+import { parseAsString, useQueryState } from 'nuqs'
 import { api } from './api'
 import Configuration from './screens/Configuration'
 import Dashboard from './screens/Dashboard'
-import OnboardingPage from './screens/OnboardingPage'
 
 // Module-level: one client for the whole admin page, not per-mount.
 const queryClient = new QueryClient( {
@@ -29,21 +20,16 @@ const queryClient = new QueryClient( {
 	},
 } )
 
-const viewParser = parseAsStringLiteral( [
-	'onboarding_configuration',
-	'dashboard',
-] ).withOptions( { history: 'push' } )
-
-// Decide the landing screen. Incomplete onboarding can never reach the dashboard;
-// completed onboarding can never revisit configuration.
-function resolveView( state ) {
-	return state.onboarding_completed ? 'dashboard' : 'onboarding_configuration'
-}
-
 export default function App() {
 	const [ state, setState ] = useState( null )
-	const [ , setUrlView ] = useQueryState( 'view', viewParser )
-	const view = state ? resolveView( state ) : null
+	// Onboarding is never a separate screen — the Dashboard is always the
+	// landing view. An unfinished onboarding only differs in that the
+	// Dashboard's "Finish setting up Translangs" notification can open this
+	// modal. Every onboarding field already has a sensible default (see
+	// Configuration.jsx), so the modal is deliberately not dismissible except
+	// via "Continue" — no separate "reopen" affordance is needed since it can
+	// never be left closed-but-incomplete.
+	const [ onboardingModalOpen, setOnboardingModalOpen ] = useState( false )
 
 	// Deep link from a /license/recover email's "Refresh license in WordPress"
 	// button: ?page=translangs&license_key=... . Applied silently in the
@@ -83,74 +69,73 @@ export default function App() {
 		return el
 	} )
 
-	const setView = useCallback(
-		( next ) => {
-			setUrlView( next )
-		},
-		[ setUrlView ]
-	)
-
 	useEffect( () => {
 		api.get( '/onboarding/state' ).then( ( s ) => {
 			setState( s )
+			if ( ! s.onboarding_completed ) {
+				setOnboardingModalOpen( true )
+			}
 		} )
 	}, [] )
 
-	const content =
-		! state || ! view ? (
-			<OnboardingPage>
-				<Card>
-					<BlockStack inlineAlign="center">
-						<Spinner accessibilityLabel="Loading Translangs" />
-					</BlockStack>
-				</Card>
-			</OnboardingPage>
-		) : (
-			<MotionConfig reducedMotion="user">
-				<AnimatePresence initial={ false } mode="wait">
-					<motion.div
-						key={ view }
-						initial={ { opacity: 0, y: 8 } }
-						animate={ { opacity: 1, y: 0 } }
-						exit={ { opacity: 0, y: -8 } }
-						transition={ {
-							duration: 0.18,
-							ease: 'easeOut',
-						} }
-						style={ { width: '100%' } }
-					>
-						{ view === 'onboarding_configuration' && (
-							<Configuration
-								recommendedPrefixDefaultLanguage={
-									state.recommended_prefix_default_language
-								}
-								defaultLanguageSlug={
-									state.default_language_slug
-								}
-								onDone={ () => {
-									setState( ( s ) => ( {
-										...s,
-										onboarding_completed: true,
-									} ) )
-									setView( 'dashboard' )
-								} }
-							/>
-						) }
-						{ view === 'dashboard' && (
-							<Dashboard
-								defaultLanguage={ state.default_language }
-							/>
-						) }
-					</motion.div>
-				</AnimatePresence>
-			</MotionConfig>
+	// Scopes the blurred backdrop (admin-ui/tailwind.css) to just this modal,
+	// instead of every Polaris Modal in the app.
+	useEffect( () => {
+		document.body.classList.toggle(
+			'translangs-onboarding-modal-open',
+			onboardingModalOpen
 		)
+		return () => {
+			document.body.classList.remove( 'translangs-onboarding-modal-open' )
+		}
+	}, [ onboardingModalOpen ] )
+
+	// state is only null for the brief moment before /onboarding/state
+	// resolves — the Dashboard renders immediately either way (it already
+	// tolerates an undefined defaultLanguage/no languages loaded yet), rather
+	// than showing a separate loading screen first. Onboarding-completed
+	// defaults to true while state is unknown, so the "Finish setting up"
+	// prompt doesn't flash on for a moment before flashing off again.
+	const onboardingCompleted = state ? state.onboarding_completed : true
 
 	return (
 		<QueryClientProvider client={ queryClient }>
 			<AppProvider i18n={ enTranslations }>
 				<PortalsManager container={ portalRoot }>
-					<Frame>{ content }</Frame>
+					<Frame>
+						<Dashboard
+							defaultLanguage={ state?.default_language }
+							onboardingCompleted={ onboardingCompleted }
+							onStartOnboarding={ () =>
+								setOnboardingModalOpen( true )
+							}
+						/>
+						<Modal
+							open={ onboardingModalOpen }
+							onClose={ () => {} }
+							title="Finish setting up Translangs"
+						>
+							<Modal.Section>
+								{ state && (
+									<Configuration
+										recommendedPrefixDefaultLanguage={
+											state.recommended_prefix_default_language
+										}
+										defaultLanguageSlug={
+											state.default_language_slug
+										}
+										onDone={ () => {
+											setState( ( s ) => ( {
+												...s,
+												onboarding_completed: true,
+											} ) )
+											setOnboardingModalOpen( false )
+										} }
+									/>
+								) }
+							</Modal.Section>
+						</Modal>
+					</Frame>
 				</PortalsManager>
 			</AppProvider>
 		</QueryClientProvider>

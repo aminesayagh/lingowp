@@ -12,9 +12,10 @@ import {
 } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState } from '@wordpress/element'
+import { useEffect, useState } from '@wordpress/element'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
+import { api } from './api'
 import BillingSubscription from './screens/BillingSubscription'
 import BillingUsage from './screens/BillingUsage'
 import BillingToken from './screens/BillingToken'
@@ -47,6 +48,27 @@ const TABS = [
 
 export default function BillingApp() {
 	const [ tab, setTab ] = useQueryState( 'tab', tabParser )
+	const [ subscribed, setSubscribed ] = useState( true ) // optimistic until entitlements load, so the Usage tab doesn't flash disabled
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/billing/entitlements' ).then( ( res ) => {
+			if ( ! cancelled && res.ok ) {
+				setSubscribed( !! res.entitlements?.active )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	// A direct ?tab=usage link or a subscription that lapsed after loading the
+	// tab both need this, not just the disabled Button below.
+	useEffect( () => {
+		if ( ! subscribed && tab === 'usage' ) {
+			setTab( 'subscription' )
+		}
+	}, [ subscribed, tab, setTab ] )
 
 	// Same Frame-owned portal root as the main workspace, so Polaris
 	// popovers/modals anchor to the document instead of the wp-admin offset.
@@ -116,6 +138,10 @@ export default function BillingApp() {
 														key={ t.id }
 														fullWidth
 														textAlign="left"
+														disabled={
+															t.id === 'usage' &&
+															! subscribed
+														}
 														variant={
 															tab === t.id
 																? 'primary'

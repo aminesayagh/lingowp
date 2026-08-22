@@ -5,6 +5,24 @@
 
 @source './';
 
+/* Blurs the backdrop behind the "finish onboarding" modal only — scoped via
+   a body class App.jsx toggles while that specific modal is open, not a
+   blanket rule on every Polaris Modal's .Polaris-Backdrop in the app.
+   Overrides Polaris's default rgba(0,0,0,0.5) tint with the blur alone —
+   this is the requested look, not an oversight. */
+body.translangs-onboarding-modal-open .Polaris-Backdrop {
+	background-color: #00000070;
+}
+
+/* That modal is deliberately not dismissible except via "Continue" — Polaris
+   has no prop to omit its title-bar close button, so hide it with CSS,
+   scoped the same way as the blur above. */
+body.translangs-onboarding-modal-open
+	.Polaris-Modal-Dialog
+	button[aria-label='Close'] {
+	display: none;
+}
+
 /* AI-translate shimmer sweep. Three invariants — breaking any one produces
    a visible defect:
    1. The keyframe start position (200%) must equal background-size's width

@@ -1,39 +1,41 @@
 import {
+	Banner,
 	BlockStack,
 	Button,
 	Card,
-	DataTable,
 	InlineGrid,
 	InlineStack,
 	ProgressBar,
 	Text,
 } from '@shopify/polaris'
+import { useEffect, useState } from '@wordpress/element'
+import { api } from '../api'
+import { errorMessage } from '../errors'
+import { GhostBars } from './InsightsPreview'
 
-// ponytail: static mock content for the layout pass — real numbers come from
-// stats.daily + paypal.subscription in a follow-up step.
-const METRICS = [
-	{ label: 'Words translated', value: '38,420' },
-	{
-		label: 'Words reused',
-		value: '27,180',
-		note: 'Already translated — no extra cost',
-	},
-	{ label: 'Translated pages viewed', value: '12,905' },
-]
+function formatDate( iso ) {
+	if ( ! iso ) {
+		return '—'
+	}
+	return new Date( iso ).toLocaleDateString( 'en-US', {
+		day: 'numeric',
+		month: 'short',
+	} )
+}
 
-const DAILY_WORDS = [
-	1800, 2200, 1600, 2400, 2100, 2600, 3900, 2000, 2300, 1900, 2500, 2700,
-]
-
-const LANGUAGE_ROWS = [
-	[ 'French', '18,200', '13,100', '5,100' ],
-	[ 'Spanish', '11,640', '8,900', '2,740' ],
-	[ 'Arabic', '8,580', '5,300', '3,280' ],
-]
+function GhostMetricValue() {
+	return (
+		<div
+			className="tl-ghost-shimmer"
+			style={ { height: 28, width: '70%', borderRadius: 6 } }
+			aria-hidden="true"
+		/>
+	)
+}
 
 // Plain CSS bars — a bar chart this simple doesn't need a charting library.
-function DailyWordsChart( { values } ) {
-	const max = Math.max( ...values )
+function DailyWordsChart( { daily } ) {
+	const max = Math.max( 1, ...daily.map( ( d ) => d.words ) )
 	return (
 		<div
 			style={ {
@@ -43,13 +45,15 @@ function DailyWordsChart( { values } ) {
 				height: 120,
 			} }
 		>
-			{ values.map( ( v, i ) => (
+			{ daily.map( ( d ) => (
 				<div
-					key={ i }
-					title={ `${ v.toLocaleString() } words` }
+					key={ d.date }
+					title={ `${ formatDate(
+						d.date
+					) } · ${ d.words.toLocaleString() } words` }
 					style={ {
 						flex: 1,
-						height: `${ Math.max( 4, ( v / max ) * 100 ) }%`,
+						height: `${ Math.max( 4, ( d.words / max ) * 100 ) }%`,
 						background: 'var(--p-color-bg-fill-info)',
 						borderRadius: 2,
 					} }
@@ -60,54 +64,154 @@ function DailyWordsChart( { values } ) {
 }
 
 export default function BillingUsage() {
+	const [ entitlements, setEntitlements ] = useState( null )
+	const [ entitlementsError, setEntitlementsError ] = useState( '' )
+	const [ usage, setUsage ] = useState( null )
+	const [ usageError, setUsageError ] = useState( '' )
+	const [ languages, setLanguages ] = useState( null )
+	const [ languagesError, setLanguagesError ] = useState( '' )
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/billing/entitlements' ).then( ( res ) => {
+			if ( cancelled ) {
+				return
+			}
+			if ( res.ok ) {
+				setEntitlements( res.entitlements )
+			} else {
+				setEntitlementsError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/billing/usage' ).then( ( res ) => {
+			if ( cancelled ) {
+				return
+			}
+			if ( res.ok ) {
+				setUsage( res )
+			} else {
+				setUsageError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	useEffect( () => {
+		let cancelled = false
+		api.get( '/languages/targets' ).then( ( res ) => {
+			if ( cancelled ) {
+				return
+			}
+			if ( res.ok ) {
+				setLanguages( res.languages )
+			} else {
+				setLanguagesError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	if ( entitlements === null || usage === null || languages === null ) {
+		return (
+			<Text as="span" tone="subdued">
+				Loading…
+			</Text>
+		)
+	}
+
+	const allowance = entitlements.monthly_allowance ?? 0
+	const remaining = entitlements.monthly_remaining ?? 0
+	const consumed = Math.max( 0, allowance - remaining )
+	const pct = allowance > 0 ? Math.round( ( consumed / allowance ) * 100 ) : 0
+
 	return (
 		<BlockStack gap="400">
+			{ ( entitlementsError || usageError || languagesError ) && (
+				<Banner tone="critical">
+					{ errorMessage(
+						entitlementsError || usageError || languagesError
+					) }
+				</Banner>
+			) }
+
 			<InlineStack align="space-between" blockAlign="center">
 				<Text as="h2" variant="headingMd">
-					This month · 12 Aug to 12 Sep
+					This month · { formatDate( entitlements.period_start ) } to{ ' ' }
+					{ formatDate( entitlements.period_end ) }
 				</Text>
 			</InlineStack>
 
 			<InlineGrid columns={ 3 } gap="300">
-				{ METRICS.map( ( m ) => (
-					<Card key={ m.label }>
-						<BlockStack gap="100">
-							<Text as="span" tone="subdued" variant="bodySm">
-								{ m.label }
-							</Text>
-							<Text as="span" variant="headingLg">
-								{ m.value }
-							</Text>
-							{ m.note && (
-								<Text as="span" tone="subdued" variant="bodySm">
-									{ m.note }
-								</Text>
-							) }
-						</BlockStack>
-					</Card>
-				) ) }
-			</InlineGrid>
-
-			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					Your monthly words
-				</Text>
 				<Card>
-					<BlockStack gap="150">
-						<ProgressBar progress={ 38 } tone="primary" />
+					<BlockStack gap="100">
 						<Text as="span" tone="subdued" variant="bodySm">
-							38,420 of 100,000 used · resets 12 Sep
+							Words translated
 						</Text>
+						{ usage.words_translated > 0 ? (
+							<Text as="span" variant="headingLg">
+								{ usage.words_translated.toLocaleString() }
+							</Text>
+						) : (
+							<Text as="span" tone="subdued">
+								Nothing translated yet this period
+							</Text>
+						) }
 					</BlockStack>
 				</Card>
-			</BlockStack>
+				<Card>
+					<BlockStack gap="100">
+						<Text as="span" tone="subdued" variant="bodySm">
+							Words reused
+						</Text>
+						<GhostMetricValue />
+					</BlockStack>
+				</Card>
+				<Card>
+					<BlockStack gap="100">
+						<Text as="span" tone="subdued" variant="bodySm">
+							Translated pages viewed
+						</Text>
+						<GhostMetricValue />
+					</BlockStack>
+				</Card>
+			</InlineGrid>
+
+			{ allowance > 0 && (
+				<BlockStack gap="200">
+					<Text as="h3" variant="headingSm">
+						Your monthly words
+					</Text>
+					<Card>
+						<BlockStack gap="150">
+							<ProgressBar progress={ pct } tone="primary" />
+							<Text as="span" tone="subdued" variant="bodySm">
+								{ consumed.toLocaleString() } of{ ' ' }
+								{ allowance.toLocaleString() } used · resets{ ' ' }
+								{ formatDate( entitlements.period_end ) }
+							</Text>
+						</BlockStack>
+					</Card>
+				</BlockStack>
+			) }
 
 			<Card>
 				<InlineStack align="space-between" blockAlign="center">
 					<BlockStack gap="050">
 						<Text as="span">Extra words</Text>
 						<Text as="span" tone="subdued" variant="bodySm">
-							50,000 left. These don&apos;t expire.
+							{ entitlements.purchased_words.toLocaleString() }{ ' ' }
+							left. These don&apos;t expire.
 						</Text>
 					</BlockStack>
 					<Button>Add more words</Button>
@@ -119,7 +223,13 @@ export default function BillingUsage() {
 					Daily words
 				</Text>
 				<Card>
-					<DailyWordsChart values={ DAILY_WORDS } />
+					{ usage.daily.length > 0 ? (
+						<DailyWordsChart daily={ usage.daily } />
+					) : (
+						<Text as="span" tone="subdued">
+							No words translated yet this period.
+						</Text>
+					) }
 				</Card>
 			</BlockStack>
 
@@ -127,22 +237,21 @@ export default function BillingUsage() {
 				<Text as="h3" variant="headingSm">
 					By language
 				</Text>
-				<Card padding="0">
-					<DataTable
-						columnContentTypes={ [
-							'text',
-							'numeric',
-							'numeric',
-							'numeric',
-						] }
-						headings={ [
-							'Language',
-							'Words',
-							'Already translated',
-							'Newly translated',
-						] }
-						rows={ LANGUAGE_ROWS }
-					/>
+				<Card>
+					{ Object.keys( languages ).length > 0 ? (
+						<GhostBars
+							items={ Object.values( languages ).map(
+								( lang ) => ( {
+									label: lang.native,
+									width: 60, // uniform — no real per-language usage to rank by yet
+								} )
+							) }
+						/>
+					) : (
+						<Text as="span" tone="subdued">
+							No languages configured yet.
+						</Text>
+					) }
 				</Card>
 			</BlockStack>
 		</BlockStack>

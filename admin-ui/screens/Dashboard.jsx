@@ -72,7 +72,9 @@ const LanguageManagerModal = lazy( () =>
 	)
 )
 const ExportImportModal = lazy( () =>
-	import( /* webpackChunkName: "export-import-modal" */ './ExportImportModal' )
+	import(
+		/* webpackChunkName: "export-import-modal" */ './ExportImportModal'
+	)
 )
 
 // Schema status → workspace pill. Completed rows keep a visible marker so table
@@ -218,7 +220,11 @@ const langParser = parseAsString.withDefault( '' ).withOptions( {
 	history: 'replace',
 } )
 
-export default function Dashboard( { defaultLanguage } ) {
+export default function Dashboard( {
+	defaultLanguage,
+	onboardingCompleted,
+	onStartOnboarding,
+} ) {
 	const queryClient = useQueryClient()
 	const [ languages, setLanguages ] = useState( [] )
 	// Distinguishes "no languages yet" (still loading) from "confirmed empty" —
@@ -267,6 +273,9 @@ export default function Dashboard( { defaultLanguage } ) {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
+	// Optimistically false until entitlements + provider-keys load, so the AI
+	// buttons don't flash into their blocked state on first paint.
+	const [ billingBlocked, setBillingBlocked ] = useState( false )
 	// Toast — every "action complete" message (AI translate, rescan, fallback
 	// copy, autosave hint, length warning, share link, …) goes through this
 	// one. Never a top-of-page Banner: that shifted the whole board down every
@@ -382,6 +391,40 @@ export default function Dashboard( { defaultLanguage } ) {
 			} )
 		} )
 	}, [] )
+
+	// AI translation needs either an active subscription or the user's own
+	// provider key — neither means every AI action is blocked. A stored key is
+	// only ever saved once it validates (see BackendClient::saveProviderKey), so
+	// presence alone means it's usable, no status filtering needed.
+	useEffect( () => {
+		let cancelled = false
+		Promise.all( [
+			api.get( '/billing/entitlements' ),
+			api.get( '/provider-keys' ),
+		] ).then( ( [ entitlementsRes, keysRes ] ) => {
+			if ( cancelled ) {
+				return
+			}
+			const subscribed = !! entitlementsRes.entitlements?.active
+			const hasOwnKey = ( keysRes.keys || [] ).length > 0
+			setBillingBlocked( ! subscribed && ! hasOwnKey )
+		} )
+		return () => {
+			cancelled = true
+		}
+	}, [] )
+
+	// Row AI buttons route here instead of translating when billingBlocked —
+	// a toast the user can click straight through to Billing, rather than a
+	// silent disabled button.
+	function handleAiBlocked() {
+		setToast( {
+			tone: 'info',
+			content:
+				'Subscribe or add your own API key to use AI translation. Tap to view plans.',
+			onClick: () => window.location.assign( cfg.billing_url ),
+		} )
+	}
 
 	useEffect( () => {
 		function handleShortcut( event ) {
@@ -1137,18 +1180,24 @@ export default function Dashboard( { defaultLanguage } ) {
 
 	const searching = query !== ''
 	const showGettextBoard = board === 'plugins'
+	// Unfinished onboarding takes priority over every other board-body state —
+	// a fresh install always finishes setup before it can add a language.
+	const showNeedsOnboarding = ! onboardingCompleted
 	// No language yet: board body shows a centered CTA instead of the content
 	// list, but the sidebar/shell around it renders as usual.
-	const showNoLanguages = languagesLoaded && languages.length === 0
+	const showNoLanguages =
+		! showNeedsOnboarding && languagesLoaded && languages.length === 0
 	// While the first-scan gate is up, it fully replaces the board body —
 	// no stacked/duplicate spinners underneath it.
 	const showGroupsLoading =
 		! showGettextBoard &&
+		! showNeedsOnboarding &&
 		! showNoLanguages &&
 		! extractionPending &&
 		groupsQ.isPending
 	const showGroupsError =
 		! showGettextBoard &&
+		! showNeedsOnboarding &&
 		! showNoLanguages &&
 		! extractionPending &&
 		! groupsQ.isPending &&
@@ -1156,6 +1205,7 @@ export default function Dashboard( { defaultLanguage } ) {
 		groups.length === 0
 	const showGroupsEmpty =
 		! showGettextBoard &&
+		! showNeedsOnboarding &&
 		! showNoLanguages &&
 		! extractionPending &&
 		! groupsQ.isPending &&
@@ -1163,6 +1213,7 @@ export default function Dashboard( { defaultLanguage } ) {
 		groups.length === 0
 	const showGroups =
 		! showGettextBoard &&
+		! showNeedsOnboarding &&
 		! showNoLanguages &&
 		! extractionPending &&
 		! groupsQ.isPending &&
@@ -1682,6 +1733,23 @@ export default function Dashboard( { defaultLanguage } ) {
 								</BlockStack>
 							</Box>
 						</div>
+						{ showNeedsOnboarding && (
+							<Box padding="500">
+								<EmptyState
+									heading="Finish setting up Translangs"
+									action={ {
+										content: 'Continue setup',
+										onAction: onStartOnboarding,
+									} }
+								>
+									<p>
+										Set your translation preferences to
+										start translating your content
+										automatically.
+									</p>
+								</EmptyState>
+							</Box>
+						) }
 						{ showNoLanguages && (
 							<Box padding="500">
 								<EmptyState
@@ -1714,6 +1782,7 @@ export default function Dashboard( { defaultLanguage } ) {
 							</Box>
 						) }
 						{ showGettextBoard &&
+							! showNeedsOnboarding &&
 							! showNoLanguages &&
 							! extractionPending && (
 								<Suspense
@@ -1735,6 +1804,8 @@ export default function Dashboard( { defaultLanguage } ) {
 										sourceFlag={ sourceFlag }
 										languages={ languages }
 										aiAvailable={ ai.available }
+										billingBlocked={ billingBlocked }
+										onAiBlocked={ handleAiBlocked }
 										onPickLanguage={ setSelectedLang }
 										onConfirm={ setConfirm }
 										onAiUnavailable={ ( error ) =>
@@ -1931,6 +2002,12 @@ export default function Dashboard( { defaultLanguage } ) {
 														onAiTranslate={
 															translateScope
 														}
+														billingBlocked={
+															billingBlocked
+														}
+														onAiBlocked={
+															handleAiBlocked
+														}
 														bulkTranslating={
 															bulkTranslating
 														}
@@ -2068,6 +2145,7 @@ export default function Dashboard( { defaultLanguage } ) {
 							: 5000
 					}
 					onDismiss={ () => setToast( null ) }
+					onClick={ toast.onClick }
 				/>
 			) }
 		</Page>
@@ -2115,6 +2193,8 @@ function CollectionGroup( {
 	onOpenOverlay,
 	aiAvailable,
 	onAiTranslate,
+	billingBlocked,
+	onAiBlocked,
 	bulkTranslating,
 	onLengthWarning,
 	onShare,
@@ -2440,6 +2520,8 @@ function CollectionGroup( {
 									onConfirm={ onConfirm }
 									aiAvailable={ aiAvailable }
 									onAiTranslate={ onAiTranslate }
+									billingBlocked={ billingBlocked }
+									onAiBlocked={ onAiBlocked }
 									bulkActive={
 										bulkTranslating === 'language'
 									}
@@ -2489,6 +2571,8 @@ function TextUnitRow( {
 	onOpenOverlay,
 	aiAvailable,
 	onAiTranslate,
+	billingBlocked,
+	onAiBlocked,
 	bulkActive = false,
 	onLengthWarning,
 } ) {
@@ -2991,26 +3075,45 @@ function TextUnitRow( {
 															inset: 0,
 														} }
 													>
-														<Tooltip content="AI translate">
-															<Button
-																variant="secondary"
-																size="micro"
-																accessibilityLabel="AI translate"
-																icon={ (
-																	props
-																) => (
-																	<AiIcon
-																		{ ...props }
-																		size={
-																			12
-																		}
-																	/>
-																) }
-																onClick={
-																	handleAiClick
+														<span
+															style={
+																billingBlocked
+																	? {
+																			opacity: 0.5,
+																			cursor: 'not-allowed',
+																	  }
+																	: undefined
+															}
+														>
+															<Tooltip
+																content={
+																	billingBlocked
+																		? 'Subscribe or add your own API key to use AI translation'
+																		: 'AI translate'
 																}
-															/>
-														</Tooltip>
+															>
+																<Button
+																	variant="secondary"
+																	size="micro"
+																	accessibilityLabel="AI translate"
+																	icon={ (
+																		props
+																	) => (
+																		<AiIcon
+																			{ ...props }
+																			size={
+																				12
+																			}
+																		/>
+																	) }
+																	onClick={
+																		billingBlocked
+																			? onAiBlocked
+																			: handleAiClick
+																	}
+																/>
+															</Tooltip>
+														</span>
 													</motion.div>
 												) }
 											</AnimatePresence>

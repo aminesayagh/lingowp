@@ -11,7 +11,7 @@ import { HERO } from './insightsContent.mjs'
 
 const cfg = window.Translangs || {}
 
-function GhostBars( { items } ) {
+export function GhostBars( { items } ) {
 	const max = Math.max( ...items.map( ( i ) => i.width ) )
 
 	return (
