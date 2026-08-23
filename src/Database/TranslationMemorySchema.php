@@ -60,10 +60,6 @@ class TranslationMemorySchema
         $p  = self::parentTables();
 
         // 1. Create the five parent tables first — they are the child FK targets.
-        // wp_tl_static_text / wp_tl_static_plural_text are deliberately NOT created
-        // here anymore: gettext is now resolved from WordPress-native translation
-        // files (see GettextResolver), and those two tables are legacy — kept
-        // as-is (not dropped) on sites that already have them, never created fresh.
         $wpdb->query(TableDefinitions::post($p['tl_post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::meta($p['tl_meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::term($p['tl_term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
@@ -332,20 +328,14 @@ class TranslationMemorySchema
     }
 
     /**
-     * Dev-only reset tool: wipe every content table, children before parents
+     * Reset-button tool: drop every TransLangs table, children before parents
      * (FK-safe, same order as uninstall.php's DROP).
      */
-    public static function truncateAllTables(\wpdb $wpdb): void
+    public static function dropAllTables(\wpdb $wpdb): void
     {
-        foreach (self::childTables() as $table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- TRUNCATE cannot be parameterized
+        foreach ([...self::childTables(), ...self::parentTables()] as $table) {
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
-            $wpdb->query("TRUNCATE TABLE {$table}");
-        }
-        foreach (self::parentTables() as $table) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-            // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
-            $wpdb->query("TRUNCATE TABLE {$table}");
+            $wpdb->query('DROP TABLE IF EXISTS ' . $table);
         }
     }
 

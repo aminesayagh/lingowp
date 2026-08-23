@@ -28,10 +28,6 @@ $tables = [
     $wpdb->prefix . 'tl_term',
     $wpdb->prefix . 'tl_html',
     $wpdb->prefix . 'tl_option',
-    // tl_static_text / tl_static_plural_text / tl_static_text_translation are
-    // deliberately NOT dropped here: gettext is now resolved from WordPress-
-    // native translation files, but existing captured data is left in place
-    // rather than destroyed.
 ];
 
 foreach ($tables as $table) {
