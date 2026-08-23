@@ -5,7 +5,7 @@ namespace TransLangs\Backend;
 use TransLangs\Language\Domain\LanguageRegistry;
 
 /**
- * Builds the site payload sent to POST /license/issue at call time.
+ * Builds the site payload sent to POST /license/connect at call time.
  *
  * The backend takes {domain, admin_email, default_language}. admin_email is
  * WordPress's own site contact (get_option('admin_email')) — the recovery

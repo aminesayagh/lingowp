@@ -13,16 +13,18 @@ namespace TransLangs\Backend;
  * (markUnavailable()) — rather than a fixed interval ticking independent of
  * anyone looking. Good information at the moment it's needed, not perpetual sync.
  *
- * The probe is /usage (not /health): AI needs a *valid license for this domain*,
- * so the check must distinguish backend-down from an invalid/mismatched
- * credential — /health only proves reachability. There is no dedicated probe
- * route; /usage is reused because it already sits behind the same bearer +
- * X-Site-Domain auth every protected route requires — and reused via
- * AiQuotaService::rawUsage() specifically, not a direct BackendClient call, so
- * a near-simultaneous quota read (Dashboard also asks for one on mount) shares
- * the same cached call instead of doubling /usage traffic. Status shape:
- * ['available' => bool, 'error' => string] where error is an ERR_* code ('' when
- * available): ERR_NOT_CONNECTED | ERR_INVALID_TOKEN | ERR_UNREACHABLE.
+ * The probe is /me/entitlements (not /health): AI needs a *valid license for
+ * this domain*, so the check must distinguish backend-down from an
+ * invalid/mismatched/detached/revoked credential — /health only proves
+ * reachability. There is no dedicated probe route; /me/entitlements is reused
+ * because it already sits behind the same bearer + X-Site-Domain auth every
+ * protected route requires — and reused via
+ * BillingEntitlementsService::rawEntitlements() specifically, not a direct
+ * BackendClient call, so a near-simultaneous entitlements read (Billing/quota
+ * screens also ask for one) shares the same cached call instead of doubling
+ * traffic. Status shape: ['available' => bool, 'error' => string] where error
+ * is an ERR_* code ('' when available): ERR_NOT_CONNECTED | ERR_INVALID_TOKEN |
+ * ERR_LICENSE_REVOKED | ERR_LICENSE_DETACHED | ERR_DOMAIN_MISMATCH | ERR_UNREACHABLE.
  */
 final class ConnectionStatus
 {
@@ -30,7 +32,7 @@ final class ConnectionStatus
     private const TTL       = 15 * MINUTE_IN_SECONDS;
 
     public function __construct(
-        private AiQuotaService $quota,
+        private BillingEntitlementsService $entitlements,
         private ConnectionRepository $connection
     ) {}
 
@@ -50,8 +52,8 @@ final class ConnectionStatus
             return $this->store(false, 'ERR_NOT_CONNECTED');
         }
 
-        // /usage proves reachability AND credential validity in one call.
-        $result = $this->quota->rawUsage();
+        // /me/entitlements proves reachability AND credential validity in one call.
+        $result = $this->entitlements->rawEntitlements();
 
         return $result['ok']
             ? $this->store(true, '')

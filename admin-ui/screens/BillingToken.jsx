@@ -6,10 +6,11 @@ import {
 	InlineStack,
 	Modal,
 	Select,
+	Spinner,
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useEffect, useState } from '@wordpress/element'
+import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
 import { errorMessage } from '../errors'
 
@@ -98,29 +99,22 @@ export default function BillingToken() {
 		? Object.entries( providerKeys )[ 0 ]
 		: undefined
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/connection/status' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	// Clears its own error before retrying, so a Retry click that succeeds
+	// doesn't leave the previous failure's banner text stranded.
+	const fetchStatus = useCallback( () => {
+		setFetchError( '' )
+		return api.get( '/connection/status' ).then( ( res ) => {
 			if ( res.ok ) {
 				setStatus( res )
 			} else {
 				setFetchError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/provider-keys' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	const fetchProviderKeys = useCallback( () => {
+		setProviderKeysError( '' )
+		return api.get( '/provider-keys' ).then( ( res ) => {
 			if ( res.ok ) {
 				const byProvider = {}
 				for ( const key of res.keys || [] ) {
@@ -131,10 +125,15 @@ export default function BillingToken() {
 				setProviderKeysError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
+
+	useEffect( () => {
+		fetchStatus()
+	}, [ fetchStatus ] )
+
+	useEffect( () => {
+		fetchProviderKeys()
+	}, [ fetchProviderKeys ] )
 
 	// Once the stored key loads, default the Select to whichever provider is
 	// already active. activeEntry is derived from providerKeys on every
@@ -233,7 +232,10 @@ export default function BillingToken() {
 					Connects this site to Translangs.
 				</Text>
 				{ fetchError && (
-					<Banner tone="critical">
+					<Banner
+						tone="critical"
+						action={ { content: 'Retry', onAction: fetchStatus } }
+					>
 						{ errorMessage( fetchError ) }
 					</Banner>
 				) }
@@ -243,9 +245,18 @@ export default function BillingToken() {
 					</Banner>
 				) }
 				<Card>
-					<Text as="span" tone={ status ? undefined : 'subdued' }>
-						{ status?.masked_key || '—' }
-					</Text>
+					{ status === null && ! fetchError ? (
+						<InlineStack gap="100" blockAlign="center">
+							<Spinner
+								accessibilityLabel="Loading site token"
+								size="small"
+							/>
+						</InlineStack>
+					) : (
+						<Text as="span" tone={ status ? undefined : 'subdued' }>
+							{ status?.masked_key || '—' }
+						</Text>
+					) }
 				</Card>
 				{ status &&
 					( status.connected ? (
@@ -271,15 +282,24 @@ export default function BillingToken() {
 						</Text>
 
 						{ providerKeysError && (
-							<Banner tone="critical">
+							<Banner
+								tone="critical"
+								action={ {
+									content: 'Retry',
+									onAction: fetchProviderKeys,
+								} }
+							>
 								{ errorMessage( providerKeysError ) }
 							</Banner>
 						) }
 
 						{ providerKeys === null ? (
-							<Text as="span" tone="subdued">
-								Loading key…
-							</Text>
+							<InlineStack gap="100" blockAlign="center">
+								<Spinner
+									accessibilityLabel="Loading key"
+									size="small"
+								/>
+							</InlineStack>
 						) : (
 							<BlockStack gap="150">
 								{ row.error && (

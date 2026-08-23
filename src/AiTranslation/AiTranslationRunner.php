@@ -102,7 +102,7 @@ final class AiTranslationRunner
                 $done++;
                 // ponytail: the API no longer reports words actually billed, so this
                 // is the same str_word_count estimate used for the pre-flight quota
-                // check — GET /usage stays the source of truth for real balance.
+                // check — GET /me/entitlements stays the source of truth for real balance.
                 $words += str_word_count(wp_strip_all_tags((string) $u['original']));
             }
         }

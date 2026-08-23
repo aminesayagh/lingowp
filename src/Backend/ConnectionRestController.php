@@ -11,9 +11,11 @@ use WP_REST_Response;
 /**
  * Connection lifecycle REST endpoints (namespace translangs/v1).
  *
- * manage_options only; never returns the raw token. On a 401 the token is left in
- * place (cleared only on explicit disconnect/reconnect) so a transient backend
- * hiccup does not silently disconnect the site. Every state change refreshes the
+ * manage_options only; never returns the raw license key, and never accepts
+ * one from the client either — confirm() only ever takes an opaque confirm
+ * token and exchanges it server-to-server. A stale key (401/410) is self-healed
+ * by SiteConnector::ensureValid(); a still-valid-but-blocked key (402/409) is
+ * left in place and only surfaced as a notice. Every state change refreshes the
  * cached AI-availability status.
  */
 final class ConnectionRestController
@@ -23,8 +25,7 @@ final class ConnectionRestController
     public function __construct(
         private ConnectionRepository $connection,
         private ConnectionStatus $status,
-        private SiteConnector $siteConnector,
-        private AiQuotaService $quota
+        private SiteConnector $siteConnector
     ) {}
 
     public function register(): void
@@ -39,7 +40,7 @@ final class ConnectionRestController
         register_rest_route(self::NS, '/connection/status', ['methods' => 'GET', 'callback' => [$this, 'status']] + $guard);
         register_rest_route(self::NS, '/connection/check', ['methods' => 'POST', 'callback' => [$this, 'check']] + $guard);
         register_rest_route(self::NS, '/connection/connect', ['methods' => 'POST', 'callback' => [$this, 'connect']] + $guard);
-        register_rest_route(self::NS, '/connection/apply-license', ['methods' => 'POST', 'callback' => [$this, 'applyLicense']] + $guard);
+        register_rest_route(self::NS, '/connection/confirm', ['methods' => 'POST', 'callback' => [$this, 'confirm']] + $guard);
         register_rest_route(self::NS, '/connection/recover', ['methods' => 'POST', 'callback' => [$this, 'recover']] + $guard);
     }
 
@@ -53,38 +54,47 @@ final class ConnectionRestController
         return $this->respond(true, $this->status->current());
     }
 
-    /** Verify the credential against GET /usage and refresh the cached AI status. */
+    /**
+     * Verify the credential against GET /me/entitlements and refresh the
+     * cached AI status — self-healing a stale key (401/410) in the process.
+     */
     public function check(): WP_REST_Response
     {
-        $status = $this->status->refresh();
+        $status = $this->siteConnector->ensureValid();
 
-        return $this->respond($status['available'], $status);
+        return $this->respond($status['available'], $status, $status['pending']);
     }
 
     /** @param array{available: bool, error: string} $status */
-    private function respond(bool $ok, array $status): WP_REST_Response
+    private function respond(bool $ok, array $status, bool $pending = false): WP_REST_Response
     {
         return rest_ensure_response([
             'ok'           => $ok,
             'connected'    => $this->connection->isConnected(),
+            'pending'      => $pending,
             'masked_key'   => $this->connection->maskedKey(),
             'ai_available' => $status['available'],
             'ai_error'     => $status['error'],
-            'quota'        => $this->quota->data(),
         ]);
     }
 
     /**
      * Connect (or reconnect) using the current site metadata. Used to finish
-     * connecting after an offline onboarding, or to retry when the backend
-     * recovers. Never blocks: returns an ERR_* code on failure.
+     * connecting after an offline onboarding, or as an explicit user-initiated
+     * retry. Never blocks: returns an ERR_* code on failure. A pending result
+     * means the backend emailed a confirm token — nothing is connected yet,
+     * so this must never be reported as ERR_NOT_CONNECTED.
      */
     public function connect(): WP_REST_Response
     {
         $result = $this->siteConnector->connect();
 
+        if ($result['pending']) {
+            return $this->respond(true, ['available' => false, 'error' => ''], true);
+        }
+
         if (!$result['ok']) {
-            return new WP_REST_Response(['ok' => false, 'connected' => false, 'error' => $result['error']], 200);
+            return new WP_REST_Response(['ok' => false, 'connected' => false, 'pending' => false, 'error' => $result['error']], 200);
         }
 
         // SiteConnector::connect() already called status->refresh() — read the
@@ -95,25 +105,27 @@ final class ConnectionRestController
     }
 
     /**
-     * Applies a license key recovered out-of-band — the "Refresh license in
-     * WordPress" link in a /license/recover email deep-links here with the new
-     * raw key as a query param; the SPA reads it and posts it to this route.
-     * The site id is left as whatever is already stored (recovery repoints the
-     * same site at a new license, it never creates a new one), or empty on a
-     * fully wiped install — site_id isn't sent on any request, so an empty
-     * value is harmless.
+     * Applies a confirm_token deep-linked from an email — the SPA reads the
+     * opaque token off the URL and posts it here; this exchanges it with the
+     * backend server-to-server and applies whatever comes back. The raw
+     * license key is never accepted from the client, only relayed from the
+     * backend's own response.
      */
-    public function applyLicense(WP_REST_Request $request): WP_REST_Response
+    public function confirm(WP_REST_Request $request): WP_REST_Response
     {
-        $licenseKey = sanitize_text_field((string) $request->get_param('license_key'));
+        $token = sanitize_text_field((string) $request->get_param('token'));
 
-        if ($licenseKey === '') {
+        if ($token === '') {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
         }
 
-        $this->siteConnector->applyCredential($this->connection->siteId(), $licenseKey);
+        $result = $this->siteConnector->confirm($token);
 
-        // applyCredential() already called status->refresh() — read the
+        if (!$result['ok']) {
+            return new WP_REST_Response(['ok' => false, 'connected' => false, 'error' => $result['error']], 200);
+        }
+
+        // SiteConnector::confirm() already called status->refresh() — read the
         // now-warm cache instead of probing the backend a second time.
         $status = $this->status->current();
 
@@ -125,9 +137,9 @@ final class ConnectionRestController
      * "Create a new key"). Deliberately does not call respond(): nothing about
      * local connection state changes here — the current key keeps working
      * normally (backend-side it's now only a *pending* rotation) until either
-     * the admin follows the emailed link into applyLicense() above, or the
+     * the admin follows the emailed link into confirm() above, or the
      * backend's 24h grace window lapses unused, so returning the full
-     * connected/masked-key/quota envelope would imply a change that hasn't
+     * connected/masked-key envelope would imply a change that hasn't
      * happened yet.
      */
     public function recover(): WP_REST_Response

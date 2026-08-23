@@ -4,11 +4,12 @@ namespace TransLangs\Backend;
 
 /**
  * Cached GET /me/entitlements result — the canonical read for all billing UI
- * state. Modeled on AiQuotaService: a 60s transient cache for ordinary reads,
- * with a bypass for the one caller that needs a live value — the frontend's
- * poll-until-settled loop right after subscribe/change/capture, since the
- * only write path for entitlements is an async PayPal webhook, never the
- * request/response of the action itself.
+ * state, the connection health probe (ConnectionStatus), and the Dashboard's
+ * quota rail. A 60s transient cache for ordinary reads, with a bypass for the
+ * one caller that needs a live value — the frontend's poll-until-settled loop
+ * right after subscribe/change/capture, since the only write path for
+ * entitlements is an async PayPal webhook, never the request/response of the
+ * action itself.
  */
 final class BillingEntitlementsService
 {

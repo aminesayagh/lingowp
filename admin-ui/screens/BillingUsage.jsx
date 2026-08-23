@@ -1,14 +1,16 @@
 import {
 	Banner,
 	BlockStack,
+	Box,
 	Button,
 	Card,
 	InlineGrid,
 	InlineStack,
 	ProgressBar,
+	Spinner,
 	Text,
 } from '@shopify/polaris'
-import { useEffect, useState } from '@wordpress/element'
+import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
 import { errorMessage } from '../errors'
 import { GhostBars } from './InsightsPreview'
@@ -71,62 +73,95 @@ export default function BillingUsage() {
 	const [ languages, setLanguages ] = useState( null )
 	const [ languagesError, setLanguagesError ] = useState( '' )
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/billing/entitlements' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	// Each fetcher clears its own error before retrying, so a Retry click that
+	// succeeds doesn't leave the previous failure's banner text stranded.
+	const fetchEntitlements = useCallback( () => {
+		setEntitlementsError( '' )
+		return api.get( '/billing/entitlements' ).then( ( res ) => {
 			if ( res.ok ) {
 				setEntitlements( res.entitlements )
 			} else {
 				setEntitlementsError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/billing/usage' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	const fetchUsage = useCallback( () => {
+		setUsageError( '' )
+		return api.get( '/billing/usage' ).then( ( res ) => {
 			if ( res.ok ) {
 				setUsage( res )
 			} else {
 				setUsageError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/languages/targets' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	const fetchLanguages = useCallback( () => {
+		setLanguagesError( '' )
+		return api.get( '/languages/targets' ).then( ( res ) => {
 			if ( res.ok ) {
 				setLanguages( res.languages )
 			} else {
 				setLanguagesError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
 
+	useEffect( () => {
+		fetchEntitlements()
+	}, [ fetchEntitlements ] )
+
+	useEffect( () => {
+		fetchUsage()
+	}, [ fetchUsage ] )
+
+	useEffect( () => {
+		fetchLanguages()
+	}, [ fetchLanguages ] )
+
 	if ( entitlements === null || usage === null || languages === null ) {
+		// A still-null value paired with its error means that fetch failed —
+		// distinct from simply not having resolved yet, which must keep
+		// showing the spinner, not a premature error.
+		const initialLoadError =
+			( entitlements === null && entitlementsError ) ||
+			( usage === null && usageError ) ||
+			( languages === null && languagesError )
+
+		if ( initialLoadError ) {
+			return (
+				<Box padding="500">
+					<BlockStack gap="200">
+						<Text as="p" tone="critical">
+							{ errorMessage( initialLoadError ) }
+						</Text>
+						<InlineStack>
+							<Button
+								onClick={ () => {
+									if ( entitlements === null ) {
+										fetchEntitlements()
+									}
+									if ( usage === null ) {
+										fetchUsage()
+									}
+									if ( languages === null ) {
+										fetchLanguages()
+									}
+								} }
+							>
+								Retry
+							</Button>
+						</InlineStack>
+					</BlockStack>
+				</Box>
+			)
+		}
+
 		return (
-			<Text as="span" tone="subdued">
-				Loading…
-			</Text>
+			<Box padding="500">
+				<Spinner accessibilityLabel="Loading usage" size="small" />
+			</Box>
 		)
 	}
 

@@ -44,7 +44,6 @@ use TransLangs\Extraction\Structured\StructuredSourceScanner;
 use TransLangs\Database\OrphanTranslationSweep;
 use TransLangs\Database\SourceLanguageSnapshot;
 use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Backend\AiQuotaService;
 use TransLangs\Backend\BackendClient;
 use TransLangs\Backend\BackendEndpointResolver;
 use TransLangs\Backend\ConnectionRepository;
@@ -303,14 +302,13 @@ class Plugin
         $backendClient    = new BackendClient(new BackendEndpointResolver(), $connection);
         $siteMetadata     = new SiteMetadataProvider($languageRegistry, $connection);
         $languageMetadata = new LanguageMetadataStore();
-        $aiQuota             = new AiQuotaService($backendClient);
-        $connectionStatus    = new ConnectionStatus($aiQuota, $connection);
-        $siteConnector       = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus);
         $billingEntitlements = new BillingEntitlementsService($backendClient);
+        $connectionStatus    = new ConnectionStatus($billingEntitlements, $connection);
+        $siteConnector       = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus);
 
         // REST API for the onboarding SPA (registers on rest_api_init).
         (new OnboardingRestController($siteConnector, $connection, $languageRegistry, $connectionStatus))->register();
-        (new ConnectionRestController($connection, $connectionStatus, $siteConnector, $aiQuota))->register();
+        (new ConnectionRestController($connection, $connectionStatus, $siteConnector))->register();
         (new ProviderKeyRestController($backendClient))->register();
         (new BillingRestController($backendClient, $billingEntitlements))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
@@ -321,7 +319,7 @@ class Plugin
         (new TranslationRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
 
         $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry);
-        (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $aiQuota, $aiTranslationRunner, $connectionStatus))->register();
+        (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $billingEntitlements, $aiTranslationRunner, $connectionStatus))->register();
 
         (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
         (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
@@ -337,7 +335,7 @@ class Plugin
             $gettextImporter,
             new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore()),
             $backendClient,
-            $aiQuota,
+            $billingEntitlements,
             $connectionStatus,
             new GettextTranslatedPercentCache()
         ))->register();

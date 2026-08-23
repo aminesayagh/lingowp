@@ -31,27 +31,28 @@ export default function App() {
 	// never be left closed-but-incomplete.
 	const [ onboardingModalOpen, setOnboardingModalOpen ] = useState( false )
 
-	// Deep link from a /license/recover email's "Refresh license in WordPress"
-	// button: ?page=translangs&license_key=... . Applied silently in the
+	// Deep link from any license-ladder confirm email (recover/rotate,
+	// domain_reuse_claim, attach_website): ?page=translangs&confirm_token=... .
+	// This is an opaque, single-use, expiring token — never a raw license key —
+	// so nothing here can leak a real credential via browser history, referrer
+	// headers, or mail-scanner prefetching. Applied silently in the
 	// background — clicking a link that arrived in the site's own inbox is
 	// already the user's confirmation, nothing here should block on another
 	// click. The dashboard's own on-mount /connection/check (unaffected by
 	// this) will reflect the applied key next time the admin loads/refreshes
 	// the page; no reload is forced from here.
-	const [ recoveredLicenseKey, setRecoveredLicenseKey ] = useQueryState(
-		'license_key',
+	const [ confirmToken, setConfirmToken ] = useQueryState(
+		'confirm_token',
 		parseAsString
 	)
 
 	useEffect( () => {
-		if ( ! recoveredLicenseKey ) {
+		if ( ! confirmToken ) {
 			return
 		}
-		api.post( '/connection/apply-license', {
-			license_key: recoveredLicenseKey,
-		} )
-		setRecoveredLicenseKey( null )
-	}, [ recoveredLicenseKey, setRecoveredLicenseKey ] )
+		api.post( '/connection/confirm', { token: confirmToken } )
+		setConfirmToken( null )
+	}, [ confirmToken, setConfirmToken ] )
 
 	// Polaris renders popovers/tooltips/modals into a portal container that, by
 	// default, lives inside the React tree — which in wp-admin sits under the

@@ -42,24 +42,28 @@ final class BackendClient
     }
 
     /**
-     * POST /license/issue — first connect; returns the raw license key once.
-     * Self-serve (no auth header) — defended backend-side by IP rate limiting
-     * and domain validation instead.
+     * POST /license/connect — bootstrap (no auth). Runs the backend's
+     * resolution ladder: either `{sent: true}` (a token email went out —
+     * recover/rotate, domain_reuse_claim, or attach_website; nothing is
+     * stored until it's confirmed) or, only when nothing matched at all,
+     * `{license_key, site_id}` created synchronously. Recovery is folded
+     * into this same call now — there is no separate recover endpoint.
      */
-    public function issueLicense(array $payload): array
+    public function connect(array $payload): array
     {
-        return $this->request('POST', '/license/issue', $payload);
+        return $this->request('POST', '/license/connect', $payload);
     }
 
     /**
-     * POST /license/recover — no auth; always returns {sent: true} regardless
-     * of whether the domain matched anything. If it did, the backend rotates
-     * the license server-side and emails the new raw key to the site's
-     * stored admin_email — safe to call speculatively, no rate limit/cooldown.
+     * POST /license/confirm — no auth; the single callback every emailed
+     * token lands on. Payload: { token }. Dispatches server-side on what
+     * kind of action the token was for; success data carries whatever the
+     * caller needs to apply (license_key, and site_id when a new site was
+     * just created). `400 invalid_or_expired_token` if unknown/used/expired.
      */
-    public function recover(array $payload): array
+    public function confirmToken(string $token): array
     {
-        return $this->request('POST', '/license/recover', $payload);
+        return $this->request('POST', '/license/confirm', ['token' => $token]);
     }
 
     /**
@@ -70,12 +74,6 @@ final class BackendClient
     public function translate(array $payload): array
     {
         return $this->request('POST', '/translations', $payload, $this->authHeaders(), self::TRANSLATE_TIMEOUT);
-    }
-
-    /** GET /usage — AI word quota snapshot (bearer + domain); also doubles as the connection health probe. */
-    public function usage(): array
-    {
-        return $this->request('GET', '/usage', null, $this->authHeaders());
     }
 
     /** GET /provider-keys — masked list of stored BYOK keys (bearer + domain). */
@@ -237,11 +235,11 @@ final class BackendClient
 
         return match (true) {
             $status === 409 && $detail === 'domain_mismatch'         => 'ERR_DOMAIN_MISMATCH',
-            $status === 409 && $detail === 'domain_already_licensed' => 'ERR_DOMAIN_ALREADY_LICENSED',
             $status === 429 && $detail === 'rebind_cooldown_active'  => 'ERR_REBIND_COOLDOWN',
             $status === 429                                          => 'ERR_RATE_LIMITED',
             $status === 400 && $detail === 'domain_not_allowed'      => 'ERR_DOMAIN_NOT_ALLOWED',
             $status === 400 && $detail === 'domain_unreachable'      => 'ERR_DOMAIN_UNREACHABLE',
+            $status === 400 && $detail === 'invalid_or_expired_token' => 'ERR_INVALID_CONFIRM_TOKEN', // /license/confirm
             $status === 400 && $detail === 'invalid_key'             => 'ERR_INVALID_API_KEY',     // /provider-keys: provider rejected the key
             $status === 502 && $detail === 'provider_unreachable'    => 'ERR_PROVIDER_UNREACHABLE', // /provider-keys: couldn't reach provider to validate
             $status === 404 && $detail === 'site_not_found'          => 'ERR_SITE_NOT_FOUND',
@@ -252,8 +250,11 @@ final class BackendClient
             $status === 409 && $detail === 'already_on_plan'        => 'ERR_ALREADY_ON_PLAN',
             $status === 409 && $detail === 'active_subscription_required' => 'ERR_SUBSCRIPTION_REQUIRED',
             $status === 403 && $detail === 'order_not_owned'         => 'ERR_ORDER_NOT_OWNED',      // /billing/packs/order/{id}/capture
+            $status === 402                                          => 'ERR_LICENSE_DETACHED', // key valid, license_id IS NULL — keep key, no auto-reconnect
+            $status === 409                                          => 'ERR_DOMAIN_MISMATCH',  // any other protected route: domain on file doesn't match
+            $status === 410                                          => 'ERR_LICENSE_REVOKED',  // key valid but revoked — delete key, reconnect
             $status === 400                                          => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group)
-            $status === 401 || $status === 403                       => 'ERR_INVALID_TOKEN',    // 403 = revoked token; 401 detail is a sentence, never slug-matched
+            $status === 401 || $status === 403                       => 'ERR_INVALID_TOKEN',    // key unrecognised — delete key, reconnect; 401 detail is a sentence, never slug-matched
             $status === 404                                          => 'ERR_NOT_FOUND',
             $status === 422                                          => 'ERR_INVALID_PAYLOAD',
             default                                                   => 'ERR_BACKEND', // covers 503/500 — no retry here, see AiTranslationRunner

@@ -3,8 +3,8 @@
 namespace TransLangs\GettextDomains;
 
 use TransLangs\GettextDomains\InstalledGettextComponentDiscovery;
-use TransLangs\Backend\AiQuotaService;
 use TransLangs\Backend\BackendClient;
+use TransLangs\Backend\BillingEntitlementsService;
 use TransLangs\Backend\ConnectionStatus;
 use TransLangs\GettextDomains\GettextDomainRegistry;
 use TransLangs\GettextDomains\GettextOnlineTranslationFetcher;
@@ -44,7 +44,7 @@ final class GettextDomainRestController
         private GettextPoImporter $importer,
         private GettextTranslationUnitsService $units,
         private BackendClient $backend,
-        private AiQuotaService $quota,
+        private BillingEntitlementsService $entitlements,
         private ConnectionStatus $connectionStatus,
         private GettextTranslatedPercentCache $percentCache
     ) {}
@@ -323,8 +323,8 @@ final class GettextDomainRestController
      * saveUnit() — the overlay's "Translate" button. One string at a time
      * rather than a batch, so a plugin/theme with 500 strings never blocks the
      * UI on a single all-or-nothing request. No client-side quota pre-check —
-     * see AiTranslationController's docblock for why (GET /usage doesn't
-     * return real numbers yet, so there's nothing to check against).
+     * see AiTranslationController's docblock: quota enforcement belongs to
+     * /translations itself, not a separate gate in front of it.
      */
     public function translateUnit(WP_REST_Request $request): WP_REST_Response
     {
@@ -386,7 +386,7 @@ final class GettextDomainRestController
         }
         $this->percentCache->invalidate($type, $domain, $locale);
 
-        $this->quota->invalidate();
+        $this->entitlements->invalidate();
 
         return rest_ensure_response(['ok' => true, 'msgstr' => $text]);
     }

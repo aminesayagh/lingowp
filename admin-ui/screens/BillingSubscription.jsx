@@ -2,6 +2,7 @@ import {
 	Badge,
 	Banner,
 	BlockStack,
+	Box,
 	Button,
 	Card,
 	DataTable,
@@ -9,6 +10,7 @@ import {
 	InlineStack,
 	Modal,
 	ProgressBar,
+	Spinner,
 	Text,
 } from '@shopify/polaris'
 import { useCallback, useEffect, useState } from '@wordpress/element'
@@ -528,61 +530,58 @@ export default function BillingSubscription() {
 		parseAsString
 	)
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/billing/plans' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	// Each fetcher clears its own error before retrying, so a Retry click that
+	// succeeds doesn't leave the previous failure's banner text stranded.
+	const fetchPlans = useCallback( () => {
+		setPlansError( '' )
+		return api.get( '/billing/plans' ).then( ( res ) => {
 			if ( res.ok ) {
 				setPlans( res.plans )
 			} else {
 				setPlansError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/billing/packs' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	const fetchPacks = useCallback( () => {
+		setPacksError( '' )
+		return api.get( '/billing/packs' ).then( ( res ) => {
 			if ( res.ok ) {
 				setPacks( res.packs )
 			} else {
 				setPacksError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
 
-	useEffect( () => {
-		let cancelled = false
-		api.get( '/billing/transactions' ).then( ( res ) => {
-			if ( cancelled ) {
-				return
-			}
+	const fetchTransactions = useCallback( () => {
+		setTransactionsError( '' )
+		return api.get( '/billing/transactions' ).then( ( res ) => {
 			if ( res.ok ) {
 				setTransactions( res.transactions )
 			} else {
 				setTransactionsError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
 
-	// The one place entitlements gets fetched — the initial load, and the
-	// poll-until-settled loop below both call this, the latter with
-	// fresh: true to bypass the 60s server-side cache.
+	useEffect( () => {
+		fetchPlans()
+	}, [ fetchPlans ] )
+
+	useEffect( () => {
+		fetchPacks()
+	}, [ fetchPacks ] )
+
+	useEffect( () => {
+		fetchTransactions()
+	}, [ fetchTransactions ] )
+
+	// The one place entitlements gets fetched — the initial load, a Retry
+	// click, and the poll-until-settled loop below all call this, the latter
+	// with fresh: true to bypass the 60s server-side cache.
 	const refetchEntitlements = useCallback( ( { fresh = false } = {} ) => {
+		setEntitlementsError( '' )
 		return api
 			.get( `/billing/entitlements${ fresh ? '?fresh=1' : '' }` )
 			.then( ( res ) => {
@@ -599,8 +598,25 @@ export default function BillingSubscription() {
 		refetchEntitlements()
 	}, [ refetchEntitlements ] )
 
+	// Retries only whichever initial fetch(es) actually failed — the ones
+	// that succeeded already have their data and don't need refetching.
+	function retryInitialLoad() {
+		if ( plans === null ) {
+			fetchPlans()
+		}
+		if ( packs === null ) {
+			fetchPacks()
+		}
+		if ( entitlements === null ) {
+			refetchEntitlements()
+		}
+		if ( transactions === null ) {
+			fetchTransactions()
+		}
+	}
+
 	// Redirect-back handling — PayPal always returns with ?status=..., same
-	// one-shot deep-link pattern as App.jsx's license_key handling. `status`
+	// one-shot deep-link pattern as App.jsx's confirm_token handling. `status`
 	// is a routing signal only, never proof of anything — it only decides
 	// which follow-up call to make, never sets entitlements/active directly.
 	useEffect( () => {
@@ -769,10 +785,34 @@ export default function BillingSubscription() {
 		packs === null ||
 		transactions === null
 	) {
+		// A still-null value paired with its error means that fetch failed —
+		// distinct from simply not having resolved yet, which must keep
+		// showing the spinner, not a premature error.
+		const initialLoadError =
+			( plans === null && plansError ) ||
+			( packs === null && packsError ) ||
+			( entitlements === null && entitlementsError ) ||
+			( transactions === null && transactionsError )
+
+		if ( initialLoadError ) {
+			return (
+				<Box padding="500">
+					<BlockStack gap="200">
+						<Text as="p" tone="critical">
+							{ errorMessage( initialLoadError ) }
+						</Text>
+						<InlineStack>
+							<Button onClick={ retryInitialLoad }>Retry</Button>
+						</InlineStack>
+					</BlockStack>
+				</Box>
+			)
+		}
+
 		return (
-			<Text as="span" tone="subdued">
-				Loading…
-			</Text>
+			<Box padding="500">
+				<Spinner accessibilityLabel="Loading billing" size="small" />
+			</Box>
 		)
 	}
 

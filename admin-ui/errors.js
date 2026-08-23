@@ -14,8 +14,11 @@ const MESSAGES = {
 	ERR_INVALID_INPUT: 'Select at least one category to continue.',
 	ERR_NOT_CONNECTED: 'Not connected. Finish setup to continue.',
 	ERR_INVALID_STATUS: 'Unknown status filter. Refresh and try again.',
-	ERR_DOMAIN_ALREADY_LICENSED:
-		'This domain already has a license. We emailed a recovery link to the site admin — open it to reconnect.',
+	ERR_LICENSE_DETACHED:
+		"This site's license isn't attached to a plan. Visit Billing to finish setup.",
+	ERR_LICENSE_REVOKED: 'This license was revoked. Reconnecting…',
+	ERR_INVALID_CONFIRM_TOKEN:
+		'This link has expired or was already used. Request a new one and try again.',
 	ERR_DOMAIN_MISMATCH:
 		"This site's address doesn't match our records. Reconnect this domain to continue.",
 	ERR_RATE_LIMITED: 'Too many attempts. Wait a moment and try again.',
@@ -47,6 +50,12 @@ const MESSAGES = {
 export function errorMessage( code ) {
 	return MESSAGES[ code ] || 'Something went wrong. Try again.'
 }
+
+// Not an ERR_* code — the successful-but-pending outcome of /connection/connect
+// (a confirm email is on its way, nothing is connected yet). Must never be
+// routed through errorMessage().
+export const CONNECT_PENDING_MESSAGE =
+	"We've emailed the site admin to finish connecting. Check that inbox, then click the link."
 
 // A query cancelled because a newer one superseded it (language/search/status
 // changed, or the row scrolled out of view) — never a real failure, so callers

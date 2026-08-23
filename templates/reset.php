@@ -15,10 +15,10 @@ if (!defined('ABSPATH')) {
     <div class="translangs-card">
         <h2 class="translangs-card__title"><?php esc_html_e('Reset to first activation', 'translangs'); ?></h2>
         <p class="translangs-card__desc">
-            <?php esc_html_e('Deletes every discovered text and translation, your API connection and credentials, and all configuration (languages, behavior toggles) — then requests a fresh initial scan and HTML crawl. The end result is meant to look exactly like a brand-new install: you will need to go through onboarding again. This cannot be undone.', 'translangs'); ?>
+            <?php esc_html_e('Drops every TransLangs table, deletes your API connection and credentials and all configuration (languages, behavior toggles), then deactivates the plugin. Reactivate it manually afterwards to start setup over from a clean slate. This cannot be undone.', 'translangs'); ?>
         </p>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
-            onsubmit="return confirm('<?php echo esc_js(__('Delete all discovered text, translations, connection, and configuration? This cannot be undone.', 'translangs')); ?>');">
+            onsubmit="return confirm('<?php echo esc_js(__('Drop all tables, delete the connection and configuration, and deactivate the plugin? This cannot be undone.', 'translangs')); ?>');">
             <input type="hidden" name="action" value="translangs_reset_data">
             <?php wp_nonce_field('translangs_reset_data', 'translangs_reset_nonce'); ?>
             <button type="submit" class="button button-link-delete">

@@ -1,6 +1,7 @@
 import {
 	AppProvider,
 	BlockStack,
+	Box,
 	Button,
 	Card,
 	Divider,
@@ -8,6 +9,7 @@ import {
 	InlineStack,
 	Page,
 	PortalsManager,
+	Spinner,
 	Text,
 } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
@@ -16,6 +18,7 @@ import { useEffect, useState } from '@wordpress/element'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from './api'
+import { ensureConnected } from './connection'
 import BillingSubscription from './screens/BillingSubscription'
 import BillingUsage from './screens/BillingUsage'
 import BillingToken from './screens/BillingToken'
@@ -49,14 +52,26 @@ const TABS = [
 export default function BillingApp() {
 	const [ tab, setTab ] = useQueryState( 'tab', tabParser )
 	const [ subscribed, setSubscribed ] = useState( true ) // optimistic until entitlements load, so the Usage tab doesn't flash disabled
+	// A direct visit to Billing can be the very first thing that happens after
+	// activation, before onboarding ever ran a connect attempt. Every tab
+	// below fires its own bearer-authed fetch on mount, so none of them may
+	// render until ensureConnected() has settled — otherwise a
+	// never-connected install 401s on all of them at once.
+	const [ connectionReady, setConnectionReady ] = useState( false )
 
 	useEffect( () => {
 		let cancelled = false
-		api.get( '/billing/entitlements' ).then( ( res ) => {
-			if ( ! cancelled && res.ok ) {
-				setSubscribed( !! res.entitlements?.active )
-			}
-		} )
+		ensureConnected()
+			.then( () => api.get( '/billing/entitlements' ) )
+			.then( ( res ) => {
+				if ( cancelled ) {
+					return
+				}
+				if ( res.ok ) {
+					setSubscribed( !! res.entitlements?.active )
+				}
+				setConnectionReady( true )
+			} )
 		return () => {
 			cancelled = true
 		}
@@ -182,15 +197,26 @@ export default function BillingApp() {
 													ease: 'easeOut',
 												} }
 											>
-												{ tab === 'subscription' && (
-													<BillingSubscription />
+												{ ! connectionReady && (
+													<Box padding="500">
+														<Spinner
+															accessibilityLabel="Connecting to Translangs"
+															size="small"
+														/>
+													</Box>
 												) }
-												{ tab === 'usage' && (
-													<BillingUsage />
-												) }
-												{ tab === 'token' && (
-													<BillingToken />
-												) }
+												{ connectionReady &&
+													tab === 'subscription' && (
+														<BillingSubscription />
+													) }
+												{ connectionReady &&
+													tab === 'usage' && (
+														<BillingUsage />
+													) }
+												{ connectionReady &&
+													tab === 'token' && (
+														<BillingToken />
+													) }
 											</motion.div>
 										</AnimatePresence>
 									</MotionConfig>

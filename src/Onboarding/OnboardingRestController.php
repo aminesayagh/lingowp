@@ -107,28 +107,31 @@ final class OnboardingRestController
         // cannot send the user back to the first configuration screen.
         $this->connection->markOnboardingComplete();
 
-        $warning = $this->attemptConnect();
+        $outcome = $this->attemptConnect();
 
         // Always advance to setting-up. `connected` tells the SPA whether AI is live;
-        // `warning` carries the ERR_* reason when the connect did not succeed.
+        // `warning` carries the ERR_* reason when the connect did not succeed;
+        // `pending` means a confirm email is on its way, nothing stored yet.
         return rest_ensure_response([
             'ok'        => true,
             'next'      => 'onboarding_setting_up',
             'connected' => $this->connection->isConnected(),
-            'warning'   => $warning,
+            'warning'   => $outcome['error'],
+            'pending'   => $outcome['pending'],
         ]);
     }
 
     /**
-     * Runs POST /auth/site with the current site metadata, storing the token on
-     * success. Returns an ERR_* code on failure ('' on success) — never throws,
-     * so callers can proceed offline.
+     * Runs POST /license/connect with the current site metadata, storing the
+     * key on success. Never throws, so callers can proceed offline.
+     *
+     * @return array{error: string, pending: bool}
      */
-    private function attemptConnect(): string
+    private function attemptConnect(): array
     {
         $result = $this->siteConnector->connect();
 
-        return $result['ok'] ? '' : $result['error'];
+        return ['error' => $result['ok'] ? '' : $result['error'], 'pending' => $result['pending'] ?? false];
     }
 
     /** Mark completed and hand the SPA its dashboard destination. Does not wait for the scan. */

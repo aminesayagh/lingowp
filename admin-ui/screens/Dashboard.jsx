@@ -48,6 +48,7 @@ import {
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api'
+import { ensureConnected } from '../connection'
 import { errorMessage } from '../errors'
 import { AiIcon } from './AiIcon'
 import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList'
@@ -273,6 +274,9 @@ export default function Dashboard( {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
+	// A /license/connect confirm email is on its way — nothing is connected
+	// yet, so this must never be shown/read as an error.
+	const [ connectPending, setConnectPending ] = useState( false )
 	// Optimistically false until entitlements + provider-keys load, so the AI
 	// buttons don't flash into their blocked state on first paint.
 	const [ billingBlocked, setBillingBlocked ] = useState( false )
@@ -343,76 +347,65 @@ export default function Dashboard( {
 		setManagerEverOpened( true )
 	}
 
-	function loadQuota() {
-		api.get( '/quota' ).then( ( res ) =>
-			setQuota( res.ok ? res.quota : null )
-		)
-	}
-
-	// Every page load: force a LIVE backend probe (not the cached status —
-	// that's stale for up to 15 minutes after an outage recovers, which is
-	// exactly what would make a just-restarted backend look still-down here).
-	// If the site was never (or no longer) connected, retry automatically —
-	// no manual "Reconnect" action anywhere.
-	useEffect( () => {
-		api.post( '/connection/check' ).then( ( res ) => {
-			if ( res.connected ) {
-				setAi( {
-					available: !! res.ai_available,
-					error: res.ai_error || '',
-				} )
-				setQuota( res.quota ?? null )
-				// A stored credential exists but isn't usable right now (revoked
-				// key, domain mismatch, backend down, ...) — surface it on this
-				// load instead of staying silent until the user tries to
-				// translate something. ERR_DOMAIN_ALREADY_LICENSED is excluded:
-				// that case already has its own quiet explanation in the quota
-				// card (a recovery email was just sent), not a toast.
-				if (
-					! res.ai_available &&
-					res.ai_error !== 'ERR_DOMAIN_ALREADY_LICENSED'
-				) {
-					showToast( 'warning', errorMessage( res.ai_error ) )
-				}
-				return
-			}
-			api.post( '/connection/connect' ).then( ( reconnectRes ) => {
-				if ( reconnectRes.ok && reconnectRes.connected ) {
-					setAi( {
-						available: !! reconnectRes.ai_available,
-						error: '',
-					} )
-					setQuota( reconnectRes.quota ?? null )
-					return
-				}
-				const error = reconnectRes.error || 'ERR_BACKEND'
-				setAi( { available: false, error } )
-				showToast( 'warning', errorMessage( error ) )
-			} )
-		} )
-	}, [] )
-
-	// AI translation needs either an active subscription or the user's own
-	// provider key — neither means every AI action is blocked. A stored key is
-	// only ever saved once it validates (see BackendClient::saveProviderKey), so
-	// presence alone means it's usable, no status filtering needed.
-	useEffect( () => {
-		let cancelled = false
-		Promise.all( [
+	// The one place entitlements gets fetched — mount, and after every AI
+	// translate (usage changed). Also derives billingBlocked from the same
+	// response instead of a separate request, and feeds the quota rail.
+	const refetchEntitlements = useCallback( () => {
+		return Promise.all( [
 			api.get( '/billing/entitlements' ),
 			api.get( '/provider-keys' ),
 		] ).then( ( [ entitlementsRes, keysRes ] ) => {
-			if ( cancelled ) {
-				return
-			}
+			setQuota( entitlementsRes.ok ? entitlementsRes.entitlements : null )
 			const subscribed = !! entitlementsRes.entitlements?.active
 			const hasOwnKey = ( keysRes.keys || [] ).length > 0
 			setBillingBlocked( ! subscribed && ! hasOwnKey )
 		} )
-		return () => {
-			cancelled = true
-		}
 	}, [] )
+
+	// Every page load: force a LIVE backend probe (not the cached status —
+	// that's stale for up to 15 minutes after an outage recovers, which is
+	// exactly what would make a just-restarted backend look still-down here).
+	// A stale key (401/410) self-heals server-side (SiteConnector::ensureValid).
+	// A site that has genuinely never connected yet (onboarding wasn't
+	// finished, or this page was opened before it was) gets connected here
+	// too — ensureConnected() only fires /connection/connect for that exact
+	// case, and the backend dedupes a repeat pending ask instead of
+	// re-emailing, so this is safe on every mount. Entitlements/provider-keys
+	// are bearer-authed, so they wait for this to settle first — firing them
+	// in parallel would 401 on a never-connected install.
+	useEffect( () => {
+		ensureConnected().then( ( status ) => {
+			setAi( { available: status.available, error: status.error } )
+			setConnectPending( status.pending )
+			// Only a stored-but-unusable credential is worth a toast here — a
+			// fresh connect attempt (successful, pending, or a domain-level
+			// failure ensureConnected can't fix on its own) isn't a surprise
+			// worth interrupting the page load for.
+			if ( status.connected && ! status.available ) {
+				showToast( 'warning', errorMessage( status.error ) )
+			}
+			refetchEntitlements()
+		} )
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- refetchEntitlements is stable
+	}, [] )
+
+	// Explicit, user-initiated connect/reconnect — the only place
+	// /connection/connect is called from, since it can send an email and must
+	// never loop or resend on its own.
+	function handleConnect() {
+		api.post( '/connection/connect' ).then( ( res ) => {
+			if ( res.pending ) {
+				setConnectPending( true )
+				return
+			}
+			if ( res.ok ) {
+				setAi( { available: !! res.ai_available, error: '' } )
+				setConnectPending( false )
+				return
+			}
+			showToast( 'warning', errorMessage( res.error || 'ERR_BACKEND' ) )
+		} )
+	}
 
 	// Row AI buttons route here instead of translating when billingBlocked —
 	// a toast the user can click straight through to Billing, rather than a
@@ -503,7 +496,7 @@ export default function Dashboard( {
 			predicate: ( q ) =>
 				q.queryKey[ 0 ] === 'texts' && q.queryKey[ 2 ] === lang,
 		} )
-		loadQuota()
+		refetchEntitlements()
 		refreshLanguages() // rail percentages changed
 		return res
 	}
@@ -1621,6 +1614,9 @@ export default function Dashboard( {
 							quota={ quota }
 							aiAvailable={ ai.available }
 							aiError={ ai.error }
+							connectPending={ connectPending }
+							billingBlocked={ billingBlocked }
+							onConnect={ handleConnect }
 						/>
 					</div>
 				</div>

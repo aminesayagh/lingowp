@@ -5,7 +5,7 @@ namespace TransLangs\AiTranslation;
 use TransLangs\Language\Domain\LocaleNormalizer;
 use TransLangs\Board\CollectionBoard;
 
-use TransLangs\Backend\AiQuotaService;
+use TransLangs\Backend\BillingEntitlementsService;
 use TransLangs\Backend\ConnectionStatus;
 use TransLangs\Database\Repository\WpDbSourceRepository;
 use TransLangs\Shared\Source\SourceRef;
@@ -26,10 +26,10 @@ use WP_REST_Response;
  * becomes a problem — the runner's batch/save loop transplants directly into a
  * job worker.
  *
- * There is no client-side quota pre-check here — GET /usage (what a quota
- * snapshot would be built on) doesn't return real numbers yet, so a pre-check
- * against it can never do anything but pass; whatever quota enforcement exists
- * belongs to /translations itself, not a separate gate in front of it.
+ * There is no client-side quota pre-check here — whatever quota enforcement
+ * exists belongs to /translations itself, not a separate gate in front of it.
+ * GET /me/entitlements is the canonical snapshot for anyone who wants one
+ * (the Dashboard's quota rail), not this controller.
  *
  * "AI translate all" targets missing + needs_review units (already-done ones
  * are skipped).
@@ -42,7 +42,7 @@ final class AiTranslationController
         private WpDbSourceRepository $repo,
         private OptionLanguageRegistry $registry,
         private CollectionBoard $collections,
-        private AiQuotaService $quota,
+        private BillingEntitlementsService $entitlements,
         private AiTranslationRunner $runner,
         private ConnectionStatus $connectionStatus
     ) {}
@@ -57,7 +57,6 @@ final class AiTranslationController
         $guard = ['permission_callback' => [$this, 'canManage']];
 
         register_rest_route(self::NS, '/translate', ['methods' => 'POST', 'callback' => [$this, 'translate']] + $guard);
-        register_rest_route(self::NS, '/quota', ['methods' => 'GET', 'callback' => [$this, 'quota']] + $guard);
     }
 
     public function canManage(): bool
@@ -99,7 +98,7 @@ final class AiTranslationController
             ]);
         }
 
-        $this->quota->invalidate(); // usage changed; force a fresh read next time.
+        $this->entitlements->invalidate(); // usage changed; force a fresh read next time.
 
         // `failed`/`failures` are only present when something was rejected, so the
         // existing client shape is unchanged on a clean run.
@@ -152,17 +151,6 @@ final class AiTranslationController
         }
 
         return [];
-    }
-
-    /** Current AI word quota snapshot (cached ~60s), proxied from the backend. */
-    public function quota(WP_REST_Request $request): WP_REST_Response
-    {
-        $data = $this->quota->data();
-        if ($data === null) {
-            return rest_ensure_response(['ok' => false, 'error' => 'ERR_BACKEND']);
-        }
-
-        return rest_ensure_response(['ok' => true, 'quota' => $data]);
     }
 
     /**
