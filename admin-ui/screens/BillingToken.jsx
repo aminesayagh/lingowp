@@ -276,11 +276,6 @@ export default function BillingToken() {
 				</Text>
 				<Card>
 					<BlockStack gap="200">
-						<Text as="span" tone="subdued">
-							Translate with your own OpenAI or Anthropic account
-							instead of Translangs&apos; AI translation.
-						</Text>
-
 						{ providerKeysError && (
 							<Banner
 								tone="critical"

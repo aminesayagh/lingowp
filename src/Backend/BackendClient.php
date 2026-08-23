@@ -248,6 +248,8 @@ final class BackendClient
             $status === 409 && $detail === 'already_subscribed'     => 'ERR_ALREADY_SUBSCRIBED',
             $status === 409 && $detail === 'no_active_subscription' => 'ERR_NO_ACTIVE_SUBSCRIPTION',
             $status === 409 && $detail === 'already_on_plan'        => 'ERR_ALREADY_ON_PLAN',
+            $status === 409 && $detail === 'billing_cycle_change_not_supported' => 'ERR_BILLING_CYCLE_CHANGE_NOT_SUPPORTED', // /billing/subscription/plan: crossing cadence isn't a supported change-plan action
+            $status === 409 && $detail === 'plan_change_already_pending' => 'ERR_PLAN_CHANGE_PENDING', // /billing/subscription/plan: a revision is already approved and scheduled
             $status === 409 && $detail === 'active_subscription_required' => 'ERR_SUBSCRIPTION_REQUIRED',
             $status === 403 && $detail === 'order_not_owned'         => 'ERR_ORDER_NOT_OWNED',      // /billing/packs/order/{id}/capture
             $status === 402                                          => 'ERR_LICENSE_DETACHED', // key valid, license_id IS NULL — keep key, no auto-reconnect

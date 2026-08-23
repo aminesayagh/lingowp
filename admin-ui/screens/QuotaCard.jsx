@@ -1,5 +1,6 @@
 import { BlockStack, Button, Card, ProgressBar, Text } from '@shopify/polaris'
 import { CONNECT_PENDING_MESSAGE } from '../errors'
+import { formatPlanKey } from '../planFormat'
 
 const cfg = window.Translangs || {}
 const TOKEN_TAB_URL = cfg.billing_url ? `${ cfg.billing_url }&tab=token` : ''
@@ -97,7 +98,6 @@ export default function QuotaCard( {
 		plan,
 		monthly_allowance: allowance,
 		monthly_remaining: remaining,
-		period_end: renews,
 	} = quota
 	const consumed = Math.max( 0, ( allowance ?? 0 ) - ( remaining ?? 0 ) )
 	const pct =
@@ -110,7 +110,7 @@ export default function QuotaCard( {
 		<Card>
 			<BlockStack gap="200">
 				<Text as="span" variant="headingSm">
-					{ plan || 'Plan & usage' }
+					{ plan ? formatPlanKey( plan ) : 'Plan & usage' }
 				</Text>
 				<Text as="span" variant="bodySm">
 					{ consumed.toLocaleString() } /{ ' ' }
@@ -121,20 +121,12 @@ export default function QuotaCard( {
 					size="small"
 					tone={ nearLimit ? 'critical' : 'primary' }
 				/>
-				<Text as="span" tone="subdued" variant="bodySm">
-					{ ( remaining ?? 0 ).toLocaleString() } remaining
-					{ renews ? ` · resets ${ renews }` : '' }
-				</Text>
 				{ nearLimit && (
 					<Text as="span" tone="critical" variant="bodySm">
 						Near limit — upgrade to keep translating.
 					</Text>
 				) }
-				<Button
-					variant="plain"
-					url="https://translangs.com/upgrade"
-					external
-				>
+				<Button variant="secondary" url={ cfg.billing_url }>
 					Upgrade plan
 				</Button>
 			</BlockStack>

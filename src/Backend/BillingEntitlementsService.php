@@ -37,7 +37,9 @@ final class BillingEntitlementsService
     /**
      * @return array{state:string, active:bool, plan:?string, period_id:?int,
      *     period_start:?string, period_end:?string, monthly_allowance:?int,
-     *     monthly_remaining:?int, purchased_words:int, sites_limit:?int}|null
+     *     monthly_remaining:?int, purchased_words:int, sites_limit:?int,
+     *     pending_plan:?string, pending_approve_url:?string,
+     *     pending_plan_change:?string}|null
      */
     public function data(bool $bypassCache = false): ?array
     {
@@ -67,6 +69,17 @@ final class BillingEntitlementsService
             'monthly_remaining' => isset($d['monthly_remaining']) ? (int) $d['monthly_remaining'] : null,
             'purchased_words'   => (int) ($d['purchased_words'] ?? 0),
             'sites_limit'       => isset($d['sites_limit']) ? (int) $d['sites_limit'] : null,
+            // An abandoned/incomplete PayPal checkout — the SPA offers to
+            // resume it instead of re-showing the plan picker. Both null in
+            // the normal case (no pending subscription).
+            'pending_plan'        => isset($d['pending_plan']) ? (string) $d['pending_plan'] : null,
+            'pending_approve_url' => isset($d['pending_approve_url']) ? (string) $d['pending_approve_url'] : null,
+            // A different concept from pending_plan above: non-null only when
+            // an *active* subscription has an approved-but-not-yet-renewed
+            // tier revision (the plan_key it will grant on next renewal, not
+            // what's granted today). The SPA uses this to grey out the
+            // change-plan action instead of waiting for a 409.
+            'pending_plan_change' => isset($d['pending_plan_change']) ? (string) $d['pending_plan_change'] : null,
         ];
     }
 

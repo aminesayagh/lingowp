@@ -40,6 +40,10 @@ const MESSAGES = {
 	ERR_NO_ACTIVE_SUBSCRIPTION:
 		"You don't have an active subscription to change.",
 	ERR_ALREADY_ON_PLAN: "You're already on this plan.",
+	ERR_BILLING_CYCLE_CHANGE_NOT_SUPPORTED:
+		"Switching between monthly and yearly billing isn't supported yet. Refresh and try again.",
+	ERR_PLAN_CHANGE_PENDING:
+		'You already have a plan change scheduled for your next billing date.',
 	ERR_SUBSCRIPTION_REQUIRED: 'Subscribe to a plan before buying extra words.',
 	ERR_ORDER_NOT_OWNED:
 		"This order doesn't belong to this site. Contact support.",

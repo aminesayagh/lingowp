@@ -4,6 +4,7 @@ import {
 	BlockStack,
 	Box,
 	Button,
+	ButtonGroup,
 	Card,
 	DataTable,
 	InlineGrid,
@@ -16,7 +17,9 @@ import {
 import { useCallback, useEffect, useState } from '@wordpress/element'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from '../api'
+import { PENDING_WORDS_KEY } from '../billingKeys'
 import { errorMessage } from '../errors'
+import { formatPlanKey } from '../planFormat'
 
 const RECEIPT_STATUS = {
 	COMPLETED: { label: 'Paid', tone: 'success' },
@@ -25,11 +28,10 @@ const RECEIPT_STATUS = {
 	FAILED: { label: 'Failed', tone: 'critical' },
 }
 
-// Both survive the full-page round trip to PayPal and back (a real
-// navigation, not a fetch — React state doesn't survive that, sessionStorage
-// does). Self-cleaning: each is read once on return and removed immediately.
+// Survives the full-page round trip to PayPal and back (a real navigation,
+// not a fetch — React state doesn't survive that, sessionStorage does).
+// Self-cleaning: read once on return and removed immediately.
 const PENDING_ACTION_KEY = 'translangs_pending_billing_action'
-const PENDING_WORDS_KEY = 'translangs_pending_words_before'
 
 function planLabel( plan ) {
 	return plan.tier.charAt( 0 ).toUpperCase() + plan.tier.slice( 1 )
@@ -46,6 +48,23 @@ function money( amount, currency ) {
 		style: 'currency',
 		currency,
 	} ).format( parseFloat( amount ) )
+}
+
+function intervalLabel( plan ) {
+	return plan.interval === 'yearly' ? 'a year' : 'a month'
+}
+
+// Each poll kind has its own idea of "done" — subscribe waits for the sub to
+// go live, purchase waits for the word balance to move, change_plan waits for
+// the webhook-backed pending_plan_change to reflect the requested plan.
+function isPollSettled( polling, entitlements ) {
+	if ( polling.kind === 'subscribe' ) {
+		return entitlements.active === true
+	}
+	if ( polling.kind === 'change_plan' ) {
+		return entitlements.pending_plan_change === polling.targetPlan
+	}
+	return entitlements.purchased_words > polling.before
 }
 
 function formatDate( iso ) {
@@ -74,7 +93,8 @@ function PlanCard( { plan, badge, actionLabel, disabled, loading, onAction } ) {
 					) }
 				</InlineStack>
 				<Text as="span" tone="subdued">
-					{ money( plan.price, plan.currency ) } a month
+					{ money( plan.price, plan.currency ) }{ ' ' }
+					{ intervalLabel( plan ) }
 				</Text>
 				<Text as="span" tone="subdued" variant="bodySm">
 					{ planMeta( plan ) }
@@ -103,7 +123,7 @@ function ReceiptsCard( { transactions } ) {
 					const s = RECEIPT_STATUS[ t.status ]
 					return [
 						formatDate( t.time ),
-						t.plan ?? '—',
+						formatPlanKey( t.plan ),
 						`${ t.amount } ${ t.currency }`,
 						s ? (
 							<Badge key={ t.id } tone={ s.tone }>
@@ -219,15 +239,44 @@ function BuyWordsModal( {
 	)
 }
 
+// Shared by the plan picker (NotSubscribedState) and the change-plan grid
+// (ActiveState) — one toggle, one look, in both places that filter plans by
+// billing interval.
+function IntervalToggle( { value, onChange } ) {
+	return (
+		<ButtonGroup variant="segmented">
+			<Button
+				pressed={ value === 'monthly' }
+				onClick={ () => onChange( 'monthly' ) }
+			>
+				Monthly
+			</Button>
+			<Button
+				pressed={ value === 'yearly' }
+				onClick={ () => onChange( 'yearly' ) }
+			>
+				Yearly
+			</Button>
+		</ButtonGroup>
+	)
+}
+
 function NotSubscribedState( {
 	plans,
 	transactions,
 	actionLoading,
 	actionError,
+	pendingPlan,
+	pendingApproveUrl,
 	onChoose,
 } ) {
 	const hasHistory = transactions.length > 0
-	const monthlyPlans = plans.filter( ( p ) => p.interval === 'monthly' )
+	// Yearly by default — it's the better deal, and the plan grid below is
+	// what actually makes it a real choice instead of just a hint line.
+	const [ billingInterval, setBillingInterval ] = useState( 'yearly' )
+	const intervalPlans = plans.filter(
+		( p ) => p.interval === billingInterval
+	)
 
 	return (
 		<BlockStack gap="400">
@@ -242,14 +291,36 @@ function NotSubscribedState( {
 			) }
 
 			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					{ hasHistory ? 'Start again' : 'Add AI translation' }
-				</Text>
-				{ ! hasHistory && (
-					<Text as="span" tone="subdued">
-						We translate new content for you automatically, as you
-						publish it.
-					</Text>
+				<InlineStack
+					align="space-between"
+					blockAlign="end"
+					gap="400"
+					wrap={ false }
+				>
+					<BlockStack gap="050">
+						<Text as="h3" variant="headingSm">
+							{ hasHistory
+								? 'Start again'
+								: 'Add AI translation' }
+						</Text>
+						{ ! hasHistory && (
+							<Text as="span" tone="subdued">
+								We translate new content for you automatically,
+								as you publish it.
+							</Text>
+						) }
+					</BlockStack>
+					<IntervalToggle
+						value={ billingInterval }
+						onChange={ setBillingInterval }
+					/>
+				</InlineStack>
+				{ pendingApproveUrl && (
+					<PendingSubscriptionBanner
+						plans={ plans }
+						pendingPlan={ pendingPlan }
+						pendingApproveUrl={ pendingApproveUrl }
+					/>
 				) }
 				{ actionError && (
 					<Banner tone="critical">
@@ -257,7 +328,7 @@ function NotSubscribedState( {
 					</Banner>
 				) }
 				<InlineGrid columns={ 3 } gap="300">
-					{ monthlyPlans.map( ( plan ) => (
+					{ intervalPlans.map( ( plan ) => (
 						<PlanCard
 							key={ plan.plan_key }
 							plan={ plan }
@@ -279,9 +350,11 @@ function NotSubscribedState( {
 						/>
 					) ) }
 				</InlineGrid>
-				<Text as="span" tone="subdued" variant="bodySm">
-					Pay yearly and get two months free.
-				</Text>
+				{ billingInterval === 'monthly' && (
+					<Text as="span" tone="subdued" variant="bodySm">
+						Pay yearly and get two months free.
+					</Text>
+				) }
 			</BlockStack>
 
 			<BlockStack gap="200">
@@ -298,16 +371,86 @@ function NotSubscribedState( {
 	)
 }
 
+// entitlements.active is false but a PayPal checkout was already started and
+// never finished (closed tab, browser back, etc.) — the backend keeps that
+// approve_url alive rather than losing track of it. This is a notice, not a
+// replacement for the plan picker below: the admin can either resume this
+// checkout, or ignore it and pick a plan (start over) — the latter still 409s
+// (already_subscribed) against the current backend, since there is no
+// cancel-pending action yet; that fails visibly via the picker's own
+// actionError banner rather than being silently blocked here.
+function PendingSubscriptionBanner( {
+	plans,
+	pendingPlan,
+	pendingApproveUrl,
+} ) {
+	const plan = plans.find( ( p ) => p.plan_key === pendingPlan )
+
+	return (
+		<Banner
+			tone="warning"
+			action={ {
+				content: 'Resume checkout',
+				onAction: () => window.location.assign( pendingApproveUrl ),
+			} }
+		>
+			<Text as="span">
+				You started subscribing to{ ' ' }
+				{ plan ? planLabel( plan ) : 'a plan' } but didn&apos;t finish
+				checkout on PayPal. Resume it below, or pick a plan to start
+				over.
+			</Text>
+		</Banner>
+	)
+}
+
+// entitlements.pending_approve_url is surfaced inside NotSubscribedState's
+// own body, not up here — it never replaces the picker, so this stays the
+// same two-way split as before that field existed.
+function SubscriptionStateBody( {
+	entitlements,
+	plans,
+	transactions,
+	onChangePlan,
+	changeLoading,
+	changeError,
+	actionLoading,
+	actionError,
+	onChoose,
+} ) {
+	if ( entitlements.active ) {
+		return (
+			<ActiveState
+				entitlements={ entitlements }
+				plans={ plans }
+				transactions={ transactions }
+				onChangePlan={ onChangePlan }
+				changeLoading={ changeLoading }
+				changeError={ changeError }
+			/>
+		)
+	}
+
+	return (
+		<NotSubscribedState
+			plans={ plans }
+			transactions={ transactions }
+			actionLoading={ actionLoading }
+			actionError={ actionError }
+			pendingPlan={ entitlements.pending_plan }
+			pendingApproveUrl={ entitlements.pending_approve_url }
+			onChoose={ onChoose }
+		/>
+	)
+}
+
 function ActiveState( {
 	entitlements,
 	plans,
 	transactions,
-	onBuyWords,
 	onChangePlan,
 	changeLoading,
 	changeError,
-	changeConfirmed,
-	confirmedPlanName,
 } ) {
 	const [ downgradeWarning, setDowngradeWarning ] = useState( null )
 
@@ -317,8 +460,12 @@ function ActiveState( {
 		return null
 	}
 
-	const monthlyPlans = plans.filter( ( p ) => p.interval === 'monthly' )
-
+	// Tier and cadence are separate axes (see reference-billing-api-integration.md
+	// §3) — change-plan is tier-only. Crossing cadence (monthly ↔ yearly) has no
+	// backend route yet, so the picker only ever offers plans on the customer's
+	// *current* cadence — never user-selectable here.
+	const intervalPlans = plans.filter( ( p ) => p.interval === plan.interval )
+	const changePending = !! entitlements.pending_plan_change
 	const allowance = entitlements.monthly_allowance ?? 0
 	const remaining = entitlements.monthly_remaining ?? 0
 	const consumed = Math.max( 0, allowance - remaining )
@@ -352,16 +499,12 @@ function ActiveState( {
 							<Badge tone="success">Active</Badge>
 						</InlineStack>
 						<Text as="span" tone="subdued">
-							{ money( plan.price, plan.currency ) } a month ·
-							renews { formatDate( entitlements.period_end ) }
+							{ money( plan.price, plan.currency ) }{ ' ' }
+							{ intervalLabel( plan ) } · renews{ ' ' }
+							{ formatDate( entitlements.period_end ) }
 						</Text>
 						{ allowance > 0 && (
 							<BlockStack gap="150">
-								<Text as="span" tone="subdued" variant="bodySm">
-									Words this period ·{ ' ' }
-									{ formatDate( entitlements.period_start ) }{ ' ' }
-									to { formatDate( entitlements.period_end ) }
-								</Text>
 								<ProgressBar
 									progress={ pct }
 									tone={ nearLimit ? 'critical' : 'primary' }
@@ -399,20 +542,6 @@ function ActiveState( {
 						</BlockStack>
 					</Card>
 				) }
-				<Card>
-					<BlockStack gap="150">
-						<Text as="span" tone="subdued" variant="bodySm">
-							Extra words in reserve
-						</Text>
-						<Text as="span" variant="headingLg">
-							{ entitlements.purchased_words.toLocaleString() }
-						</Text>
-						<Text as="span" tone="subdued" variant="bodySm">
-							Don&apos;t expire
-						</Text>
-						<Button onClick={ onBuyWords }>Buy more</Button>
-					</BlockStack>
-				</Card>
 			</InlineGrid>
 
 			<BlockStack gap="200">
@@ -424,10 +553,11 @@ function ActiveState( {
 						{ errorMessage( changeError ) }
 					</Banner>
 				) }
-				{ changeConfirmed && (
+				{ changePending && (
 					<Banner tone="success">
-						Plan change to { confirmedPlanName } confirmed — it
-						takes effect on your next billing date,{ ' ' }
+						Changing to{ ' ' }
+						{ formatPlanKey( entitlements.pending_plan_change ) } on
+						your next billing date,{ ' ' }
 						{ formatDate( entitlements.period_end ) }.
 					</Banner>
 				) }
@@ -442,7 +572,7 @@ function ActiveState( {
 					</Banner>
 				) }
 				<InlineGrid columns={ 3 } gap="300">
-					{ monthlyPlans.map( ( target ) =>
+					{ intervalPlans.map( ( target ) =>
 						target.plan_key === plan.plan_key ? (
 							<PlanCard
 								key={ target.plan_key }
@@ -460,8 +590,9 @@ function ActiveState( {
 								) }` }
 								loading={ changeLoading === target.plan_key }
 								disabled={
-									changeLoading &&
-									changeLoading !== target.plan_key
+									changePending ||
+									( changeLoading &&
+										changeLoading !== target.plan_key )
 								}
 								onAction={ () => trySwitch( target ) }
 							/>
@@ -507,10 +638,11 @@ export default function BillingSubscription() {
 
 	const [ changeLoading, setChangeLoading ] = useState( null ) // plan_key in flight, or null
 	const [ changeError, setChangeError ] = useState( '' )
-	const [ changeConfirmed, setChangeConfirmed ] = useState( null ) // confirmed plan_key, or null
 
-	// Never used for subscribe/pack-order — see the note above doChangePlan.
-	const [ polling, setPolling ] = useState( null ) // { kind: 'subscribe' | 'purchase', attempts, gaveUp, before? } | null
+	// change_plan polls until entitlements.pending_plan_change matches
+	// targetPlan — that field (not local state) is the single source of truth
+	// for "a change is confirmed/scheduled", so ActiveState reads it directly.
+	const [ polling, setPolling ] = useState( null ) // { kind: 'subscribe' | 'purchase' | 'change_plan', attempts, gaveUp, before?, targetPlan? } | null
 	const [ noticeBanner, setNoticeBanner ] = useState( '' )
 
 	const [ status, setStatus ] = useQueryState(
@@ -677,11 +809,18 @@ export default function BillingSubscription() {
 
 		if ( pendingAction === 'change_plan' ) {
 			sessionStorage.removeItem( PENDING_ACTION_KEY )
-			// change-plan writes nothing locally, ever, on approval — the new
-			// plan only becomes real entitlement at the next renewal payment,
-			// which can be weeks away. No poll loop here; the confirmation is
-			// a static message built from data already on hand.
-			setChangeConfirmed( returnedPlanKey )
+			// change-plan writes nothing locally on approval — the new plan
+			// only becomes real entitlement at the next renewal payment. But
+			// entitlements.pending_plan_change (the "scheduled" confirmation)
+			// is itself backed by a webhook with the same few-second lag as
+			// every other billing action here, so poll for it rather than
+			// assuming success from the redirect alone.
+			setPolling( {
+				kind: 'change_plan',
+				attempts: 0,
+				gaveUp: false,
+				targetPlan: returnedPlanKey,
+			} )
 			return
 		}
 
@@ -689,8 +828,7 @@ export default function BillingSubscription() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [ status ] )
 
-	// Poll-until-settled — subscribe/purchase only, never change-plan (see
-	// the redirect-handling effect above for why).
+	// Poll-until-settled — subscribe/purchase/change_plan.
 	useEffect( () => {
 		if ( ! polling || polling.gaveUp ) {
 			return
@@ -702,12 +840,7 @@ export default function BillingSubscription() {
 				return
 			}
 
-			const settled =
-				polling.kind === 'subscribe'
-					? res.entitlements.active === true
-					: res.entitlements.purchased_words > polling.before
-
-			if ( settled ) {
+			if ( isPollSettled( polling, res.entitlements ) ) {
 				setPolling( null )
 				return
 			}
@@ -739,7 +872,6 @@ export default function BillingSubscription() {
 	async function doChangePlan( planKey ) {
 		setChangeLoading( planKey )
 		setChangeError( '' )
-		setChangeConfirmed( null )
 		const res = await api.post( '/billing/subscription/plan', {
 			plan_key: planKey,
 		} )
@@ -748,16 +880,22 @@ export default function BillingSubscription() {
 			setChangeError( res.error || 'ERR_UNREACHABLE' )
 			return
 		}
+		setChangeLoading( null )
 		if ( res.approve_url ) {
 			sessionStorage.setItem( PENDING_ACTION_KEY, 'change_plan' )
 			window.location.assign( res.approve_url )
 			return
 		}
-		// PayPal skipped re-consent for this revision — already applied,
-		// nothing to redirect to. Same static-confirmation completion as the
-		// redirect-return path above; no poll loop, no new fetch needed.
-		setChangeLoading( null )
-		setChangeConfirmed( planKey )
+		// PayPal skipped re-consent for this revision (approve_url: null) —
+		// applied on PayPal's side already, but entitlements.pending_plan_change
+		// is still webhook-backed, so poll for it rather than assuming success
+		// from this response alone.
+		setPolling( {
+			kind: 'change_plan',
+			attempts: 0,
+			gaveUp: false,
+			targetPlan: planKey,
+		} )
 	}
 
 	async function doBuyWords( packId ) {
@@ -796,7 +934,7 @@ export default function BillingSubscription() {
 
 		if ( initialLoadError ) {
 			return (
-				<Box padding="500">
+				<Card>
 					<BlockStack gap="200">
 						<Text as="p" tone="critical">
 							{ errorMessage( initialLoadError ) }
@@ -805,7 +943,7 @@ export default function BillingSubscription() {
 							<Button onClick={ retryInitialLoad }>Retry</Button>
 						</InlineStack>
 					</BlockStack>
-				</Box>
+				</Card>
 			)
 		}
 
@@ -815,10 +953,6 @@ export default function BillingSubscription() {
 			</Box>
 		)
 	}
-
-	const confirmedPlan = changeConfirmed
-		? plans.find( ( p ) => p.plan_key === changeConfirmed )
-		: null
 
 	return (
 		<BlockStack gap="400">
@@ -842,7 +976,9 @@ export default function BillingSubscription() {
 			) }
 			{ polling && ! polling.gaveUp && (
 				<Banner tone="info">
-					Payment received — updating your account…
+					{ polling.kind === 'change_plan'
+						? 'Confirming your plan change…'
+						: 'Payment received — updating your account…' }
 				</Banner>
 			) }
 			{ polling?.gaveUp && (
@@ -852,31 +988,18 @@ export default function BillingSubscription() {
 				</Banner>
 			) }
 
-			{ entitlements.active ? (
-				<ActiveState
-					entitlements={ entitlements }
-					plans={ plans }
-					transactions={ transactions }
-					onBuyWords={ () => setBuyWordsOpen( true ) }
-					onChangePlan={ doChangePlan }
-					changeLoading={ changeLoading }
-					changeError={ changeError }
-					changeConfirmed={ !! changeConfirmed }
-					confirmedPlanName={
-						confirmedPlan
-							? planLabel( confirmedPlan )
-							: 'your new plan'
-					}
-				/>
-			) : (
-				<NotSubscribedState
-					plans={ plans }
-					transactions={ transactions }
-					actionLoading={ actionLoading }
-					actionError={ actionError }
-					onChoose={ doSubscribe }
-				/>
-			) }
+			<SubscriptionStateBody
+				entitlements={ entitlements }
+				plans={ plans }
+				transactions={ transactions }
+				onBuyWords={ () => setBuyWordsOpen( true ) }
+				onChangePlan={ doChangePlan }
+				changeLoading={ changeLoading }
+				changeError={ changeError }
+				actionLoading={ actionLoading }
+				actionError={ actionError }
+				onChoose={ doSubscribe }
+			/>
 
 			<BuyWordsModal
 				open={ buyWordsOpen }

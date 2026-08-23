@@ -12,8 +12,8 @@ import {
 } from '@shopify/polaris'
 import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
+import { PENDING_WORDS_KEY } from '../billingKeys'
 import { errorMessage } from '../errors'
-import { GhostBars } from './InsightsPreview'
 
 function formatDate( iso ) {
 	if ( ! iso ) {
@@ -25,14 +25,11 @@ function formatDate( iso ) {
 	} )
 }
 
-function GhostMetricValue() {
-	return (
-		<div
-			className="tl-ghost-shimmer"
-			style={ { height: 28, width: '70%', borderRadius: 6 } }
-			aria-hidden="true"
-		/>
-	)
+function money( amount, currency ) {
+	return new Intl.NumberFormat( 'en-US', {
+		style: 'currency',
+		currency,
+	} ).format( parseFloat( amount ) )
 }
 
 // Plain CSS bars — a bar chart this simple doesn't need a charting library.
@@ -65,13 +62,40 @@ function DailyWordsChart( { daily } ) {
 	)
 }
 
+function PackCard( { pack, loading, disabled, onBuy } ) {
+	return (
+		<Card>
+			<BlockStack gap="150">
+				<Text as="span" tone="subdued" variant="bodySm">
+					{ pack.words.toLocaleString() } words
+				</Text>
+				<Text as="span" variant="headingLg">
+					{ money( pack.price, pack.currency ) }
+				</Text>
+				<Button
+					fullWidth
+					variant="primary"
+					loading={ loading }
+					disabled={ disabled }
+					onClick={ () => onBuy( pack.pack_id ) }
+				>
+					Shop
+				</Button>
+			</BlockStack>
+		</Card>
+	)
+}
+
 export default function BillingUsage() {
 	const [ entitlements, setEntitlements ] = useState( null )
 	const [ entitlementsError, setEntitlementsError ] = useState( '' )
 	const [ usage, setUsage ] = useState( null )
 	const [ usageError, setUsageError ] = useState( '' )
-	const [ languages, setLanguages ] = useState( null )
-	const [ languagesError, setLanguagesError ] = useState( '' )
+	const [ packs, setPacks ] = useState( null )
+	const [ packsError, setPacksError ] = useState( '' )
+
+	const [ buyLoading, setBuyLoading ] = useState( null ) // pack_id in flight, or null
+	const [ buyError, setBuyError ] = useState( '' )
 
 	// Each fetcher clears its own error before retrying, so a Retry click that
 	// succeeds doesn't leave the previous failure's banner text stranded.
@@ -97,13 +121,13 @@ export default function BillingUsage() {
 		} )
 	}, [] )
 
-	const fetchLanguages = useCallback( () => {
-		setLanguagesError( '' )
-		return api.get( '/languages/targets' ).then( ( res ) => {
+	const fetchPacks = useCallback( () => {
+		setPacksError( '' )
+		return api.get( '/billing/packs' ).then( ( res ) => {
 			if ( res.ok ) {
-				setLanguages( res.languages )
+				setPacks( res.packs )
 			} else {
-				setLanguagesError( res.error || 'ERR_UNREACHABLE' )
+				setPacksError( res.error || 'ERR_UNREACHABLE' )
 			}
 		} )
 	}, [] )
@@ -117,21 +141,21 @@ export default function BillingUsage() {
 	}, [ fetchUsage ] )
 
 	useEffect( () => {
-		fetchLanguages()
-	}, [ fetchLanguages ] )
+		fetchPacks()
+	}, [ fetchPacks ] )
 
-	if ( entitlements === null || usage === null || languages === null ) {
+	if ( entitlements === null || usage === null || packs === null ) {
 		// A still-null value paired with its error means that fetch failed —
 		// distinct from simply not having resolved yet, which must keep
 		// showing the spinner, not a premature error.
 		const initialLoadError =
 			( entitlements === null && entitlementsError ) ||
 			( usage === null && usageError ) ||
-			( languages === null && languagesError )
+			( packs === null && packsError )
 
 		if ( initialLoadError ) {
 			return (
-				<Box padding="500">
+				<Card>
 					<BlockStack gap="200">
 						<Text as="p" tone="critical">
 							{ errorMessage( initialLoadError ) }
@@ -145,8 +169,8 @@ export default function BillingUsage() {
 									if ( usage === null ) {
 										fetchUsage()
 									}
-									if ( languages === null ) {
-										fetchLanguages()
+									if ( packs === null ) {
+										fetchPacks()
 									}
 								} }
 							>
@@ -154,7 +178,7 @@ export default function BillingUsage() {
 							</Button>
 						</InlineStack>
 					</BlockStack>
-				</Box>
+				</Card>
 			)
 		}
 
@@ -170,12 +194,36 @@ export default function BillingUsage() {
 	const consumed = Math.max( 0, allowance - remaining )
 	const pct = allowance > 0 ? Math.round( ( consumed / allowance ) * 100 ) : 0
 
+	// Kicks off the order and redirects — same PENDING_WORDS_KEY handoff
+	// BillingSubscription.jsx's "Buy more" flow uses. Note: PayPal's
+	// pack-purchase redirect always lands back on tab=subscription (a fixed
+	// backend contract, not something this tab controls), so a purchase
+	// started here finishes on the Plan & billing tab, not this one.
+	async function doBuyWords( packId ) {
+		setBuyLoading( packId )
+		setBuyError( '' )
+		sessionStorage.setItem(
+			PENDING_WORDS_KEY,
+			String( entitlements.purchased_words )
+		)
+		const res = await api.post( '/billing/packs/order', {
+			pack_id: packId,
+		} )
+		if ( res.ok && res.approve_url ) {
+			window.location.assign( res.approve_url )
+			return
+		}
+		sessionStorage.removeItem( PENDING_WORDS_KEY )
+		setBuyLoading( null )
+		setBuyError( res.error || 'ERR_UNREACHABLE' )
+	}
+
 	return (
 		<BlockStack gap="400">
-			{ ( entitlementsError || usageError || languagesError ) && (
+			{ ( entitlementsError || usageError || packsError ) && (
 				<Banner tone="critical">
 					{ errorMessage(
-						entitlementsError || usageError || languagesError
+						entitlementsError || usageError || packsError
 					) }
 				</Banner>
 			) }
@@ -187,40 +235,27 @@ export default function BillingUsage() {
 				</Text>
 			</InlineStack>
 
-			<InlineGrid columns={ 3 } gap="300">
-				<Card>
-					<BlockStack gap="100">
-						<Text as="span" tone="subdued" variant="bodySm">
-							Words translated
+			<Card>
+				<BlockStack gap="100">
+					<Text
+						as="span"
+						tone="subdued"
+						variant="bodySm"
+						fontWeight="semibold"
+					>
+						Words translated
+					</Text>
+					{ usage.words_translated > 0 ? (
+						<Text as="span" variant="headingLg">
+							{ usage.words_translated.toLocaleString() }
 						</Text>
-						{ usage.words_translated > 0 ? (
-							<Text as="span" variant="headingLg">
-								{ usage.words_translated.toLocaleString() }
-							</Text>
-						) : (
-							<Text as="span" tone="subdued">
-								Nothing translated yet this period
-							</Text>
-						) }
-					</BlockStack>
-				</Card>
-				<Card>
-					<BlockStack gap="100">
-						<Text as="span" tone="subdued" variant="bodySm">
-							Words reused
+					) : (
+						<Text as="span" tone="subdued">
+							Nothing translated yet this period
 						</Text>
-						<GhostMetricValue />
-					</BlockStack>
-				</Card>
-				<Card>
-					<BlockStack gap="100">
-						<Text as="span" tone="subdued" variant="bodySm">
-							Translated pages viewed
-						</Text>
-						<GhostMetricValue />
-					</BlockStack>
-				</Card>
-			</InlineGrid>
+					) }
+				</BlockStack>
+			</Card>
 
 			{ allowance > 0 && (
 				<BlockStack gap="200">
@@ -240,18 +275,29 @@ export default function BillingUsage() {
 				</BlockStack>
 			) }
 
-			<Card>
-				<InlineStack align="space-between" blockAlign="center">
-					<BlockStack gap="050">
-						<Text as="span">Extra words</Text>
-						<Text as="span" tone="subdued" variant="bodySm">
-							{ entitlements.purchased_words.toLocaleString() }{ ' ' }
-							left. These don&apos;t expire.
-						</Text>
-					</BlockStack>
-					<Button>Add more words</Button>
-				</InlineStack>
-			</Card>
+			<BlockStack gap="200">
+				<Text as="h3" variant="headingSm">
+					Extra words
+				</Text>
+				{ buyError && (
+					<Banner tone="critical">
+						{ errorMessage( buyError ) }
+					</Banner>
+				) }
+				<InlineGrid columns={ 3 } gap="300">
+					{ packs.map( ( pack ) => (
+						<PackCard
+							key={ pack.pack_id }
+							pack={ pack }
+							loading={ buyLoading === pack.pack_id }
+							disabled={
+								buyLoading && buyLoading !== pack.pack_id
+							}
+							onBuy={ doBuyWords }
+						/>
+					) ) }
+				</InlineGrid>
+			</BlockStack>
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
@@ -263,28 +309,6 @@ export default function BillingUsage() {
 					) : (
 						<Text as="span" tone="subdued">
 							No words translated yet this period.
-						</Text>
-					) }
-				</Card>
-			</BlockStack>
-
-			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					By language
-				</Text>
-				<Card>
-					{ Object.keys( languages ).length > 0 ? (
-						<GhostBars
-							items={ Object.values( languages ).map(
-								( lang ) => ( {
-									label: lang.native,
-									width: 60, // uniform — no real per-language usage to rank by yet
-								} )
-							) }
-						/>
-					) : (
-						<Text as="span" tone="subdued">
-							No languages configured yet.
 						</Text>
 					) }
 				</Card>
