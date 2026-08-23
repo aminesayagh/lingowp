@@ -298,16 +298,16 @@ final class AiTranslationController
         }, $rows);
     }
 
-    /** tl_html rows are the only kind that are still raw, unencoded HTML blocks —
-     *  everything else, including post_content, is a type-5 composed unit whose
+    /** Every kind (post/meta/term/option/html) is a type-5 composed unit whose
      *  inline tags are already flattened into `{n}` markers by TranslationUnitCodec
-     *  (see HtmlUnitExtractor). A composed unit must go through as plain text: the
+     *  (see HtmlUnitExtractor) — tl_html rows included, since HtmlDiscovery builds
+     *  them via the same codec. A composed unit must go through as plain text: the
      *  backend's text-path protection regex treats `{n}` as an opaque token, but
      *  its HTML path expects real `<tag>` markup and would either misparse the
      *  markers or, worse, let the model rewrite them. */
     private function typeFor(string $kind): string
     {
-        return $kind === 'html' ? 'html' : 'text';
+        return 'text';
     }
 
     private function resolveLang(WP_REST_Request $request): string

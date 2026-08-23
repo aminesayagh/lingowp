@@ -21,7 +21,8 @@ final class BillingRestController
 
     public function __construct(
         private BackendClient $backendClient,
-        private BillingEntitlementsService $entitlements
+        private BillingEntitlementsService $entitlements,
+        private ConnectionRepository $connection
     ) {}
 
     public function register(): void
@@ -46,6 +47,8 @@ final class BillingRestController
             '/billing/packs/order/(?P<order_id>[^/]+)/capture',
             ['methods' => 'POST', 'callback' => [$this, 'captureOrder']] + $guard
         );
+        register_rest_route(self::NS, '/billing/owner', ['methods' => 'GET', 'callback' => [$this, 'ownerStatus']] + $guard);
+        register_rest_route(self::NS, '/billing/owner', ['methods' => 'POST', 'callback' => [$this, 'assignOwner']] + $guard);
     }
 
     public function canManage(): bool
@@ -141,5 +144,36 @@ final class BillingRestController
         $result  = $this->backendClient->capturePackOrder($orderId);
 
         return rest_ensure_response(['ok' => $result['ok'], 'status' => $result['data']['status'] ?? null, 'error' => $result['error']]);
+    }
+
+    /**
+     * There is no backend read for the licence's owner_email — only the write
+     * (assignOwner) and its confirm callback, which lands through the shared
+     * /connection/confirm route (SiteConnector::confirm()) since the SPA has
+     * no way to know in advance which kind of token a confirm_token deep link
+     * carries. This is a pure local read of whatever this site last learned
+     * via a successful confirm (see ConnectionRepository::storeVerifiedOwnerEmail());
+     * it is never "not yet verified but known", only unset or verified.
+     */
+    public function ownerStatus(): WP_REST_Response
+    {
+        return rest_ensure_response([
+            'ok'          => true,
+            'owner_email' => $this->connection->ownerEmail(),
+            'verified'    => $this->connection->isOwnerEmailVerified(),
+        ]);
+    }
+
+    /** Kicks off the assign-owner ask; nothing local changes until the emailed link is confirmed. */
+    public function assignOwner(WP_REST_Request $request): WP_REST_Response
+    {
+        $email = sanitize_email((string) $request->get_param('email'));
+        if ($email === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
+        }
+
+        $result = $this->backendClient->assignOwner($email);
+
+        return rest_ensure_response(['ok' => $result['ok'], 'error' => $result['error']]);
     }
 }

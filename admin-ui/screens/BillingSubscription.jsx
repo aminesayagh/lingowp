@@ -411,6 +411,7 @@ function SubscriptionStateBody( {
 	entitlements,
 	plans,
 	transactions,
+	onBuyWords,
 	onChangePlan,
 	changeLoading,
 	changeError,
@@ -424,6 +425,7 @@ function SubscriptionStateBody( {
 				entitlements={ entitlements }
 				plans={ plans }
 				transactions={ transactions }
+				onBuyWords={ onBuyWords }
 				onChangePlan={ onChangePlan }
 				changeLoading={ changeLoading }
 				changeError={ changeError }
@@ -448,6 +450,7 @@ function ActiveState( {
 	entitlements,
 	plans,
 	transactions,
+	onBuyWords,
 	onChangePlan,
 	changeLoading,
 	changeError,
@@ -471,7 +474,7 @@ function ActiveState( {
 	const consumed = Math.max( 0, allowance - remaining )
 	const pct = allowance > 0 ? Math.round( ( consumed / allowance ) * 100 ) : 0
 	const nearLimit = allowance > 0 && consumed / allowance >= 0.85
-	const showSites = ( entitlements.sites_limit ?? 1 ) > 1
+	const sitesLimit = entitlements.sites_limit
 
 	function trySwitch( target ) {
 		// entitlements has no sites_used field, only sites_limit — this can
@@ -499,50 +502,54 @@ function ActiveState( {
 							<Badge tone="success">Active</Badge>
 						</InlineStack>
 						<Text as="span" tone="subdued">
-							{ money( plan.price, plan.currency ) }{ ' ' }
-							{ intervalLabel( plan ) } · renews{ ' ' }
-							{ formatDate( entitlements.period_end ) }
+							{ `${ money(
+								plan.price,
+								plan.currency
+							) } ${ intervalLabel(
+								plan
+							) } · renews ${ formatDate(
+								entitlements.period_end
+							) }${
+								sitesLimit
+									? ` · ${ sitesLimit } site${
+											sitesLimit > 1 ? 's' : ''
+									  }`
+									: ''
+							}` }
 						</Text>
 						{ allowance > 0 && (
-							<BlockStack gap="150">
-								<ProgressBar
-									progress={ pct }
-									tone={ nearLimit ? 'critical' : 'primary' }
-								/>
+							<ProgressBar
+								progress={ pct }
+								tone={ nearLimit ? 'critical' : 'primary' }
+							/>
+						) }
+						<InlineStack gap="300" blockAlign="center" wrap>
+							{ allowance > 0 && (
 								<Text as="span" tone="subdued" variant="bodySm">
-									{ consumed.toLocaleString() } of{ ' ' }
-									{ allowance.toLocaleString() } used
+									{ `${ consumed.toLocaleString() } of ${ allowance.toLocaleString() } monthly words used` }
 								</Text>
-								{ nearLimit && (
-									<Text
-										as="span"
-										tone="critical"
-										variant="bodySm"
-									>
-										You&apos;re close to your limit for this
-										period. Add extra words to keep going.
+							) }
+							{ entitlements.purchased_words > 0 && (
+								<Text as="span" tone="subdued" variant="bodySm">
+									Extra words:{ ' ' }
+									<Text as="span" fontWeight="semibold">
+										{ entitlements.purchased_words.toLocaleString() }
 									</Text>
-								) }
-							</BlockStack>
+								</Text>
+							) }
+							<Button variant="secondary" onClick={ onBuyWords }>
+								Buy words
+							</Button>
+						</InlineStack>
+						{ nearLimit && (
+							<Text as="span" tone="critical" variant="bodySm">
+								You&apos;re close to your limit for this period.
+								Add extra words to keep going.
+							</Text>
 						) }
 					</BlockStack>
 				</Card>
 			</BlockStack>
-
-			<InlineGrid columns={ showSites ? 2 : 1 } gap="300">
-				{ showSites && (
-					<Card>
-						<BlockStack gap="150">
-							<Text as="span" tone="subdued" variant="bodySm">
-								Connected sites
-							</Text>
-							<Text as="span" variant="headingLg">
-								Up to { entitlements.sites_limit }
-							</Text>
-						</BlockStack>
-					</Card>
-				) }
-			</InlineGrid>
 
 			<BlockStack gap="200">
 				<Text as="h3" variant="headingSm">
@@ -600,8 +607,8 @@ function ActiveState( {
 					) }
 				</InlineGrid>
 				<Text as="span" tone="subdued" variant="bodySm">
-					Changes take effect on your next billing date, not
-					immediately.
+					Plan changes take effect on your next billing date. Extra
+					word packs are charged once, straight away.
 				</Text>
 			</BlockStack>
 

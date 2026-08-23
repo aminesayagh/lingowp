@@ -85,12 +85,21 @@ final class SiteConnector
     }
 
     /**
-     * Applies a confirm_token deep-linked from an email (recover/rotate,
-     * domain_reuse_claim, or attach_website). Never trusts a key handed in
-     * by the browser — the raw key only ever comes from this server-to-server
-     * exchange with the backend. site_id falls back to whatever is already on
-     * file when the response omits it (recover/rotate and domain_reuse_claim
-     * repoint the existing site rather than creating a new one).
+     * Applies a confirm_token deep-linked from an email. The backend's
+     * confirm endpoint is one unified route for many kinds of pending action
+     * (see reference-backend-api-routes) — this is the plugin's matching
+     * single relay point, branching on which shape the response actually
+     * carries rather than needing the caller to know in advance what kind of
+     * token it's handing over:
+     *   - { license_key } — recover/rotate, domain_reuse_claim, attach_website.
+     *     Never trusts a key handed in by the browser — the raw key only ever
+     *     comes from this server-to-server exchange. site_id falls back to
+     *     whatever is already on file when the response omits it.
+     *   - { owner_email } — POST /owner/assign-owner's confirm. There is no
+     *     backend read endpoint for this yet, so this is the only moment the
+     *     plugin ever learns the verified address; it's cached locally
+     *     (ConnectionRepository::storeVerifiedOwnerEmail()) so the Billing
+     *     page can read it back on a later visit.
      *
      * @return array{ok: bool, error: string}
      */
@@ -102,7 +111,15 @@ final class SiteConnector
             return ['ok' => false, 'error' => $result['error']];
         }
 
-        $data       = is_array($result['data']) ? $result['data'] : [];
+        $data = is_array($result['data']) ? $result['data'] : [];
+
+        $ownerEmail = isset($data['owner_email']) ? (string) $data['owner_email'] : '';
+        if ($ownerEmail !== '') {
+            $this->connection->storeVerifiedOwnerEmail($ownerEmail);
+
+            return ['ok' => true, 'error' => ''];
+        }
+
         $licenseKey = (string) ($data['license_key'] ?? '');
 
         if ($licenseKey === '') {

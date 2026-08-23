@@ -31,9 +31,13 @@ export default function App() {
 	// never be left closed-but-incomplete.
 	const [ onboardingModalOpen, setOnboardingModalOpen ] = useState( false )
 
-	// Deep link from any license-ladder confirm email (recover/rotate,
-	// domain_reuse_claim, attach_website): ?page=translangs&confirm_token=... .
-	// This is an opaque, single-use, expiring token — never a raw license key —
+	// Deep link from any confirm email — the license ladder (recover/rotate,
+	// domain_reuse_claim, attach_website) or POST /billing/owner's assign-owner
+	// ask: ?page=translangs&confirm_token=... . One route (/connection/confirm)
+	// relays every kind; PHP branches on whichever shape the backend's response
+	// actually carries, so this handler never needs to know in advance which
+	// kind of token it's holding. This is an opaque, single-use, expiring
+	// token — never a raw license key —
 	// so nothing here can leak a real credential via browser history, referrer
 	// headers, or mail-scanner prefetching. Applied silently in the
 	// background — clicking a link that arrived in the site's own inbox is

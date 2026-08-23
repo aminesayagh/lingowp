@@ -1,4 +1,5 @@
 import {
+	Badge,
 	Banner,
 	BlockStack,
 	Box,
@@ -62,28 +63,82 @@ function DailyWordsChart( { daily } ) {
 	)
 }
 
-function PackCard( { pack, loading, disabled, onBuy } ) {
+function perThousandWords( pack ) {
+	return money(
+		( parseFloat( pack.price ) / pack.words ) * 1000,
+		pack.currency
+	)
+}
+
+// "Best value" is computed from the real price-per-word ratio, never a
+// fabricated "most bought" claim — there's no purchase-analytics data behind
+// that number, so it can't be shown honestly.
+function bestValuePackId( packs ) {
+	return packs.reduce( ( best, p ) =>
+		parseFloat( p.price ) / p.words < parseFloat( best.price ) / best.words
+			? p
+			: best
+	).pack_id
+}
+
+function PackCard( { pack, featured, loading, disabled, onBuy } ) {
 	return (
 		<Card>
 			<BlockStack gap="150">
-				<Text as="span" tone="subdued" variant="bodySm">
-					{ pack.words.toLocaleString() } words
-				</Text>
+				<InlineStack gap="150" blockAlign="center">
+					<Text as="span" tone="subdued" variant="bodySm">
+						{ pack.words.toLocaleString() } words
+					</Text>
+					{ featured && <Badge>Best value</Badge> }
+				</InlineStack>
 				<Text as="span" variant="headingLg">
 					{ money( pack.price, pack.currency ) }
 				</Text>
+				<Text as="span" tone="subdued" variant="bodySm">
+					{ perThousandWords( pack ) } per 1,000 words
+				</Text>
 				<Button
 					fullWidth
-					variant="primary"
+					variant={ featured ? 'primary' : 'secondary' }
 					loading={ loading }
 					disabled={ disabled }
 					onClick={ () => onBuy( pack.pack_id ) }
 				>
-					Shop
+					Buy
 				</Button>
 			</BlockStack>
 		</Card>
 	)
+}
+
+// "At this rate" projects this period's usage-so-far to a full month (guarding
+// the first day or two of a period, where that projection would otherwise
+// blow up toward infinity) and divides the extra-words reserve by it. Null
+// whenever there's nothing to project from, so the caller can skip the line
+// instead of showing a meaningless number.
+function estimateReserveMonths( entitlements, usage ) {
+	const {
+		period_start: periodStart,
+		period_end: periodEnd,
+		purchased_words: purchasedWords,
+	} = entitlements
+	if ( ! periodStart || ! periodEnd || ! purchasedWords ) {
+		return null
+	}
+	if ( ! usage.words_translated || usage.words_translated <= 0 ) {
+		return null
+	}
+	const start = new Date( periodStart ).getTime()
+	const end = new Date( periodEnd ).getTime()
+	const elapsed = Math.min(
+		1,
+		Math.max( 0.03, ( Date.now() - start ) / ( end - start ) )
+	)
+	const projectedMonthlyBurn = usage.words_translated / elapsed
+	if ( ! ( projectedMonthlyBurn > 0 ) ) {
+		return null
+	}
+	return Math.max( 1, Math.round( purchasedWords / projectedMonthlyBurn ) )
 }
 
 export default function BillingUsage() {
@@ -193,6 +248,9 @@ export default function BillingUsage() {
 	const remaining = entitlements.monthly_remaining ?? 0
 	const consumed = Math.max( 0, allowance - remaining )
 	const pct = allowance > 0 ? Math.round( ( consumed / allowance ) * 100 ) : 0
+	const nearLimit = allowance > 0 && consumed / allowance >= 0.85
+	const reserveMonths = estimateReserveMonths( entitlements, usage )
+	const bestValueId = packs.length > 0 ? bestValuePackId( packs ) : null
 
 	// Kicks off the order and redirects — same PENDING_WORDS_KEY handoff
 	// BillingSubscription.jsx's "Buy more" flow uses. Note: PayPal's
@@ -235,50 +293,81 @@ export default function BillingUsage() {
 				</Text>
 			</InlineStack>
 
-			<Card>
-				<BlockStack gap="100">
-					<Text
-						as="span"
-						tone="subdued"
-						variant="bodySm"
-						fontWeight="semibold"
-					>
-						Words translated
-					</Text>
-					{ usage.words_translated > 0 ? (
-						<Text as="span" variant="headingLg">
-							{ usage.words_translated.toLocaleString() }
-						</Text>
-					) : (
-						<Text as="span" tone="subdued">
-							Nothing translated yet this period
-						</Text>
-					) }
-				</BlockStack>
-			</Card>
-
-			{ allowance > 0 && (
-				<BlockStack gap="200">
-					<Text as="h3" variant="headingSm">
-						Your monthly words
-					</Text>
-					<Card>
-						<BlockStack gap="150">
-							<ProgressBar progress={ pct } tone="primary" />
-							<Text as="span" tone="subdued" variant="bodySm">
-								{ consumed.toLocaleString() } of{ ' ' }
-								{ allowance.toLocaleString() } used · resets{ ' ' }
-								{ formatDate( entitlements.period_end ) }
+			<InlineGrid columns={ 2 } gap="300">
+				<Card>
+					<BlockStack gap="150">
+						<InlineStack gap="150" blockAlign="center">
+							<Text
+								as="span"
+								variant="bodySm"
+								fontWeight="semibold"
+							>
+								Monthly words
 							</Text>
-						</BlockStack>
-					</Card>
-				</BlockStack>
+							<Badge>{ `Resets ${ formatDate(
+								entitlements.period_end
+							) }` }</Badge>
+						</InlineStack>
+						<InlineStack gap="100" blockAlign="baseline">
+							<Text as="span" variant="heading2xl">
+								{ remaining.toLocaleString() }
+							</Text>
+							<Text as="span" tone="subdued" variant="bodySm">
+								left of { allowance.toLocaleString() }
+							</Text>
+						</InlineStack>
+						<ProgressBar
+							progress={ pct }
+							tone={ nearLimit ? 'critical' : 'primary' }
+						/>
+					</BlockStack>
+				</Card>
+
+				<Card>
+					<BlockStack gap="150">
+						<InlineStack gap="150" blockAlign="center">
+							<Text
+								as="span"
+								variant="bodySm"
+								fontWeight="semibold"
+							>
+								Extra words
+							</Text>
+							<Badge tone="success">Never expire</Badge>
+						</InlineStack>
+						<InlineStack gap="100" blockAlign="baseline">
+							<Text as="span" variant="heading2xl">
+								{ entitlements.purchased_words.toLocaleString() }
+							</Text>
+							<Text as="span" tone="subdued" variant="bodySm">
+								in reserve
+							</Text>
+						</InlineStack>
+						<Text as="span" tone="subdued" variant="bodySm">
+							Only spent once the monthly words run out. They stay
+							put across renewals and plan changes.
+						</Text>
+					</BlockStack>
+				</Card>
+			</InlineGrid>
+
+			{ entitlements.purchased_words > 0 && (
+				<Banner tone="info">
+					{ 'Spend order: ' }
+					<strong>monthly words first, then extra words.</strong>
+					{ reserveMonths !== null &&
+						` At this rate you have about ${ reserveMonths } month${
+							reserveMonths === 1 ? '' : 's'
+						} of reserve after your monthly allowance.` }
+				</Banner>
 			) }
 
 			<BlockStack gap="200">
-				<Text as="h3" variant="headingSm">
-					Extra words
-				</Text>
+				<InlineStack gap="150" blockAlign="baseline">
+					<Text as="h3" variant="headingSm">
+						Buy extra words
+					</Text>
+				</InlineStack>
 				{ buyError && (
 					<Banner tone="critical">
 						{ errorMessage( buyError ) }
@@ -289,6 +378,7 @@ export default function BillingUsage() {
 						<PackCard
 							key={ pack.pack_id }
 							pack={ pack }
+							featured={ pack.pack_id === bestValueId }
 							loading={ buyLoading === pack.pack_id }
 							disabled={
 								buyLoading && buyLoading !== pack.pack_id

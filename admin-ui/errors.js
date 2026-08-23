@@ -45,6 +45,8 @@ const MESSAGES = {
 	ERR_PLAN_CHANGE_PENDING:
 		'You already have a plan change scheduled for your next billing date.',
 	ERR_SUBSCRIPTION_REQUIRED: 'Subscribe to a plan before buying extra words.',
+	ERR_OWNER_EMAIL_TAKEN:
+		'That address already owns another Translangs licence. Use a different one, or add this site from that account instead.',
 	ERR_ORDER_NOT_OWNED:
 		"This order doesn't belong to this site. Contact support.",
 	ERR_UNKNOWN_PACK:

@@ -15,6 +15,7 @@ final class ConnectionRepository
     public const OPTION_TOKEN     = 'translangs_api_token';
     public const OPTION_SITE_ID   = 'translangs_site_id';
     public const OPTION_COMPLETED = 'translangs_onboarding_completed';
+    public const OPTION_OWNER_EMAIL = 'translangs_owner_email';
 
     public function isConnected(): bool
     {
@@ -87,5 +88,28 @@ final class ConnectionRepository
     public function markOnboardingComplete(): void
     {
         update_option(self::OPTION_COMPLETED, true);
+    }
+
+    /**
+     * There is no backend read endpoint for the licence's owner_email yet —
+     * only the write (POST /owner/assign-owner) and its confirm callback.
+     * This site's own confirm response is the only moment we ever learn the
+     * verified address, so it's cached locally here (same pattern as
+     * store(), which does the equivalent for the license credential) rather
+     * than the SPA re-asking the backend something it has no route for.
+     */
+    public function ownerEmail(): string
+    {
+        return (string) get_option(self::OPTION_OWNER_EMAIL, '');
+    }
+
+    public function isOwnerEmailVerified(): bool
+    {
+        return $this->ownerEmail() !== '';
+    }
+
+    public function storeVerifiedOwnerEmail(string $email): void
+    {
+        update_option(self::OPTION_OWNER_EMAIL, $email);
     }
 }

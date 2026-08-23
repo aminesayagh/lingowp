@@ -21,7 +21,9 @@ import { api } from './api'
 import { ensureConnected } from './connection'
 import BillingSubscription from './screens/BillingSubscription'
 import BillingUsage from './screens/BillingUsage'
+import BillingSites from './screens/BillingSites'
 import BillingToken from './screens/BillingToken'
+import OwnerEmailCard from './screens/OwnerEmailCard'
 
 const cfg = window.Translangs || {}
 
@@ -40,12 +42,14 @@ const queryClient = new QueryClient( {
 const tabParser = parseAsStringLiteral( [
 	'subscription',
 	'usage',
+	'sites',
 	'token',
 ] ).withDefault( 'subscription' )
 
 const TABS = [
 	{ id: 'subscription', label: 'Plan & billing' },
 	{ id: 'usage', label: 'Usage' },
+	{ id: 'sites', label: 'Sites' },
 	{ id: 'token', label: 'API token' },
 ]
 
@@ -180,8 +184,12 @@ export default function BillingApp() {
 										flex: 1,
 										minWidth: 0,
 										marginBlockStart: 8,
+										display: 'flex',
+										flexDirection: 'column',
+										gap: 16,
 									} }
 								>
+									{ connectionReady && <OwnerEmailCard /> }
 									<MotionConfig reducedMotion="user">
 										<AnimatePresence
 											initial={ false }
@@ -212,6 +220,10 @@ export default function BillingApp() {
 												{ connectionReady &&
 													tab === 'usage' && (
 														<BillingUsage />
+													) }
+												{ connectionReady &&
+													tab === 'sites' && (
+														<BillingSites />
 													) }
 												{ connectionReady &&
 													tab === 'token' && (

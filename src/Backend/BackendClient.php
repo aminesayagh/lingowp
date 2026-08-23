@@ -67,6 +67,18 @@ final class BackendClient
     }
 
     /**
+     * POST /owner/assign-owner — bearer + domain. Payload: { new_owner_email }.
+     * Emails a confirm token to the proposed address; the callback is the
+     * same generic confirmToken() every other flow uses, this time returning
+     * { owner_email } instead of a license credential. This call's own
+     * success data is empty — nothing is set until the token is confirmed.
+     */
+    public function assignOwner(string $newOwnerEmail): array
+    {
+        return $this->request('POST', '/owner/assign-owner', ['new_owner_email' => $newOwnerEmail], $this->authHeaders());
+    }
+
+    /**
      * POST /translations — batch translate (bearer + domain). Payload:
      *   { source_lang, target_langs:[], texts:[""] }
      * Success data: { translations:[{text,target_lang,translation}], failed:[{text,target_lang,reason}] }.
@@ -251,6 +263,7 @@ final class BackendClient
             $status === 409 && $detail === 'billing_cycle_change_not_supported' => 'ERR_BILLING_CYCLE_CHANGE_NOT_SUPPORTED', // /billing/subscription/plan: crossing cadence isn't a supported change-plan action
             $status === 409 && $detail === 'plan_change_already_pending' => 'ERR_PLAN_CHANGE_PENDING', // /billing/subscription/plan: a revision is already approved and scheduled
             $status === 409 && $detail === 'active_subscription_required' => 'ERR_SUBSCRIPTION_REQUIRED',
+            $status === 409 && $detail === 'owner_email_already_taken' => 'ERR_OWNER_EMAIL_TAKEN', // /owner/assign-owner
             $status === 403 && $detail === 'order_not_owned'         => 'ERR_ORDER_NOT_OWNED',      // /billing/packs/order/{id}/capture
             $status === 402                                          => 'ERR_LICENSE_DETACHED', // key valid, license_id IS NULL — keep key, no auto-reconnect
             $status === 409                                          => 'ERR_DOMAIN_MISMATCH',  // any other protected route: domain on file doesn't match

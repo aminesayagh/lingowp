@@ -310,7 +310,7 @@ class Plugin
         (new OnboardingRestController($siteConnector, $connection, $languageRegistry, $connectionStatus))->register();
         (new ConnectionRestController($connection, $connectionStatus, $siteConnector))->register();
         (new ProviderKeyRestController($backendClient))->register();
-        (new BillingRestController($backendClient, $billingEntitlements))->register();
+        (new BillingRestController($backendClient, $billingEntitlements, $connection))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
