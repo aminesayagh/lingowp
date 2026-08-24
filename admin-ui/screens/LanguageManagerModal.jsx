@@ -41,7 +41,9 @@ export const AI_STYLE_PLACEHOLDER =
 
 // Language manager: a sidebar of every language (reuses the dashboard's
 // LanguageList) + a config pane. Selecting a row edits it; "+ Add" starts a new
-// one. Stays open after save so several languages can be added/reconfigured.
+// one. Creating a language closes the modal and hands its code back via
+// onChanged so the caller can jump straight to that language's tab; editing an
+// existing language keeps the modal open so several can be reconfigured in a row.
 export default function LanguageManagerModal( {
 	open,
 	languages,
@@ -240,19 +242,16 @@ export default function LanguageManagerModal( {
 								existing={ languages.map( ( l ) => l.code ) }
 								firstLanguage={ isFirstLanguage }
 								onDone={ ( code ) => {
-									if (
-										isFirstLanguage &&
-										mode === 'new' &&
-										code
-									) {
+									// Creating a language is done once it's saved — close
+									// the modal and let the caller jump the workspace to
+									// its tab so translating can start right away. Saving
+									// an edit to an existing language stays in place.
+									if ( mode === 'new' && code ) {
 										onClose()
-										onChanged()
+										onChanged( code )
 										return
 									}
 									onChanged()
-									if ( mode === 'new' && code ) {
-										setSel( code )
-									}
 								} }
 							/>
 						) }

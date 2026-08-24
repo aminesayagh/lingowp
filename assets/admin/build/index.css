@@ -16304,8 +16304,8 @@ body{
  * other large modals keep their default width.
  */
 .Polaris-Modal-Dialog__Modal.Polaris-Modal-Dialog--sizeLarge:has(.tl-wide-modal) {
-	max-width: min(1100px, 92vw);
-	width: min(1100px, 92vw);
+	max-width: min(1300px, 92vw);
+	width: min(1300px, 92vw);
 }
 
 /*

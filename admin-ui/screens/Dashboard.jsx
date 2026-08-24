@@ -2041,9 +2041,16 @@ export default function Dashboard( {
 						initialCode={ managerInitial }
 						onClose={ () => setManagerOpen( false ) }
 						onConfirm={ setConfirm }
-						onChanged={ () => {
+						onChanged={ ( createdCode ) => {
 							const wasFirstLanguage = languages.length === 0
 							refreshLanguages()
+							// A newly created language is handed back explicitly so this
+							// jumps to its tab even when the current selection was
+							// already valid (refreshLanguages() only re-picks a language
+							// when the current selection stops being valid).
+							if ( createdCode ) {
+								setSelectedLang( createdCode )
+							}
 							if ( wasFirstLanguage ) {
 								api.get( '/scan/status' ).then( ( res ) => {
 									if (

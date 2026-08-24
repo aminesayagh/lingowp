@@ -160,14 +160,7 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 
 	return (
 		<div>
-			<BlockStack gap="500">
-				<BlockStack gap="100">
-					<Text as="p" tone="subdued">
-						Control how visitors discover and remember translated
-						languages.
-					</Text>
-				</BlockStack>
-
+			<BlockStack gap="400">
 				{ notice && (
 					<Banner tone={ notice.tone }>{ notice.content }</Banner>
 				) }
@@ -293,7 +286,7 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 							</Banner>
 						) }
 
-						<div>
+						<InlineStack align="end">
 							<Button
 								variant="primary"
 								loading={ saving }
@@ -302,7 +295,7 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 							>
 								Save configuration
 							</Button>
-						</div>
+						</InlineStack>
 					</>
 				) }
 			</BlockStack>
