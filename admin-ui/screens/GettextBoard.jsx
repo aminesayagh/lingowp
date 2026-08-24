@@ -84,6 +84,8 @@ export default function GettextBoard( {
 	const runningRef = useRef( false )
 	const percentCheckedRef = useRef( new Set() )
 	const percentRunningRef = useRef( false )
+	const targetDir =
+		languages.find( ( item ) => item.code === language )?.direction || 'ltr'
 
 	const rowsQ = useInfiniteQuery( {
 		queryKey: [ 'gettext-domains', language, search ],
@@ -307,7 +309,7 @@ export default function GettextBoard( {
 						blockAlign="center"
 						wrap={ false }
 					>
-						<Box width="42%" minWidth="0">
+						<Box width="45%" minWidth="0">
 							<Text
 								as="span"
 								variant="bodySm"
@@ -317,7 +319,7 @@ export default function GettextBoard( {
 								{ originalLabel }
 							</Text>
 						</Box>
-						<Box width="42%" minWidth="0">
+						<Box width="45%" minWidth="0">
 							<Text
 								as="span"
 								variant="bodySm"
@@ -427,6 +429,7 @@ export default function GettextBoard( {
 								{ showEditor ? (
 									<GettextUnitList
 										row={ row }
+										targetDir={ targetDir }
 										onConfirm={ onConfirm }
 										sourceLabel={ sourceLabel }
 										sourceFlag={ sourceFlag }
@@ -552,6 +555,7 @@ function unitKey( u ) {
 
 function GettextUnitList( {
 	row,
+	targetDir,
 	onConfirm,
 	sourceLabel,
 	sourceFlag,
@@ -683,6 +687,7 @@ function GettextUnitList( {
 					key={ unitKey( unit ) }
 					unit={ unit }
 					row={ row }
+					targetDir={ targetDir }
 					aiAvailable={ aiAvailable }
 					billingBlocked={ billingBlocked }
 					onAiBlocked={ onAiBlocked }
@@ -732,6 +737,7 @@ function GettextUnitList( {
 function GettextUnitRow( {
 	unit,
 	row,
+	targetDir = 'ltr',
 	aiAvailable,
 	billingBlocked,
 	onAiBlocked,
@@ -848,7 +854,7 @@ function GettextUnitRow( {
 					blockAlign="center"
 					wrap={ false }
 				>
-					<Box width="42%" minWidth="0">
+					<Box width="45%" minWidth="0">
 						<div
 							onMouseEnter={ () => setOriginalHovered( true ) }
 							onMouseLeave={ () => setOriginalHovered( false ) }
@@ -908,8 +914,11 @@ function GettextUnitRow( {
 						</div>
 					</Box>
 
-					<Box width="42%" minWidth="0">
-						<div style={ { position: 'relative', minWidth: 0 } }>
+					<Box width="45%" minWidth="0">
+						<div
+							dir={ targetDir }
+							style={ { position: 'relative', minWidth: 0 } }
+						>
 							{ isLong ? (
 								<motion.button
 									type="button"

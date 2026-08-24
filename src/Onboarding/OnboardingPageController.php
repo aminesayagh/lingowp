@@ -168,6 +168,10 @@ final class OnboardingPageController
             'billing_url'         => esc_url_raw(admin_url('admin.php?page=' . self::BILLING_SLUG)),
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
+            'cloud_terms_url'     => esc_url_raw((string) apply_filters('translangs_cloud_terms_url', '')),
+            'cloud_privacy_url'   => esc_url_raw((string) apply_filters('translangs_cloud_privacy_url', '')),
         ]);
+
+        wp_set_script_translations(self::HANDLE, 'translangs', TRANSLANGS_DIR . 'languages');
     }
 }

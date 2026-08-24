@@ -1,6 +1,6 @@
 {
 	"name": "translangs-admin",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"private": true,
 	"description": "TransLangs admin board (React, @wordpress/scripts).",
 	"scripts": {

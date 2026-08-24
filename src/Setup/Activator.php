@@ -22,6 +22,25 @@ class Activator
 {
     public static function run(): void
     {
+        $missing = [];
+        if (!function_exists('mb_strtolower')) {
+            $missing[] = 'mbstring';
+        }
+        if (!class_exists(\DOMDocument::class)) {
+            $missing[] = 'DOM';
+        }
+        if ($missing !== []) {
+            wp_die(
+                sprintf(
+                    /* translators: %s is a comma-separated list of required PHP extensions. */
+                    esc_html__('TransLangs requires these PHP extensions: %s.', 'translangs'),
+                    esc_html(implode(', ', $missing))
+                ),
+                esc_html__('TransLangs activation failed', 'translangs'),
+                ['back_link' => true]
+            );
+        }
+
         // Abort activation with a specific, human-readable message rather than a
         // white screen or raw SQL error when the DB prerequisites are not met
         // (non-InnoDB parent tables, or FKs that could not be created — §10).

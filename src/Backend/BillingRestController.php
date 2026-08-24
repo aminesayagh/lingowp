@@ -49,6 +49,13 @@ final class BillingRestController
         );
         register_rest_route(self::NS, '/billing/owner', ['methods' => 'GET', 'callback' => [$this, 'ownerStatus']] + $guard);
         register_rest_route(self::NS, '/billing/owner', ['methods' => 'POST', 'callback' => [$this, 'assignOwner']] + $guard);
+        register_rest_route(self::NS, '/billing/websites', ['methods' => 'GET', 'callback' => [$this, 'listWebsites']] + $guard);
+        register_rest_route(self::NS, '/billing/websites', ['methods' => 'POST', 'callback' => [$this, 'addWebsite']] + $guard);
+        register_rest_route(
+            self::NS,
+            '/billing/websites/(?P<uuid>[^/]+)',
+            ['methods' => 'DELETE', 'callback' => [$this, 'deleteWebsite']] + $guard
+        );
     }
 
     public function canManage(): bool
@@ -78,11 +85,21 @@ final class BillingRestController
         return rest_ensure_response(['ok' => $data !== null, 'entitlements' => $data, 'error' => $data !== null ? '' : 'ERR_BACKEND']);
     }
 
-    public function transactions(): WP_REST_Response
+    public function transactions(WP_REST_Request $request): WP_REST_Response
     {
-        $result = $this->backendClient->getTransactions();
+        $page     = max(1, (int) $request->get_param('page'));
+        $pageSize = min(50, max(1, (int) ($request->get_param('page_size') ?: 20)));
+        $result   = $this->backendClient->getTransactions($page, $pageSize);
 
-        return rest_ensure_response(['ok' => $result['ok'], 'transactions' => $result['data']['transactions'] ?? [], 'error' => $result['error']]);
+        return rest_ensure_response([
+            'ok'           => $result['ok'],
+            'transactions' => $result['data']['transactions'] ?? [],
+            'page'         => $result['data']['page'] ?? $page,
+            'page_size'    => $result['data']['page_size'] ?? $pageSize,
+            'total'        => $result['data']['total'] ?? 0,
+            'has_more'     => $result['data']['has_more'] ?? false,
+            'error'        => $result['error'],
+        ]);
     }
 
     public function usage(): WP_REST_Response
@@ -175,5 +192,42 @@ final class BillingRestController
         $result = $this->backendClient->assignOwner($email);
 
         return rest_ensure_response(['ok' => $result['ok'], 'error' => $result['error']]);
+    }
+
+    /** Every confirmed site under this license (pending, unconfirmed adds don't appear here). */
+    public function listWebsites(): WP_REST_Response
+    {
+        $result = $this->backendClient->listWebsites();
+
+        return rest_ensure_response([
+            'ok'       => $result['ok'],
+            'websites' => $result['data']['websites'] ?? [],
+            'error'    => $result['error'],
+        ]);
+    }
+
+    /** Kicks off the add-website ask; the new site doesn't exist until its own confirm link is clicked. */
+    public function addWebsite(WP_REST_Request $request): WP_REST_Response
+    {
+        $domain     = sanitize_text_field((string) $request->get_param('domain'));
+        $adminEmail = sanitize_email((string) $request->get_param('admin_email'));
+
+        if ($domain === '' || $adminEmail === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
+        }
+
+        $result = $this->backendClient->addWebsite($domain, $adminEmail);
+
+        return rest_ensure_response(['ok' => $result['ok'], 'sent' => (bool) ($result['data']['sent'] ?? $result['ok']), 'error' => $result['error']]);
+    }
+
+    /** Immediate, synchronous hard delete — no confirmation email, no undo. */
+    public function deleteWebsite(WP_REST_Request $request): WP_REST_Response
+    {
+        $uuid = sanitize_text_field((string) $request->get_param('uuid'));
+
+        $result = $this->backendClient->deleteWebsite($uuid);
+
+        return rest_ensure_response(['ok' => $result['ok'], 'deleted' => (bool) ($result['data']['deleted'] ?? $result['ok']), 'error' => $result['error']]);
     }
 }

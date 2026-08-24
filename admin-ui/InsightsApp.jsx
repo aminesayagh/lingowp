@@ -16,6 +16,7 @@ import { useState } from '@wordpress/element'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from './api'
+import { errorMessage } from './errors'
 import { GhostKpiRow, Hero, TopicSection } from './screens/InsightsPreview'
 import { KPI_ROW, TOPICS } from './screens/insightsContent.mjs'
 
@@ -58,7 +59,7 @@ export default function InsightsApp() {
 		if ( res.ok ) {
 			setNotified( true )
 		} else {
-			setNotifyError( "Couldn't send that. Try again." )
+			setNotifyError( errorMessage( res.error ) )
 		}
 	}
 

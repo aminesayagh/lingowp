@@ -8,67 +8,53 @@ import {
 	Divider,
 	InlineStack,
 	Modal,
+	Spinner,
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useEffect, useState } from '@wordpress/element'
+import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
+import { errorMessage } from '../errors'
 
-// Preview only — POST /owner/websites (add/delete/transfer) exists on the
-// backend but its own integration tests are deliberately kept red pending an
-// unresolved design question (the free-tier site limit and the connect
-// ladder's admin_email handling both block basically every add-a-2nd-site
-// scenario right now — see design-authentication-multisite-and-site-limits.md).
-// This screen demonstrates the intended UX against local state only; nothing
-// here calls the backend. Swap the two TODOs below for real POST/DELETE
-// /owner/websites calls once that design lands.
-const MOCK_SITES = [
-	{
-		domain: 'translangs.com',
-		adminEmail: 'admin@translangs.com',
-		status: 'active',
-		thisSite: true,
-	},
-	{
-		domain: 'shop.translangs.com',
-		adminEmail: 'admin@translangs.com',
-		status: 'active',
-		thisSite: false,
-	},
-]
-
-function statusBadge( status ) {
-	if ( status === 'active' ) {
-		return <Badge tone="success">Active</Badge>
-	}
-	return <Badge tone="attention">Waiting for the link</Badge>
-}
-
-function AddSiteModal( { open, onClose, slotsLeft, onAdd } ) {
+function AddSiteModal( { open, onClose, slotsLeft, loading, error, onAdd } ) {
 	const [ domain, setDomain ] = useState( '' )
+	const [ adminEmail, setAdminEmail ] = useState( '' )
 
 	function handleAdd() {
-		if ( ! domain ) {
+		if ( ! domain || ! adminEmail ) {
 			return
 		}
-		onAdd( domain )
+		onAdd( domain, adminEmail )
+	}
+
+	function handleClose() {
 		setDomain( '' )
+		setAdminEmail( '' )
+		onClose()
 	}
 
 	return (
 		<Modal
 			open={ open }
-			onClose={ onClose }
+			onClose={ handleClose }
 			title="Add a site"
 			primaryAction={ {
 				content: 'Send link',
-				disabled: ! domain,
+				disabled: ! domain || ! adminEmail,
+				loading,
 				onAction: handleAdd,
 			} }
-			secondaryActions={ [ { content: 'Cancel', onAction: onClose } ] }
+			secondaryActions={ [
+				{ content: 'Cancel', onAction: handleClose },
+			] }
 		>
 			<Modal.Section>
 				<BlockStack gap="400">
+					{ error && (
+						<Banner tone="critical">
+							{ errorMessage( error ) }
+						</Banner>
+					) }
 					<InlineStack align="space-between">
 						<Text as="span" tone="subdued" variant="bodySm">
 							The plugin has to be installed and active there
@@ -86,6 +72,14 @@ function AddSiteModal( { open, onClose, slotsLeft, onAdd } ) {
 						placeholder="shop.example.com"
 						value={ domain }
 						onChange={ setDomain }
+					/>
+					<TextField
+						label="Admin email"
+						type="email"
+						autoComplete="off"
+						placeholder="admin@shop.example.com"
+						value={ adminEmail }
+						onChange={ setAdminEmail }
 					/>
 					<BlockStack gap="150">
 						<Text as="span" fontWeight="semibold" variant="bodySm">
@@ -106,7 +100,7 @@ function AddSiteModal( { open, onClose, slotsLeft, onAdd } ) {
 	)
 }
 
-function RemoveSiteModal( { site, onClose, onRemove } ) {
+function RemoveSiteModal( { site, onClose, loading, error, onRemove } ) {
 	const [ confirmText, setConfirmText ] = useState( '' )
 
 	return (
@@ -117,9 +111,10 @@ function RemoveSiteModal( { site, onClose, onRemove } ) {
 			primaryAction={ {
 				content: 'Remove',
 				destructive: true,
+				loading,
 				disabled: confirmText !== site?.domain,
 				onAction: () => {
-					onRemove( site.domain )
+					onRemove( site )
 					setConfirmText( '' )
 				},
 			} }
@@ -127,6 +122,11 @@ function RemoveSiteModal( { site, onClose, onRemove } ) {
 		>
 			<Modal.Section>
 				<BlockStack gap="300">
+					{ error && (
+						<Banner tone="critical">
+							{ errorMessage( error ) }
+						</Banner>
+					) }
 					<Text as="p" tone="subdued">
 						It stops translating right away and the slot frees up.
 					</Text>
@@ -145,14 +145,35 @@ function RemoveSiteModal( { site, onClose, onRemove } ) {
 }
 
 export default function BillingSites() {
-	const [ sites, setSites ] = useState( MOCK_SITES )
+	const [ websites, setWebsites ] = useState( null )
+	const [ websitesError, setWebsitesError ] = useState( '' )
 	const [ sitesLimit, setSitesLimit ] = useState( null )
-	const [ addOpen, setAddOpen ] = useState( false )
-	const [ removeTarget, setRemoveTarget ] = useState( null )
+	const [ ownerVerified, setOwnerVerified ] = useState( false )
 
-	// The one real thing on this screen — everything else below is mocked
-	// (see file-level comment) — so the slot count at least matches the
-	// account's real plan instead of being invented too.
+	const [ addOpen, setAddOpen ] = useState( false )
+	const [ addLoading, setAddLoading ] = useState( false )
+	const [ addError, setAddError ] = useState( '' )
+	const [ addSuccess, setAddSuccess ] = useState( false )
+
+	const [ removeTarget, setRemoveTarget ] = useState( null )
+	const [ removeLoading, setRemoveLoading ] = useState( false )
+	const [ removeError, setRemoveError ] = useState( '' )
+
+	const fetchWebsites = useCallback( () => {
+		setWebsitesError( '' )
+		return api.get( '/billing/websites' ).then( ( res ) => {
+			if ( res.ok ) {
+				setWebsites( res.websites )
+			} else {
+				setWebsitesError( res.error || 'ERR_UNREACHABLE' )
+			}
+		} )
+	}, [] )
+
+	useEffect( () => {
+		fetchWebsites()
+	}, [ fetchWebsites ] )
+
 	useEffect( () => {
 		api.get( '/billing/entitlements' ).then( ( res ) => {
 			if ( res.ok ) {
@@ -161,38 +182,82 @@ export default function BillingSites() {
 		} )
 	}, [] )
 
-	const limit = sitesLimit ?? sites.length
-	const used = sites.length
+	useEffect( () => {
+		api.get( '/billing/owner' ).then( ( res ) => {
+			setOwnerVerified( !! ( res.ok && res.verified ) )
+		} )
+	}, [] )
+
+	async function addSite( domain, adminEmail ) {
+		setAddLoading( true )
+		setAddError( '' )
+		const res = await api.post( '/billing/websites', {
+			domain,
+			admin_email: adminEmail,
+		} )
+		setAddLoading( false )
+		if ( res.ok ) {
+			setAddOpen( false )
+			setAddSuccess( true )
+			return
+		}
+		setAddError( res.error || 'ERR_UNREACHABLE' )
+	}
+
+	async function removeSite( site ) {
+		setRemoveLoading( true )
+		setRemoveError( '' )
+		const res = await api.del( `/billing/websites/${ site.site_id }` )
+		setRemoveLoading( false )
+		if ( res.ok ) {
+			setWebsites( ( list ) =>
+				list.filter( ( w ) => w.site_id !== site.site_id )
+			)
+			setRemoveTarget( null )
+			return
+		}
+		setRemoveError( res.error || 'ERR_UNREACHABLE' )
+	}
+
+	if ( websites === null ) {
+		if ( websitesError ) {
+			return (
+				<Card>
+					<BlockStack gap="200">
+						<Text as="p" tone="critical">
+							{ errorMessage( websitesError ) }
+						</Text>
+						<InlineStack>
+							<Button onClick={ fetchWebsites }>Retry</Button>
+						</InlineStack>
+					</BlockStack>
+				</Card>
+			)
+		}
+		return (
+			<Box padding="500">
+				<Spinner accessibilityLabel="Loading sites" size="small" />
+			</Box>
+		)
+	}
+
+	const limit = sitesLimit ?? websites.length
+	const used = websites.length
 	const slotsLeft = Math.max( 0, limit - used )
-
-	// TODO: replace with POST /owner/websites once the backend's multisite
-	// design gap is resolved (see file-level comment above).
-	function addSite( domain ) {
-		setSites( ( s ) => [
-			...s,
-			{
-				domain,
-				adminEmail: null,
-				status: 'pending',
-				thisSite: false,
-			},
-		] )
-		setAddOpen( false )
-	}
-
-	// TODO: replace with DELETE /owner/websites/{id}.
-	function removeSite( domain ) {
-		setSites( ( s ) => s.filter( ( site ) => site.domain !== domain ) )
-		setRemoveTarget( null )
-	}
+	const hostname = window.location.hostname
 
 	return (
 		<BlockStack gap="400">
-			<Banner tone="warning">
-				Preview — this tab isn&apos;t connected to your account yet.
-				Adding or removing a site here only changes what you see on this
-				screen.
-			</Banner>
+			{ addSuccess && (
+				<Banner
+					tone="success"
+					onDismiss={ () => setAddSuccess( false ) }
+				>
+					Check your owner inbox (or wait a moment and try again if
+					it&apos;s been a while) for a link to finish adding this
+					site.
+				</Banner>
+			) }
 
 			<InlineStack
 				align="space-between"
@@ -206,10 +271,15 @@ export default function BillingSites() {
 					<Text as="span" tone="subdued" variant="bodySm">
 						{ `${ used } of ${ limit } slots used. Every site draws from the same monthly words and reserve.` }
 					</Text>
+					{ ! ownerVerified && (
+						<Text as="span" tone="subdued" variant="bodySm">
+							Set up an account owner above to add another site.
+						</Text>
+					) }
 				</BlockStack>
 				<Button
 					variant="primary"
-					disabled={ slotsLeft === 0 }
+					disabled={ slotsLeft === 0 || ! ownerVerified }
 					onClick={ () => setAddOpen( true ) }
 				>
 					Add site
@@ -217,8 +287,8 @@ export default function BillingSites() {
 			</InlineStack>
 
 			<Card padding="0">
-				{ sites.map( ( site, index ) => (
-					<BlockStack key={ site.domain } gap="0">
+				{ websites.map( ( site, index ) => (
+					<BlockStack key={ site.site_id } gap="0">
 						{ index > 0 && <Divider /> }
 						<Box padding="400">
 							<InlineStack
@@ -230,15 +300,14 @@ export default function BillingSites() {
 									<Text as="span" fontWeight="semibold">
 										{ site.domain }
 									</Text>
-									{ site.thisSite && (
+									{ site.domain === hostname && (
 										<Badge>This site</Badge>
 									) }
 								</InlineStack>
 								<Text as="span" tone="subdued" variant="bodySm">
-									{ site.adminEmail || '—' }
+									{ site.admin_email || '—' }
 								</Text>
-								{ statusBadge( site.status ) }
-								{ ! site.thisSite && (
+								{ site.domain !== hostname && (
 									<Button
 										variant="plain"
 										tone="critical"
@@ -257,13 +326,23 @@ export default function BillingSites() {
 
 			<AddSiteModal
 				open={ addOpen }
-				onClose={ () => setAddOpen( false ) }
+				onClose={ () => {
+					setAddOpen( false )
+					setAddError( '' )
+				} }
 				slotsLeft={ slotsLeft }
+				loading={ addLoading }
+				error={ addError }
 				onAdd={ addSite }
 			/>
 			<RemoveSiteModal
 				site={ removeTarget }
-				onClose={ () => setRemoveTarget( null ) }
+				onClose={ () => {
+					setRemoveTarget( null )
+					setRemoveError( '' )
+				} }
+				loading={ removeLoading }
+				error={ removeError }
 				onRemove={ removeSite }
 			/>
 		</BlockStack>

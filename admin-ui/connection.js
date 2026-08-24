@@ -1,10 +1,7 @@
-// Shared by every SPA root (App/Dashboard, BillingApp, ...) that makes a
-// bearer-authed backend call. Onboarding's own "Continue" step already
-// attempts a connect, but that is not the only way into this plugin's admin
-// pages — a direct visit to Billing before onboarding is finished would
-// otherwise fire /billing/entitlements, /provider-keys, etc. with no license
-// key yet, hitting a wall of 401s. Call this first and await it before making
-// any bearer-authed request.
+// Shared by every SPA root that makes a bearer-authenticated backend call.
+// This helper may validate an existing connection, but it must never create a
+// first connection: sending the site domain/admin email requires an explicit
+// administrator action through /connection/connect.
 //
 // /connection/check never mutates anything by itself (it only self-heals a
 // stale 401/410 key server-side). /connection/connect is only fired here when
@@ -29,14 +26,6 @@ function normalize( res ) {
 
 export async function ensureConnected() {
 	const status = await api.post( '/connection/check' )
-
-	if ( status.connected || status.pending || status.ai_available ) {
-		return normalize( status )
-	}
-
-	if ( status.ai_error === 'ERR_NOT_CONNECTED' ) {
-		return normalize( await api.post( '/connection/connect' ) )
-	}
 
 	return normalize( status )
 }

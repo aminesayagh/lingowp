@@ -29,7 +29,7 @@ final class AiTranslationRunner
     ) {}
 
     /**
-     * @param array<int, array{ref:\TransLangs\Shared\Source\SourceRef, original:string, translated:?string, status:?int, meta_key?:?string, group_id:string, type:string}> $units
+     * @param array<int, array{ref:\TransLangs\Shared\Source\SourceRef, original:string, translated:?string, status:?int, meta_key?:?string, group_id:string}> $units
      * @return array{translated:int, words_used:int, failures:array, error:?string}
      */
     public function run(array $units, string $lang): array
@@ -47,7 +47,6 @@ final class AiTranslationRunner
                 'texts'        => array_map(static fn (array $u): array => [
                     'text'     => $u['original'],
                     'group_id' => $u['group_id'],
-                    'type'     => $u['type'],
                 ], $bin),
             ];
 

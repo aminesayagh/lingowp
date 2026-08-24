@@ -165,6 +165,10 @@ final class GettextOnlineTranslationFetcher
 
     private function downloadMoFromPackage(string $packageUrl, string $slug, string $locale): ?string
     {
+        if ($packageUrl === '' || !class_exists(\ZipArchive::class)) {
+            return null;
+        }
+
         $response = wp_remote_get($packageUrl, ['timeout' => 30]);
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
             return null;

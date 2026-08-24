@@ -16,6 +16,33 @@ function unavailableCopy() {
 	return 'AI is off — reconnect Translangs in Settings to enable AI translation.'
 }
 
+function CloudDisclosure() {
+	return (
+		<BlockStack gap="050">
+			<Text as="span" tone="subdued" variant="bodySm">
+				Connecting sends this site&apos;s domain and WordPress admin email to
+				Translangs Cloud. Translation text is sent only when you request AI
+				translation.
+			</Text>
+			{ ( cfg.cloud_terms_url || cfg.cloud_privacy_url ) && (
+				<Text as="span" tone="subdued" variant="bodySm">
+					{ cfg.cloud_terms_url && (
+						<a href={ cfg.cloud_terms_url } target="_blank" rel="noreferrer">
+							Terms
+						</a>
+					) }
+					{ cfg.cloud_terms_url && cfg.cloud_privacy_url && ' · ' }
+					{ cfg.cloud_privacy_url && (
+						<a href={ cfg.cloud_privacy_url } target="_blank" rel="noreferrer">
+							Privacy Policy
+						</a>
+					) }
+				</Text>
+			) }
+		</BlockStack>
+	)
+}
+
 function emptyStateTone( connectPending, aiAvailable ) {
 	if ( connectPending || aiAvailable ) {
 		return 'subdued'
@@ -85,9 +112,12 @@ export default function QuotaCard( {
 						{ emptyStateCopy( connectPending, aiAvailable ) }
 					</Text>
 					{ neverConnected && (
-						<Button variant="plain" onClick={ onConnect }>
-							Connect Translangs
-						</Button>
+						<>
+							<CloudDisclosure />
+							<Button variant="plain" onClick={ onConnect }>
+								Connect to Translangs Cloud
+							</Button>
+						</>
 					) }
 				</BlockStack>
 			</Card>

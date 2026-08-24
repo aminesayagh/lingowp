@@ -42,6 +42,6 @@ security-reports/*
 !security-reports/.gitkeep
 
 vendor/
+dist/
 .VSCode/
 .senera/
-

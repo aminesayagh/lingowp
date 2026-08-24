@@ -77,7 +77,7 @@ const LanguageManagerModal = lazy( () =>
 // progress is scannable even when the row is not hovered.
 const STATUS_BADGE = {
 	missing: null,
-	needs_review: { tone: 'warning', label: 'Needs review' },
+	needs_review: { tone: 'warning', label: 'Review' },
 	reviewed: { tone: 'success', label: 'Done' },
 	translated: { tone: 'success', label: 'Done' },
 }
@@ -354,29 +354,22 @@ export default function Dashboard( {
 		} )
 	}, [] )
 
-	// Every page load: force a LIVE backend probe (not the cached status —
-	// that's stale for up to 15 minutes after an outage recovers, which is
-	// exactly what would make a just-restarted backend look still-down here).
-	// A stale key (401/410) self-heals server-side (SiteConnector::ensureValid).
-	// A site that has genuinely never connected yet (onboarding wasn't
-	// finished, or this page was opened before it was) gets connected here
-	// too — ensureConnected() only fires /connection/connect for that exact
-	// case, and the backend dedupes a repeat pending ask instead of
-	// re-emailing, so this is safe on every mount. Entitlements/provider-keys
-	// are bearer-authed, so they wait for this to settle first — firing them
-	// in parallel would 401 on a never-connected install.
+	// Validate an existing cloud connection on page load. A fresh local-only
+	// install stops at ERR_NOT_CONNECTED and makes no external request; the
+	// explicit QuotaCard action below is the sole first-connect path.
 	useEffect( () => {
 		ensureConnected().then( ( status ) => {
 			setAi( { available: status.available, error: status.error } )
 			setConnectPending( status.pending )
-			// Only a stored-but-unusable credential is worth a toast here — a
-			// fresh connect attempt (successful, pending, or a domain-level
-			// failure ensureConnected can't fix on its own) isn't a surprise
-			// worth interrupting the page load for.
 			if ( status.connected && ! status.available ) {
 				showToast( 'warning', errorMessage( status.error ) )
 			}
-			refetchEntitlements()
+			if ( status.connected ) {
+				refetchEntitlements()
+			} else {
+				setQuota( null )
+				setBillingBlocked( true )
+			}
 		} )
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- refetchEntitlements is stable
 	}, [] )
@@ -393,6 +386,7 @@ export default function Dashboard( {
 			if ( res.ok ) {
 				setAi( { available: !! res.ai_available, error: '' } )
 				setConnectPending( false )
+				refetchEntitlements()
 				return
 			}
 			showToast( 'warning', errorMessage( res.error || 'ERR_BACKEND' ) )
@@ -1847,7 +1841,7 @@ export default function Dashboard( {
 											blockAlign="center"
 											wrap={ false }
 										>
-											<Box width="42%" minWidth="0">
+											<Box width="45%" minWidth="0">
 												<Text
 													as="span"
 													variant="bodySm"
@@ -1857,7 +1851,7 @@ export default function Dashboard( {
 													{ originalLabel }
 												</Text>
 											</Box>
-											<Box width="42%" minWidth="0">
+											<Box width="45%" minWidth="0">
 												<Text
 													as="span"
 													variant="bodySm"
@@ -2754,7 +2748,7 @@ function TextUnitRow( {
 					blockAlign="center"
 					wrap={ false }
 				>
-					<Box width="42%" minWidth="0">
+					<Box width="45%" minWidth="0">
 						<div
 							style={ {
 								display: 'flex',
@@ -2812,8 +2806,11 @@ function TextUnitRow( {
 						</div>
 					</Box>
 
-					<Box width="42%" minWidth="0">
-						<div style={ { position: 'relative', minWidth: 0 } }>
+					<Box width="45%" minWidth="0">
+						<div
+							dir={ targetDir }
+							style={ { position: 'relative', minWidth: 0 } }
+						>
 							{ clickable ? (
 								<motion.div
 									role="button"
@@ -2939,35 +2936,70 @@ function TextUnitRow( {
 							blockAlign="center"
 							wrap={ false }
 						>
-							{ isComposed && ( hovered || menuOpen ) && (
-								<Tooltip content="This text contains inline formatting (links, bold, etc.). Open it to edit — the formatting is kept for you.">
-									<Badge tone="info" size="small">
-										Rich text
-									</Badge>
-								</Tooltip>
-							) }
 							{ SEO_FIELD_BADGE[ unit.seo_field ] && (
 								<Badge tone="info" size="small">
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
 							) }
 							{ badge && (
-								<Badge
-									tone={ badge.tone }
-									size="small"
-									icon={
-										unit.is_ai && badge.label === 'Done'
-											? ( props ) => (
-													<AiIcon
-														{ ...props }
-														size={ 12 }
-													/>
-											  )
+								<span
+									role={
+										unit.status === 'needs_review'
+											? 'button'
 											: undefined
 									}
+									tabIndex={
+										unit.status === 'needs_review' ? 0 : undefined
+									}
+									aria-label={
+										unit.status === 'needs_review'
+											? 'Review. Double-click to mark as done.'
+											: undefined
+									}
+									onDoubleClick={
+										unit.status === 'needs_review'
+											? () => doStatus( 'reviewed' )
+											: undefined
+									}
+									onKeyDown={
+										unit.status === 'needs_review'
+											? ( event ) => {
+													if (
+														event.key === 'Enter' ||
+														event.key === ' '
+													) {
+														event.preventDefault()
+														doStatus( 'reviewed' )
+													}
+												  }
+											: undefined
+									}
+									style={ {
+										whiteSpace: 'nowrap',
+										cursor:
+											unit.status === 'needs_review'
+												? 'pointer'
+												: 'default',
+										userSelect: 'none',
+									} }
 								>
-									{ badge.label }
-								</Badge>
+									<Badge
+										tone={ badge.tone }
+										size="small"
+										icon={
+											unit.is_ai && badge.label === 'Done'
+												? ( props ) => (
+														<AiIcon
+															{ ...props }
+															size={ 12 }
+														/>
+												  )
+												: undefined
+										}
+									>
+										{ badge.label }
+									</Badge>
+								</span>
 							) }
 							<motion.div
 								animate={ {

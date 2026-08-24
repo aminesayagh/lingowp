@@ -1,6 +1,6 @@
 {
 	"name": "translangs/translangs",
-	"description": "TranslatePress-like translation layer for WordPress.",
+	"description": "Local manual translation and optional AI-assisted translation for WordPress.",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-or-later",
 	"require": {

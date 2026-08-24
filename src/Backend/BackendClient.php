@@ -79,6 +79,39 @@ final class BackendClient
     }
 
     /**
+     * GET /owner/websites — bearer + domain. Every non-revoked site under the
+     * license, oldest first. Success data: { websites: [{site_id, domain,
+     * admin_email, default_language}] }. A still-pending, unconfirmed add
+     * doesn't appear here — this is a confirmed-sites view only.
+     */
+    public function listWebsites(): array
+    {
+        return $this->request('GET', '/owner/websites', null, $this->authHeaders());
+    }
+
+    /**
+     * POST /owner/websites — bearer + domain (the *existing* site the owner
+     * is adding a new one from). Payload: { domain, admin_email }. Requires a
+     * verified owner_email and room under sites_limit (403 otherwise). Always
+     * returns { sent: true } — the new site doesn't exist until its own
+     * confirm link (landing on the *new* domain) is clicked.
+     */
+    public function addWebsite(string $domain, string $adminEmail): array
+    {
+        return $this->request('POST', '/owner/websites', ['domain' => $domain, 'admin_email' => $adminEmail], $this->authHeaders());
+    }
+
+    /**
+     * DELETE /owner/websites/{uuid} — bearer + domain (any site under the
+     * license, not necessarily the one being deleted). Immediate synchronous
+     * hard delete, no confirmation email. Success data: { deleted: true }.
+     */
+    public function deleteWebsite(string $uuid): array
+    {
+        return $this->request('DELETE', '/owner/websites/' . rawurlencode($uuid), null, $this->authHeaders());
+    }
+
+    /**
      * POST /translations — batch translate (bearer + domain). Payload:
      *   { source_lang, target_langs:[], texts:[""] }
      * Success data: { translations:[{text,target_lang,translation}], failed:[{text,target_lang,reason}] }.
@@ -109,14 +142,10 @@ final class BackendClient
         return $this->request('DELETE', '/provider-keys/' . rawurlencode($provider), null, $this->authHeaders());
     }
 
-    /**
-     * POST /insights/notify — Insights preview screen's "Notify me at launch"
-     * button. Payload: { domain, email, plugin_version }. No auth: an
-     * unlicensed/trial site can ask to be notified too.
-     */
-    public function notifyInsightsLaunch(array $payload): array
+    /** POST /support/suggestions — authenticated product suggestion. */
+    public function submitSupportSuggestion(string $message): array
     {
-        return $this->request('POST', '/insights/notify', $payload);
+        return $this->request('POST', '/support/suggestions', ['message' => $message], $this->authHeaders());
     }
 
     /** GET /billing/plans — public, no auth. Subscription plan catalog. */
@@ -181,10 +210,12 @@ final class BackendClient
         return $this->request('POST', '/billing/packs/order/' . rawurlencode($orderId) . '/capture', null, $this->authHeaders());
     }
 
-    /** GET /billing/subscription/transactions — receipts/billing history (bearer + domain), read-only. */
-    public function getTransactions(): array
+    /** GET /billing/transactions — unified subscription and word-pack history. */
+    public function getTransactions(int $page = 1, int $pageSize = 20): array
     {
-        return $this->request('GET', '/billing/subscription/transactions', null, $this->authHeaders());
+        $query = http_build_query(['page' => $page, 'page_size' => $pageSize]);
+
+        return $this->request('GET', '/billing/transactions?' . $query, null, $this->authHeaders());
     }
 
     /**
@@ -264,6 +295,9 @@ final class BackendClient
             $status === 409 && $detail === 'plan_change_already_pending' => 'ERR_PLAN_CHANGE_PENDING', // /billing/subscription/plan: a revision is already approved and scheduled
             $status === 409 && $detail === 'active_subscription_required' => 'ERR_SUBSCRIPTION_REQUIRED',
             $status === 409 && $detail === 'owner_email_already_taken' => 'ERR_OWNER_EMAIL_TAKEN', // /owner/assign-owner
+            $status === 403 && $detail === 'owner_email_required'    => 'ERR_OWNER_EMAIL_REQUIRED', // POST /owner/websites
+            $status === 403 && $detail === 'sites_limit_reached'     => 'ERR_SITES_LIMIT_REACHED',  // POST /owner/websites
+            $status === 409 && $detail === 'domain_claimed'          => 'ERR_DOMAIN_CLAIMED',       // POST /owner/websites
             $status === 403 && $detail === 'order_not_owned'         => 'ERR_ORDER_NOT_OWNED',      // /billing/packs/order/{id}/capture
             $status === 402                                          => 'ERR_LICENSE_DETACHED', // key valid, license_id IS NULL — keep key, no auto-reconnect
             $status === 409                                          => 'ERR_DOMAIN_MISMATCH',  // any other protected route: domain on file doesn't match

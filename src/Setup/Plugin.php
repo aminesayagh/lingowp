@@ -73,6 +73,7 @@ use TransLangs\GettextDomains\GettextTranslatedPercentCache;
 use TransLangs\GettextDomains\GettextTranslationUnitsService;
 use TransLangs\Insights\InsightsRestController;
 use TransLangs\Insights\NotifyEmailResolver;
+use TransLangs\Privacy\PrivacyPolicyContent;
 
 /**
  * @phpstan-type BackendBundle array{connection: ConnectionRepository, backendClient: BackendClient,
@@ -91,6 +92,8 @@ class Plugin
     public function boot(): void
     {
         global $wpdb;
+
+        (new PrivacyPolicyContent())->register();
 
         [$languageRegistry, $languageResolver, $urlBuilder, $context] = $this->bootLanguage($wpdb);
         $this->bootLocalizationRouting($languageResolver, $urlBuilder);
@@ -306,7 +309,7 @@ class Plugin
         $siteConnector       = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus);
 
         // REST API for the onboarding SPA (registers on rest_api_init).
-        (new OnboardingRestController($siteConnector, $connection, $languageRegistry, $connectionStatus))->register();
+        (new OnboardingRestController($connection, $languageRegistry, $connectionStatus))->register();
         (new ConnectionRestController($connection, $connectionStatus, $siteConnector))->register();
         (new ProviderKeyRestController($backendClient))->register();
         (new BillingRestController($backendClient, $billingEntitlements, $connection))->register();
@@ -322,7 +325,7 @@ class Plugin
 
         (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
 
-        (new InsightsRestController($backendClient, $connection, new NotifyEmailResolver()))->register();
+        (new InsightsRestController($backendClient, $connection))->register();
 
         $gettextImporter = new GettextPoImporter();
         (new GettextDomainRestController(

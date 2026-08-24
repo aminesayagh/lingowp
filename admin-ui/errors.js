@@ -47,6 +47,11 @@ const MESSAGES = {
 	ERR_SUBSCRIPTION_REQUIRED: 'Subscribe to a plan before buying extra words.',
 	ERR_OWNER_EMAIL_TAKEN:
 		'That address already owns another Translangs licence. Use a different one, or add this site from that account instead.',
+	ERR_OWNER_EMAIL_REQUIRED:
+		'Set up an account owner before adding another site.',
+	ERR_SITES_LIMIT_REACHED: "You've used all the site slots on your plan.",
+	ERR_DOMAIN_CLAIMED:
+		'This domain is already registered on another Translangs account. Contact support.',
 	ERR_ORDER_NOT_OWNED:
 		"This order doesn't belong to this site. Contact support.",
 	ERR_UNKNOWN_PACK:

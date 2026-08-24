@@ -19,6 +19,7 @@ import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from './api'
 import { ensureConnected } from './connection'
+import { CONNECT_PENDING_MESSAGE } from './errors'
 import BillingSubscription from './screens/BillingSubscription'
 import BillingUsage from './screens/BillingUsage'
 import BillingSites from './screens/BillingSites'
@@ -56,30 +57,60 @@ const TABS = [
 export default function BillingApp() {
 	const [ tab, setTab ] = useQueryState( 'tab', tabParser )
 	const [ subscribed, setSubscribed ] = useState( true ) // optimistic until entitlements load, so the Usage tab doesn't flash disabled
-	// A direct visit to Billing can be the very first thing that happens after
-	// activation, before onboarding ever ran a connect attempt. Every tab
-	// below fires its own bearer-authed fetch on mount, so none of them may
-	// render until ensureConnected() has settled — otherwise a
-	// never-connected install 401s on all of them at once.
 	const [ connectionReady, setConnectionReady ] = useState( false )
+	const [ connectionStatus, setConnectionStatus ] = useState( null )
+	const [ connecting, setConnecting ] = useState( false )
+	const [ connectError, setConnectError ] = useState( '' )
 
 	useEffect( () => {
 		let cancelled = false
-		ensureConnected()
-			.then( () => api.get( '/billing/entitlements' ) )
-			.then( ( res ) => {
+		ensureConnected().then( ( status ) => {
 				if ( cancelled ) {
 					return
 				}
-				if ( res.ok ) {
-					setSubscribed( !! res.entitlements?.active )
+				setConnectionStatus( status )
+				if ( ! status.connected ) {
+					setConnectionReady( true )
+					return
 				}
-				setConnectionReady( true )
-			} )
+				api.get( '/billing/entitlements' ).then( ( res ) => {
+					if ( cancelled ) {
+						return
+					}
+					if ( res.ok ) {
+						setSubscribed( !! res.entitlements?.active )
+					}
+					setConnectionReady( true )
+				} )
+		} )
 		return () => {
 			cancelled = true
 		}
 	}, [] )
+
+	async function connectCloud() {
+		setConnecting( true )
+		setConnectError( '' )
+		const res = await api.post( '/connection/connect' )
+		setConnecting( false )
+		if ( ! res.ok ) {
+			setConnectError( res.error || 'ERR_UNREACHABLE' )
+			return
+		}
+		const next = {
+			connected: !! res.connected,
+			pending: !! res.pending,
+			available: !! res.ai_available,
+			error: res.ai_error || '',
+		}
+		setConnectionStatus( next )
+		if ( next.connected ) {
+			const entitlements = await api.get( '/billing/entitlements' )
+			if ( entitlements.ok ) {
+				setSubscribed( !! entitlements.entitlements?.active )
+			}
+		}
+	}
 
 	// A direct ?tab=usage link or a subscription that lapsed after loading the
 	// tab both need this, not just the disabled Button below.
@@ -189,7 +220,7 @@ export default function BillingApp() {
 										gap: 16,
 									} }
 								>
-									{ connectionReady && <OwnerEmailCard /> }
+									{ connectionReady && connectionStatus?.connected && <OwnerEmailCard /> }
 									<MotionConfig reducedMotion="user">
 										<AnimatePresence
 											initial={ false }
@@ -213,19 +244,36 @@ export default function BillingApp() {
 														/>
 													</Box>
 												) }
-												{ connectionReady &&
-													tab === 'subscription' && (
+											{ connectionReady && ! connectionStatus?.connected && (
+												<Card>
+													<BlockStack gap="300">
+														<Text as="h2" variant="headingMd">Connect to Translangs Cloud</Text>
+														<Text as="p" tone="subdued">
+															Manual translation works without a cloud connection. Connecting sends this site&apos;s domain and WordPress admin email to Translangs Cloud; translation text and provider keys are sent only when you request those cloud features.
+														</Text>
+														{ connectionStatus?.pending && <Text as="p">{ CONNECT_PENDING_MESSAGE }</Text> }
+														{ connectError && <Text as="p" tone="critical">{ connectError }</Text> }
+														<InlineStack gap="200">
+															<Button variant="primary" loading={ connecting } disabled={ connectionStatus?.pending } onClick={ connectCloud }>Connect to Translangs Cloud</Button>
+															{ cfg.cloud_terms_url && <Button variant="plain" url={ cfg.cloud_terms_url } external>Terms</Button> }
+															{ cfg.cloud_privacy_url && <Button variant="plain" url={ cfg.cloud_privacy_url } external>Privacy Policy</Button> }
+														</InlineStack>
+													</BlockStack>
+												</Card>
+											) }
+											{ connectionReady && connectionStatus?.connected &&
+												tab === 'subscription' && (
 														<BillingSubscription />
 													) }
-												{ connectionReady &&
+											{ connectionReady && connectionStatus?.connected &&
 													tab === 'usage' && (
 														<BillingUsage />
 													) }
-												{ connectionReady &&
+											{ connectionReady && connectionStatus?.connected &&
 													tab === 'sites' && (
 														<BillingSites />
 													) }
-												{ connectionReady &&
+											{ connectionReady && connectionStatus?.connected &&
 													tab === 'token' && (
 														<BillingToken />
 													) }

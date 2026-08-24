@@ -140,7 +140,7 @@ export default function OwnerEmailCard() {
 							{ errorMessage( sendError ) }
 						</Banner>
 					) }
-					<InlineStack gap="200" blockAlign="center" wrap={ false }>
+					<InlineStack gap="100" blockAlign="center" wrap={ false }>
 						<div style={ { flexGrow: 1 } }>
 							<TextField
 								label="Owner email"
@@ -154,6 +154,7 @@ export default function OwnerEmailCard() {
 						</div>
 						<Button
 							variant="primary"
+							size="large"
 							loading={ sending }
 							disabled={ ! draft }
 							onClick={ () => send( draft ) }

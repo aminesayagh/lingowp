@@ -9,18 +9,18 @@ use WP_REST_Response;
 /**
  * Insights preview screen's single interaction (namespace translangs/v1):
  * the "Notify me at launch" button. Forwards straight to the backend on
- * click — no local persistence, no retry queue. A reload always shows the
- * button in its default state; this only reports whether this one click
- * landed.
+ * click — no local persistence, no retry queue. It submits a fixed machine
+ * code through the authenticated support-suggestion route; the browser never
+ * supplies a message or email address.
  */
 final class InsightsRestController
 {
     private const NS = 'translangs/v1';
+    private const SUGGESTION_MESSAGE = 'feature_interest:translangs_insights';
 
     public function __construct(
         private BackendClient $backendClient,
-        private ConnectionRepository $connection,
-        private NotifyEmailResolver $notifyEmailResolver
+        private ConnectionRepository $connection
     ) {}
 
     public function register(): void
@@ -44,17 +44,16 @@ final class InsightsRestController
 
     public function notify(): WP_REST_Response
     {
-        $email = $this->notifyEmailResolver->resolve()['email'];
-        if ($email === null) {
-            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
+        if (!$this->connection->isConnected()) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_NOT_CONNECTED'], 200);
         }
 
-        $result = $this->backendClient->notifyInsightsLaunch([
-            'domain'         => $this->connection->domain(),
-            'email'          => $email,
-            'plugin_version' => TRANSLANGS_VERSION,
-        ]);
+        $result = $this->backendClient->submitSupportSuggestion(self::SUGGESTION_MESSAGE);
 
-        return rest_ensure_response(['ok' => $result['ok'], 'error' => $result['error']]);
+        return rest_ensure_response([
+            'ok'         => $result['ok'],
+            'error'      => $result['error'],
+            'suggestion' => $result['ok'] ? $result['data'] : null,
+        ]);
     }
 }

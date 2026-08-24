@@ -154,14 +154,14 @@ final class AiTranslationController
     }
 
     /**
-     * Pending source units for a scope as [{ref, original, group_id, type, translated?, status?}].
+     * Pending source units for a scope as [{ref, original, group_id, translated?, status?}].
      * 'text' translates only the one clicked ref, regardless of its own status
      * (preserves "re-translate this one on demand") — never siblings from the
      * same post, so a single-text click stays a single-item request no matter
      * how large the surrounding post is. 'collection'/'language' take only
      * missing + needs_review units. Returns null on a malformed scope/id.
      *
-     * @return array<int, array{ref:SourceRef, original:string, group_id:string, type:string}>|null
+     * @return array<int, array{ref:SourceRef, original:string, group_id:string}>|null
      */
     private function unitsForScope(string $scope, WP_REST_Request $request, string $lang): ?array
     {
@@ -180,7 +180,6 @@ final class AiTranslationController
                 'original' => $context['text'],
                 'meta_key' => $context['meta_key'],
                 'group_id' => $ref->format(),
-                'type'     => $this->typeFor($context['kind']),
             ]];
         }
 
@@ -278,7 +277,7 @@ final class AiTranslationController
      * @param string|callable(array $r):string $groupId constant string, or a
      *        per-row callable when the group varies per row (html: by source_url;
      *        term via taxonomy scope: by term_id)
-     * @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int, meta_key:?string, group_id:string, type:string}>
+     * @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int, meta_key:?string, group_id:string}>
      */
     private function unitsFromRows(string $kind, array $rows, $groupId): array
     {
@@ -293,21 +292,8 @@ final class AiTranslationController
                 'status'     => $r['status'],
                 'meta_key'   => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
                 'group_id'   => is_string($groupId) ? $groupId : $groupId($r),
-                'type'       => $this->typeFor($kind),
             ];
         }, $rows);
-    }
-
-    /** Every kind (post/meta/term/option/html) is a type-5 composed unit whose
-     *  inline tags are already flattened into `{n}` markers by TranslationUnitCodec
-     *  (see HtmlUnitExtractor) — tl_html rows included, since HtmlDiscovery builds
-     *  them via the same codec. A composed unit must go through as plain text: the
-     *  backend's text-path protection regex treats `{n}` as an opaque token, but
-     *  its HTML path expects real `<tag>` markup and would either misparse the
-     *  markers or, worse, let the model rewrite them. */
-    private function typeFor(string $kind): string
-    {
-        return 'text';
     }
 
     private function resolveLang(WP_REST_Request $request): string

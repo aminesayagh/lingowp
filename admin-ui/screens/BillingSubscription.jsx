@@ -78,6 +78,16 @@ function formatDate( iso ) {
 	} )
 }
 
+function receiptItem( transaction ) {
+	if ( transaction.type === 'word_pack' ) {
+		return transaction.words
+			? `${ transaction.words.toLocaleString() } extra words`
+			: formatPlanKey( transaction.item )
+	}
+
+	return formatPlanKey( transaction.item )
+}
+
 function PlanCard( { plan, badge, actionLabel, disabled, loading, onAction } ) {
 	return (
 		<Card key={ plan.plan_key }>
@@ -113,7 +123,13 @@ function PlanCard( { plan, badge, actionLabel, disabled, loading, onAction } ) {
 	)
 }
 
-function ReceiptsCard( { transactions } ) {
+function ReceiptsCard( {
+	transactions,
+	hasMore,
+	loadingMore,
+	loadMoreError,
+	onLoadMore,
+} ) {
 	return (
 		<Card padding="0">
 			<DataTable
@@ -123,7 +139,7 @@ function ReceiptsCard( { transactions } ) {
 					const s = RECEIPT_STATUS[ t.status ]
 					return [
 						formatDate( t.time ),
-						formatPlanKey( t.plan ),
+						receiptItem( t ),
 						`${ t.amount } ${ t.currency }`,
 						s ? (
 							<Badge key={ t.id } tone={ s.tone }>
@@ -135,6 +151,19 @@ function ReceiptsCard( { transactions } ) {
 					]
 				} ) }
 			/>
+			{ ( hasMore || loadMoreError ) && (
+				<Box padding="300">
+					<InlineStack align="center">
+						<Button
+							onClick={ onLoadMore }
+							loading={ loadingMore }
+							disabled={ loadingMore }
+						>
+							{ loadMoreError ? 'Retry loading more' : 'Load more' }
+						</Button>
+					</InlineStack>
+				</Box>
+			) }
 		</Card>
 	)
 }
@@ -264,6 +293,10 @@ function IntervalToggle( { value, onChange } ) {
 function NotSubscribedState( {
 	plans,
 	transactions,
+	hasMoreTransactions,
+	transactionsLoadingMore,
+	transactionsLoadMoreError,
+	onLoadMoreTransactions,
 	actionLoading,
 	actionError,
 	pendingPlan,
@@ -364,7 +397,13 @@ function NotSubscribedState( {
 				{ transactions.length === 0 ? (
 					<EmptyReceipts />
 				) : (
-					<ReceiptsCard transactions={ transactions } />
+					<ReceiptsCard
+						transactions={ transactions }
+						hasMore={ hasMoreTransactions }
+						loadingMore={ transactionsLoadingMore }
+						loadMoreError={ transactionsLoadMoreError }
+						onLoadMore={ onLoadMoreTransactions }
+					/>
 				) }
 			</BlockStack>
 		</BlockStack>
@@ -411,6 +450,10 @@ function SubscriptionStateBody( {
 	entitlements,
 	plans,
 	transactions,
+	hasMoreTransactions,
+	transactionsLoadingMore,
+	transactionsLoadMoreError,
+	onLoadMoreTransactions,
 	onBuyWords,
 	onChangePlan,
 	changeLoading,
@@ -425,6 +468,10 @@ function SubscriptionStateBody( {
 				entitlements={ entitlements }
 				plans={ plans }
 				transactions={ transactions }
+				hasMoreTransactions={ hasMoreTransactions }
+				transactionsLoadingMore={ transactionsLoadingMore }
+				transactionsLoadMoreError={ transactionsLoadMoreError }
+				onLoadMoreTransactions={ onLoadMoreTransactions }
 				onBuyWords={ onBuyWords }
 				onChangePlan={ onChangePlan }
 				changeLoading={ changeLoading }
@@ -437,6 +484,10 @@ function SubscriptionStateBody( {
 		<NotSubscribedState
 			plans={ plans }
 			transactions={ transactions }
+			hasMoreTransactions={ hasMoreTransactions }
+			transactionsLoadingMore={ transactionsLoadingMore }
+			transactionsLoadMoreError={ transactionsLoadMoreError }
+			onLoadMoreTransactions={ onLoadMoreTransactions }
 			actionLoading={ actionLoading }
 			actionError={ actionError }
 			pendingPlan={ entitlements.pending_plan }
@@ -450,6 +501,10 @@ function ActiveState( {
 	entitlements,
 	plans,
 	transactions,
+	hasMoreTransactions,
+	transactionsLoadingMore,
+	transactionsLoadMoreError,
+	onLoadMoreTransactions,
 	onBuyWords,
 	onChangePlan,
 	changeLoading,
@@ -619,7 +674,13 @@ function ActiveState( {
 				{ transactions.length === 0 ? (
 					<EmptyReceipts />
 				) : (
-					<ReceiptsCard transactions={ transactions } />
+					<ReceiptsCard
+						transactions={ transactions }
+						hasMore={ hasMoreTransactions }
+						loadingMore={ transactionsLoadingMore }
+						loadMoreError={ transactionsLoadMoreError }
+						onLoadMore={ onLoadMoreTransactions }
+					/>
 				) }
 			</BlockStack>
 		</BlockStack>
@@ -635,6 +696,12 @@ export default function BillingSubscription() {
 	const [ entitlementsError, setEntitlementsError ] = useState( '' )
 	const [ transactions, setTransactions ] = useState( null )
 	const [ transactionsError, setTransactionsError ] = useState( '' )
+	const [ transactionsPage, setTransactionsPage ] = useState( 1 )
+	const [ hasMoreTransactions, setHasMoreTransactions ] = useState( false )
+	const [ transactionsLoadingMore, setTransactionsLoadingMore ] =
+		useState( false )
+	const [ transactionsLoadMoreError, setTransactionsLoadMoreError ] =
+		useState( '' )
 
 	const [ buyWordsOpen, setBuyWordsOpen ] = useState( false )
 	const [ buyLoading, setBuyLoading ] = useState( false )
@@ -693,14 +760,35 @@ export default function BillingSubscription() {
 		} )
 	}, [] )
 
-	const fetchTransactions = useCallback( () => {
-		setTransactionsError( '' )
-		return api.get( '/billing/transactions' ).then( ( res ) => {
+	const fetchTransactions = useCallback( ( page = 1 ) => {
+		const loadingMore = page > 1
+		if ( loadingMore ) {
+			setTransactionsLoadingMore( true )
+			setTransactionsLoadMoreError( '' )
+		} else {
+			setTransactionsError( '' )
+		}
+
+		return api
+			.get( `/billing/transactions?page=${ page }&page_size=20` )
+			.then( ( res ) => {
 			if ( res.ok ) {
-				setTransactions( res.transactions )
+				setTransactions( ( current ) =>
+					loadingMore
+						? [ ...( current || [] ), ...res.transactions ]
+						: res.transactions
+				)
+				setTransactionsPage( res.page )
+				setHasMoreTransactions( res.has_more )
 			} else {
-				setTransactionsError( res.error || 'ERR_UNREACHABLE' )
+				const error = res.error || 'ERR_UNREACHABLE'
+				if ( loadingMore ) {
+					setTransactionsLoadMoreError( error )
+				} else {
+					setTransactionsError( error )
+				}
 			}
+			setTransactionsLoadingMore( false )
 		} )
 	}, [] )
 
@@ -999,6 +1087,12 @@ export default function BillingSubscription() {
 				entitlements={ entitlements }
 				plans={ plans }
 				transactions={ transactions }
+				hasMoreTransactions={ hasMoreTransactions }
+				transactionsLoadingMore={ transactionsLoadingMore }
+				transactionsLoadMoreError={ transactionsLoadMoreError }
+				onLoadMoreTransactions={ () =>
+					fetchTransactions( transactionsPage + 1 )
+				}
 				onBuyWords={ () => setBuyWordsOpen( true ) }
 				onChangePlan={ doChangePlan }
 				changeLoading={ changeLoading }

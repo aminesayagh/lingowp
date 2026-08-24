@@ -25,7 +25,6 @@ final class OnboardingRestController
     private const URL_RISK_SMALL_SITE_MAX_URLS = 20;
 
     public function __construct(
-        private SiteConnector $siteConnector,
         private ConnectionRepository $connection,
         private LanguageRegistry $languages,
         private ConnectionStatus $status
@@ -107,31 +106,17 @@ final class OnboardingRestController
         // cannot send the user back to the first configuration screen.
         $this->connection->markOnboardingComplete();
 
-        $outcome = $this->attemptConnect();
-
-        // Always advance to setting-up. `connected` tells the SPA whether AI is live;
-        // `warning` carries the ERR_* reason when the connect did not succeed;
-        // `pending` means a confirm email is on its way, nothing stored yet.
+        // Cloud connection is deliberately separate from onboarding. Manual
+        // translation remains fully local until an administrator explicitly
+        // chooses "Connect to Translangs Cloud" in the Workspace or Billing UI.
+        // Keep the existing response fields for compatibility with older builds.
         return rest_ensure_response([
             'ok'        => true,
             'next'      => 'onboarding_setting_up',
             'connected' => $this->connection->isConnected(),
-            'warning'   => $outcome['error'],
-            'pending'   => $outcome['pending'],
+            'warning'   => '',
+            'pending'   => false,
         ]);
-    }
-
-    /**
-     * Runs POST /license/connect with the current site metadata, storing the
-     * key on success. Never throws, so callers can proceed offline.
-     *
-     * @return array{error: string, pending: bool}
-     */
-    private function attemptConnect(): array
-    {
-        $result = $this->siteConnector->connect();
-
-        return ['error' => $result['ok'] ? '' : $result['error'], 'pending' => $result['pending'] ?? false];
     }
 
     /** Mark completed and hand the SPA its dashboard destination. Does not wait for the scan. */

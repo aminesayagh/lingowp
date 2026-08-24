@@ -9,8 +9,6 @@ import {
 } from '@shopify/polaris'
 import { HERO } from './insightsContent.mjs'
 
-const cfg = window.Translangs || {}
-
 export function GhostBars( { items } ) {
 	const max = Math.max( ...items.map( ( i ) => i.width ) )
 
@@ -200,8 +198,6 @@ export function TopicSection( { topic } ) {
 }
 
 export function Hero( { notified, notifying, notifyError, onNotify } ) {
-	const email = cfg.notify_email || null
-
 	let label = 'Notify me at launch'
 	if ( notifying ) {
 		label = 'Sending…'
@@ -227,7 +223,7 @@ export function Hero( { notified, notifying, notifyError, onNotify } ) {
 						size="large"
 						fullWidth={ false }
 						loading={ notifying }
-						disabled={ ! email || notifying || notified }
+						disabled={ notifying || notified }
 						onClick={ onNotify }
 					>
 						{ label }

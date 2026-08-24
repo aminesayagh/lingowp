@@ -1,24 +1,52 @@
 #!/usr/bin/env bash
-# Builds a production-only zip of the plugin for the WordPress.org marketplace.
+# Builds a production-only, reproducible zip for WordPress.org review.
 set -euo pipefail
 
 PLUGIN_SLUG="translangs"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="$(grep -m1 -oP "Version:\s*\K[\d.]+" "$ROOT_DIR/translangs.php")"
+VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/translangs.php" | head -n 1)"
 BUILD_DIR="$(mktemp -d)"
-DEST="$ROOT_DIR/${PLUGIN_SLUG}-${VERSION}.zip"
+STAGE_PARENT="$(mktemp -d)"
+STAGE_DIR="$STAGE_PARENT/$PLUGIN_SLUG"
+DIST_DIR="$ROOT_DIR/dist"
+DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.zip"
+MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.sha256"
 
-echo "==> Exporting tracked files at HEAD (ignores untracked/gitignored junk)"
+cleanup() {
+  rm -rf "$BUILD_DIR" "$STAGE_PARENT"
+}
+trap cleanup EXIT
+
+if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=normal)" ]]; then
+  echo "Release builds require a clean worktree so the archive matches the tagged source." >&2
+  exit 1
+fi
+
+if [[ -z "$VERSION" ]]; then
+  echo "Could not read the plugin version from translangs.php." >&2
+  exit 1
+fi
+
+STABLE_TAG="$(sed -n 's/^Stable tag:[[:space:]]*//p' "$ROOT_DIR/readme.txt" | head -n 1)"
+PACKAGE_VERSION="$(sed -n 's/^[[:space:]]*\"version\":[[:space:]]*\"\([^\"]*\)\".*/\1/p' "$ROOT_DIR/package.json" | head -n 1)"
+if [[ "$VERSION" != "$STABLE_TAG" || "$VERSION" != "$PACKAGE_VERSION" ]]; then
+  echo "Version mismatch: plugin=$VERSION readme=$STABLE_TAG package=$PACKAGE_VERSION" >&2
+  exit 1
+fi
+
+echo "==> Exporting tracked source at HEAD"
 git -C "$ROOT_DIR" archive --format=tar HEAD | tar -x -C "$BUILD_DIR"
 
-echo "==> Installing production-only composer deps (no dev tooling in vendor/)"
+echo "==> Rebuilding human-readable admin source"
+npm ci --ignore-scripts --prefix "$BUILD_DIR" >/dev/null
+npm run build --prefix "$BUILD_DIR"
+
+echo "==> Installing production Composer dependencies"
 composer install --no-dev --optimize-autoloader --no-interaction \
   --working-dir="$BUILD_DIR" >/dev/null
 
-echo "==> Stripping dotfiles/dotfolders (AI tooling, IDE config, CI, git metadata — never needed in a WP.org zip)"
+echo "==> Removing development-only files"
 rm -rf "$BUILD_DIR"/.[!.]* "$BUILD_DIR"/..?*
-
-echo "==> Stripping dev-only sources not needed at runtime"
 rm -rf \
   "$BUILD_DIR"/admin-ui \
   "$BUILD_DIR"/tests \
@@ -30,15 +58,33 @@ rm -rf \
   "$BUILD_DIR"/package.json \
   "$BUILD_DIR"/package-lock.json \
   "$BUILD_DIR"/postcss.config.js \
+  "$BUILD_DIR"/webpack.config.js \
   "$BUILD_DIR"/phpcs.xml.dist \
   "$BUILD_DIR"/AGENTS.md \
-  "$BUILD_DIR"/CLAUDE.md
+  "$BUILD_DIR"/CLAUDE.md \
+  "$BUILD_DIR"/wp \
+  "$BUILD_DIR"/test
 
-echo "==> Zipping (top-level folder = ${PLUGIN_SLUG}, as WordPress.org expects)"
-rm -f "$DEST"
-PARENT="$(dirname "$BUILD_DIR")"
-mv "$BUILD_DIR" "$PARENT/$PLUGIN_SLUG"
-(cd "$PARENT" && zip -rq "$DEST" "$PLUGIN_SLUG" -x '*.DS_Store')
+for required in translangs.php readme.txt LICENSE THIRD-PARTY-NOTICES.md assets/admin/build/index.js; do
+  if [[ ! -f "$BUILD_DIR/$required" ]]; then
+    echo "Release is missing required file: $required" >&2
+    exit 1
+  fi
+done
 
-rm -rf "$PARENT/$PLUGIN_SLUG"
-echo "==> Done: $DEST"
+SOURCE_DATE_EPOCH="$(git -C "$ROOT_DIR" show -s --format=%ct HEAD)"
+find "$BUILD_DIR" -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
+mv "$BUILD_DIR" "$STAGE_DIR"
+
+mkdir -p "$DIST_DIR"
+rm -f "$DEST" "$MANIFEST"
+echo "==> Creating deterministic archive"
+(
+  cd "$STAGE_PARENT"
+  find "$PLUGIN_SLUG" -type f -print | LC_ALL=C sort | zip -X -q "$DEST" -@
+)
+
+sha256sum "$DEST" > "$MANIFEST"
+
+echo "==> Archive: $DEST"
+echo "==> Checksum: $MANIFEST"
