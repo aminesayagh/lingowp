@@ -60,21 +60,16 @@ import { lengthWarningMessage } from './lengthWarning.mjs'
 
 // Split out of the main bundle: each is a modal/screen opened only by an
 // explicit action, never needed for first paint — GettextBoard behind the
-// Plugins & Themes tab (Content is the default), the other two behind their
-// own "open" state (see managerEverOpened/exportImportEverOpened below,
-// which keep them mounted after their first open so Polaris' Modal still
-// gets to run its own close transition instead of being yanked out mid-exit).
+// Plugins & Themes tab (Content is the default), the other behind its own
+// "open" state (see managerEverOpened below, which keeps it mounted after
+// its first open so Polaris' Modal still gets to run its own close
+// transition instead of being yanked out mid-exit).
 const GettextBoard = lazy( () =>
 	import( /* webpackChunkName: "gettext-board" */ './GettextBoard' )
 )
 const LanguageManagerModal = lazy( () =>
 	import(
 		/* webpackChunkName: "language-manager-modal" */ './LanguageManagerModal'
-	)
-)
-const ExportImportModal = lazy( () =>
-	import(
-		/* webpackChunkName: "export-import-modal" */ './ExportImportModal'
 	)
 )
 
@@ -261,9 +256,6 @@ export default function Dashboard( {
 	// every open/close after that (so its own Polaris close transition still
 	// gets to run, instead of the component being unmounted mid-exit).
 	const [ managerEverOpened, setManagerEverOpened ] = useState( false )
-	const [ exportImportOpen, setExportImportOpen ] = useState( false )
-	const [ exportImportEverOpened, setExportImportEverOpened ] =
-		useState( false )
 	const [ pageMenuOpen, setPageMenuOpen ] = useState( false )
 	const [ refreshing, setRefreshing ] = useState( false )
 	// True right after the first language is created, until the initial
@@ -1498,21 +1490,6 @@ export default function Dashboard( {
 														},
 													},
 													{
-														content:
-															'Export / Import',
-														onAction: () => {
-															setPageMenuOpen(
-																false
-															)
-															setExportImportOpen(
-																true
-															)
-															setExportImportEverOpened(
-																true
-															)
-														},
-													},
-													{
 														content: 'Refresh',
 														disabled: refreshing,
 														onAction: () => {
@@ -2079,16 +2056,6 @@ export default function Dashboard( {
 								} )
 							}
 						} }
-					/>
-				</Suspense>
-			) }
-			{ exportImportEverOpened && (
-				<Suspense fallback={ null }>
-					<ExportImportModal
-						open={ exportImportOpen }
-						languages={ languages }
-						initialLanguage={ selectedLang }
-						onClose={ () => setExportImportOpen( false ) }
 					/>
 				</Suspense>
 			) }

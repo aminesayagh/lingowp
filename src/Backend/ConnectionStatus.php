@@ -41,8 +41,17 @@ final class ConnectionStatus
     {
         $cached = get_transient(self::TRANSIENT);
 
-        // Lazy refresh when the cache is cold (called only in admin/REST context).
-        return is_array($cached) ? $cached : $this->refresh();
+        // Only a cached *success* is trusted — that's what the TTL exists to
+        // save (a page load skipping a live probe while things are healthy).
+        // A cached failure is never reused: a failed probe costs the backend
+        // nothing (no AI/usage spent), so a real outage is cheap to re-verify
+        // on every page load instead of parroting a stale "unavailable" for
+        // up to TTL after the backend has already recovered.
+        if (is_array($cached) && $cached['available']) {
+            return $cached;
+        }
+
+        return $this->refresh();
     }
 
     /** @return array{available: bool, error: string} */

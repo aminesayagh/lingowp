@@ -63,7 +63,6 @@ use TransLangs\Board\TranslationRestController;
 use TransLangs\AiTranslation\AiTranslationController;
 use TransLangs\AiTranslation\AiTranslationRunner;
 use TransLangs\Extraction\ScanRestController;
-use TransLangs\Board\ExportImportRestController;
 use TransLangs\GettextDomains\GettextDomainRestController;
 use TransLangs\GettextDomains\GettextDomainRegistry;
 use TransLangs\GettextDomains\GettextIgnoredUnitsStore;
@@ -321,7 +320,6 @@ class Plugin
         $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry);
         (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $billingEntitlements, $aiTranslationRunner, $connectionStatus))->register();
 
-        (new ExportImportRestController($sourceRepository, $languageRegistry))->register();
         (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
 
         (new InsightsRestController($backendClient, $connection, new NotifyEmailResolver()))->register();

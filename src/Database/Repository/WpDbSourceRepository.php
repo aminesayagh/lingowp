@@ -470,48 +470,6 @@ final class WpDbSourceRepository
     }
 
     /**
-     * Every unique content text (post/meta/term/option) across the whole
-     * site, deduplicated GLOBALLY by original_hash — NOT per table. CSV
-     * export is a flat text-to-translation matrix: the client explicitly
-     * does not want to know or care whether "Hello world!" lives on 4 posts
-     * and 2 terms, only that it is one string needing one translation per
-     * language (design-service_export-import.md).
-     *
-     * Only discovered (non-ignored) parents contribute. When sources sharing
-     * a hash disagree — e.g. a post and a term happen to hold the same
-     * normalized text with two different French translations, or two
-     * postmeta occurrences (meta is never DB-shared, see class docblock)
-     * diverge — one wins, deterministically, per source table queried
-     * (first-found). This collapsing is deliberate, not a bug: it is what
-     * "share the same translation for the same text" means for CSV
-     * purposes, and importing a merged row back writes that ONE value to
-     * every matching source (see findContentRefsByHash()).
-     *
-     * @param string[] $langCodes
-     * @return array<int, array{original_text:string, translations:array<string,?string>}>
-     */
-    public function exportTextsForLanguages(array $langCodes): array
-    {
-        return $this->board->exportTextsForLanguages($langCodes);
-    }
-
-    /**
-     * Every currently-discovered SourceRef across the four content tables
-     * sharing this original_hash — the CSV import lookup. Hash-link kinds
-     * (post/term/option) contribute at most one ref each (any parent with
-     * that hash addresses the one shared translation); meta contributes one
-     * ref PER occurrence, since meta translations are never shared. Empty
-     * when the hash matches nothing currently discovered (e.g. the source
-     * text was edited or removed since the CSV was exported).
-     *
-     * @return SourceRef[]
-     */
-    public function findContentRefsByHash(string $hashHex): array
-    {
-        return $this->board->findContentRefsByHash($hashHex);
-    }
-
-    /**
      * The single Template-content collection (all discovered tl_html block units)
      * with per-status counts for one language. tl_html has no post link, so every
      * marked block shares one bucket.
