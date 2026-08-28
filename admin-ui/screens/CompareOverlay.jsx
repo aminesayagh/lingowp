@@ -241,31 +241,27 @@ export default function CompareOverlay( {
 		fn()
 	}
 
-	// Translates this one text into EVERY configured language (not just the
-	// pane currently shown), one request at a time — `languages` is already
-	// every target language the site has (draft + active; the source language
-	// isn't in this list), and `unit.id` is the source ref, which is the same
-	// regardless of which target language a given call is for. Only the
-	// response matching the pane's own `language` updates what's shown here;
-	// the rest save silently via onAiTranslate's own cache invalidation.
+	// Translates this one text into EVERY configured language (not just the pane
+	// currently shown) in a single request — `languages` is already every target
+	// language the site has (draft + active; the source language isn't in this
+	// list), and `unit.id` is the source ref, which is the same regardless of
+	// target language. Only the response entry for the pane's own `language`
+	// updates what's shown here; the rest were saved server-side and their
+	// caches invalidated by onAiTranslate.
 	async function translate() {
 		setTranslating( true )
 		await flush()
-		for ( const lang of languages ) {
-			const res = await onAiTranslate( 'text', {
-				ref: unit.id,
-				collection_id: collectionId,
-				language: lang.code,
-			} )
-			// onAiTranslate resolves to undefined on every failure path (quota
-			// exhausted, AI unavailable, backend error — see Dashboard's
-			// translateScope) — stop instead of firing more doomed requests for
-			// the remaining languages, each of which would hit the same failure.
-			if ( ! res ) {
-				break
-			}
-			if ( lang.code === language && res.updated_unit ) {
-				const value = res.updated_unit.translated ?? ''
+		const res = await onAiTranslate( 'text', {
+			ref: unit.id,
+			collection_id: collectionId,
+			languages: languages.map( ( l ) => l.code ),
+		} )
+		// onAiTranslate resolves to undefined on a hard failure (quota exhausted,
+		// AI unavailable, backend error — see Dashboard's translateScope).
+		if ( res ) {
+			const mine = res.by_language?.[ language ] ?? res
+			if ( mine.updated_unit ) {
+				const value = mine.updated_unit.translated ?? ''
 				savedRef.current = value
 				setText( value )
 			}

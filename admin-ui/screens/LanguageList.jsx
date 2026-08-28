@@ -101,12 +101,11 @@ export function LanguageRow( {
 	selected,
 	percent,
 	showProgress,
-	aiAvailable,
 	onSelect,
 	onEdit,
 	onToggleStatus,
-	onTranslateAll,
 	onUseFallback,
+	onSwitchToInternal,
 	onDelete,
 } ) {
 	const [ hover, setHover ] = useState( false )
@@ -122,6 +121,17 @@ export function LanguageRow( {
 				onEdit()
 			},
 		},
+		// Only shown when this language currently translates through the user's
+		// own provider key AND they also have a subscription — the parent only
+		// passes onSwitchToInternal in that case, so this just checks the value.
+		onSwitchToInternal &&
+			( lang.ai_model === 'openai' || lang.ai_model === 'anthropic' ) && {
+				content: 'Switch to Translangs model',
+				onAction: () => {
+					setMenuOpen( false )
+					onSwitchToInternal()
+				},
+			},
 		onToggleStatus && {
 			content: lang.enabled ? 'Set to draft' : 'Publish',
 			onAction: () => {
@@ -129,15 +139,6 @@ export function LanguageRow( {
 				onToggleStatus()
 			},
 		},
-		onTranslateAll &&
-			percent < 100 && {
-				content: 'Translate All',
-				disabled: ! aiAvailable,
-				onAction: () => {
-					setMenuOpen( false )
-					onTranslateAll()
-				},
-			},
 		// fallback_ready (from GET /languages) is true only when the fallback
 		// shares the base language AND actually has something this language is
 		// missing — a same-base pointer with nothing new to offer stays disabled too.
@@ -255,12 +256,11 @@ export function LanguageRow( {
 export default function LanguageList( {
 	languages,
 	selectedCode,
-	aiAvailable,
 	onSelect,
 	onEdit,
 	onToggleStatus,
-	onTranslateAll,
 	onUseFallback,
+	onSwitchToInternal,
 	onDelete,
 	onAdd,
 	addLabel = '+ Add language',
@@ -276,7 +276,6 @@ export default function LanguageList( {
 						selected={ lang.code === selectedCode }
 						percent={ lang.translated_percent ?? 0 }
 						showProgress={ showProgress }
-						aiAvailable={ aiAvailable }
 						onSelect={
 							onSelect ? () => onSelect( lang ) : undefined
 						}
@@ -286,14 +285,14 @@ export default function LanguageList( {
 								? () => onToggleStatus( lang )
 								: undefined
 						}
-						onTranslateAll={
-							onTranslateAll
-								? () => onTranslateAll( lang )
-								: undefined
-						}
 						onUseFallback={
 							onUseFallback
 								? () => onUseFallback( lang )
+								: undefined
+						}
+						onSwitchToInternal={
+							onSwitchToInternal
+								? () => onSwitchToInternal( lang )
 								: undefined
 						}
 						onDelete={

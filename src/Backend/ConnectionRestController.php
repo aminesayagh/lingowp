@@ -13,10 +13,10 @@ use WP_REST_Response;
  *
  * manage_options only; never returns the raw license key, and never accepts
  * one from the client either — confirm() only ever takes an opaque confirm
- * token and exchanges it server-to-server. A stale key (401/410) is self-healed
- * by SiteConnector::ensureValid(); a still-valid-but-blocked key (402/409) is
- * left in place and only surfaced as a notice. Every state change refreshes the
- * cached AI-availability status.
+ * token and exchanges it server-to-server. A dead key (401/402/410) is
+ * self-healed by SiteConnector::ensureValid() — there is no "leave it alone"
+ * case anymore, domain no longer factors into auth at all. Every state
+ * change refreshes the cached AI-availability status.
  */
 final class ConnectionRestController
 {
@@ -62,46 +62,41 @@ final class ConnectionRestController
     {
         $status = $this->siteConnector->ensureValid();
 
-        return $this->respond($status['available'], $status, $status['pending']);
+        return $this->respond($status['available'], $status);
     }
 
     /** @param array{available: bool, error: string} $status */
-    private function respond(bool $ok, array $status, bool $pending = false): WP_REST_Response
+    private function respond(bool $ok, array $status, array $extra = []): WP_REST_Response
     {
-        return rest_ensure_response([
+        return rest_ensure_response(array_merge([
             'ok'           => $ok,
             'connected'    => $this->connection->isConnected(),
-            'pending'      => $pending,
             'masked_key'   => $this->connection->maskedKey(),
             'ai_available' => $status['available'],
             'ai_error'     => $status['error'],
-        ]);
+        ], $extra));
     }
 
     /**
      * Connect (or reconnect) using the current site metadata. Used to finish
      * connecting after an offline onboarding, or as an explicit user-initiated
-     * retry. Never blocks: returns an ERR_* code on failure. A pending result
-     * means the backend emailed a confirm token — nothing is connected yet,
-     * so this must never be reported as ERR_NOT_CONNECTED.
+     * retry. Never blocks and never emails anything itself: a fresh, working
+     * key is issued synchronously on every success — returns an ERR_* code
+     * on failure only.
      */
     public function connect(): WP_REST_Response
     {
         $result = $this->siteConnector->connect();
 
-        if ($result['pending']) {
-            return $this->respond(true, ['available' => false, 'error' => ''], true);
-        }
-
         if (!$result['ok']) {
-            return new WP_REST_Response(['ok' => false, 'connected' => false, 'pending' => false, 'error' => $result['error']], 200);
+            return new WP_REST_Response(['ok' => false, 'connected' => false, 'error' => $result['error']], 200);
         }
 
         // SiteConnector::connect() already called status->refresh() — read the
         // now-warm cache instead of probing the backend a second time.
         $status = $this->status->current();
 
-        return $this->respond($status['available'], $status);
+        return $this->respond($status['available'], $status, ['recovery_available' => $result['recoveryAvailable']]);
     }
 
     /**
@@ -133,14 +128,12 @@ final class ConnectionRestController
     }
 
     /**
-     * Manually request a recovery email for this domain (Billing page's
-     * "Create a new key"). Deliberately does not call respond(): nothing about
-     * local connection state changes here — the current key keeps working
-     * normally (backend-side it's now only a *pending* rotation) until either
-     * the admin follows the emailed link into confirm() above, or the
-     * backend's 24h grace window lapses unused, so returning the full
-     * connected/masked-key envelope would imply a change that hasn't
-     * happened yet.
+     * "Create a new key" (Billing page's Danger zone). Branches server-side
+     * (SiteConnector::recover()) between an instant key rotation and a
+     * fallback through the normal connect() ladder — both outcomes are
+     * synchronous now. Deliberately still doesn't return the full
+     * connected/masked-key envelope: the caller re-fetches /connection/status
+     * itself if it needs the updated masked key.
      */
     public function recover(): WP_REST_Response
     {

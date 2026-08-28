@@ -92,6 +92,15 @@ const TOAST_TONE_ICON = {
 	info: InfoIcon,
 }
 
+// POST /translate 402 codes that mean "this site can't use platform AI right
+// now" (over its plan's site limit, no subscription, or out of words) — an
+// expected, actionable gate, not a backend/connectivity failure.
+const QUOTA_ERROR_CODES = [
+	'ERR_SITE_OVER_PLAN_LIMIT',
+	'ERR_HOSTED_AI_UNAVAILABLE',
+	'ERR_INSUFFICIENT_AI_WORDS',
+]
+
 // Which SEO field a meta row represents — shown as a small badge alongside the
 // status pill so title/description/keyword rows for the same post are
 // distinguishable at a glance.
@@ -209,10 +218,25 @@ const TEXT_BATCH = 50
 const boardParser = parseAsStringLiteral( [ 'content', 'plugins' ] )
 	.withDefault( 'content' )
 	.withOptions( { history: 'replace' } )
+// Header status filter (all | untranslated | needs_review | translated) — kept
+// in the URL like board/lang so a refresh or shared link keeps it applied.
+const statusFilterParser = parseAsStringLiteral( [
+	'all',
+	...FILTERS.map( ( f ) => f.key ),
+] )
+	.withDefault( 'all' )
+	.withOptions( { history: 'replace' } )
 // Language codes are dynamic (whatever the site has configured), so this
 // can't be a parseAsStringLiteral like board — plain string is enough since
 // refreshLanguages() already validates the value against the fetched list.
 const langParser = parseAsString.withDefault( '' ).withOptions( {
+	history: 'replace',
+} )
+// Collection the board is scrolled to — updated as the user scrolls and read
+// back on load, so a refresh / bookmark / shared link resumes on the same
+// collection. history: 'replace' keeps scroll updates off the history stack;
+// nuqs throttles the actual URL writes.
+const collectionParser = parseAsString.withDefault( '' ).withOptions( {
 	history: 'replace',
 } )
 
@@ -241,14 +265,18 @@ export default function Dashboard( {
 	const [ query, setQuery ] = useState( '' )
 	// { id, cid } of the text unit open in the compare overlay, or null.
 	const [ overlay, setOverlay ] = useState( null )
-	// Collection id to scroll to once loaded, read once from a shared link's
-	// "#collection=<id>" hash (view/board/lang are restored via nuqs already —
-	// the hash just isn't part of that persisted URL state). Cleared once found
-	// (or given up on) so a later refresh doesn't re-trigger the jump.
-	const [ pendingScrollId, setPendingScrollId ] = useState( () => {
-		const match = window.location.hash.match( /^#collection=(.+)$/ )
-		return match ? decodeURIComponent( match[ 1 ] ) : null
-	} )
+	// ?collection=<id> — set only by "Share collection". On load it deep-links to
+	// that collection (scroll into view) and opens the board in collapse-to-target
+	// mode (see collapseToTarget below).
+	const [ scrollCollection, setScrollCollection ] = useQueryState(
+		'collection',
+		collectionParser
+	)
+	// One-shot "we still owe a scroll-into-view": seeded from the URL on mount,
+	// cleared once the jump settles (or the collection turns out to be gone).
+	const [ pendingScrollId, setPendingScrollId ] = useState(
+		() => scrollCollection || null
+	)
 	const [ managerOpen, setManagerOpen ] = useState( false )
 	const [ managerInitial, setManagerInitial ] = useState( null )
 	// Latches true on first open and never resets — lets LanguageManagerModal's
@@ -266,22 +294,32 @@ export default function Dashboard( {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
-	// A /license/connect confirm email is on its way — nothing is connected
-	// yet, so this must never be shown/read as an error.
-	const [ connectPending, setConnectPending ] = useState( false )
-	// Optimistically false until entitlements + provider-keys load, so the AI
-	// buttons don't flash into their blocked state on first paint.
+	// A fresh connect also found a matching older licence and emailed its
+	// verified owner a reclaim link — this site already works either way,
+	// it's a non-blocking bonus notice, not a gate.
+	const [ recoveryAvailable, setRecoveryAvailable ] = useState( false )
+	// Optimistically false until entitlements load, so the AI buttons don't
+	// flash into their blocked state on first paint. Covers two distinct
+	// reasons platform AI is unusable (no subscription, or this site is past
+	// its plan's site-slot allowance) — both get the same row-level gate;
+	// overSlot below only exists to pick the right message for it. Not
+	// gated on having a stored BYOK key: POST /translations doesn't consume
+	// one yet (platform-only for now), so a stored key can't unblock this.
 	const [ billingBlocked, setBillingBlocked ] = useState( false )
+	// Narrower reason within billingBlocked: this site specifically is past
+	// its plan's site-slot count (a *subscribed* plan, unlike the generic
+	// billingBlocked case) — only read for messaging (handleAiBlocked,
+	// QuotaCard), never for the row-level gate itself.
+	const [ overSlot, setOverSlot ] = useState( false )
 	// Toast — every "action complete" message (AI translate, rescan, fallback
 	// copy, autosave hint, length warning, share link, …) goes through this
 	// one. Never a top-of-page Banner: that shifted the whole board down every
 	// time it appeared/disappeared.
 	const [ toast, setToast ] = useState( null ) // { tone, content } | null
-	// Which "Translate All" job (if any) is running: null | 'language' | <collectionId>.
-	// Rows with no translation shimmer while this matches their scope — approximate on
-	// purpose, no tracking of which exact refs the API call actually included.
-	const [ bulkTranslating, setBulkTranslating ] = useState( null )
-	const [ statusFilter, setStatusFilter ] = useState( 'all' )
+	const [ statusFilter, setStatusFilter ] = useQueryState(
+		'status',
+		statusFilterParser
+	)
 	const [ originFilter, setOriginFilter ] = useState( [] )
 	const [ contentTypeFilter, setContentTypeFilter ] = useState( [] )
 	const [ textLengthFilter, setTextLengthFilter ] = useState( [] )
@@ -295,20 +333,6 @@ export default function Dashboard( {
 		setBoard( next )
 	}
 
-	// A deep-linked collection must be reachable regardless of whatever filters
-	// happen to be active, so a pending scroll target clears them up front.
-	useEffect( () => {
-		if ( ! pendingScrollId ) {
-			return
-		}
-		setStatusFilter( 'all' )
-		setOriginFilter( [] )
-		setContentTypeFilter( [] )
-		setTextLengthFilter( [] )
-		setProgressFilter( [] )
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- one-time on mount
-	}, [] )
-
 	// tone: 'success' | 'warning' | 'critical' | 'info'. Dismiss timing is
 	// handled by Polaris' own Toast component (see the render below).
 	function showToast( tone, content ) {
@@ -320,6 +344,9 @@ export default function Dashboard( {
 	const showLengthWarning = ( message ) => showToast( 'warning', message )
 
 	const defaultCode = defaultLanguage?.code || defaultLanguage
+	// `quota` is the /billing/entitlements payload; `active` means a paid
+	// subscription is in force (same check refetchEntitlements uses).
+	const hasSubscription = !! quota?.active
 	const advancedFilters = {
 		origin: originFilter,
 		content_type: contentTypeFilter,
@@ -343,49 +370,75 @@ export default function Dashboard( {
 	// translate (usage changed). Also derives billingBlocked from the same
 	// response instead of a separate request, and feeds the quota rail.
 	const refetchEntitlements = useCallback( () => {
-		return Promise.all( [
-			api.get( '/billing/entitlements' ),
-			api.get( '/provider-keys' ),
-		] ).then( ( [ entitlementsRes, keysRes ] ) => {
+		return api.get( '/billing/entitlements' ).then( ( entitlementsRes ) => {
 			setQuota( entitlementsRes.ok ? entitlementsRes.entitlements : null )
 			const subscribed = !! entitlementsRes.entitlements?.active
-			const hasOwnKey = ( keysRes.keys || [] ).length > 0
-			setBillingBlocked( ! subscribed && ! hasOwnKey )
+			const overSlotNow = !! entitlementsRes.entitlements?.over_slot
+			setOverSlot( overSlotNow )
+			setBillingBlocked( ! subscribed || overSlotNow )
 		} )
 	}, [] )
 
-	// Validate an existing cloud connection on page load. A fresh local-only
-	// install stops at ERR_NOT_CONNECTED and makes no external request; the
-	// explicit QuotaCard action below is the sole first-connect path.
-	useEffect( () => {
-		ensureConnected().then( ( status ) => {
+	// Validate an existing cloud connection. A fresh local-only install stops
+	// at ERR_NOT_CONNECTED and makes no external request; the explicit
+	// QuotaCard action below is the sole first-connect path. Shared by the
+	// plain on-mount check and the confirm-token relay below it, so a
+	// reclaim/attach/owner confirmation reflects immediately instead of
+	// waiting for the next page load.
+	const checkConnection = useCallback( () => {
+		return ensureConnected().then( ( status ) => {
 			setAi( { available: status.available, error: status.error } )
-			setConnectPending( status.pending )
 			if ( status.connected && ! status.available ) {
 				showToast( 'warning', errorMessage( status.error ) )
 			}
 			if ( status.connected ) {
-				refetchEntitlements()
-			} else {
-				setQuota( null )
-				setBillingBlocked( true )
+				return refetchEntitlements()
 			}
+			setQuota( null )
+			setBillingBlocked( true )
 		} )
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- refetchEntitlements is stable
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- refetchEntitlements/showToast are stable
+	}, [ refetchEntitlements ] )
+
+	// Deep link from any confirm email — attach-website, a licence reclaim,
+	// or POST /billing/owner's assign-owner ask: ?confirm_token=... . One
+	// route (/connection/confirm) relays every kind; PHP branches on whichever
+	// shape the backend's response actually carries. This is an opaque,
+	// single-use, expiring token — never a raw license key — so nothing here
+	// can leak a real credential via browser history, referrer headers, or
+	// mail-scanner prefetching. Awaited (unlike the old fire-and-forget
+	// version) so checkConnection() runs against the *applied* state — a
+	// reclaim in particular must not render one frame of "free tier /
+	// over_slot" right after the user clicked "move my plan here", which
+	// reads as the reclaim having failed.
+	const [ confirmToken, setConfirmToken ] = useQueryState(
+		'confirm_token',
+		parseAsString
+	)
+	useEffect( () => {
+		if ( ! confirmToken ) {
+			checkConnection()
+			return
+		}
+		api.post( '/connection/confirm', { token: confirmToken } ).then(
+			( res ) => {
+				setConfirmToken( null )
+				if ( ! res.ok ) {
+					showToast( 'warning', errorMessage( res.error ) )
+				}
+				checkConnection()
+			}
+		)
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount; checkConnection/showToast are stable
 	}, [] )
 
-	// Explicit, user-initiated connect/reconnect — the only place
-	// /connection/connect is called from, since it can send an email and must
-	// never loop or resend on its own.
+	// Explicit, user-initiated connect/reconnect — connect() never blocks or
+	// emails anything itself now: every success carries a working key.
 	function handleConnect() {
 		api.post( '/connection/connect' ).then( ( res ) => {
-			if ( res.pending ) {
-				setConnectPending( true )
-				return
-			}
 			if ( res.ok ) {
 				setAi( { available: !! res.ai_available, error: '' } )
-				setConnectPending( false )
+				setRecoveryAvailable( !! res.recovery_available )
 				refetchEntitlements()
 				return
 			}
@@ -395,12 +448,16 @@ export default function Dashboard( {
 
 	// Row AI buttons route here instead of translating when billingBlocked —
 	// a toast the user can click straight through to Billing, rather than a
-	// silent disabled button.
+	// silent disabled button. overSlot picks the more specific message: this
+	// site is subscribed but past its plan's site count, not unsubscribed.
 	function handleAiBlocked() {
 		setToast( {
 			tone: 'info',
-			content:
-				'Subscribe or add your own API key to use AI translation. Tap to view plans.',
+			content: overSlot
+				? errorMessage( 'ERR_SITE_OVER_PLAN_LIMIT' )
+				: `${ errorMessage(
+						'ERR_HOSTED_AI_UNAVAILABLE'
+				  ) } Tap to view plans.`,
 			onClick: () => window.location.assign( cfg.billing_url ),
 		} )
 	}
@@ -421,6 +478,26 @@ export default function Dashboard( {
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- showToast is stable across renders
 	}, [] )
 
+	// Shared by translateScope()'s failure path and GettextBoard's per-unit
+	// translate (onAiUnavailable) — quota/plan-limit errors are an expected,
+	// actionable gate (over the site limit / no subscription / out of words),
+	// never "the backend call itself failed", so they must never flip
+	// ai.available off, and the toast should say exactly what's wrong instead
+	// of a generic message (or, for GettextBoard, no message at all before
+	// this existed).
+	function handleAiFailure( error ) {
+		const isQuotaError = QUOTA_ERROR_CODES.includes( error )
+		if ( error !== 'ERR_INVALID_INPUT' && ! isQuotaError ) {
+			setAi( { available: false, error } )
+		}
+		showToast(
+			'critical',
+			isQuotaError
+				? errorMessage( error )
+				: 'AI translation failed. Try again.'
+		)
+	}
+
 	// AI translate a scope (text | collection | language), then refresh views + quota.
 	async function translateScope( scope, opts = {} ) {
 		if ( ! ai.available ) {
@@ -430,25 +507,25 @@ export default function Dashboard( {
 			)
 			return
 		}
-		// A caller (e.g. CompareOverlay translating one text into every configured
-		// language) can target a language other than the dashboard's currently
-		// selected one — every cache op below must key off THIS call's language,
-		// not selectedLang, or translations into other languages never invalidate
-		// their own cached views.
-		const lang = opts.language ?? selectedLang
+		// A caller can target languages other than the dashboard's currently
+		// selected one — every cache op below keys off the response's own
+		// language(s), not selectedLang. CompareOverlay passes `languages: [...]`
+		// to translate one text into every configured language in a single
+		// request; every other caller passes a single `language`.
+		const multi =
+			Array.isArray( opts.languages ) && opts.languages.length > 0
+		const langs = multi ? opts.languages : [ opts.language ?? selectedLang ]
 		const res = await api.post( '/translate', {
 			scope,
-			language: selectedLang,
 			...opts,
+			// exactly one of these two goes on the wire; the other is dropped by
+			// JSON.stringify (undefined values are omitted).
+			...( multi
+				? { languages: langs.join( ',' ), language: undefined }
+				: { language: langs[ 0 ], languages: undefined } ),
 		} )
 		if ( ! res.ok ) {
-			// Anything other than quota/input errors here means the backend call
-			// itself failed — PHP already recorded that (ConnectionStatus), so
-			// reflect it locally too instead of leaving `ai.available` stale.
-			if ( res.error !== 'ERR_INVALID_INPUT' ) {
-				setAi( { available: false, error: res.error } )
-			}
-			showToast( 'critical', 'AI translation failed. Try again.' )
+			handleAiFailure( res.error )
 			return
 		}
 		// Some items can be rejected while the rest save (a translation that dropped
@@ -458,50 +535,54 @@ export default function Dashboard( {
 		const failed = res.failed || 0
 		showToast(
 			failed > 0 ? 'warning' : 'success',
-			`Translated ${ res.translated } text${
-				res.translated === 1 ? '' : 's'
-			}.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
+			multi
+				? `Translated into ${ langs.length } language${
+						langs.length === 1 ? '' : 's'
+				  }.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
+				: `Translated ${ res.translated } text${
+						res.translated === 1 ? '' : 's'
+				  }.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
 		)
-		if ( res.collection_summary ) {
-			patchCollectionSummary( res.collection_summary, lang )
-		} else {
-			invalidateCollections( lang )
+		// Multi-language responses carry a `by_language` map; single-language
+		// keeps the patch at the top level. Normalize to one iterable so the
+		// per-language cache ops below run once per affected language.
+		const perLang = res.by_language
+			? Object.entries( res.by_language )
+			: [
+					[
+						langs[ 0 ],
+						{
+							collection_summary: res.collection_summary,
+							updated_unit: res.updated_unit,
+						},
+					],
+			  ]
+		for ( const [ code, patch ] of perLang ) {
+			if ( patch.collection_summary ) {
+				patchCollectionSummary( patch.collection_summary, code )
+			} else {
+				invalidateCollections( code )
+			}
+			if ( patch.updated_unit ) {
+				// scope 'text' resolves to one unit; propagate it to any other
+				// visible occurrence of the same text (its own group is
+				// invalidated below anyway).
+				propagateTranslation(
+					opts.collection_id ?? opts.id,
+					patch.updated_unit,
+					code
+				)
+			}
+			// Every mounted group's texts for this language may have changed (a
+			// scope or language-wide AI translate isn't limited to one group).
+			queryClient.invalidateQueries( {
+				predicate: ( q ) =>
+					q.queryKey[ 0 ] === 'texts' && q.queryKey[ 2 ] === code,
+			} )
 		}
-		if ( res.updated_unit ) {
-			// scope 'text' resolves to one unit; propagate it to any other visible
-			// occurrence of the same text (its own group is invalidated below anyway).
-			propagateTranslation(
-				opts.collection_id ?? opts.id,
-				res.updated_unit,
-				lang
-			)
-		}
-		// Every mounted group's texts for this language may have changed (a scope
-		// or language-wide AI translate isn't limited to one group).
-		queryClient.invalidateQueries( {
-			predicate: ( q ) =>
-				q.queryKey[ 0 ] === 'texts' && q.queryKey[ 2 ] === lang,
-		} )
 		refetchEntitlements()
 		refreshLanguages() // rail percentages changed
 		return res
-	}
-
-	// Rail "Translate All": select that language, confirm, then AI-translate it whole.
-	function translateLanguageAll( lang ) {
-		setSelectedLang( lang.code )
-		setConfirm( {
-			title: `AI translate all of ${
-				lang.display_name || lang.name || lang.code
-			}?`,
-			body: 'All untranslated text in this language will be sent to AI translation and may use a large number of words.',
-			actionLabel: 'Translate all',
-			onConfirm: async () => {
-				setBulkTranslating( 'language' )
-				await translateScope( 'language', { language: lang.code } )
-				setBulkTranslating( null )
-			},
-		} )
 	}
 
 	function patchLangStatus( code, status ) {
@@ -512,6 +593,21 @@ export default function Dashboard( {
 				}
 			}
 		)
+	}
+
+	// Row menu "Switch to Translangs model": point a language that currently
+	// translates through the user's own provider key back at the subscription
+	// model. Only offered (see the LanguageList props below) when a subscription
+	// is active and the language's ai_model is a BYO provider.
+	function switchLangToInternal( lang ) {
+		api.patch( `/languages/${ enc( lang.code ) }`, {
+			ai_model: 'internal',
+		} ).then( ( res ) => {
+			if ( res.ok ) {
+				refreshLanguages()
+				showToast( 'success', 'Now using the Translangs model.' )
+			}
+		} )
 	}
 
 	function deleteLang( code ) {
@@ -746,14 +842,14 @@ export default function Dashboard( {
 	}
 
 	// Copies a link that lands on this same board/language and scrolls straight
-	// to this collection (view/board/lang restore via the URL state nuqs already
-	// keeps in sync; the collection id rides in the hash — see pendingScrollId).
+	// to this collection (view/board/lang/collection all restore from the query
+	// string via nuqs — see pendingScrollId).
 	async function shareCollection( c ) {
 		const url = new URL( window.location.href )
 		url.searchParams.set( 'view', 'dashboard' )
 		url.searchParams.set( 'board', board )
 		url.searchParams.set( 'lang', selectedLang )
-		url.hash = `collection=${ enc( c.id ) }`
+		url.searchParams.set( 'collection', c.id )
 		await navigator.clipboard.writeText( url.toString() )
 		showToast( 'success', 'Link copied.' )
 	}
@@ -922,6 +1018,14 @@ export default function Dashboard( {
 	// Every group is open by default; a manual collapse is remembered here and
 	// reset when the working language changes (mirrors the old per-language reset).
 	const [ collapsedIds, setCollapsedIds ] = useState( () => new Set() )
+	// A shared "?collection=" link opens the board with only that collection
+	// expanded, so paging down to it stays cheap (collapsed groups don't fetch
+	// their texts). The header's "Open all collections" button exits this mode.
+	const [ collapseToTarget, setCollapseToTarget ] = useState(
+		() => !! scrollCollection
+	)
+	// ids we've already auto-collapsed once, so a later manual expand sticks.
+	const seededCollapseRef = useRef( new Set() )
 	useEffect( () => {
 		setCollapsedIds( new Set() )
 	}, [ selectedLang ] )
@@ -938,11 +1042,49 @@ export default function Dashboard( {
 		} )
 	}, [] )
 
+	// While in collapse-to-target mode, collapse every non-target group as its
+	// page arrives — once each, so a manual re-expand afterwards is not undone.
+	useEffect( () => {
+		if ( ! collapseToTarget ) {
+			return
+		}
+		setCollapsedIds( ( prev ) => {
+			const next = new Set( prev )
+			let changed = false
+			for ( const g of groups ) {
+				if (
+					g.id === scrollCollection ||
+					seededCollapseRef.current.has( g.id )
+				) {
+					continue
+				}
+				seededCollapseRef.current.add( g.id )
+				if ( ! next.has( g.id ) ) {
+					next.add( g.id )
+					changed = true
+				}
+			}
+			return changed ? next : prev
+		} )
+	}, [ collapseToTarget, groups, scrollCollection ] )
+
+	// Leave collapse-to-target mode (expand everything, clear ?collection=).
+	// Reused by the header button and the settle effect's "not found" branch.
+	const openAllCollections = useCallback( () => {
+		setCollapseToTarget( false )
+		setCollapsedIds( new Set() )
+		seededCollapseRef.current = new Set()
+		setScrollCollection( null )
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- setters are stable
+	}, [] )
+
 	// Window-scroll virtualization: only near-view group rows mount. One extra
 	// "sentinel" row (count+1) carries the load-more/retry control when more
 	// pages exist. Scroll margin is measured (not assumed), so content above the
 	// list (notices, sticky header) doesn't misalign rows.
 	const listRef = useRef( null )
+	// True while the deep-link scroll-into-view rAF loop is running.
+	const scrollSettlingRef = useRef( false )
 	const [ scrollMargin, setScrollMargin ] = useState( 0 )
 	useLayoutEffect( () => {
 		const update = () => setScrollMargin( listRef.current?.offsetTop ?? 0 )
@@ -956,7 +1098,12 @@ export default function Dashboard( {
 	)
 	const v = useWindowVirtualizer( {
 		count: groupsQ.hasNextPage ? groups.length + 1 : groups.length,
-		estimateSize: () => 320,
+		// Collapsed rows are ~5x shorter than expanded ones. Estimating each row
+		// by its collapsed/expanded state keeps scrollToIndex accurate when
+		// paging down to a deep-linked collection with everything above it
+		// collapsed (collapse-to-target mode).
+		estimateSize: ( i ) =>
+			collapsedIds.has( groups[ i ]?.id ) ? 72 : 320,
 		overscan: 3,
 		getItemKey,
 		scrollMargin,
@@ -990,11 +1137,11 @@ export default function Dashboard( {
 		isRefetchingGroups,
 	] )
 
-	// Deep-link landing: keep paging until the shared-link collection turns up,
-	// then scroll it into view and drop the hash so a later refresh doesn't
-	// re-trigger the jump. Gives up once every page is loaded and it's still
-	// not there (removed, or filtered out on the visitor's language).
-	const scrollSettlingRef = useRef( false )
+	// Deep-link landing (from a shared "?collection=" link). Page forward from
+	// offset 0 until the target appears in `groups`, then scroll it into view.
+	// In collapse-to-target mode the groups above it are collapsed, so this walk
+	// only fetches the summary pages, not every group's texts. Gives up once
+	// every page is loaded and it's still not there (removed / filtered out).
 	useEffect( () => {
 		if (
 			! pendingScrollId ||
@@ -1005,16 +1152,9 @@ export default function Dashboard( {
 		}
 		const index = groups.findIndex( ( g ) => g.id === pendingScrollId )
 		if ( index >= 0 ) {
-			// Rows above the target are still at estimateSize() until they've
-			// actually mounted and measureElement reports their real height —
-			// react-virtual never renders far-off-screen rows just to measure
-			// them. A single scrollToIndex lands using those estimates, and
-			// nothing re-corrects it afterwards, which reads as "jumps near
-			// the target, then the final resting spot is off." Re-issuing the
-			// jump across frames lets each pass mount a bit more of the path
-			// and pull the estimate closer to reality; we stop once
-			// v.scrollOffset (the virtualizer's own settled position) stops
-			// moving between two consecutive frames, capped as a safety valve.
+			// Re-issue the jump across frames: each pass mounts a bit more of the
+			// path so the size estimates converge on reality; stop once
+			// v.scrollOffset stops moving between two frames, capped as a valve.
 			scrollSettlingRef.current = true
 			let previousOffset = null
 			let stableFrames = 0
@@ -1030,18 +1170,13 @@ export default function Dashboard( {
 				previousOffset = offset
 				frame += 1
 				if ( stableFrames < 2 && frame < 30 ) {
-					requestAnimationFrame( settle )
+					window.requestAnimationFrame( settle )
 					return
 				}
 				scrollSettlingRef.current = false
-				window.history.replaceState(
-					null,
-					'',
-					window.location.pathname + window.location.search
-				)
 				setPendingScrollId( null )
 			}
-			requestAnimationFrame( settle )
+			window.requestAnimationFrame( settle )
 			return
 		}
 		if ( hasNextGroupsPage ) {
@@ -1052,6 +1187,8 @@ export default function Dashboard( {
 		}
 		showToast( 'warning', 'Collection not found.' )
 		setPendingScrollId( null )
+		openAllCollections() // don't leave a fully-collapsed board with no target
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- setters + showToast are stable
 	}, [
 		pendingScrollId,
 		groups,
@@ -1059,8 +1196,26 @@ export default function Dashboard( {
 		hasNextGroupsPage,
 		isFetchingNextGroupsPage,
 		fetchNextGroupsPage,
+		openAllCollections,
 		v,
 	] )
+
+	// Collapse-to-target mode only makes sense for the pristine shared-link view.
+	// Any context change (search, filter, language, board) exits it. Not armed
+	// until selectedLang is known, so an initial '' -> resolved language settle
+	// doesn't count as a change (shared links always carry ?lang= anyway).
+	const collapseCtxMountRef = useRef( false )
+	useEffect( () => {
+		if ( ! collapseCtxMountRef.current ) {
+			if ( ! selectedLang ) {
+				return
+			}
+			collapseCtxMountRef.current = true
+			return
+		}
+		setCollapseToTarget( false )
+		seededCollapseRef.current = new Set()
+	}, [ selectedLang, query, statusFilter, board, advancedFilterParams ] )
 
 	// The overlay reads its group's texts from the same cache key each
 	// CollectionGroup uses, so opening a neighbor group is just a query-key
@@ -1509,7 +1664,6 @@ export default function Dashboard( {
 										<LanguageList
 											languages={ languages }
 											selectedCode={ selectedLang }
-											aiAvailable={ ai.available }
 											onSelect={ ( lang ) =>
 												setSelectedLang( lang.code )
 											}
@@ -1519,11 +1673,13 @@ export default function Dashboard( {
 											onToggleStatus={
 												togglePublishStatus
 											}
-											onTranslateAll={ ( lang ) =>
-												translateLanguageAll( lang )
-											}
 											onUseFallback={ ( lang ) =>
 												applyFallbackTranslation( lang )
+											}
+											onSwitchToInternal={
+												hasSubscription
+													? switchLangToInternal
+													: undefined
 											}
 											onDelete={ ( lang ) =>
 												confirmDeleteLang( lang )
@@ -1585,8 +1741,12 @@ export default function Dashboard( {
 							quota={ quota }
 							aiAvailable={ ai.available }
 							aiError={ ai.error }
-							connectPending={ connectPending }
 							billingBlocked={ billingBlocked }
+							overSlot={ overSlot }
+							recoveryAvailable={ recoveryAvailable }
+							onDismissRecoveryNotice={ () =>
+								setRecoveryAvailable( false )
+							}
 							onConnect={ handleConnect }
 						/>
 					</div>
@@ -1684,7 +1844,30 @@ export default function Dashboard( {
 									filter the Content board's collections/texts query, which
 									the Plugins & Themes board doesn't use. */ }
 									{ ! showGettextBoard && (
-										<div className="tl-filters">
+										<div
+											className="tl-filters"
+											style={ {
+												display: 'flex',
+												alignItems: 'center',
+												gap: 8,
+											} }
+										>
+											<Button
+												pressed={
+													statusFilter ===
+													'untranslated'
+												}
+												onClick={ () =>
+													setStatusFilter(
+														statusFilter ===
+															'untranslated'
+															? 'all'
+															: 'untranslated'
+													)
+												}
+											>
+												Untranslated only
+											</Button>
 											<Filters
 												hideQueryField
 												filters={ filters }
@@ -1695,6 +1878,15 @@ export default function Dashboard( {
 												onQueryClear={ () => {} }
 												onClearAll={ clearAllFilters }
 											/>
+											{ collapseToTarget && (
+												<Button
+													onClick={
+														openAllCollections
+													}
+												>
+													Open all collections
+												</Button>
+											) }
 										</div>
 									) }
 								</BlockStack>
@@ -1775,12 +1967,7 @@ export default function Dashboard( {
 										onAiBlocked={ handleAiBlocked }
 										onPickLanguage={ setSelectedLang }
 										onConfirm={ setConfirm }
-										onAiUnavailable={ ( error ) =>
-											setAi( {
-												available: false,
-												error,
-											} )
-										}
+										onAiUnavailable={ handleAiFailure }
 									/>
 								</Suspense>
 							) }
@@ -1975,9 +2162,6 @@ export default function Dashboard( {
 														onAiBlocked={
 															handleAiBlocked
 														}
-														bulkTranslating={
-															bulkTranslating
-														}
 														onOpenOverlay={ (
 															unit,
 															cid
@@ -2035,6 +2219,9 @@ export default function Dashboard( {
 						initialCode={ managerInitial }
 						onClose={ () => setManagerOpen( false ) }
 						onConfirm={ setConfirm }
+						onSwitchToInternal={
+							hasSubscription ? switchLangToInternal : undefined
+						}
 						onChanged={ ( createdCode ) => {
 							const wasFirstLanguage = languages.length === 0
 							refreshLanguages()
@@ -2159,7 +2346,6 @@ function CollectionGroup( {
 	onAiTranslate,
 	billingBlocked,
 	onAiBlocked,
-	bulkTranslating,
 	onLengthWarning,
 	onShare,
 } ) {
@@ -2486,9 +2672,6 @@ function CollectionGroup( {
 									onAiTranslate={ onAiTranslate }
 									billingBlocked={ billingBlocked }
 									onAiBlocked={ onAiBlocked }
-									bulkActive={
-										bulkTranslating === 'language'
-									}
 									onOpenOverlay={ ( unit ) =>
 										onOpenOverlay( unit, c.id )
 									}
@@ -2537,7 +2720,6 @@ function TextUnitRow( {
 	onAiTranslate,
 	billingBlocked,
 	onAiBlocked,
-	bulkActive = false,
 	onLengthWarning,
 } ) {
 	const [ draft, setDraft ] = useState( unit.translated ?? '' )
@@ -2566,10 +2748,7 @@ function TextUnitRow( {
 	const shown = effectiveTranslated ?? unit.fallback
 	const hasTranslation =
 		effectiveTranslated !== null && effectiveTranslated !== undefined
-	// Approximate on purpose: shimmer any untranslated row while a bulk "Translate
-	// All" covering it is running, regardless of whether this row's text actually
-	// made it into that job's API call (see Dashboard's bulkTranslating state).
-	const showShimmer = translating || ( bulkActive && ! hasTranslation )
+	const showShimmer = translating
 	let badge = null
 	if ( unit.status === 'needs_review' ) {
 		badge = STATUS_BADGE.needs_review
@@ -2949,7 +3128,9 @@ function TextUnitRow( {
 											: undefined
 									}
 									tabIndex={
-										unit.status === 'needs_review' ? 0 : undefined
+										unit.status === 'needs_review'
+											? 0
+											: undefined
 									}
 									aria-label={
 										unit.status === 'needs_review'
@@ -2971,7 +3152,7 @@ function TextUnitRow( {
 														event.preventDefault()
 														doStatus( 'reviewed' )
 													}
-												  }
+											  }
 											: undefined
 									}
 									style={ {
@@ -3090,7 +3271,7 @@ function TextUnitRow( {
 															<Tooltip
 																content={
 																	billingBlocked
-																		? 'Subscribe or add your own API key to use AI translation'
+																		? 'AI translation unavailable — tap for details'
 																		: 'AI translate'
 																}
 															>

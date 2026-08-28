@@ -1,17 +1,21 @@
-import { BlockStack, Button, Card, ProgressBar, Text } from '@shopify/polaris'
-import { CONNECT_PENDING_MESSAGE } from '../errors'
+import {
+	Banner,
+	BlockStack,
+	Button,
+	Card,
+	ProgressBar,
+	Text,
+} from '@shopify/polaris'
+import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
 
 const cfg = window.Translangs || {}
-const TOKEN_TAB_URL = cfg.billing_url ? `${ cfg.billing_url }&tab=token` : ''
 
 // Rail quota card (wireframe 2.1 footer / 3.2). Fed by GET /billing/entitlements
 // (via Dashboard's existing fetch, shared with its billingBlocked calc) — shows
 // a placeholder until that answers. When AI is unavailable (backend off /
 // disconnected) it says so — the plugin still works offline, only AI actions
-// are disabled. A connect email already on its way (connectPending) gets its
-// own copy here instead of the generic "reconnect" line, since there's
-// nothing to retry — the fix is in the admin's inbox, not a button in this UI.
+// are disabled.
 function unavailableCopy() {
 	return 'AI is off — reconnect Translangs in Settings to enable AI translation.'
 }
@@ -20,20 +24,28 @@ function CloudDisclosure() {
 	return (
 		<BlockStack gap="050">
 			<Text as="span" tone="subdued" variant="bodySm">
-				Connecting sends this site&apos;s domain and WordPress admin email to
-				Translangs Cloud. Translation text is sent only when you request AI
-				translation.
+				Connecting sends this site&apos;s domain and WordPress admin
+				email to Translangs Cloud. Translation text is sent only when
+				you request AI translation.
 			</Text>
 			{ ( cfg.cloud_terms_url || cfg.cloud_privacy_url ) && (
 				<Text as="span" tone="subdued" variant="bodySm">
 					{ cfg.cloud_terms_url && (
-						<a href={ cfg.cloud_terms_url } target="_blank" rel="noreferrer">
+						<a
+							href={ cfg.cloud_terms_url }
+							target="_blank"
+							rel="noreferrer"
+						>
 							Terms
 						</a>
 					) }
 					{ cfg.cloud_terms_url && cfg.cloud_privacy_url && ' · ' }
 					{ cfg.cloud_privacy_url && (
-						<a href={ cfg.cloud_privacy_url } target="_blank" rel="noreferrer">
+						<a
+							href={ cfg.cloud_privacy_url }
+							target="_blank"
+							rel="noreferrer"
+						>
 							Privacy Policy
 						</a>
 					) }
@@ -43,84 +55,89 @@ function CloudDisclosure() {
 	)
 }
 
-function emptyStateTone( connectPending, aiAvailable ) {
-	if ( connectPending || aiAvailable ) {
-		return 'subdued'
-	}
-	return 'caution'
-}
-
-function emptyStateCopy( connectPending, aiAvailable ) {
-	if ( connectPending ) {
-		return CONNECT_PENDING_MESSAGE
-	}
-	return aiAvailable ? 'Usage shown after connect' : unavailableCopy()
-}
-
 export default function QuotaCard( {
 	quota,
 	aiAvailable,
 	aiError,
-	connectPending,
 	billingBlocked,
+	overSlot,
+	recoveryAvailable,
+	onDismissRecoveryNotice,
 	onConnect,
 } ) {
-	// Connected, but no active plan and no own provider key — nothing to
-	// meter, so skip the progress display entirely and point straight at the
-	// two ways to unblock AI translation, same copy as the row buttons'
-	// billingBlocked toast (Dashboard's handleAiBlocked).
+	// A fresh connect may have also found an older licence and emailed its
+	// verified owner a reclaim link — this can be true regardless of which
+	// card state below is showing (a brand-new free-tier connect very
+	// quickly becomes billingBlocked once entitlements load), so it's
+	// rendered above every branch rather than folded into just one of them.
+	const recoveryNotice = recoveryAvailable && (
+		<Banner tone="info" onDismiss={ onDismissRecoveryNotice }>
+			We found an existing Translangs account for this site — check your
+			owner email to move its subscription and word balance here.
+		</Banner>
+	)
+
+	// Connected, but nothing to meter — either no active plan, or this site
+	// specifically is past its plan's site-slot allowance (overSlot: still
+	// subscribed, just not this site) — either way, skip the progress
+	// display and point straight at the two ways to unblock AI translation,
+	// same copy as the row buttons' billingBlocked toast (Dashboard's
+	// handleAiBlocked).
 	if ( quota && billingBlocked ) {
 		return (
-			<Card>
-				<BlockStack gap="100">
-					<Text as="span" variant="bodySm">
-						Subscribe to a plan or add your own AI provider key to
-						use AI translation.
-					</Text>
-					<BlockStack gap="050">
+			<BlockStack gap="200">
+				{ recoveryNotice }
+				<Card>
+					<BlockStack gap="100">
+						<Text as="span" variant="bodySm">
+							{ overSlot
+								? errorMessage( 'ERR_SITE_OVER_PLAN_LIMIT' )
+								: errorMessage( 'ERR_HOSTED_AI_UNAVAILABLE' ) }
+						</Text>
 						<Button variant="secondary" url={ cfg.billing_url }>
 							Go to Billing
 						</Button>
-						<Button variant="tertiary" url={ TOKEN_TAB_URL }>
-							Add your own API key
-						</Button>
 					</BlockStack>
-				</BlockStack>
-			</Card>
+				</Card>
+			</BlockStack>
 		)
 	}
 
 	if ( ! quota ) {
 		// Never connected at all (fresh install / wiped locally) is the one case
 		// with something to actually click — every other unavailable reason
-		// (detached, mismatch, revoked-and-healing, backend down) is either
-		// already pending or fixed elsewhere (Billing, the admin's inbox).
-		const neverConnected =
-			aiError === 'ERR_NOT_CONNECTED' && ! connectPending
+		// (detached, revoked-and-healing, backend down) is fixed elsewhere
+		// (Billing, or self-heals automatically on the next page load).
+		const neverConnected = aiError === 'ERR_NOT_CONNECTED'
 
 		return (
-			<Card>
-				<BlockStack gap="100">
-					<Text as="span" variant="bodySm">
-						Free plan
-					</Text>
-					<Text
-						as="span"
-						tone={ emptyStateTone( connectPending, aiAvailable ) }
-						variant="bodySm"
-					>
-						{ emptyStateCopy( connectPending, aiAvailable ) }
-					</Text>
-					{ neverConnected && (
-						<>
-							<CloudDisclosure />
-							<Button variant="plain" onClick={ onConnect }>
-								Connect to Translangs Cloud
-							</Button>
-						</>
-					) }
-				</BlockStack>
-			</Card>
+			<BlockStack gap="200">
+				{ recoveryNotice }
+				<Card>
+					<BlockStack gap="100">
+						<Text as="span" variant="bodySm">
+							Free plan
+						</Text>
+						<Text
+							as="span"
+							tone={ aiAvailable ? 'subdued' : 'caution' }
+							variant="bodySm"
+						>
+							{ aiAvailable
+								? 'Usage shown after connect'
+								: unavailableCopy() }
+						</Text>
+						{ neverConnected && (
+							<>
+								<CloudDisclosure />
+								<Button variant="plain" onClick={ onConnect }>
+									Connect to Translangs Cloud
+								</Button>
+							</>
+						) }
+					</BlockStack>
+				</Card>
+			</BlockStack>
 		)
 	}
 
@@ -137,29 +154,32 @@ export default function QuotaCard( {
 	const nearLimit = allowance > 0 && consumed / allowance >= 0.85
 
 	return (
-		<Card>
-			<BlockStack gap="200">
-				<Text as="span" variant="headingSm">
-					{ plan ? formatPlanKey( plan ) : 'Plan & usage' }
-				</Text>
-				<Text as="span" variant="bodySm">
-					{ consumed.toLocaleString() } /{ ' ' }
-					{ ( allowance ?? 0 ).toLocaleString() } words
-				</Text>
-				<ProgressBar
-					progress={ pct }
-					size="small"
-					tone={ nearLimit ? 'critical' : 'primary' }
-				/>
-				{ nearLimit && (
-					<Text as="span" tone="critical" variant="bodySm">
-						Near limit — upgrade to keep translating.
+		<BlockStack gap="200">
+			{ recoveryNotice }
+			<Card>
+				<BlockStack gap="200">
+					<Text as="span" variant="headingSm">
+						{ plan ? formatPlanKey( plan ) : 'Plan & usage' }
 					</Text>
-				) }
-				<Button variant="secondary" url={ cfg.billing_url }>
-					Upgrade plan
-				</Button>
-			</BlockStack>
-		</Card>
+					<Text as="span" variant="bodySm">
+						{ consumed.toLocaleString() } /{ ' ' }
+						{ ( allowance ?? 0 ).toLocaleString() } words
+					</Text>
+					<ProgressBar
+						progress={ pct }
+						size="small"
+						tone={ nearLimit ? 'critical' : 'primary' }
+					/>
+					{ nearLimit && (
+						<Text as="span" tone="critical" variant="bodySm">
+							Near limit — upgrade to keep translating.
+						</Text>
+					) }
+					<Button variant="secondary" url={ cfg.billing_url }>
+						Upgrade plan
+					</Button>
+				</BlockStack>
+			</Card>
+		</BlockStack>
 	)
 }

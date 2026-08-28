@@ -148,6 +148,7 @@ export default function BillingSites() {
 	const [ websites, setWebsites ] = useState( null )
 	const [ websitesError, setWebsitesError ] = useState( '' )
 	const [ sitesLimit, setSitesLimit ] = useState( null )
+	const [ sitesUsedOnPlan, setSitesUsedOnPlan ] = useState( null )
 	const [ ownerVerified, setOwnerVerified ] = useState( false )
 
 	const [ addOpen, setAddOpen ] = useState( false )
@@ -178,6 +179,7 @@ export default function BillingSites() {
 		api.get( '/billing/entitlements' ).then( ( res ) => {
 			if ( res.ok ) {
 				setSitesLimit( res.entitlements?.sites_limit ?? null )
+				setSitesUsedOnPlan( res.entitlements?.sites_used ?? null )
 			}
 		} )
 	}, [] )
@@ -245,9 +247,21 @@ export default function BillingSites() {
 	const used = websites.length
 	const slotsLeft = Math.max( 0, limit - used )
 	const hostname = window.location.hostname
+	// sites_used is the backend's own authoritative count (can exceed the
+	// current plan's limit after a downgrade, unlike the client-derived
+	// `used` above, which only ever reflects what /billing/websites lists).
+	const overPlanLimit =
+		sitesLimit !== null &&
+		sitesUsedOnPlan !== null &&
+		sitesUsedOnPlan > sitesLimit
 
 	return (
 		<BlockStack gap="400">
+			{ overPlanLimit && (
+				<Banner tone="warning">
+					{ `This account is using ${ sitesUsedOnPlan } sites, over its plan's limit of ${ sitesLimit }. Sites past the limit lose built-in AI translation until you free a slot or upgrade.` }
+				</Banner>
+			) }
 			{ addSuccess && (
 				<Banner
 					tone="success"

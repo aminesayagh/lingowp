@@ -306,7 +306,14 @@ class Plugin
         $languageMetadata = new LanguageMetadataStore();
         $billingEntitlements = new BillingEntitlementsService($backendClient);
         $connectionStatus    = new ConnectionStatus($billingEntitlements, $connection);
-        $siteConnector       = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus);
+        $siteConnector       = new SiteConnector($backendClient, $connection, $siteMetadata, $connectionStatus, $billingEntitlements);
+
+        // Keeps the backend's admin_email on file in sync the moment
+        // WordPress's own Settings > General value changes, independent of
+        // the next admin page load's /connection/check (SiteConnector::
+        // syncAdminEmailIfChanged() also runs there, covering the case where
+        // the option changed while the plugin was deactivated).
+        add_action('update_option_admin_email', static fn ($old, $new) => $siteConnector->syncAdminEmailIfChanged((string) $new), 10, 2);
 
         // REST API for the onboarding SPA (registers on rest_api_init).
         (new OnboardingRestController($connection, $languageRegistry, $connectionStatus))->register();
@@ -320,7 +327,7 @@ class Plugin
         (new CollectionsRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
         (new TranslationRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
 
-        $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry);
+        $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry, $languageMetadata);
         (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $billingEntitlements, $aiTranslationRunner, $connectionStatus))->register();
 
         (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();

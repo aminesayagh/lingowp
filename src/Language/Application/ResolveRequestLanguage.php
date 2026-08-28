@@ -114,7 +114,10 @@ class ResolveRequestLanguage
     /**
      * 1b. Admin "Preview on site" param: a logged-in editor can view any page in
      *     a target language via ?translangs_preview=<lang>. Editor-gated so a bare
-     *     URL never switches a public visitor's language.
+     *     URL never switches a public visitor's language. Unlike the other
+     *     resolution steps, this also accepts a draft (not-yet-published) target
+     *     language — the whole point of previewing is to check a translation
+     *     before publishing it.
      */
     private function resolveFromPreview(): ?string
     {
@@ -127,7 +130,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->validate(sanitize_text_field(wp_unslash($_GET['translangs_preview'])));
+        return $this->validatePreviewable(sanitize_text_field(wp_unslash($_GET['translangs_preview'])));
         // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
@@ -213,6 +216,22 @@ class ResolveRequestLanguage
         $lang = LocaleNormalizer::normalize($lang);
 
         return ($lang !== '' && $this->isEnabledLanguage($lang)) ? $lang : null;
+    }
+
+    /**
+     * Same as validate(), but also accepts a draft target language — used only
+     * by resolveFromPreview(), which is already gated on edit_posts.
+     */
+    private function validatePreviewable(string $lang): ?string
+    {
+        $lang = LocaleNormalizer::normalize($lang);
+        if ($lang === '') {
+            return null;
+        }
+
+        return $this->isEnabledLanguage($lang) || in_array($lang, $this->registry->existingLanguages(), true)
+            ? $lang
+            : null;
     }
 
     private function isNonPublicRequest(): bool

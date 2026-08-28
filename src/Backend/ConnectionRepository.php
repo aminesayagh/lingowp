@@ -16,6 +16,7 @@ final class ConnectionRepository
     public const OPTION_SITE_ID   = 'translangs_site_id';
     public const OPTION_COMPLETED = 'translangs_onboarding_completed';
     public const OPTION_OWNER_EMAIL = 'translangs_owner_email';
+    public const OPTION_SYNCED_ADMIN_EMAIL = 'translangs_synced_admin_email';
 
     public function isConnected(): bool
     {
@@ -111,5 +112,16 @@ final class ConnectionRepository
     public function storeVerifiedOwnerEmail(string $email): void
     {
         update_option(self::OPTION_OWNER_EMAIL, $email);
+    }
+
+    /** The WP admin_email value this site last successfully pushed to the backend. */
+    public function syncedAdminEmail(): string
+    {
+        return (string) get_option(self::OPTION_SYNCED_ADMIN_EMAIL, '');
+    }
+
+    public function storeSyncedAdminEmail(string $email): void
+    {
+        update_option(self::OPTION_SYNCED_ADMIN_EMAIL, $email);
     }
 }

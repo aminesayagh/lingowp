@@ -206,15 +206,22 @@ export default function BillingToken() {
 		const res = await api.post( '/connection/recover' )
 		setRecovering( false )
 		setConfirmOpen( false )
-		setRecoverBanner(
-			res.ok
-				? {
-						tone: 'success',
-						content:
-							'Key emailed to the site admin. Your current key keeps working for 24 hours, or until you apply the new one.',
-				  }
-				: { tone: 'critical', content: errorMessage( res.error ) }
-		)
+
+		// A working key rotates instantly; a dead key falls back to the
+		// connect ladder instead, which is also instant now — either way
+		// this resolves synchronously, no "check your inbox" state.
+		if ( res.ok ) {
+			await fetchStatus()
+			setRecoverBanner( {
+				tone: 'success',
+				content: 'New key created. Your previous key no longer works.',
+			} )
+			return
+		}
+		setRecoverBanner( {
+			tone: 'critical',
+			content: errorMessage( res.error ),
+		} )
 	}
 
 	const keyPlaceholder =
@@ -371,9 +378,8 @@ export default function BillingToken() {
 						<BlockStack gap="100">
 							<Text as="span">Create a new key</Text>
 							<Text as="span" tone="subdued" variant="bodySm">
-								Your current key keeps working for 24 hours, or
-								until you apply the new one we email to the site
-								admin.
+								Immediately creates a new key for this site.
+								Your current key stops working right away.
 							</Text>
 						</BlockStack>
 						<Button
@@ -405,9 +411,9 @@ export default function BillingToken() {
 			>
 				<Modal.Section>
 					<Text as="p">
-						Your current key keeps working for 24 hours, or until
-						you apply the new one from the email we send to the site
-						admin.
+						Immediately creates a new key for this site. Your
+						current key stops working right away — this can&apos;t
+						be undone.
 					</Text>
 				</Modal.Section>
 			</Modal>

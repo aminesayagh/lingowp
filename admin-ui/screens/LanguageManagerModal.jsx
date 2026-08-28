@@ -34,10 +34,32 @@ const regionLabel = ( item ) => {
 	return item.variant_name ? `${ region } — ${ item.variant_name }` : region
 }
 
-export const AI_MODELS = [ { label: 'Auto', value: 'auto' } ]
 export const AI_STYLE_MAX = 500
 export const AI_STYLE_PLACEHOLDER =
 	'Professional, clear, modern, and approachable.'
+
+const PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic' }
+
+// AI model choices for a language: the Translangs subscription model (only when
+// subscribed) plus one entry per provider key the user has stored. Falls back to
+// the legacy "Auto" when the user has neither — same single-option Select as
+// before. ponytail: value vocabulary is 'internal' | 'openai' | 'anthropic',
+// with legacy 'auto' resolving to the first option on next save.
+export function aiModelOptions( { hasSubscription, providerKeys } ) {
+	const opts = []
+	if ( hasSubscription ) {
+		opts.push( { label: 'Translangs model', value: 'internal' } )
+	}
+	for ( const key of providerKeys || [] ) {
+		if ( PROVIDER_LABELS[ key.provider ] ) {
+			opts.push( {
+				label: `Your ${ PROVIDER_LABELS[ key.provider ] } key`,
+				value: key.provider,
+			} )
+		}
+	}
+	return opts.length ? opts : [ { label: 'Auto', value: 'auto' } ]
+}
 
 // Language manager: a sidebar of every language (reuses the dashboard's
 // LanguageList) + a config pane. Selecting a row edits it; "+ Add" starts a new
@@ -53,12 +75,20 @@ export default function LanguageManagerModal( {
 	onClose,
 	onChanged,
 	onConfirm,
+	onSwitchToInternal,
 } ) {
 	const [ sel, setSel ] = useState( 'new' )
 	const [ resolvedCatalog, setResolvedCatalog ] = useState( catalog )
 	const [ catalogStatus, setCatalogStatus ] = useState( 'idle' )
 	const [ catalogReload, setCatalogReload ] = useState( 0 )
 	const [ catalogRevision, setCatalogRevision ] = useState( 0 )
+	// Which AI engines the language form can offer: the subscription model and/or
+	// the user's stored provider keys. Fetched once per open (mirrors the
+	// dashboard's own entitlements/provider-keys read).
+	const [ aiEngines, setAiEngines ] = useState( {
+		hasSubscription: false,
+		providerKeys: [],
+	} )
 	const isFirstLanguage = languages.length === 0
 
 	useEffect( () => {
@@ -66,6 +96,21 @@ export default function LanguageManagerModal( {
 			setSel( initialCode || languages[ 0 ]?.code || 'new' )
 		}
 	}, [ initialCode, languages, open ] )
+
+	useEffect( () => {
+		if ( ! open ) {
+			return
+		}
+		Promise.all( [
+			api.get( '/provider-keys' ),
+			api.get( '/billing/entitlements' ),
+		] ).then( ( [ keysRes, entitlementsRes ] ) => {
+			setAiEngines( {
+				hasSubscription: !! entitlementsRes.entitlements?.active,
+				providerKeys: keysRes.keys || [],
+			} )
+		} )
+	}, [ open ] )
 
 	useEffect( () => {
 		setResolvedCatalog( catalog )
@@ -201,6 +246,11 @@ export default function LanguageManagerModal( {
 									showProgress={ false }
 									onSelect={ ( lang ) => setSel( lang.code ) }
 									onToggleStatus={ toggleStatus }
+									onSwitchToInternal={
+										aiEngines.hasSubscription
+											? onSwitchToInternal
+											: undefined
+									}
 									onDelete={ del }
 									onAdd={ () => setSel( 'new' ) }
 								/>
@@ -224,9 +274,13 @@ export default function LanguageManagerModal( {
 							<LanguageForm
 								key={ `${ sel }:${ catalogRevision }:${
 									resolvedCatalog?.length || 0
+								}:${ aiEngines.hasSubscription }:${
+									aiEngines.providerKeys.length
 								}` }
 								mode={ mode }
 								current={ current }
+								hasSubscription={ aiEngines.hasSubscription }
+								providerKeys={ aiEngines.providerKeys }
 								defaultCode={ defaultCode }
 								catalog={
 									mode === 'new' && catalogStatus !== 'ready'
@@ -265,6 +319,8 @@ export default function LanguageManagerModal( {
 function LanguageForm( {
 	mode,
 	current,
+	hasSubscription = false,
+	providerKeys = [],
 	catalog,
 	catalogError = false,
 	onCatalogRetry,
@@ -274,6 +330,15 @@ function LanguageForm( {
 	onDone,
 } ) {
 	const isNew = mode === 'new'
+	const modelOptions = aiModelOptions( { hasSubscription, providerKeys } )
+	// A stored value that no longer matches an available option (e.g. legacy
+	// 'auto', or a provider key that was since removed) resolves to the first
+	// option; it's only written back on the next save.
+	const storedModel = isNew ? null : current.ai_model
+	const initialAiModel =
+		storedModel && modelOptions.some( ( o ) => o.value === storedModel )
+			? storedModel
+			: modelOptions[ 0 ].value
 	const localeUnavailable = ( locale ) =>
 		locale === defaultCode || existing.includes( locale )
 	const localeStatus = ( locale ) => {
@@ -323,9 +388,7 @@ function LanguageForm( {
 	const [ fallback, setFallback ] = useState(
 		isNew ? defaultCode : current.fallback_language || ''
 	)
-	const [ aiModel, setAiModel ] = useState(
-		isNew ? 'auto' : current.ai_model || 'auto'
-	)
+	const [ aiModel, setAiModel ] = useState( initialAiModel )
 	const [ style, setStyle ] = useState( isNew ? '' : current.ai_style || '' )
 	const [ direction, setDirection ] = useState(
 		isNew ? initialLocale?.direction || 'ltr' : current.direction || 'ltr'
@@ -577,9 +640,14 @@ function LanguageForm( {
 			<BlockStack gap="300">
 				<Select
 					label="AI model"
-					options={ AI_MODELS }
+					options={ modelOptions }
 					value={ aiModel }
 					onChange={ setAiModel }
+					helpText={
+						hasSubscription && providerKeys.length > 0
+							? 'The Translangs model bills to your subscription; your own key bills to your provider account.'
+							: undefined
+					}
 				/>
 				<TextField
 					label="Website voice and style"

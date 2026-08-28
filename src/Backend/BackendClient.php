@@ -42,12 +42,14 @@ final class BackendClient
     }
 
     /**
-     * POST /license/connect — bootstrap (no auth). Runs the backend's
-     * resolution ladder: either `{sent: true}` (a token email went out —
-     * recover/rotate, domain_reuse_claim, or attach_website; nothing is
-     * stored until it's confirmed) or, only when nothing matched at all,
-     * `{license_key, site_id}` created synchronously. Recovery is folded
-     * into this same call now — there is no separate recover endpoint.
+     * POST /license/connect — bootstrap (no auth). A `license_key` in the
+     * response is always the primary success signal — a fresh licence is
+     * issued synchronously in every case except one: `{sent: true}` with no
+     * key means admin_email matched a verified owner of an existing licence
+     * (attach-website), and a confirm email went to that owner instead.
+     * `recovery_available` can additionally be true alongside a fresh
+     * `license_key` — a reclaim email went to the verified owner of a
+     * matching older licence, but this install already works either way.
      */
     public function connect(array $payload): array
     {
@@ -58,12 +60,42 @@ final class BackendClient
      * POST /license/confirm — no auth; the single callback every emailed
      * token lands on. Payload: { token }. Dispatches server-side on what
      * kind of action the token was for; success data carries whatever the
-     * caller needs to apply (license_key, and site_id when a new site was
-     * just created). `400 invalid_or_expired_token` if unknown/used/expired.
+     * caller needs to apply: { license_key, site_id } for attach-website,
+     * { site_id } alone (no key) for a licence reclaim, or { owner_email }
+     * for assign-owner. `400 invalid_or_expired_token` if unknown/used/
+     * expired; `410 reclaim_target_gone` if a reclaim's target disappeared
+     * before it was confirmed.
      */
     public function confirmToken(string $token): array
     {
         return $this->request('POST', '/license/confirm', ['token' => $token]);
+    }
+
+    /**
+     * POST /license/rotate-key — bearer only, no body. Mints a fresh key for
+     * the same site/licence/subscription/word-balance/owner_email; the old
+     * key stops working immediately. Success data: { license_key }. 402/410
+     * mean the caller must connect() instead — never call this against a key
+     * already in that state.
+     */
+    public function rotateKey(): array
+    {
+        return $this->request('POST', '/license/rotate-key', null, $this->authHeaders());
+    }
+
+    /**
+     * POST /license/site/change — bearer only. Applies immediately, response
+     * is always { sent: false }, never a 409.
+     */
+    public function updateDomain(string $domain): array
+    {
+        return $this->request('POST', '/license/site/change', ['field' => 'domain', 'value' => $domain], $this->authHeaders());
+    }
+
+    /** POST /license/site/change — bearer only. Applies immediately, no confirmation. */
+    public function updateAdminEmail(string $email): array
+    {
+        return $this->request('POST', '/license/site/change', ['field' => 'admin_email', 'value' => $email], $this->authHeaders());
     }
 
     /**
@@ -113,7 +145,10 @@ final class BackendClient
 
     /**
      * POST /translations — batch translate (bearer + domain). Payload:
-     *   { source_lang, target_langs:[], texts:[""] }
+     *   { source_lang, target_langs:[], languages:{ "<lang>": { provider, writing_style? } }, texts:[""] }
+     * `languages` carries per-target AI config: provider ('platform' for the
+     * subscription model, or 'openai'/'anthropic' for a stored key) and the
+     * language's saved writing style (omitted when blank).
      * Success data: { translations:[{text,target_lang,translation}], failed:[{text,target_lang,reason}] }.
      */
     public function translate(array $payload): array
@@ -265,7 +300,7 @@ final class BackendClient
     }
 
     /**
-     * Most errors are a stable status code; a few (409/429/400/404 from the
+     * Most errors are a stable status code; a few (410/429/400/404 from the
      * /license/* routes) also carry a stable snake_case `detail` slug that
      * means something different per slug — read it where it matters. The 401
      * case is deliberately NOT slug-matched: the backend still returns a
@@ -277,12 +312,12 @@ final class BackendClient
         $detail = is_array($data) ? (string) ($data['detail'] ?? '') : '';
 
         return match (true) {
-            $status === 409 && $detail === 'domain_mismatch'         => 'ERR_DOMAIN_MISMATCH',
             $status === 429 && $detail === 'rebind_cooldown_active'  => 'ERR_REBIND_COOLDOWN',
             $status === 429                                          => 'ERR_RATE_LIMITED',
             $status === 400 && $detail === 'domain_not_allowed'      => 'ERR_DOMAIN_NOT_ALLOWED',
             $status === 400 && $detail === 'domain_unreachable'      => 'ERR_DOMAIN_UNREACHABLE',
             $status === 400 && $detail === 'invalid_or_expired_token' => 'ERR_INVALID_CONFIRM_TOKEN', // /license/confirm
+            $status === 410 && $detail === 'reclaim_target_gone'     => 'ERR_RECLAIM_TARGET_GONE', // /license/confirm
             $status === 400 && $detail === 'invalid_key'             => 'ERR_INVALID_API_KEY',     // /provider-keys: provider rejected the key
             $status === 502 && $detail === 'provider_unreachable'    => 'ERR_PROVIDER_UNREACHABLE', // /provider-keys: couldn't reach provider to validate
             $status === 404 && $detail === 'site_not_found'          => 'ERR_SITE_NOT_FOUND',
@@ -299,8 +334,10 @@ final class BackendClient
             $status === 403 && $detail === 'sites_limit_reached'     => 'ERR_SITES_LIMIT_REACHED',  // POST /owner/websites
             $status === 409 && $detail === 'domain_claimed'          => 'ERR_DOMAIN_CLAIMED',       // POST /owner/websites
             $status === 403 && $detail === 'order_not_owned'         => 'ERR_ORDER_NOT_OWNED',      // /billing/packs/order/{id}/capture
-            $status === 402                                          => 'ERR_LICENSE_DETACHED', // key valid, license_id IS NULL — keep key, no auto-reconnect
-            $status === 409                                          => 'ERR_DOMAIN_MISMATCH',  // any other protected route: domain on file doesn't match
+            $status === 402 && $detail === 'site_over_plan_limit'    => 'ERR_SITE_OVER_PLAN_LIMIT',  // /translations: over_slot asked for platform AI anyway
+            $status === 402 && $detail === 'hosted_ai_unavailable'   => 'ERR_HOSTED_AI_UNAVAILABLE',  // /translations: no active subscription
+            $status === 402 && $detail === 'insufficient_ai_words'   => 'ERR_INSUFFICIENT_AI_WORDS',  // /translations: allowance + word packs exhausted
+            $status === 402                                          => 'ERR_LICENSE_DETACHED', // key valid, license_id IS NULL — reconnect to reattach
             $status === 410                                          => 'ERR_LICENSE_REVOKED',  // key valid but revoked — delete key, reconnect
             $status === 400                                          => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group)
             $status === 401 || $status === 403                       => 'ERR_INVALID_TOKEN',    // key unrecognised — delete key, reconnect; 401 detail is a sentence, never slug-matched
@@ -315,12 +352,11 @@ final class BackendClient
         return ['ok' => false, 'status' => 0, 'data' => null, 'error' => $code];
     }
 
-    /** Every protected route needs both — the license key and the domain it's licensed for. */
+    /** Every protected route needs only the license key — it is the whole identity, valid from any domain. */
     private function authHeaders(): array
     {
         return [
             'Authorization' => 'Bearer ' . $this->connection->token(),
-            'X-Site-Domain' => $this->connection->domain(),
         ];
     }
 }

@@ -13,18 +13,17 @@ namespace TransLangs\Backend;
  * (markUnavailable()) — rather than a fixed interval ticking independent of
  * anyone looking. Good information at the moment it's needed, not perpetual sync.
  *
- * The probe is /me/entitlements (not /health): AI needs a *valid license for
- * this domain*, so the check must distinguish backend-down from an
- * invalid/mismatched/detached/revoked credential — /health only proves
- * reachability. There is no dedicated probe route; /me/entitlements is reused
- * because it already sits behind the same bearer + X-Site-Domain auth every
- * protected route requires — and reused via
+ * The probe is /me/entitlements (not /health): AI needs a *valid license*,
+ * so the check must distinguish backend-down from an invalid/detached/
+ * revoked credential — /health only proves reachability. There is no
+ * dedicated probe route; /me/entitlements is reused because it already sits
+ * behind the same bearer auth every protected route requires — and reused via
  * BillingEntitlementsService::rawEntitlements() specifically, not a direct
  * BackendClient call, so a near-simultaneous entitlements read (Billing/quota
  * screens also ask for one) shares the same cached call instead of doubling
  * traffic. Status shape: ['available' => bool, 'error' => string] where error
  * is an ERR_* code ('' when available): ERR_NOT_CONNECTED | ERR_INVALID_TOKEN |
- * ERR_LICENSE_REVOKED | ERR_LICENSE_DETACHED | ERR_DOMAIN_MISMATCH | ERR_UNREACHABLE.
+ * ERR_LICENSE_REVOKED | ERR_LICENSE_DETACHED | ERR_UNREACHABLE.
  */
 final class ConnectionStatus
 {

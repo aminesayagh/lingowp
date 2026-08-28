@@ -2,7 +2,6 @@ import { AppProvider, Frame, Modal, PortalsManager } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from '@wordpress/element'
-import { parseAsString, useQueryState } from 'nuqs'
 import { api } from './api'
 import Configuration from './screens/Configuration'
 import Dashboard from './screens/Dashboard'
@@ -30,33 +29,6 @@ export default function App() {
 	// via "Continue" — no separate "reopen" affordance is needed since it can
 	// never be left closed-but-incomplete.
 	const [ onboardingModalOpen, setOnboardingModalOpen ] = useState( false )
-
-	// Deep link from any confirm email — the license ladder (recover/rotate,
-	// domain_reuse_claim, attach_website) or POST /billing/owner's assign-owner
-	// ask: ?page=translangs&confirm_token=... . One route (/connection/confirm)
-	// relays every kind; PHP branches on whichever shape the backend's response
-	// actually carries, so this handler never needs to know in advance which
-	// kind of token it's holding. This is an opaque, single-use, expiring
-	// token — never a raw license key —
-	// so nothing here can leak a real credential via browser history, referrer
-	// headers, or mail-scanner prefetching. Applied silently in the
-	// background — clicking a link that arrived in the site's own inbox is
-	// already the user's confirmation, nothing here should block on another
-	// click. The dashboard's own on-mount /connection/check (unaffected by
-	// this) will reflect the applied key next time the admin loads/refreshes
-	// the page; no reload is forced from here.
-	const [ confirmToken, setConfirmToken ] = useQueryState(
-		'confirm_token',
-		parseAsString
-	)
-
-	useEffect( () => {
-		if ( ! confirmToken ) {
-			return
-		}
-		api.post( '/connection/confirm', { token: confirmToken } )
-		setConfirmToken( null )
-	}, [ confirmToken, setConfirmToken ] )
 
 	// Polaris renders popovers/tooltips/modals into a portal container that, by
 	// default, lives inside the React tree — which in wp-admin sits under the

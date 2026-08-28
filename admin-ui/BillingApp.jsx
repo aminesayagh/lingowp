@@ -1,5 +1,6 @@
 import {
 	AppProvider,
+	Banner,
 	BlockStack,
 	Box,
 	Button,
@@ -19,7 +20,6 @@ import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from './api'
 import { ensureConnected } from './connection'
-import { CONNECT_PENDING_MESSAGE } from './errors'
 import BillingSubscription from './screens/BillingSubscription'
 import BillingUsage from './screens/BillingUsage'
 import BillingSites from './screens/BillingSites'
@@ -61,27 +61,30 @@ export default function BillingApp() {
 	const [ connectionStatus, setConnectionStatus ] = useState( null )
 	const [ connecting, setConnecting ] = useState( false )
 	const [ connectError, setConnectError ] = useState( '' )
+	// A fresh connect also found a matching older licence and emailed its
+	// verified owner a reclaim link — non-blocking, this site already works.
+	const [ recoveryAvailable, setRecoveryAvailable ] = useState( false )
 
 	useEffect( () => {
 		let cancelled = false
 		ensureConnected().then( ( status ) => {
+			if ( cancelled ) {
+				return
+			}
+			setConnectionStatus( status )
+			if ( ! status.connected ) {
+				setConnectionReady( true )
+				return
+			}
+			api.get( '/billing/entitlements' ).then( ( res ) => {
 				if ( cancelled ) {
 					return
 				}
-				setConnectionStatus( status )
-				if ( ! status.connected ) {
-					setConnectionReady( true )
-					return
+				if ( res.ok ) {
+					setSubscribed( !! res.entitlements?.active )
 				}
-				api.get( '/billing/entitlements' ).then( ( res ) => {
-					if ( cancelled ) {
-						return
-					}
-					if ( res.ok ) {
-						setSubscribed( !! res.entitlements?.active )
-					}
-					setConnectionReady( true )
-				} )
+				setConnectionReady( true )
+			} )
 		} )
 		return () => {
 			cancelled = true
@@ -99,11 +102,11 @@ export default function BillingApp() {
 		}
 		const next = {
 			connected: !! res.connected,
-			pending: !! res.pending,
 			available: !! res.ai_available,
 			error: res.ai_error || '',
 		}
 		setConnectionStatus( next )
+		setRecoveryAvailable( !! res.recovery_available )
 		if ( next.connected ) {
 			const entitlements = await api.get( '/billing/entitlements' )
 			if ( entitlements.ok ) {
@@ -220,7 +223,23 @@ export default function BillingApp() {
 										gap: 16,
 									} }
 								>
-									{ connectionReady && connectionStatus?.connected && <OwnerEmailCard /> }
+									{ recoveryAvailable && (
+										<Banner
+											tone="info"
+											onDismiss={ () =>
+												setRecoveryAvailable( false )
+											}
+										>
+											We found an existing Translangs
+											account for this site — check your
+											owner email to move its subscription
+											and word balance here.
+										</Banner>
+									) }
+									{ connectionReady &&
+										connectionStatus?.connected && (
+											<OwnerEmailCard />
+										) }
 									<MotionConfig reducedMotion="user">
 										<AnimatePresence
 											initial={ false }
@@ -244,36 +263,116 @@ export default function BillingApp() {
 														/>
 													</Box>
 												) }
-											{ connectionReady && ! connectionStatus?.connected && (
-												<Card>
-													<BlockStack gap="300">
-														<Text as="h2" variant="headingMd">Connect to Translangs Cloud</Text>
-														<Text as="p" tone="subdued">
-															Manual translation works without a cloud connection. Connecting sends this site&apos;s domain and WordPress admin email to Translangs Cloud; translation text and provider keys are sent only when you request those cloud features.
-														</Text>
-														{ connectionStatus?.pending && <Text as="p">{ CONNECT_PENDING_MESSAGE }</Text> }
-														{ connectError && <Text as="p" tone="critical">{ connectError }</Text> }
-														<InlineStack gap="200">
-															<Button variant="primary" loading={ connecting } disabled={ connectionStatus?.pending } onClick={ connectCloud }>Connect to Translangs Cloud</Button>
-															{ cfg.cloud_terms_url && <Button variant="plain" url={ cfg.cloud_terms_url } external>Terms</Button> }
-															{ cfg.cloud_privacy_url && <Button variant="plain" url={ cfg.cloud_privacy_url } external>Privacy Policy</Button> }
-														</InlineStack>
-													</BlockStack>
-												</Card>
-											) }
-											{ connectionReady && connectionStatus?.connected &&
-												tab === 'subscription' && (
+												{ connectionReady &&
+													! connectionStatus?.connected && (
+														<Card>
+															<BlockStack gap="300">
+																<Text
+																	as="h2"
+																	variant="headingMd"
+																>
+																	Connect to
+																	Translangs
+																	Cloud
+																</Text>
+																<Text
+																	as="p"
+																	tone="subdued"
+																>
+																	Manual
+																	translation
+																	works
+																	without a
+																	cloud
+																	connection.
+																	Connecting
+																	sends this
+																	site&apos;s
+																	domain and
+																	WordPress
+																	admin email
+																	to
+																	Translangs
+																	Cloud;
+																	translation
+																	text and
+																	provider
+																	keys are
+																	sent only
+																	when you
+																	request
+																	those cloud
+																	features.
+																</Text>
+																{ connectError && (
+																	<Text
+																		as="p"
+																		tone="critical"
+																	>
+																		{
+																			connectError
+																		}
+																	</Text>
+																) }
+																<InlineStack gap="200">
+																	<Button
+																		variant="primary"
+																		loading={
+																			connecting
+																		}
+																		onClick={
+																			connectCloud
+																		}
+																	>
+																		Connect
+																		to
+																		Translangs
+																		Cloud
+																	</Button>
+																	{ cfg.cloud_terms_url && (
+																		<Button
+																			variant="plain"
+																			url={
+																				cfg.cloud_terms_url
+																			}
+																			external
+																		>
+																			Terms
+																		</Button>
+																	) }
+																	{ cfg.cloud_privacy_url && (
+																		<Button
+																			variant="plain"
+																			url={
+																				cfg.cloud_privacy_url
+																			}
+																			external
+																		>
+																			Privacy
+																			Policy
+																		</Button>
+																	) }
+																</InlineStack>
+															</BlockStack>
+														</Card>
+													) }
+												{ connectionReady &&
+													connectionStatus?.connected &&
+													tab === 'subscription' && (
 														<BillingSubscription />
 													) }
-											{ connectionReady && connectionStatus?.connected &&
+												{ connectionReady &&
+													connectionStatus?.connected &&
 													tab === 'usage' && (
 														<BillingUsage />
 													) }
-											{ connectionReady && connectionStatus?.connected &&
+												{ connectionReady &&
+													connectionStatus?.connected &&
 													tab === 'sites' && (
 														<BillingSites />
 													) }
-											{ connectionReady && connectionStatus?.connected &&
+												{ connectionReady &&
+													connectionStatus?.connected &&
 													tab === 'token' && (
 														<BillingToken />
 													) }

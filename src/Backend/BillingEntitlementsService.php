@@ -38,8 +38,8 @@ final class BillingEntitlementsService
      * @return array{state:string, active:bool, plan:?string, period_id:?int,
      *     period_start:?string, period_end:?string, monthly_allowance:?int,
      *     monthly_remaining:?int, purchased_words:int, sites_limit:?int,
-     *     pending_plan:?string, pending_approve_url:?string,
-     *     pending_plan_change:?string}|null
+     *     sites_used:?int, over_slot:bool, pending_plan:?string,
+     *     pending_approve_url:?string, pending_plan_change:?string}|null
      */
     public function data(bool $bypassCache = false): ?array
     {
@@ -69,6 +69,14 @@ final class BillingEntitlementsService
             'monthly_remaining' => isset($d['monthly_remaining']) ? (int) $d['monthly_remaining'] : null,
             'purchased_words'   => (int) ($d['purchased_words'] ?? 0),
             'sites_limit'       => isset($d['sites_limit']) ? (int) $d['sites_limit'] : null,
+            'sites_used'        => isset($d['sites_used']) ? (int) $d['sites_used'] : null,
+            // over_slot: true means THIS site specifically is past the
+            // plan's site-slot allowance — gates the platform-AI action
+            // client-side (AiTranslationController.php:29-32 confirms there's
+            // no server-side pre-check today; whatever quota enforcement
+            // exists belongs to /translations itself — over_slot mirrors that
+            // same shape: a client-side courtesy gate, not the real check).
+            'over_slot'         => (bool) ($d['over_slot'] ?? false),
             // An abandoned/incomplete PayPal checkout — the SPA offers to
             // resume it instead of re-showing the plan picker. Both null in
             // the normal case (no pending subscription).

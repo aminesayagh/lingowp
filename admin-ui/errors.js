@@ -19,9 +19,9 @@ const MESSAGES = {
 	ERR_LICENSE_REVOKED: 'This license was revoked. Reconnecting…',
 	ERR_INVALID_CONFIRM_TOKEN:
 		'This link has expired or was already used. Request a new one and try again.',
-	ERR_DOMAIN_MISMATCH:
-		"This site's address doesn't match our records. Reconnect this domain to continue.",
 	ERR_RATE_LIMITED: 'Too many attempts. Wait a moment and try again.',
+	ERR_RECLAIM_TARGET_GONE:
+		"This reclaim link's target no longer exists. Request a new one.",
 	ERR_REBIND_COOLDOWN:
 		'You can only reconnect a domain once per day. Try again later.',
 	ERR_DOMAIN_NOT_ALLOWED:
@@ -56,17 +56,16 @@ const MESSAGES = {
 		"This order doesn't belong to this site. Contact support.",
 	ERR_UNKNOWN_PACK:
 		"That word pack isn't available anymore. Refresh and try again.",
+	ERR_SITE_OVER_PLAN_LIMIT:
+		"This site is over your plan's site limit. Free a slot or upgrade from the Translangs dashboard on one of your other sites.",
+	ERR_HOSTED_AI_UNAVAILABLE: 'Subscribe to a plan to use AI translation.',
+	ERR_INSUFFICIENT_AI_WORDS:
+		"You're out of AI words for this period. Buy a word pack to keep translating.",
 }
 
 export function errorMessage( code ) {
 	return MESSAGES[ code ] || 'Something went wrong. Try again.'
 }
-
-// Not an ERR_* code — the successful-but-pending outcome of /connection/connect
-// (a confirm email is on its way, nothing is connected yet). Must never be
-// routed through errorMessage().
-export const CONNECT_PENDING_MESSAGE =
-	"We've emailed the site admin to finish connecting. Check that inbox, then click the link."
 
 // A query cancelled because a newer one superseded it (language/search/status
 // changed, or the row scrolled out of view) — never a real failure, so callers

@@ -159,7 +159,9 @@ function ReceiptsCard( {
 							loading={ loadingMore }
 							disabled={ loadingMore }
 						>
-							{ loadMoreError ? 'Retry loading more' : 'Load more' }
+							{ loadMoreError
+								? 'Retry loading more'
+								: 'Load more' }
 						</Button>
 					</InlineStack>
 				</Box>
@@ -772,24 +774,24 @@ export default function BillingSubscription() {
 		return api
 			.get( `/billing/transactions?page=${ page }&page_size=20` )
 			.then( ( res ) => {
-			if ( res.ok ) {
-				setTransactions( ( current ) =>
-					loadingMore
-						? [ ...( current || [] ), ...res.transactions ]
-						: res.transactions
-				)
-				setTransactionsPage( res.page )
-				setHasMoreTransactions( res.has_more )
-			} else {
-				const error = res.error || 'ERR_UNREACHABLE'
-				if ( loadingMore ) {
-					setTransactionsLoadMoreError( error )
+				if ( res.ok ) {
+					setTransactions( ( current ) =>
+						loadingMore
+							? [ ...( current || [] ), ...res.transactions ]
+							: res.transactions
+					)
+					setTransactionsPage( res.page )
+					setHasMoreTransactions( res.has_more )
 				} else {
-					setTransactionsError( error )
+					const error = res.error || 'ERR_UNREACHABLE'
+					if ( loadingMore ) {
+						setTransactionsLoadMoreError( error )
+					} else {
+						setTransactionsError( error )
+					}
 				}
-			}
-			setTransactionsLoadingMore( false )
-		} )
+				setTransactionsLoadingMore( false )
+			} )
 	}, [] )
 
 	useEffect( () => {

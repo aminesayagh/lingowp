@@ -20,7 +20,8 @@ use WP_REST_Response;
  * This is SYNCHRONOUS: a request resolves the pending source units for its scope,
  * then hands off to AiTranslationRunner, which batches via TranslationBatchPlanner
  * (the backend caps at 25 items/group_id, 100/request) and writes each result as
- * MACHINE (status 1, provider "ai"). This controller only does HTTP concerns —
+ * NEEDS_REVIEW (status -1, provider "ai") — AI never marks a text done on its
+ * own. This controller only does HTTP concerns —
  * param parsing and response shaping; large/language-wide jobs should move to an
  * Action Scheduler job (see arch-workflow-ai-translation.md) if request time
  * becomes a problem — the runner's batch/save loop transplants directly into a
@@ -67,22 +68,25 @@ final class AiTranslationController
     /** Translate a scope (text | collection | language) synchronously in batches. */
     public function translate(WP_REST_Request $request): WP_REST_Response
     {
-        $lang  = $this->resolveLang($request);
         $scope = (string) $request->get_param('scope');
+        $langs = $this->resolveLangs($request, $scope);
 
-        if ($lang === '') {
+        if ($langs === []) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
+        // scope 'text' units are language-independent, so the primary is only used
+        // for building the unit list and pinning the top-level summary keys.
+        $primary = $langs[0];
 
-        $units = $this->unitsForScope($scope, $request, $lang);
+        $units = $this->unitsForScope($scope, $request, $primary);
         if ($units === null) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
         if ($units === []) {
-            return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0] + $this->summaryPatch($scope, $request, $lang));
+            return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0] + $this->summaryPatch($scope, $request, $primary, $langs));
         }
 
-        $result = $this->runner->run($units, $lang);
+        $result = $this->runner->run($units, $langs);
         if ($result['error'] !== null) {
             // A batch call to the backend itself failed (network/auth/backend
             // error) — record it now so the next status read reflects reality
@@ -109,20 +113,22 @@ final class AiTranslationController
         return rest_ensure_response(
             ['ok' => true, 'translated' => $result['translated'], 'words_used' => $result['words_used']]
             + $rejected
-            + $this->summaryPatch($scope, $request, $lang)
+            + $this->summaryPatch($scope, $request, $primary, $langs)
         );
     }
 
     /**
      * For 'collection'/'text' scope, the updated summary of the one collection
      * involved — lets the caller patch the board's cache instead of refetching.
-     * 'text' scope also resolves the single translated unit itself, so the
-     * client can propagate it to any other visible occurrence of the same
-     * text (hash-link kinds share one translation across positions). 'language'
+     * 'text' scope also resolves the translated unit itself, so the client can
+     * propagate it to any other visible occurrence of the same text (hash-link
+     * kinds share one translation across positions); with more than one target
+     * language it returns those per language under `by_language`, keeping the
+     * top-level keys pinned to $lang for single-language callers. 'language'
      * scope touches every collection (and many units), so there's nothing
      * single to hand back; the caller falls back to invalidating.
      */
-    private function summaryPatch(string $scope, WP_REST_Request $request, string $lang): array
+    private function summaryPatch(string $scope, WP_REST_Request $request, string $lang, array $langs): array
     {
         if ($scope === 'text') {
             $collectionId = urldecode((string) $request->get_param('collection_id'));
@@ -130,13 +136,24 @@ final class AiTranslationController
             if ($collectionId === '' || $ref === null) {
                 return [];
             }
-            $result = $this->collections->unitAndSummaryFor($collectionId, $lang, $ref->format());
-            $patch  = [];
-            if ($result['summary'] !== null) {
-                $patch['collection_summary'] = $result['summary'];
+            $perLang = [];
+            foreach ($langs as $l) {
+                $result = $this->collections->unitAndSummaryFor($collectionId, $l, $ref->format());
+                $entry  = [];
+                if ($result['summary'] !== null) {
+                    $entry['collection_summary'] = $result['summary'];
+                }
+                if ($result['unit'] !== null) {
+                    $entry['updated_unit'] = $result['unit'];
+                }
+                $perLang[$l] = $entry;
             }
-            if ($result['unit'] !== null) {
-                $patch['updated_unit'] = $result['unit'];
+            // Top-level keys stay pinned to the primary language so single-language
+            // callers (the row "Translate" button) get the exact shape they always
+            // had; by_language is added only when more than one was requested.
+            $patch = $perLang[$lang] ?? [];
+            if (count($langs) > 1) {
+                $patch['by_language'] = $perLang;
             }
             return $patch;
         }
@@ -304,5 +321,35 @@ final class AiTranslationController
         }
 
         return $this->registry->getTargetLanguages()[0] ?? '';
+    }
+
+    /**
+     * Target languages for this run. scope 'text' may carry a `languages` CSV —
+     * CompareOverlay translates one string into every configured language in a
+     * single request; every other scope stays single-language via `language`.
+     *
+     * @return string[] normalized, de-duplicated, order preserved
+     */
+    private function resolveLangs(WP_REST_Request $request, string $scope): array
+    {
+        if ($scope === 'text') {
+            $raw = (string) $request->get_param('languages');
+            if ($raw !== '') {
+                $langs = array_values(array_unique(array_filter(
+                    array_map(
+                        static fn (string $l): string => LocaleNormalizer::normalize(trim($l)),
+                        explode(',', $raw)
+                    ),
+                    static fn (string $l): bool => $l !== ''
+                )));
+                if ($langs !== []) {
+                    return $langs;
+                }
+            }
+        }
+
+        $one = $this->resolveLang($request);
+
+        return $one === '' ? [] : [$one];
     }
 }
