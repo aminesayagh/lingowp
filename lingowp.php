@@ -52,6 +52,9 @@ if (file_exists(LINGOWP_DIR . 'vendor/autoload.php')) {
     });
 }
 
+// Public template functions (lingowp_get_language_links(), lingowp_switcher(), …).
+require_once LINGOWP_DIR . 'functions.php';
+
 // Load the bundled queue library before plugins_loaded, so Action Scheduler can register its version.
 \LingoWP\Shared\ActionSchedulerLoader::loadBundled(LINGOWP_DIR);
 

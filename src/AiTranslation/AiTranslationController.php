@@ -17,20 +17,23 @@ use WP_REST_Response;
 /**
  * AI translation + quota endpoints (namespace lingowp/v1).
  *
- * This is SYNCHRONOUS: a request resolves the pending source units for its scope,
- * then hands off to AiTranslationRunner, which batches via TranslationBatchPlanner
- * (the backend caps at 25 items/group_id, 100/request) and writes each result as
- * NEEDS_REVIEW (status -1, provider "ai") — AI never marks a text done on its
- * own. This controller only does HTTP concerns —
- * param parsing and response shaping; large/language-wide jobs should move to an
- * Action Scheduler job (see arch-workflow-ai-translation.md) if request time
- * becomes a problem — the runner's batch/save loop transplants directly into a
- * job worker.
+ * This is ASYNC: a request resolves the pending source units for its scope,
+ * hands them to AiTaskSubmitter, which queues them on the backend and stamps
+ * ai_pending_since -- then returns immediately. Nothing here writes a
+ * translation; results land later via AiResultCollector (see
+ * CollectionsRestController), pulled inline whenever the board is polled.
+ * AI output is never marked done on its own -- it always lands as
+ * needs_review (status -1, provider "ai"), a human still confirms it.
+ *
+ * A scope larger than AiQueueConfig::MAX_TEXTS_PER_SUBMIT is not chunked in
+ * the background: this submits the first slice and reports `more`, and the
+ * SPA re-POSTs the same request to continue -- no scheduler, no partial-
+ * submit state to track.
  *
  * There is no client-side quota pre-check here — whatever quota enforcement
- * exists belongs to /translations itself, not a separate gate in front of it.
- * GET /me/entitlements is the canonical snapshot for anyone who wants one
- * (the Dashboard's quota rail), not this controller.
+ * exists belongs to the backend's queue endpoint, not a separate gate in
+ * front of it. GET /me/entitlements is the canonical snapshot for anyone who
+ * wants one (the Dashboard's quota rail), not this controller.
  *
  * "AI translate all" targets missing + needs_review units (already-done ones
  * are skipped).
@@ -43,7 +46,7 @@ final class AiTranslationController
     private OptionLanguageRegistry $registry;
     private CollectionBoard $collections;
     private BillingEntitlementsService $entitlements;
-    private AiTranslationRunner $runner;
+    private AiTaskSubmitter $submitter;
     private ConnectionStatus $connectionStatus;
 
     public function __construct(
@@ -51,14 +54,14 @@ final class AiTranslationController
         OptionLanguageRegistry $registry,
         CollectionBoard $collections,
         BillingEntitlementsService $entitlements,
-        AiTranslationRunner $runner,
+        AiTaskSubmitter $submitter,
         ConnectionStatus $connectionStatus
     ) {
         $this->repo             = $repo;
         $this->registry         = $registry;
         $this->collections      = $collections;
         $this->entitlements     = $entitlements;
-        $this->runner           = $runner;
+        $this->submitter        = $submitter;
         $this->connectionStatus = $connectionStatus;
     }
 
@@ -71,7 +74,7 @@ final class AiTranslationController
     {
         $guard = ['permission_callback' => [$this, 'canManage']];
 
-        register_rest_route(self::NS, '/translate', ['methods' => 'POST', 'callback' => [$this, 'translate']] + $guard);
+        register_rest_route(self::NS, '/translate', ['methods' => 'POST', 'callback' => [$this, 'submit']] + $guard);
     }
 
     public function canManage(): bool
@@ -79,8 +82,8 @@ final class AiTranslationController
         return current_user_can('manage_options');
     }
 
-    /** Translate a scope (text | collection | language) synchronously in batches. */
-    public function translate(WP_REST_Request $request): WP_REST_Response
+    /** Queue a scope (text | collection | language) for async AI translation and return immediately. */
+    public function submit(WP_REST_Request $request): WP_REST_Response
     {
         $scope = (string) $request->get_param('scope');
         $langs = $this->resolveLangs($request, $scope);
@@ -97,38 +100,30 @@ final class AiTranslationController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
         if ($units === []) {
-            return rest_ensure_response(['ok' => true, 'translated' => 0, 'words_used' => 0] + $this->summaryPatch($scope, $request, $primary, $langs));
+            return rest_ensure_response(['ok' => true, 'submitted' => 0, 'more' => false] + $this->summaryPatch($scope, $request, $primary, $langs));
         }
 
-        $result = $this->runner->run($units, $langs);
+        $total = count($units);
+        $batch = array_slice($units, 0, AiQueueConfig::MAX_TEXTS_PER_SUBMIT);
+
+        $result = $this->submitter->submit($batch, $langs);
         if ($result['error'] !== null) {
-            // A batch call to the backend itself failed (network/auth/backend
+            // The submit call to the backend itself failed (network/auth/backend
             // error) — record it now so the next status read reflects reality
             // immediately, instead of the SPA showing AI as available until
             // the next page load or health-check tick.
             $this->connectionStatus->markUnavailable($result['error']);
 
-            return rest_ensure_response([
-                'ok'         => false,
-                'error'      => $result['error'],
-                'translated' => $result['translated'],
-                'words_used' => $result['words_used'],
-            ]);
+            return rest_ensure_response(['ok' => false, 'error' => $result['error'], 'submitted' => 0]);
         }
 
         $this->entitlements->invalidate(); // usage changed; force a fresh read next time.
 
-        // `failed`/`failures` are only present when something was rejected, so the
-        // existing client shape is unchanged on a clean run.
-        $rejected = $result['failures'] === []
-            ? []
-            : ['failed' => count($result['failures']), 'failures' => $result['failures']];
-
-        return rest_ensure_response(
-            ['ok' => true, 'translated' => $result['translated'], 'words_used' => $result['words_used']]
-            + $rejected
-            + $this->summaryPatch($scope, $request, $primary, $langs)
-        );
+        return rest_ensure_response([
+            'ok'        => true,
+            'submitted' => count($batch),
+            'more'      => $total > count($batch),
+        ] + $this->summaryPatch($scope, $request, $primary, $langs));
     }
 
     /**

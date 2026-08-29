@@ -113,7 +113,7 @@ export default function CompareOverlay( {
 	const [ saving, setSaving ] = useState( false )
 	const [ savedTick, setSavedTick ] = useState( 0 )
 	const [ error, setError ] = useState( '' )
-	const [ translating, setTranslating ] = useState( false )
+	const [ submitting, setSubmitting ] = useState( false )
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ langOpen, setLangOpen ] = useState( false )
 	const [ filled, setFilled ] = useState( false )
@@ -123,6 +123,14 @@ export default function CompareOverlay( {
 	const pendingRef = useRef( null ) // value waiting on the debounce
 	const timerRef = useRef( null )
 	const copyButtonRef = useRef( null ) // focus target once Translate unmounts
+
+	// `submitting` covers the optimistic window between click and the queue
+	// invalidation it triggers; `unit.status === 'pending'` covers the rest
+	// of the async wait, cleared only once the overlay's own poll
+	// (overlayTextsQ's pollWhilePending, in Dashboard.jsx) sees the real
+	// result land -- a submit response no longer carries the translation
+	// itself (see AiTranslationController::submit).
+	const translating = submitting || unit?.status === 'pending'
 
 	const composed = !! unit && hasMarkers( unit.original || '' )
 	const unitId = unit?.id
@@ -245,28 +253,19 @@ export default function CompareOverlay( {
 	// currently shown) in a single request — `languages` is already every target
 	// language the site has (draft + active; the source language isn't in this
 	// list), and `unit.id` is the source ref, which is the same regardless of
-	// target language. Only the response entry for the pane's own `language`
-	// updates what's shown here; the rest were saved server-side and their
-	// caches invalidated by onAiTranslate.
+	// target language. The submit resolves before translation actually
+	// happens (async queue); the real text lands via overlayTextsQ's poll,
+	// which the `text` sync effect above picks up once `unit.translated`
+	// changes for this pane's language.
 	async function translate() {
-		setTranslating( true )
+		setSubmitting( true )
 		await flush()
-		const res = await onAiTranslate( 'text', {
+		await onAiTranslate( 'text', {
 			ref: unit.id,
 			collection_id: collectionId,
 			languages: languages.map( ( l ) => l.code ),
 		} )
-		// onAiTranslate resolves to undefined on a hard failure (quota exhausted,
-		// AI unavailable, backend error — see Dashboard's translateScope).
-		if ( res ) {
-			const mine = res.by_language?.[ language ] ?? res
-			if ( mine.updated_unit ) {
-				const value = mine.updated_unit.translated ?? ''
-				savedRef.current = value
-				setText( value )
-			}
-		}
-		setTranslating( false )
+		setSubmitting( false )
 	}
 
 	// The Translate button unmounts while generating (AnimatePresence) — move

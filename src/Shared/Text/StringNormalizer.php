@@ -33,6 +33,13 @@ namespace LingoWP\Shared\Text;
  * identical bytes in, identical hash out, everywhere. Changing any rule re-hashes
  * every string, so existing lingowp_* rows must be re-discovered (drop the tables) or
  * migrated by hand; there is no automatic versioning.
+ *
+ * ALSO PORTED TO PYTHON: the translangs_back backend hashes on this exact
+ * output too (services/translation_queue/wp_text_hash.py, normalize_for_hash())
+ * so the async AI translate-all queue's source_hash equals original_hash and a
+ * delivered translation can be matched back to its row. Changing any rule here
+ * without updating that port in lockstep breaks every future queue delivery
+ * silently (the lookup just finds nothing, not an error).
  */
 final class StringNormalizer
 {

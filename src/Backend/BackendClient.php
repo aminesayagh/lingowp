@@ -14,7 +14,7 @@ namespace LingoWP\Backend;
  * arch-onboarding-auth-lifecycle.md). The raw license key and Authorization
  * header are never logged.
  */
-final class BackendClient
+final class BackendClient implements TranslationBackendPort
 {
     private const TIMEOUT = 15;
 
@@ -160,6 +160,21 @@ final class BackendClient
     public function translate(array $payload): array
     {
         return $this->request('POST', '/translations', $payload, $this->authHeaders(), self::TRANSLATE_TIMEOUT);
+    }
+
+    public function submitTasks(array $payload): array
+    {
+        return $this->request('POST', '/translations/tasks', $payload, $this->authHeaders());
+    }
+
+    public function pullResults(int $cursor = 0): array
+    {
+        return $this->request('GET', '/translations/results?' . http_build_query(['cursor' => $cursor]), null, $this->authHeaders());
+    }
+
+    public function ackResults(array $items): array
+    {
+        return $this->request('POST', '/translations/results/ack', ['items' => $items], $this->authHeaders());
     }
 
     /** GET /provider-keys — masked list of stored BYOK keys (bearer + domain). */
@@ -380,7 +395,7 @@ final class BackendClient
                 return 'ERR_NOT_FOUND';
             case $status === 422:
                 return 'ERR_INVALID_PAYLOAD';
-            default: // covers 503/500 — no retry here, see AiTranslationRunner
+            default: // covers 503/500 — no retry anywhere in the AI translate path
                 return 'ERR_BACKEND';
         }
     }

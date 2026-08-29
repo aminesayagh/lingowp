@@ -18,7 +18,7 @@ use LingoWP\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '1';
+    public const DB_VERSION        = '2';
     public const OPTION_DB_VERSION = 'lingowp_db_version';
 
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */

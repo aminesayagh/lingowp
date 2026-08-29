@@ -1,0 +1,123 @@
+/**
+ * LingoWP language switcher.
+ *
+ * Everything is driven by custom properties so a theme can restyle without
+ * fighting specificity. Override on .lingowp-switcher (or a wrapper).
+ */
+.lingowp-switcher {
+	--lingowp-switcher-gap: 0.5rem;
+	--lingowp-switcher-font-size: inherit;
+	--lingowp-switcher-color: inherit;
+	--lingowp-switcher-color-current: inherit;
+	--lingowp-switcher-bg: #fff;
+	--lingowp-switcher-border: 1px solid rgba(0, 0, 0, 0.15);
+	--lingowp-switcher-radius: 4px;
+	--lingowp-switcher-padding: 0.35rem 0.6rem;
+
+	display: inline-block;
+	font-size: var(--lingowp-switcher-font-size);
+	line-height: 1.3;
+}
+
+.lingowp-switcher__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.lingowp-switcher__link,
+.lingowp-switcher__current {
+	color: var(--lingowp-switcher-color);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.lingowp-switcher__item.is-current .lingowp-switcher__link {
+	color: var(--lingowp-switcher-color-current);
+	font-weight: 600;
+}
+
+.lingowp-switcher__link:focus-visible,
+.lingowp-switcher__current:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+/* Inline: languages on one row, separated by a gap. */
+.lingowp-switcher--inline .lingowp-switcher__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lingowp-switcher-gap);
+}
+
+/* List: stacked. */
+.lingowp-switcher--list .lingowp-switcher__item + .lingowp-switcher__item {
+	margin-top: var(--lingowp-switcher-gap);
+}
+
+/* Dropdown: <details>/<summary>, no JS needed. */
+.lingowp-switcher--dropdown .lingowp-switcher__details {
+	position: relative;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__current {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: var(--lingowp-switcher-padding);
+	border: var(--lingowp-switcher-border);
+	border-radius: var(--lingowp-switcher-radius);
+	background: var(--lingowp-switcher-bg);
+	list-style: none;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__current::-webkit-details-marker {
+	display: none;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__current::after {
+	content: "";
+	width: 0.4em;
+	height: 0.4em;
+	border-right: 2px solid currentColor;
+	border-bottom: 2px solid currentColor;
+	transform: rotate(45deg) translateY(-0.1em);
+}
+
+.lingowp-switcher--dropdown[open] .lingowp-switcher__details,
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] {
+	z-index: 10;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__list {
+	position: absolute;
+	top: calc(100% + 2px);
+	inset-inline-start: 0;
+	min-width: 100%;
+	background: var(--lingowp-switcher-bg);
+	border: var(--lingowp-switcher-border);
+	border-radius: var(--lingowp-switcher-radius);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__link {
+	display: block;
+	padding: var(--lingowp-switcher-padding);
+	white-space: nowrap;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__link:hover,
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__link:focus {
+	background: rgba(0, 0, 0, 0.06);
+}
+
+/* RTL language links inside an otherwise-LTR switcher. */
+.lingowp-switcher__link[dir="rtl"] {
+	text-align: right;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.lingowp-switcher--dropdown .lingowp-switcher__list {
+		transition: opacity 0.12s ease;
+	}
+}

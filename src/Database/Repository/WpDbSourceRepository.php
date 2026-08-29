@@ -9,6 +9,7 @@ use LingoWP\Shared\Source\SourceRef;
 use LingoWP\Shared\Text\TranslationKey;
 use LingoWP\Shared\Text\TranslatableText;
 use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
 use LingoWP\Database\TranslationMemorySchema;
 
 /**
@@ -193,6 +194,7 @@ final class WpDbSourceRepository
             $sql = "SELECT LOWER(HEX(original_hash)) AS h, translated_text
                     FROM {$child}
                     WHERE lang_code = %s
+                      AND translated_text IS NOT NULL
                       AND original_hash IN ({$placeholders})";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -220,7 +222,7 @@ final class WpDbSourceRepository
 
         $child = $this->parent($parentTableKey) . '_translation';
         $sql   = "SELECT LOWER(HEX(original_hash)) AS h, translated_text
-                  FROM {$child} WHERE lang_code = %s";
+                  FROM {$child} WHERE lang_code = %s AND translated_text IS NOT NULL";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $langCode), ARRAY_A);
@@ -270,6 +272,7 @@ final class WpDbSourceRepository
             $sql = "SELECT {$select}, tr.translated_text AS test_text
                     FROM {$parent} p
                     INNER JOIN {$child} tr ON tr.parent_id = p.id AND tr.lang_code = %s
+                        AND tr.translated_text IS NOT NULL
                     WHERE p.status = 0 AND {$tupleList}";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -307,6 +310,7 @@ final class WpDbSourceRepository
             $sql = "SELECT parent_id, translated_text
                     FROM {$child}
                     WHERE lang_code = %s
+                      AND translated_text IS NOT NULL
                       AND parent_id IN ({$placeholders})";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -753,7 +757,7 @@ final class WpDbSourceRepository
 
         $sql = "SELECT EXISTS(
                     SELECT 1 FROM {$parent} p
-                    JOIN {$child} t ON {$join} AND t.lang_code = %s
+                    JOIN {$child} t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
                     WHERE p.post_id = %d AND p.status = %d
                 )";
 
@@ -777,34 +781,26 @@ final class WpDbSourceRepository
     public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): void
     {
         $tableKey = $ref->parentTableKey();
-        $child    = $this->parent($tableKey) . '_translation';
-        $now      = current_time('mysql');
-
-        $update = 'ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
-                       status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at)';
 
         if ($this->isHashLink($tableKey)) {
             $hashHex = $this->parentHashHex($ref);
             if ($hashHex === null) {
                 return;
             }
-            $providerExpr = $provider === null ? 'NULL' : '%s';
-            $args         = [$hashHex, $langCode, $text, $status];
-            if ($provider !== null) {
-                $args[] = $provider;
-            }
-            $args[] = $now;
-            $args[] = $now;
-
-            $sql = "INSERT INTO {$child}
-                        (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
-                    VALUES (UNHEX(%s), %s, %s, %d, {$providerExpr}, %s, %s) {$update}";
-
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+            $this->saveTranslationByHash($tableKey, $hashHex, $langCode, $text, $status, $provider);
             $this->flushHtmlCache($ref, $langCode);
             return;
         }
+
+        $child = $this->parent($tableKey) . '_translation';
+        $now   = current_time('mysql');
+
+        // Clearing ai_pending_since/ai_error here means a successful AI apply
+        // (queue delivery) and a manual save both land on the same "this
+        // unit is settled, nothing pending" state in one statement.
+        $update = 'ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
+                       status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at),
+                       ai_pending_since = NULL, ai_error = NULL';
 
         // parent_id: INSERT … SELECT guards against a missing parent.
         $providerExpr = $provider === null ? 'NULL' : '%s';
@@ -823,6 +819,194 @@ final class WpDbSourceRepository
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+    }
+
+    /** Hash-link upsert, shared by saveTranslation() (ref-driven) and the AI
+     * queue's applyQueueResult() (hash-driven, no ref at all — see below). */
+    private function saveTranslationByHash(string $tableKey, string $hashHex, string $langCode, string $text, int $status, ?string $provider): void
+    {
+        $child = $this->parent($tableKey) . '_translation';
+        $now   = current_time('mysql');
+
+        $providerExpr = $provider === null ? 'NULL' : '%s';
+        $args         = [$hashHex, $langCode, $text, $status];
+        if ($provider !== null) {
+            $args[] = $provider;
+        }
+        $args[] = $now;
+        $args[] = $now;
+
+        $sql = "INSERT INTO {$child}
+                    (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
+                VALUES (UNHEX(%s), %s, %s, %d, {$providerExpr}, %s, %s)
+                ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
+                    status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at),
+                    ai_pending_since = NULL, ai_error = NULL";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+    }
+
+    // ── AI translate-all queue ──────────────────────────────────────────────────
+    // Submit stamps ai_pending_since (ref-driven, since a submission always
+    // starts from concretely-resolved units); the return trip is hash-driven
+    // only (see decision log: the backend is source-type-agnostic and only
+    // ever hands back {source_hash, target_lang, output|error}), so applying
+    // a result never parses a ref at all.
+
+    /**
+     * Stamp ai_pending_since (and clear any stale ai_error) on every
+     * (ref, lang) pair about to be submitted. Batched per table per
+     * language — one statement per (table, lang), not per unit.
+     *
+     * @param SourceRef[] $refs
+     * @param string[]    $langs
+     */
+    public function markPendingBatch(array $refs, array $langs): void
+    {
+        if ($refs === [] || $langs === []) {
+            return;
+        }
+
+        $now = current_time('mysql');
+        foreach ($this->refsByTable($refs) as $tableKey => $ids) {
+            $child = $this->parent($tableKey) . '_translation';
+
+            foreach (array_chunk(array_unique($ids), self::SELECT_CHUNK) as $chunk) {
+                $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
+
+                foreach ($langs as $lang) {
+                    if ($this->isHashLink($tableKey)) {
+                        $sql = "INSERT INTO {$child} (original_hash, lang_code, ai_pending_since, created_at, updated_at)
+                                SELECT original_hash, %s, %s, %s, %s
+                                FROM {$this->parent($tableKey)} WHERE id IN ({$placeholders})
+                                ON DUPLICATE KEY UPDATE ai_pending_since = VALUES(ai_pending_since),
+                                    ai_error = NULL, updated_at = VALUES(updated_at)";
+                    } else {
+                        $sql = "INSERT INTO {$child} (parent_id, lang_code, ai_pending_since, created_at, updated_at)
+                                SELECT id, %s, %s, %s, %s
+                                FROM {$this->parent($tableKey)} WHERE id IN ({$placeholders})
+                                ON DUPLICATE KEY UPDATE ai_pending_since = VALUES(ai_pending_since),
+                                    ai_error = NULL, updated_at = VALUES(updated_at)";
+                    }
+
+                    $args = array_merge([$lang, $now, $now, $now], $chunk);
+                    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+                    $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+                }
+            }
+        }
+    }
+
+    /**
+     * Apply one pulled queue result, source-agnostic: the same hash may
+     * independently exist in more than one of the 5 parent tables (e.g. an
+     * option value and an unrelated post fragment sharing text), and every
+     * match gets it. For "meta" specifically, several distinct positions can
+     * share a hash (never hash-shared for MANUAL translation, by design —
+     * see the class doc) but the async queue dedupes site-wide by text, so
+     * one AI translation is deliberately fanned out to every meta position
+     * sharing it too.
+     *
+     * ponytail: one lookup per parent table per call (up to 6 queries per
+     * result: 5 parents + N meta rows), not batched across a whole pulled
+     * page. Revisit if a pull page's typical result count ever makes this a
+     * measurable hot path.
+     *
+     * $hashHex is original_hash, exactly as stored on the parent -- the
+     * backend hashes on the same normalized form (see
+     * services/translation_queue/wp_text_hash.py, the Python port of
+     * StringNormalizer::normalize()), so no separate "queue hash" is needed.
+     */
+    public function applyQueueResult(string $hashHex, string $langCode, ?string $translatedText, ?string $errorMessage): void
+    {
+        foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
+            $parent = $this->parent($tableKey);
+            $row    = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
+                $this->wpdb->prepare("SELECT original_text FROM {$parent} WHERE original_hash = UNHEX(%s) LIMIT 1", $hashHex),
+                ARRAY_A
+            );
+            if ($row === null) {
+                continue;
+            }
+            $this->applyResultToPosition($tableKey, $hashHex, null, $langCode, (string) $row['original_text'], null, $translatedText, $errorMessage);
+        }
+
+        $metaParent = $this->parent('meta');
+        $metaRows   = $this->wpdb->get_results( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare("SELECT id, meta_key, original_text FROM {$metaParent} WHERE original_hash = UNHEX(%s)", $hashHex),
+            ARRAY_A
+        );
+        foreach ((array) $metaRows as $metaRow) {
+            $this->applyResultToPosition(
+                'meta', null, (int) $metaRow['id'], $langCode,
+                (string) $metaRow['original_text'], (string) $metaRow['meta_key'],
+                $translatedText, $errorMessage
+            );
+        }
+    }
+
+    /** One position's share of applyQueueResult() — validated write, or a failure marker. */
+    private function applyResultToPosition(
+        string $tableKey,
+        ?string $hashHex,
+        ?int $parentId,
+        string $langCode,
+        string $originalText,
+        ?string $metaKey,
+        ?string $translatedText,
+        ?string $errorMessage
+    ): void {
+        if ($errorMessage !== null || $translatedText === null || $translatedText === '') {
+            $this->markQueueFailure($tableKey, $hashHex, $parentId, $langCode, $errorMessage ?? 'ERR_BACKEND_EMPTY_RESULT');
+            return;
+        }
+
+        $guardErrors = TranslationSubmissionGuard::validate($originalText, $translatedText, $metaKey);
+        if ($guardErrors !== []) {
+            $this->markQueueFailure($tableKey, $hashHex, $parentId, $langCode, 'ERR_PROTECTED_TOKEN_STRUCTURE');
+            return;
+        }
+
+        if ($this->isHashLink($tableKey)) {
+            $this->saveTranslationByHash($tableKey, (string) $hashHex, $langCode, $translatedText, TranslationStatus::NEEDS_REVIEW, 'ai');
+            $this->flushHtmlCacheForLang($tableKey, $langCode);
+            return;
+        }
+
+        $this->saveTranslation(SourceRef::make('meta', (int) $parentId), $langCode, $translatedText, TranslationStatus::NEEDS_REVIEW, 'ai');
+    }
+
+    /** Sets ai_error and clears ai_pending_since; never touches translated_text/status. */
+    private function markQueueFailure(string $tableKey, ?string $hashHex, ?int $parentId, string $langCode, string $errorMessage): void
+    {
+        $child = $this->parent($tableKey) . '_translation';
+        $now   = current_time('mysql');
+
+        if ($this->isHashLink($tableKey)) {
+            $sql = "INSERT INTO {$child} (original_hash, lang_code, ai_error, created_at, updated_at)
+                    VALUES (UNHEX(%s), %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE ai_error = VALUES(ai_error), ai_pending_since = NULL, updated_at = VALUES(updated_at)";
+            $args = [$hashHex, $langCode, $errorMessage, $now, $now];
+        } else {
+            $sql = "INSERT INTO {$child} (parent_id, lang_code, ai_error, created_at, updated_at)
+                    SELECT id, %s, %s, %s, %s FROM {$this->parent($tableKey)} WHERE id = %d
+                    ON DUPLICATE KEY UPDATE ai_error = VALUES(ai_error), ai_pending_since = NULL, updated_at = VALUES(updated_at)";
+            $args = [$langCode, $errorMessage, $now, $now, $parentId];
+        }
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+    }
+
+    /** The actual check, by table key rather than SourceRef -- the queue's
+     * hash-driven apply path has no ref to construct (SourceRef::make()
+     * requires a real, positive id). flushHtmlCache() delegates here. */
+    private function flushHtmlCacheForLang(string $tableKey, string $langCode): void
+    {
+        if (($tableKey === 'html' || $tableKey === 'option') && $langCode !== '' && function_exists('wp_cache_delete')) {
+            wp_cache_delete('lingowp:html:' . $langCode, 'lingowp');
+        }
     }
 
     /** Remove the translation for $ref + language (hash-link delete is text-global). */
@@ -941,7 +1125,7 @@ final class WpDbSourceRepository
             $sql   = "INSERT IGNORE INTO {$child}
                         (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
                     SELECT original_hash, %s, translated_text, %d, provider, %s, %s
-                    FROM {$child} WHERE lang_code = %s";
+                    FROM {$child} WHERE lang_code = %s AND translated_text IS NOT NULL";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
             $result = $this->wpdb->query($this->wpdb->prepare(
@@ -959,7 +1143,7 @@ final class WpDbSourceRepository
         $sql       = "INSERT IGNORE INTO {$metaChild}
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
                 SELECT parent_id, %s, translated_text, %d, provider, %s, %s
-                FROM {$metaChild} WHERE lang_code = %s";
+                FROM {$metaChild} WHERE lang_code = %s AND translated_text IS NOT NULL";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $result = $this->wpdb->query($this->wpdb->prepare(
@@ -991,7 +1175,8 @@ final class WpDbSourceRepository
             $child = $this->parent($tableKey) . '_translation';
             $sql   = "SELECT 1 FROM {$child} t1
                     LEFT JOIN {$child} t2 ON t2.original_hash = t1.original_hash AND t2.lang_code = %s
-                    WHERE t1.lang_code = %s AND t2.id IS NULL
+                        AND t2.translated_text IS NOT NULL
+                    WHERE t1.lang_code = %s AND t1.translated_text IS NOT NULL AND t2.id IS NULL
                     LIMIT 1";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -1003,7 +1188,8 @@ final class WpDbSourceRepository
         $metaChild = $this->parent('meta') . '_translation';
         $sql       = "SELECT 1 FROM {$metaChild} t1
                 LEFT JOIN {$metaChild} t2 ON t2.parent_id = t1.parent_id AND t2.lang_code = %s
-                WHERE t1.lang_code = %s AND t2.id IS NULL
+                    AND t2.translated_text IS NOT NULL
+                WHERE t1.lang_code = %s AND t1.translated_text IS NOT NULL AND t2.id IS NULL
                 LIMIT 1";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -1018,9 +1204,9 @@ final class WpDbSourceRepository
      */
     private function flushHtmlCache(SourceRef $ref, string $langCode): void
     {
-        if (($ref->kind === 'html' || $ref->kind === 'option') && $langCode !== '' && function_exists('wp_cache_delete')) {
-            wp_cache_delete('lingowp:html:' . $langCode, 'lingowp');
-        }
+        // SourceRef::TABLES is an identity map (kind === parentTableKey), so
+        // $ref->kind is exactly the $tableKey flushHtmlCacheForLang() checks.
+        $this->flushHtmlCacheForLang($ref->kind, $langCode);
     }
 
     /** Mark a parent ignored (status -1) AND delete its child(ren) across languages. */
@@ -1325,7 +1511,7 @@ final class WpDbSourceRepository
             $sql = "INSERT IGNORE INTO {$child}
                         (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
                     SELECT UNHEX(%s), lang_code, translated_text, %d, provider, created_at, %s
-                    FROM {$child} WHERE original_hash = UNHEX(%s)";
+                    FROM {$child} WHERE original_hash = UNHEX(%s) AND translated_text IS NOT NULL";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
             $this->wpdb->query($this->wpdb->prepare($sql, $target['hash'], TranslationStatus::NEEDS_REVIEW, $now, $stale['hash']));
@@ -1335,7 +1521,7 @@ final class WpDbSourceRepository
         $sql = "INSERT IGNORE INTO {$child}
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
                 SELECT %d, lang_code, translated_text, %d, provider, created_at, %s
-                FROM {$child} WHERE parent_id = %d";
+                FROM {$child} WHERE parent_id = %d AND translated_text IS NOT NULL";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $this->wpdb->query($this->wpdb->prepare($sql, $target['id'], TranslationStatus::NEEDS_REVIEW, $now, $stale['id']));

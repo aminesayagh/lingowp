@@ -16,7 +16,7 @@ use LingoWP\Language\Domain\LanguageRegistry;
  * there is nothing to build for a later sync.
  *
  * lingowp_categories is unrelated to the site-connect payload — it is a
- * local-only selection read by the /translate flow (AiTranslationRunner,
+ * local-only selection read by the /translate flow (AiTaskSubmitter,
  * GettextDomainRestController) for style context, kept here purely as
  * storage.
  */

@@ -92,6 +92,22 @@ const TOAST_TONE_ICON = {
 	info: InfoIcon,
 }
 
+// How often to re-poll a texts query while it still holds a `pending` row
+// (an AI translation queued but not yet applied) -- each fetch also drains
+// the async queue server-side (CollectionsRestController::maybeCollectAiResults),
+// so polling is what actually turns a pending row into its real result.
+const PENDING_POLL_MS = 3000
+
+// TanStack Query v5 refetchInterval callback: (query) => ms | false. Reads
+// query.state.data directly (not the `select`-transformed shape) per v5's
+// migration notes -- fine here since these queries have no `select`.
+function pollWhilePending( query ) {
+	const texts = query.state.data?.texts
+	return Array.isArray( texts ) && texts.some( ( t ) => t.status === 'pending' )
+		? PENDING_POLL_MS
+		: false
+}
+
 // POST /translate 402 codes that mean "this site can't use platform AI right
 // now" (over its plan's site limit, no subscription, or out of words) — an
 // expected, actionable gate, not a backend/connectivity failure.
@@ -528,58 +544,20 @@ export default function Dashboard( {
 			handleAiFailure( res.error )
 			return
 		}
-		// Some items can be rejected while the rest save (a translation that dropped
-		// or invented a protected variable/tag would break the rendered output). The
-		// run still succeeded, so this is a warning, not a failure — but it must be
-		// visible, or the user just sees rows that silently stayed untranslated.
-		const failed = res.failed || 0
-		showToast(
-			failed > 0 ? 'warning' : 'success',
-			multi
-				? `Translated into ${ langs.length } language${
-						langs.length === 1 ? '' : 's'
-				  }.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
-				: `Translated ${ res.translated } text${
-						res.translated === 1 ? '' : 's'
-				  }.${ failed > 0 ? ` ${ failed } rejected.` : '' }`
-		)
-		// Multi-language responses carry a `by_language` map; single-language
-		// keeps the patch at the top level. Normalize to one iterable so the
-		// per-language cache ops below run once per affected language.
-		const perLang = res.by_language
-			? Object.entries( res.by_language )
-			: [
-					[
-						langs[ 0 ],
-						{
-							collection_summary: res.collection_summary,
-							updated_unit: res.updated_unit,
-						},
-					],
-			  ]
-		for ( const [ code, patch ] of perLang ) {
-			if ( patch.collection_summary ) {
-				patchCollectionSummary( patch.collection_summary, code )
-			} else {
-				invalidateCollections( code )
-			}
-			if ( patch.updated_unit ) {
-				// scope 'text' resolves to one unit; propagate it to any other
-				// visible occurrence of the same text (its own group is
-				// invalidated below anyway).
-				propagateTranslation(
-					opts.collection_id ?? opts.id,
-					patch.updated_unit,
-					code
-				)
-			}
-			// Every mounted group's texts for this language may have changed (a
-			// scope or language-wide AI translate isn't limited to one group).
-			queryClient.invalidateQueries( {
-				predicate: ( q ) =>
-					q.queryKey[ 0 ] === 'texts' && q.queryKey[ 2 ] === code,
-			} )
+		// The response is just {ok, submitted, more} now -- translation
+		// happens later in the async queue, applied server-side on the next
+		// board read (see CollectionsRestController::maybeCollectAiResults).
+		// Nothing to patch here; invalidate so the just-stamped `pending`
+		// rows show up on the next fetch, and await it so callers (the
+		// per-row "translating" flag) see the pending status before they
+		// decide whether to keep showing their own spinner.
+		for ( const code of langs ) {
+			invalidateCollections( code )
 		}
+		await queryClient.invalidateQueries( {
+			predicate: ( q ) =>
+				q.queryKey[ 0 ] === 'texts' && langs.includes( q.queryKey[ 2 ] ),
+		} )
 		refetchEntitlements()
 		refreshLanguages() // rail percentages changed
 		return res
@@ -1244,6 +1222,7 @@ export default function Dashboard( {
 			return res
 		},
 		enabled: !! overlay,
+		refetchInterval: pollWhilePending,
 	} )
 	const overlayTexts = overlayTextsQ.data?.texts ?? []
 	const overlayIndex = overlay
@@ -2385,6 +2364,7 @@ function CollectionGroup( {
 			return res
 		},
 		enabled: ! collapsed && settled,
+		refetchInterval: pollWhilePending,
 	} )
 	const allTexts = textsQ.data?.texts ?? []
 	const rows = allTexts.slice( 0, shown )
@@ -2728,27 +2708,15 @@ function TextUnitRow( {
 	const [ translating, setTranslating ] = useState( false )
 	const moreActionsRef = useRef( null )
 
-	// A same-commit-as-`translating` override: written the instant an AI
-	// translate response lands (see translateThisText), so the shimmer never
-	// clears one frame before the real text does. `undefined` = no override,
-	// defer to the prop. Cleared once the prop catches up (the invalidation
-	// `onAiTranslate` already fires refetches for consistency).
-	const [ pendingTranslated, setPendingTranslated ] = useState( undefined )
-	const effectiveTranslated =
-		pendingTranslated !== undefined ? pendingTranslated : unit.translated
-	useEffect( () => {
-		if (
-			pendingTranslated !== undefined &&
-			unit.translated === pendingTranslated
-		) {
-			setPendingTranslated( undefined )
-		}
-	}, [ unit.translated, pendingTranslated ] )
-
-	const shown = effectiveTranslated ?? unit.fallback
+	const shown = unit.translated ?? unit.fallback
 	const hasTranslation =
-		effectiveTranslated !== null && effectiveTranslated !== undefined
-	const showShimmer = translating
+		unit.translated !== null && unit.translated !== undefined
+	// `translating` covers the optimistic window between click and the queue
+	// invalidation this triggers; `unit.status === 'pending'` covers the rest
+	// of the async wait, cleared only when textsQ's poll (pollWhilePending)
+	// sees the real result land -- a submit response no longer carries the
+	// translation itself (see AiTranslationController::submit).
+	const showShimmer = translating || unit.status === 'pending'
 	let badge = null
 	if ( unit.status === 'needs_review' ) {
 		badge = STATUS_BADGE.needs_review
@@ -2787,8 +2755,8 @@ function TextUnitRow( {
 	// Keep the inline draft in sync when the translation changes elsewhere
 	// (AI translate, overlay save).
 	useEffect( () => {
-		setDraft( effectiveTranslated ?? '' )
-	}, [ effectiveTranslated ] )
+		setDraft( unit.translated ?? '' )
+	}, [ unit.translated ] )
 
 	// Autosave the inline field on blur — only when the value actually changed.
 	async function saveTranslation() {
@@ -2834,20 +2802,15 @@ function TextUnitRow( {
 
 	async function translateThisText() {
 		setTranslating( true )
-		const res = await onAiTranslate( 'text', {
+		// The submit resolves before translation actually happens (async
+		// queue) -- the real text lands via textsQ's poll (pollWhilePending),
+		// which updates `unit.translated` and the draft-sync effect above
+		// picks it up. showShimmer's `unit.status === 'pending'` check covers
+		// the wait in between.
+		await onAiTranslate( 'text', {
 			ref: unit.id,
 			collection_id: collectionId,
 		} )
-		// Write the new text straight from the response — do not wait on the
-		// list refetch/invalidation `onAiTranslate` kicks off for consistency.
-		// These three setState calls are synchronous (no await between them),
-		// so React batches them into one commit: the row never renders a frame
-		// that's no longer "generating" but still showing the old text.
-		if ( res?.updated_unit ) {
-			const text = res.updated_unit.translated ?? null
-			setDraft( text ?? '' )
-			setPendingTranslated( text )
-		}
 		setTranslating( false )
 	}
 

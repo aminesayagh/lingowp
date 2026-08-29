@@ -15,6 +15,13 @@ namespace LingoWP\Database;
  *     context can make identical text translate differently, so the translation
  *     is owned by the specific position.
  *
+ * original_hash is also the join key the async AI translate-all queue uses to
+ * match a delivered result back to its row: the backend hashes on this exact
+ * normalized form too (see StringNormalizer::normalize()'s doc — it names the
+ * Python port and calls out that changing either side without the other
+ * silently breaks every future lookup). Do not change this to a byte-exact
+ * hash of the raw text without updating that port in lockstep.
+ *
  *   parent.status  0 discovered · -1 ignored        (SIGNED tinyint)
  *   child.status   1 machine · 2 reviewed · -1 needs_review  (done = status > 0)
  *
@@ -163,17 +170,20 @@ final class TableDefinitions
     public static function hashLinkTranslation(string $table, string $charsetCollate): string
     {
         return "CREATE TABLE IF NOT EXISTS {$table} (
-    id              bigint unsigned  NOT NULL AUTO_INCREMENT,
-    original_hash   binary(32)       NOT NULL,
-    lang_code       varchar(20)      NOT NULL,
-    translated_text longtext         NOT NULL,
-    status          tinyint          NOT NULL DEFAULT 1,
-    provider        varchar(50)      NULL,
-    created_at      datetime         NOT NULL,
-    updated_at      datetime         NOT NULL,
+    id                bigint unsigned  NOT NULL AUTO_INCREMENT,
+    original_hash     binary(32)       NOT NULL,
+    lang_code         varchar(20)      NOT NULL,
+    translated_text   longtext         NULL,
+    status            tinyint          NOT NULL DEFAULT 1,
+    provider          varchar(50)      NULL,
+    ai_pending_since  datetime         NULL,
+    ai_error          varchar(190)     NULL,
+    created_at        datetime         NOT NULL,
+    updated_at        datetime         NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uniq_translation (original_hash, lang_code),
-    KEY idx_queue (lang_code, status, id)
+    KEY idx_queue (lang_code, status, id),
+    KEY idx_ai_pending (ai_pending_since)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -190,17 +200,20 @@ final class TableDefinitions
         string $charsetCollate
     ): string {
         return "CREATE TABLE IF NOT EXISTS {$table} (
-    id              bigint unsigned  NOT NULL AUTO_INCREMENT,
-    parent_id       bigint unsigned  NOT NULL,
-    lang_code       varchar(20)      NOT NULL,
-    translated_text longtext         NOT NULL,
-    status          tinyint          NOT NULL DEFAULT 1,
-    provider        varchar(50)      NULL,
-    created_at      datetime         NOT NULL,
-    updated_at      datetime         NOT NULL,
+    id                bigint unsigned  NOT NULL AUTO_INCREMENT,
+    parent_id         bigint unsigned  NOT NULL,
+    lang_code         varchar(20)      NOT NULL,
+    translated_text   longtext         NULL,
+    status            tinyint          NOT NULL DEFAULT 1,
+    provider          varchar(50)      NULL,
+    ai_pending_since  datetime         NULL,
+    ai_error          varchar(190)     NULL,
+    created_at        datetime         NOT NULL,
+    updated_at        datetime         NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uniq_translation (parent_id, lang_code),
     KEY idx_queue (lang_code, status, id),
+    KEY idx_ai_pending (ai_pending_since),
     CONSTRAINT {$fkName} FOREIGN KEY (parent_id)
         REFERENCES {$parentTable} (id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";

@@ -4,6 +4,7 @@ namespace LingoWP\Database\Repository;
 
 use LingoWP\Shared\Source\SourceRef;
 use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Shared\Source\ScannablePostStatuses;
 use LingoWP\Database\TranslationMemorySchema;
 
 /**
@@ -28,6 +29,7 @@ final class WpDbBoardQueries
         $posts  = $this->wpdb->posts;
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
+        [$statusIn, $statusArgs] = $this->postStatusClause();
 
         // hash-link child is unique per (original_hash, lang_code), so the LEFT JOIN
         // yields at most one translation per source position — no COUNT fan-out.
@@ -40,7 +42,7 @@ final class WpDbBoardQueries
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.status = %d{$match}
+                WHERE p.status = %d AND wp.post_status IN ({$statusIn}){$match}
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
@@ -50,6 +52,7 @@ final class WpDbBoardQueries
             TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
+            ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
 
@@ -63,16 +66,21 @@ final class WpDbBoardQueries
         $posts  = $this->wpdb->posts;
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
+        [$statusIn, $statusArgs] = $this->postStatusClause();
 
         // LEFT (not INNER): a leftover row for a since-deleted post must still show up via
         // ordinary content matching — wp.* is just NULL then, and NULL LIKE %s is falsy.
+        // Same reasoning for the post-status guard below: "wp.ID IS NULL OR" keeps that
+        // orphan row visible instead of silently dropping it (NULL IN (...) is falsy).
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 LEFT JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
-                WHERE p.post_id = %d AND p.status = %d{$match}
+                WHERE p.post_id = %d AND p.status = %d
+                      AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn})){$match}
                 ORDER BY p.field, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -81,6 +89,7 @@ final class WpDbBoardQueries
             $langCode,
             $postId,
             TranslationStatus::SOURCE_DISCOVERED,
+            ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
 
@@ -123,7 +132,8 @@ final class WpDbBoardQueries
 
         $sql = "SELECT p.id AS id, p.option_name AS option_name, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}
@@ -193,7 +203,8 @@ final class WpDbBoardQueries
         $child  = $parent . '_translation';
 
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.term_taxonomy_id = %d AND p.status = %d
@@ -221,7 +232,8 @@ final class WpDbBoardQueries
 
         $sql = "SELECT p.id AS id, p.field AS field, tm.term_id AS term_id, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
                 JOIN {$terms} tm ON tm.term_id = tx.term_id
@@ -252,6 +264,7 @@ final class WpDbBoardQueries
         $posts  = $this->wpdb->posts;
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
+        [$statusIn, $statusArgs] = $this->postStatusClause();
 
         // meta is a parent_id child: join on parent_id, not original_hash.
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
@@ -263,7 +276,7 @@ final class WpDbBoardQueries
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
-                WHERE p.status = %d{$match}
+                WHERE p.status = %d AND wp.post_status IN ({$statusIn}){$match}
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
@@ -273,6 +286,7 @@ final class WpDbBoardQueries
             TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
+            ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
 
@@ -286,15 +300,18 @@ final class WpDbBoardQueries
         $posts  = $this->wpdb->posts;
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters, $this->postNameClauses());
+        [$statusIn, $statusArgs] = $this->postStatusClause();
 
         // LEFT (not INNER): see listPostTexts() — a leftover row for a since-deleted post
-        // must still show up via ordinary content matching.
+        // must still show up via ordinary content matching, same "wp.ID IS NULL OR" guard.
         $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.original_text AS original_text,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 LEFT JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
-                WHERE p.post_id = %d AND p.status = %d{$match}
+                WHERE p.post_id = %d AND p.status = %d
+                      AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn})){$match}
                 ORDER BY p.meta_key, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
@@ -303,6 +320,7 @@ final class WpDbBoardQueries
             $langCode,
             $postId,
             TranslationStatus::SOURCE_DISCOVERED,
+            ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
 
@@ -321,23 +339,23 @@ final class WpDbBoardQueries
         $posts  = $this->wpdb->posts;
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+        [$statusIn, $statusArgs] = $this->postStatusClause();
 
         $sql = "SELECT p.id AS id, p.field AS field, p.post_id AS post_id, p.original_text AS original_text,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE wp.post_type = 'attachment' AND wp.post_mime_type LIKE 'image/%%'
+                      AND wp.post_status IN ({$statusIn})
                       AND p.status = %d{$match}
                 ORDER BY wp.post_title, p.field, p.id";
 
+        $args = array_merge([$langCode], $statusArgs, [TranslationStatus::SOURCE_DISCOVERED], $matchArgs);
+
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $rows = $this->wpdb->get_results($this->wpdb->prepare(
-            $sql,
-            $langCode,
-            TranslationStatus::SOURCE_DISCOVERED,
-            ...$matchArgs
-        ), ARRAY_A);
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
 
         return array_map(function (array $r): array {
             $unit             = $this->textUnitRow($r);
@@ -354,23 +372,23 @@ final class WpDbBoardQueries
         $posts  = $this->wpdb->posts;
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+        [$statusIn, $statusArgs] = $this->postStatusClause();
 
         $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.post_id AS post_id, p.original_text AS original_text,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE wp.post_type = 'attachment' AND wp.post_mime_type LIKE 'image/%%'
+                      AND wp.post_status IN ({$statusIn})
                       AND p.status = %d{$match}
                 ORDER BY wp.post_title, p.id";
 
+        $args = array_merge([$langCode], $statusArgs, [TranslationStatus::SOURCE_DISCOVERED], $matchArgs);
+
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $rows = $this->wpdb->get_results($this->wpdb->prepare(
-            $sql,
-            $langCode,
-            TranslationStatus::SOURCE_DISCOVERED,
-            ...$matchArgs
-        ), ARRAY_A);
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
 
         return array_map(function (array $r): array {
             $unit            = $this->textUnitRow($r);
@@ -430,7 +448,8 @@ final class WpDbBoardQueries
 
         $sql = "SELECT p.id AS id, p.selector AS selector, p.source_url AS source_url, p.original_text AS original_text,
                        LOWER(HEX(p.original_hash)) AS original_hash,
-                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}
@@ -476,19 +495,44 @@ final class WpDbBoardQueries
         $child  = $parent . '_translation';
         $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
 
-        $sql = "SELECT COUNT(*) AS total, SUM(t.status > 0) AS done
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
-                WHERE p.status = %d";
+        $args = [$langCode];
+
+        // post/meta are the only two tables tied to a WP post's own liveness — term,
+        // html and option have no such per-post status to check, so they keep the
+        // plain query. INNER (not LEFT): a hard-deleted post's row is already gone
+        // via FK cascade, so there is no orphan case here to preserve, unlike the
+        // per-row board listings' search-by-content behaviour.
+        if ($tableKey === 'post' || $tableKey === 'meta') {
+            $posts = $this->wpdb->posts;
+            [$statusIn, $statusArgs] = $this->postStatusClause();
+
+            $sql = "SELECT COUNT(*) AS total, SUM(t.status > 0) AS done
+                    FROM {$parent} p
+                    JOIN {$posts} wp ON wp.ID = p.post_id
+                    LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
+                    WHERE p.status = %d AND wp.post_status IN ({$statusIn})";
+            $args[] = TranslationStatus::SOURCE_DISCOVERED;
+            array_push($args, ...$statusArgs);
+        } else {
+            $sql = "SELECT COUNT(*) AS total, SUM(t.status > 0) AS done
+                    FROM {$parent} p
+                    LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
+                    WHERE p.status = %d";
+            $args[] = TranslationStatus::SOURCE_DISCOVERED;
+        }
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $row = $this->wpdb->get_row($this->wpdb->prepare(
-            $sql,
-            $langCode,
-            TranslationStatus::SOURCE_DISCOVERED
-        ), ARRAY_A) ?: [];
+        $row = $this->wpdb->get_row($this->wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
 
         return [(int) ($row['total'] ?? 0), (int) ($row['done'] ?? 0)];
+    }
+
+    /** wp.post_status IN (...) placeholder fragment + its bound values, for a joined wp_posts row. */
+    private function postStatusClause(): array
+    {
+        $statuses = ScannablePostStatuses::ALL;
+
+        return [implode(', ', array_fill(0, count($statuses), '%s')), $statuses];
     }
     /**
      * The board search predicate + its bound args, or ['', []] for no search — so an
@@ -630,6 +674,8 @@ final class WpDbBoardQueries
             'translated_text' => $translated === null ? null : (string) $translated,
             'status'          => $r['status'] === null ? null : (int) $r['status'],
             'provider'        => $r['provider'] === null ? null : (string) $r['provider'],
+            'ai_pending_since' => $r['ai_pending_since'] ?? null,
+            'ai_error'         => $r['ai_error'] ?? null,
             // Hash-link kinds (post/term/html/option) share one translation row
             // per (original_hash, lang) across every position with the same
             // text; absent for parent_id kinds (meta), which never share.

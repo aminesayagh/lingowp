@@ -13,6 +13,7 @@ use LingoWP\Shared\Source\Type\TermSource;
 use LingoWP\Shared\Parsing\SeoTemplateVariables;
 use LingoWP\Shared\Text\TranslationKey;
 use LingoWP\Shared\Source\TranslatableMetaKeys;
+use LingoWP\Shared\Source\ScannablePostStatuses;
 
 /**
  * Save-time structured discovery for owned WordPress content (data pipeline §1-2,
@@ -34,7 +35,7 @@ final class StructuredSourceScanner
     private const POST_FIELDS = ['post_title', 'post_excerpt'];
 
     /** Post statuses eligible for discovery (publish, plus inherit for attachments). */
-    private const SCANNABLE_STATUSES = ['publish', 'inherit'];
+    private const SCANNABLE_STATUSES = ScannablePostStatuses::ALL;
 
     /** Built-in post types scanned by name rather than via the public-custom-type filter. */
     private const BUILTIN_TYPES = [

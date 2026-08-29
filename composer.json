@@ -35,7 +35,8 @@
 			"@php tests/option_gate_check.php",
 			"@php tests/unit_structure_guard_check.php",
 			"@php tests/seo_var_guard_check.php",
-			"@php tests/batch_planner_check.php",
+			"@php tests/ai_queue_config_check.php",
+			"@php tests/ai_queue_logic_check.php",
 			"@php tests/fallback_chain_check.php",
 			"@php bin/check-split-field.php"
 		],
@@ -47,7 +48,10 @@
 			"./wp eval-file tests/db/orphan_sweep_it.php",
 			"./wp eval-file tests/db/fallback_language_it.php",
 			"./wp eval-file tests/db/hreflang_it.php",
-			"./wp eval-file tests/db/multilingual_redirects_it.php"
+			"./wp eval-file tests/db/multilingual_redirects_it.php",
+			"./wp eval-file tests/db/language_url_it.php",
+			"./wp eval-file tests/db/ai_pending_it.php",
+			"./wp eval-file tests/db/ai_result_applier_it.php"
 		],
 		"security": "sh -c 'rc=0; for t in phpcs deps secrets semgrep; do echo \"--- $t ---\"; composer run --no-interaction security:$t || rc=1; done; exit $rc'",
 		"security:phpcs": "phpcs --report-summary --report-full=security-reports/phpcs-full.log --report-source=security-reports/phpcs-sniffs.log --report-json=security-reports/phpcs.json --no-colors",

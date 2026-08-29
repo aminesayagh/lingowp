@@ -2,6 +2,7 @@
 
 namespace LingoWP\Board;
 
+use LingoWP\AiTranslation\AiQueueConfig;
 use LingoWP\Shared\Source\Type\HtmlSource;
 use LingoWP\Shared\Source\TranslatableMetaKeys;
 use LingoWP\Database\Repository\WpDbSourceRepository;
@@ -296,9 +297,11 @@ final class CollectionBoard
             return null;
         }
 
-        $summary = ['id' => $id, 'total' => count($texts), 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
+        $summary = ['id' => $id, 'total' => count($texts), 'translated' => 0, 'needs_review' => 0, 'pending' => 0, 'missing' => 0];
         foreach ($texts as $t) {
-            if ($t['status'] === 'missing') {
+            if ($t['status'] === 'pending') {
+                $summary['pending']++;
+            } elseif ($t['status'] === 'missing') {
                 $summary['missing']++;
             } elseif ($t['status'] === 'needs_review') {
                 $summary['needs_review']++;
@@ -327,12 +330,14 @@ final class CollectionBoard
         }
 
         $unit    = null;
-        $summary = ['id' => $id, 'total' => count($texts), 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
+        $summary = ['id' => $id, 'total' => count($texts), 'translated' => 0, 'needs_review' => 0, 'pending' => 0, 'missing' => 0];
         foreach ($texts as $t) {
             if ($t['id'] === $refFormatted) {
                 $unit = $t;
             }
-            if ($t['status'] === 'missing') {
+            if ($t['status'] === 'pending') {
+                $summary['pending']++;
+            } elseif ($t['status'] === 'missing') {
                 $summary['missing']++;
             } elseif ($t['status'] === 'needs_review') {
                 $summary['needs_review']++;
@@ -417,8 +422,11 @@ final class CollectionBoard
         $status     = $row['status'];
         $provider   = $row['provider'];
         $original   = (string) $row['original_text'];
+        $isPending  = AiQueueConfig::isFreshPending($row['ai_pending_since'] ?? null, time());
 
-        if ($translated === null) {
+        if ($isPending) {
+            $statusLabel = 'pending';
+        } elseif ($translated === null) {
             $statusLabel = 'missing';
         } elseif ($status === TranslationStatus::REVIEWED) {
             $statusLabel = 'reviewed';
@@ -440,6 +448,7 @@ final class CollectionBoard
             // fallbacksByHash()/fallbacksByParentId()) before showing the source text.
             'fallback'      => $fallbackText ?? $original,
             'status'        => $statusLabel,
+            'ai_error'      => $row['ai_error'] ?? null,
             'origin'        => $translated === null ? null : ($provider !== null ? 'ai' : 'manual'),
             'is_ai'         => $isAi,
             'word_count'    => str_word_count(wp_strip_all_tags($original)),

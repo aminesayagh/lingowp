@@ -53,6 +53,30 @@ The site domain and administrator email are sent automatically on first use to e
 
 No. The preview contains illustrative placeholders. On a connected site, clicking “Notify me at launch” sends a fixed Insights-interest code through the authenticated support service; no visitor data or frontend-supplied email address is included.
 
+== For developers ==
+
+LingoWP exposes a small template API for building your own language switcher.
+
+`lingowp_get_language_links( array $args = [] )` returns the current page's URL
+in every enabled language, as an array of rows with keys `code`, `slug`, `url`
+(absolute), `native_name`, `english_name`, `dir` (`ltr`/`rtl`), `is_source`, and
+`current`. Values are raw — escape at output. It runs no database query and is
+memoized per request. Args: `hide_current` (bool), `include` (array of locale
+codes), `order` (`settings`, `alpha`, or an explicit array of codes).
+
+`lingowp_get_switcher( array $args = [] )` returns the bundled switcher markup;
+`lingowp_switcher( array $args = [] )` echoes it. Args: `display` (`native`,
+`english`, `code`), `layout` (`dropdown`, `inline`, `list`), `hide_current`,
+`class`.
+
+The `[lingowp_language_switcher]` shortcode accepts the same attributes and works
+in every page builder.
+
+Filter `lingowp_language_links` ( `array $links`, `array $args` ) to reorder,
+relabel, or drop languages once for every switcher surface at the same time.
+
+Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
+
 == Privacy ==
 
 LingoWP adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.

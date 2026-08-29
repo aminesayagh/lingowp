@@ -52,6 +52,20 @@ class SupportedLanguages
         return $all[$code]['native'] ?? ($all[$code]['name'] ?? strtoupper($code));
     }
 
+    /**
+     * Text direction for a language: 'rtl' or 'ltr'. Stored metadata wins, then
+     * WordPress's catalog, then 'ltr'.
+     */
+    public function direction(string $code): string
+    {
+        $stored = $this->store->get($code);
+        if ($stored !== null && !empty($stored['direction'])) {
+            return $stored['direction'] === 'rtl' ? 'rtl' : 'ltr';
+        }
+
+        return (self::all()[$code]['dir'] ?? '') === 'rtl' ? 'rtl' : 'ltr';
+    }
+
     public function exists(string $code): bool
     {
         return isset(self::all()[$code]);

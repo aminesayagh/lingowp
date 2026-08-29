@@ -4,6 +4,8 @@ namespace LingoWP\Board;
 
 use LingoWP\Language\Domain\LocaleNormalizer;
 
+use LingoWP\AiTranslation\AiQueueConfig;
+use LingoWP\AiTranslation\AiResultCollector;
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
@@ -44,18 +46,42 @@ final class CollectionsRestController
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT     = 100;
 
+    /** Throttle key for the inline AI-result pull below -- shared across
+     * every site (not per-language/scope; one pull collects everything). */
+    private const AI_PULL_LOCK = 'lingowp_ai_pull_lock';
+
     private WpDbSourceRepository $repo;
     private OptionLanguageRegistry $registry;
     private CollectionBoard $board;
+    private AiResultCollector $aiResults;
 
     public function __construct(
         WpDbSourceRepository $repo,
         OptionLanguageRegistry $registry,
-        CollectionBoard $board
+        CollectionBoard $board,
+        AiResultCollector $aiResults
     ) {
-        $this->repo     = $repo;
-        $this->registry = $registry;
-        $this->board    = $board;
+        $this->repo      = $repo;
+        $this->registry  = $registry;
+        $this->board     = $board;
+        $this->aiResults = $aiResults;
+    }
+
+    /**
+     * Inline pull for the async translate-all queue: whenever the board is
+     * polled, collect whatever the backend has finished. Rate-limited via a
+     * transient (matching ConnectionStatus/BillingEntitlementsService's own
+     * throttle pattern) so a burst of polls in one window only pulls once.
+     * The lock is set BEFORE calling out so a slow pull can't let a second
+     * concurrent request re-enter within the same window.
+     */
+    private function maybeCollectAiResults(): void
+    {
+        if (get_transient(self::AI_PULL_LOCK) !== false) {
+            return;
+        }
+        set_transient(self::AI_PULL_LOCK, 1, AiQueueConfig::PULL_RATE_LIMIT_SECONDS);
+        $this->aiResults->collectOnce();
     }
 
     public function register(): void
@@ -108,6 +134,8 @@ final class CollectionsRestController
     /** Collection groups for the selected language: Site settings first, then content. */
     public function index(WP_REST_Request $request): WP_REST_Response
     {
+        $this->maybeCollectAiResults();
+
         $lang    = $this->resolveLang($request);
         $search  = $this->resolveSearch($request);
         $status  = $this->resolveStatus($request);
@@ -183,6 +211,8 @@ final class CollectionsRestController
 
     public function texts(WP_REST_Request $request): WP_REST_Response
     {
+        $this->maybeCollectAiResults();
+
         $lang    = $this->resolveLang($request);
         $search  = $this->resolveSearch($request);
         $status  = $this->resolveStatus($request);

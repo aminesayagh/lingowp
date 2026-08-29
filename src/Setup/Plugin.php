@@ -19,8 +19,12 @@ use LingoWP\Resolution\OptionResolver;
 use LingoWP\Resolution\PageOwnedHashes;
 use LingoWP\Extraction\OwnedStringIndex;
 use LingoWP\LocalizationRouting\LanguageRouteRegistrar;
+use LingoWP\LocalizationRouting\LanguageLinks;
 use LingoWP\LocalizationRouting\LanguageSwitcherShortcode;
+use LingoWP\LocalizationRouting\SwitcherRenderer;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
+use LingoWP\Admin\PermalinkNotice;
 use LingoWP\Resolution\PublicLinkRewriter;
 use LingoWP\Resolution\PublicRenderPipeline;
 use LingoWP\Resolution\Seo\SeoHeadTranslator;
@@ -61,7 +65,8 @@ use LingoWP\Board\CollectionsRestController;
 use LingoWP\Board\CollectionBoard;
 use LingoWP\Board\TranslationRestController;
 use LingoWP\AiTranslation\AiTranslationController;
-use LingoWP\AiTranslation\AiTranslationRunner;
+use LingoWP\AiTranslation\AiTaskSubmitter;
+use LingoWP\AiTranslation\AiResultCollector;
 use LingoWP\Extraction\ScanRestController;
 use LingoWP\GettextDomains\GettextDomainRestController;
 use LingoWP\GettextDomains\GettextDomainRegistry;
@@ -164,11 +169,28 @@ class Plugin
         return [$languageRegistry, $languageResolver, $urlBuilder, $context];
     }
 
-    /** Language-prefixed permalinks + the [lingowp_language_switcher] shortcode. */
+    /**
+     * Language-prefixed permalinks, the language-links API (lingowp_get_language_links()),
+     * the bundled switcher renderer, and the [lingowp_language_switcher] shortcode.
+     */
     private function bootLocalizationRouting(ResolveRequestLanguage $languageResolver, LocalizedUrlBuilder $urlBuilder): void
     {
         (new LanguageRouteRegistrar($languageResolver))->register();
-        (new LanguageSwitcherShortcode($languageResolver, $urlBuilder, new SupportedLanguages(new LanguageMetadataStore())))->register();
+
+        // One producer of per-language link data, shared by the shortcode, the
+        // renderer, and any theme calling the public functions.
+        $languageLinks = new LanguageLinks(
+            $languageResolver,
+            $urlBuilder,
+            new SupportedLanguages(new LanguageMetadataStore())
+        );
+        LanguageLinks::prime($languageLinks);
+
+        $switcherRenderer = new SwitcherRenderer($languageLinks);
+        SwitcherRenderer::prime($switcherRenderer);
+        $switcherRenderer->register();
+
+        (new LanguageSwitcherShortcode($switcherRenderer))->register();
     }
 
     /**
@@ -241,6 +263,9 @@ class Plugin
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         (new MultilingualRedirects($languageResolver, $urlBuilder, $context))->register();
         (new LanguageAwareRobotsMeta($languageResolver, $context, $sourceRepository))->register();
+
+        // <html lang>/dir for the current request's language on translated pages.
+        (new LanguageHtmlAttributes($languageResolver, $context, new SupportedLanguages(new LanguageMetadataStore())))->register();
 
         // Structured render: post/term by text hash, meta by location.
         (new StructuredRenderResolver($languageResolver, $context, $sourceRepository, $unitExtractor, $pageOwnedHashes, $languageRegistry))->register();
@@ -324,11 +349,12 @@ class Plugin
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
         $collectionBoard   = new CollectionBoard($sourceRepository, $languageRegistry);
-        (new CollectionsRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
+        $aiResultCollector = new AiResultCollector($backendClient, $sourceRepository);
+        (new CollectionsRestController($sourceRepository, $languageRegistry, $collectionBoard, $aiResultCollector))->register();
         (new TranslationRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
 
-        $aiTranslationRunner = new AiTranslationRunner($backendClient, $sourceRepository, $languageRegistry, $languageMetadata);
-        (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $billingEntitlements, $aiTranslationRunner, $connectionStatus))->register();
+        $aiTaskSubmitter = new AiTaskSubmitter($backendClient, $sourceRepository, $languageRegistry, $languageMetadata);
+        (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $billingEntitlements, $aiTaskSubmitter, $connectionStatus))->register();
 
         (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
 
@@ -368,6 +394,7 @@ class Plugin
         (new DatabaseHealthReport(new DatabaseHealthCheck($wpdb)))->register();
         (new AdminAssets())->register();
         (new OnboardingPageController(new NotifyEmailResolver()))->register();
+        (new PermalinkNotice($languageRegistry))->register();
 
         // Dev-only "reset translation data" tool. Never registered on a
         // real customer site — see ResetPageController's class doc. The
