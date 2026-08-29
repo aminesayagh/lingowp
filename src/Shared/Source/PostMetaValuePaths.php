@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Source;
+namespace LingoWP\Shared\Source;
 
 /**
  * Flattens a post meta value into its translatable string leaves with a context

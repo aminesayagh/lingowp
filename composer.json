@@ -1,8 +1,10 @@
 {
-	"name": "translangs/translangs",
+	"name": "lingowp/lingowp",
 	"description": "Local manual translation and optional AI-assisted translation for WordPress.",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-or-later",
+	"minimum-stability": "dev",
+	"prefer-stable": true,
 	"require": {
 		"php": ">=8.1",
 		"masterminds/html5": "^2.10",
@@ -12,11 +14,12 @@
 	"require-dev": {
 		"squizlabs/php_codesniffer": "^3.13",
 		"wp-coding-standards/wpcs": "^3.4",
-		"dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"phpcompatibility/phpcompatibility-wp": "^3.0@dev"
 	},
 	"autoload": {
 		"psr-4": {
-			"TransLangs\\": "src/"
+			"LingoWP\\": "src/"
 		}
 	},
 	"config": {
@@ -53,7 +56,8 @@
 		"security:semgrep": "docker run --rm --mount type=bind,src=.,dst=/src -w /src semgrep/semgrep semgrep scan --config=p/php --config=p/security-audit --config=.semgrep.yml --error --metrics=off --json-output=security-reports/semgrep.json --exclude=tests/fixtures --text-output=security-reports/semgrep.log",
 		"security:semgrep-selftest": "docker run --rm --mount type=bind,src=.,dst=/src,ro -w /src semgrep/semgrep semgrep scan --config=.semgrep.yml --metrics=off --no-git-ignore --json tests/fixtures/ | python3 -c \"import json,sys; n=len(json.load(sys.stdin)['results']); print('fixture findings:', n, '(expected 2)'); sys.exit(0 if n==2 else 1)\"",
 		"security:secrets-history": "docker run --rm --mount type=bind,src=.,dst=/repo zricethezav/gitleaks:latest git /repo --no-banner --redact --report-path=/repo/security-reports/gitleaks-history.json",
-		"security:plugin-check": "wp plugin check translangs --categories=security --format=csv"
+		"security:plugin-check": "wp plugin check lingowp --categories=security --format=csv",
+		"compat:php": "phpcs --standard=phpcs-compat.xml.dist --report-summary --report-full=security-reports/phpcompat-full.log --report-json=security-reports/phpcompat.json --no-colors"
 	},
 	"scripts-descriptions": {
 		"test": "Pure checks — no WordPress, no database. Safe anywhere.",
@@ -65,6 +69,7 @@
 		"security:semgrep": "Semgrep PHP + security-audit rules, plus .semgrep.yml (custom wpdb SQL rule). Needs Docker.",
 		"security:semgrep-selftest": "Asserts the custom wpdb rule still catches exactly the 2 bad cases in tests/fixtures/.",
 		"security:secrets-history": "Gitleaks over full Git history. Slow — run before a release.",
-		"security:plugin-check": "WordPress Plugin Check. Needs a running site and wp-cli on PATH."
+		"security:plugin-check": "WordPress Plugin Check. Needs a running site and wp-cli on PATH.",
+		"compat:php": "Cross-version PHP syntax check (phpcs-compat.xml.dist, testVersion=7.4-). Reports what breaks below the composer.json php floor."
 	}
 }

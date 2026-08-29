@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Resolution\Seo;
-use TransLangs\Resolution\RequestContext;
+namespace LingoWP\Resolution\Seo;
+use LingoWP\Resolution\RequestContext;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
 
 /**
  * Emits hreflang alternate tags so search engines know the language variants

@@ -1,13 +1,13 @@
 <?php
 
-namespace TransLangs\AiTranslation;
+namespace LingoWP\AiTranslation;
 
-use TransLangs\Backend\BackendClient;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
-use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Backend\BackendClient;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
+use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 
 /**
  * The synchronous AI-translate batch loop: plan units into request-sized bins
@@ -59,7 +59,7 @@ final class AiTranslationRunner
     }
 
     /**
-     * @param array<int, array{ref:\TransLangs\Shared\Source\SourceRef, original:string, translated:?string, status:?int, meta_key?:?string, group_id:string}> $units
+     * @param array<int, array{ref:\LingoWP\Shared\Source\SourceRef, original:string, translated:?string, status:?int, meta_key?:?string, group_id:string}> $units
      * @param string[] $langs One or more normalized target languages. scope 'text'
      *        passes every configured language so CompareOverlay's "Translate with
      *        AI" is one backend request; every other scope passes a single one.

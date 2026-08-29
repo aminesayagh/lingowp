@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Parsing;
+namespace LingoWP\Shared\Parsing;
 
 /**
  * The single source of truth for SEO replacement-variable syntax, keyed by the

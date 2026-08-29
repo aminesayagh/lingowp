@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace LingoWP\Resolution;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Resolution\RequestContext;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Resolution\RequestContext;
 
 /**
  * Localizes WordPress's and WooCommerce's own locale-aware number/price
@@ -59,7 +59,7 @@ use TransLangs\Resolution\RequestContext;
  * Deliberately does not add number_format_i18n to CrawlSkipHooks: PHP's
  * number_format() (what backs it) only ever emits ASCII 0-9 regardless of
  * locale, and @numbers=latn forces the same on this resolver's output, so a
- * bare number is already excluded from tl_html by TranslatableText's
+ * bare number is already excluded from html by TranslatableText's
  * no-letter rule end-to-end, on both the pass-through and reformatted paths.
  */
 final class NumberResolver

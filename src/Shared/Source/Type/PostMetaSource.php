@@ -1,7 +1,7 @@
 <?php
 
-namespace TransLangs\Shared\Source\Type;
-use TransLangs\Shared\Source\SourceRecord;
+namespace LingoWP\Shared\Source\Type;
+use LingoWP\Shared\Source\SourceRecord;
 
 use InvalidArgumentException;
 
@@ -38,7 +38,7 @@ final class PostMetaSource extends SourceRecord
 
     public function table(): string
     {
-        return 'tl_meta';
+        return 'meta';
     }
 
     public function originalText(): string

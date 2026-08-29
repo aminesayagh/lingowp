@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
 /**
  * Cached translated-percent snapshot for one domain+locale, so the
@@ -13,7 +13,7 @@ namespace TransLangs\GettextDomains;
  */
 final class GettextTranslatedPercentCache
 {
-    private const PREFIX = 'translangs_gettext_percent_';
+    private const PREFIX = 'lingowp_gettext_percent_';
     private const TTL    = HOUR_IN_SECONDS;
 
     /** @return array{percent: ?int}|null Null = not cached (a scan is needed). */

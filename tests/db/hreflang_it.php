@@ -20,16 +20,16 @@
 
 require __DIR__ . '/_harness.php';
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Resolution\Seo\HreflangPresenter;
-use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
-use TransLangs\Resolution\RequestContext;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Resolution\Seo\HreflangPresenter;
+use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\Resolution\RequestContext;
 
-tl_guard();
-tl_begin();
+test_guard();
+test_begin();
 
 // ── Setup: one throwaway enabled target language ─────────────────────────────
 // zz_ZZ is not a real WordPress locale, so it cannot collide with anything
@@ -42,8 +42,8 @@ $store->save(['code' => 'zz_ZZ', 'slug' => 'zz']);
 $registry->enableLanguage('zz_ZZ');
 
 $default = $registry->getDefaultLanguage();
-tl_ok('default language is set up', $default !== '', "default=$default");
-tl_ok('zz_ZZ is now enabled', $registry->isEnabledLanguage('zz_ZZ'));
+test_ok('default language is set up', $default !== '', "default=$default");
+test_ok('zz_ZZ is now enabled', $registry->isEnabledLanguage('zz_ZZ'));
 
 $resolver   = new ResolveRequestLanguage($registry);
 $urlBuilder = new LocalizedUrlBuilder($resolver);
@@ -51,7 +51,7 @@ $context    = new RequestContext();
 $presenter  = new HreflangPresenter($resolver, $urlBuilder, $context);
 
 /** @return array<string,string> hreflang => href, parsed out of the rendered tags */
-function tl_parse_hreflang_tags(string $html): array
+function test_parse_hreflang_tags(string $html): array
 {
     preg_match_all('/<link rel="alternate" hreflang="([^"]+)" href="([^"]+)" \/>/', $html, $m, PREG_SET_ORDER);
     $out = [];
@@ -62,19 +62,19 @@ function tl_parse_hreflang_tags(string $html): array
 }
 
 $_SERVER['REQUEST_METHOD'] = 'GET';
-$_SERVER['REQUEST_URI']    = '/tltest-hreflang-page/';
+$_SERVER['REQUEST_URI']    = '/lingowp-test-hreflang-page/';
 
 // ── 1. Reciprocal + complete set ──────────────────────────────────────────────
 
-tl_section('renderHreflangTags: reciprocal + complete set');
+test_section('renderHreflangTags: reciprocal + complete set');
 
 ob_start();
 $presenter->renderHreflangTags();
-$tags = tl_parse_hreflang_tags((string) ob_get_clean());
+$tags = test_parse_hreflang_tags((string) ob_get_clean());
 
 $enabled = $resolver->getEnabledLanguages();
 
-tl_ok(
+test_ok(
     'one alternate per enabled language, plus x-default',
     count($tags) === count($enabled) + 1,
     'enabled=' . implode(',', $enabled) . ' tags=' . implode(',', array_keys($tags))
@@ -82,23 +82,23 @@ tl_ok(
 
 foreach ($enabled as $lang) {
     $hreflang = str_replace('_', '-', $lang);
-    tl_ok("alternate present for enabled language $lang", isset($tags[$hreflang]), implode(',', array_keys($tags)));
+    test_ok("alternate present for enabled language $lang", isset($tags[$hreflang]), implode(',', array_keys($tags)));
 }
 
 $defaultHreflang = str_replace('_', '-', $default);
-tl_ok(
+test_ok(
     "default language ($default) is unprefixed",
-    isset($tags[$defaultHreflang]) && str_ends_with($tags[$defaultHreflang], '/tltest-hreflang-page/') && !str_contains($tags[$defaultHreflang], '/zz/'),
+    isset($tags[$defaultHreflang]) && str_ends_with($tags[$defaultHreflang], '/lingowp-test-hreflang-page/') && !str_contains($tags[$defaultHreflang], '/zz/'),
     $tags[$defaultHreflang] ?? '(missing)'
 );
 
-tl_ok(
+test_ok(
     'zz_ZZ alternate carries the /zz/ prefix',
-    isset($tags['zz-ZZ']) && str_ends_with($tags['zz-ZZ'], '/zz/tltest-hreflang-page/'),
+    isset($tags['zz-ZZ']) && str_ends_with($tags['zz-ZZ'], '/zz/lingowp-test-hreflang-page/'),
     $tags['zz-ZZ'] ?? '(missing)'
 );
 
-tl_ok(
+test_ok(
     'x-default points at the default-language URL',
     isset($tags['x-default'], $tags[$defaultHreflang]) && $tags['x-default'] === $tags[$defaultHreflang],
     ($tags['x-default'] ?? '(missing)') . ' vs ' . ($tags[$defaultHreflang] ?? '(missing)')
@@ -106,25 +106,25 @@ tl_ok(
 
 // ── 2. "Prefix default language" option changes the default's own alternate ──
 
-tl_section('renderHreflangTags: translangs_prefix_default_language option');
+test_section('renderHreflangTags: lingowp_prefix_default_language option');
 
-update_option('translangs_prefix_default_language', true);
+update_option('lingowp_prefix_default_language', true);
 
 ob_start();
 $presenter->renderHreflangTags();
-$prefixedTags = tl_parse_hreflang_tags((string) ob_get_clean());
+$prefixedTags = test_parse_hreflang_tags((string) ob_get_clean());
 
-tl_ok(
+test_ok(
     'default language alternate is no longer the bare path once prefixed',
     isset($prefixedTags[$defaultHreflang]) && $prefixedTags[$defaultHreflang] !== ($tags[$defaultHreflang] ?? null),
     $prefixedTags[$defaultHreflang] ?? '(missing)'
 );
 
-update_option('translangs_prefix_default_language', false);
+update_option('lingowp_prefix_default_language', false);
 
 // ── 3. Gating ──────────────────────────────────────────────────────────────
 
-tl_section('renderHreflangTags: gating');
+test_section('renderHreflangTags: gating');
 
 $singleLangRegistry = new class ($default) implements LanguageRegistry {
     public function __construct(private string $default) {}
@@ -147,7 +147,7 @@ $singlePresenter = new HreflangPresenter($singleResolver, new LocalizedUrlBuilde
 
 ob_start();
 $singlePresenter->renderHreflangTags();
-tl_ok('nothing rendered with fewer than 2 enabled languages', ob_get_clean() === '');
+test_ok('nothing rendered with fewer than 2 enabled languages', ob_get_clean() === '');
 
 if (!($GLOBALS['wp_query'] ?? null) instanceof WP_Query) {
     $GLOBALS['wp_query'] = new WP_Query();
@@ -155,41 +155,41 @@ if (!($GLOBALS['wp_query'] ?? null) instanceof WP_Query) {
 $GLOBALS['wp_query']->is_404 = true;
 ob_start();
 $presenter->renderHreflangTags();
-tl_ok('nothing rendered on a 404', ob_get_clean() === '');
+test_ok('nothing rendered on a 404', ob_get_clean() === '');
 $GLOBALS['wp_query']->is_404 = false;
 
 $_SERVER['REQUEST_URI'] = '/wp-admin/edit.php';
 ob_start();
 $presenter->renderHreflangTags();
-tl_ok('nothing rendered on a wp-admin path', ob_get_clean() === '');
-$_SERVER['REQUEST_URI'] = '/tltest-hreflang-page/';
+test_ok('nothing rendered on a wp-admin path', ob_get_clean() === '');
+$_SERVER['REQUEST_URI'] = '/lingowp-test-hreflang-page/';
 
 // ── 4. filterCanonical ────────────────────────────────────────────────────
 
-tl_section('filterCanonical');
+test_section('filterCanonical');
 
-tl_ok('non-string canonical passes through unchanged', $presenter->filterCanonical(false) === false);
-tl_ok('empty canonical passes through unchanged', $presenter->filterCanonical('') === '');
+test_ok('non-string canonical passes through unchanged', $presenter->filterCanonical(false) === false);
+test_ok('empty canonical passes through unchanged', $presenter->filterCanonical('') === '');
 
-$canonical = home_url('/tltest-hreflang-page/');
+$canonical = home_url('/lingowp-test-hreflang-page/');
 
-tl_ok(
+test_ok(
     'default-language request leaves canonical untouched',
     $presenter->filterCanonical($canonical) === $canonical,
     (string) $presenter->filterCanonical($canonical)
 );
 
-set_query_var('translangs_lang', 'zz_ZZ');
+set_query_var('lingowp_lang', 'zz_ZZ');
 $translatedResolver  = new ResolveRequestLanguage($registry);
 $translatedPresenter = new HreflangPresenter($translatedResolver, new LocalizedUrlBuilder($translatedResolver), $context);
 
 $rewritten = $translatedPresenter->filterCanonical($canonical);
-tl_ok(
+test_ok(
     'translated-language request re-prefixes the canonical to /zz/',
-    is_string($rewritten) && str_ends_with($rewritten, '/zz/tltest-hreflang-page/'),
+    is_string($rewritten) && str_ends_with($rewritten, '/zz/lingowp-test-hreflang-page/'),
     (string) $rewritten
 );
 
-set_query_var('translangs_lang', '');
+set_query_var('lingowp_lang', '');
 
-tl_done();
+test_done();

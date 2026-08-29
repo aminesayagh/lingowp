@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Language\Domain;
+namespace LingoWP\Language\Domain;
 
 /**
  * Authoritative source for which languages are active in this installation.

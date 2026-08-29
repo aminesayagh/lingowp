@@ -2,9 +2,9 @@
 # Builds a production-only, reproducible zip for WordPress.org review.
 set -euo pipefail
 
-PLUGIN_SLUG="translangs"
+PLUGIN_SLUG="lingowp"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/translangs.php" | head -n 1)"
+VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/lingowp.php" | head -n 1)"
 BUILD_DIR="$(mktemp -d)"
 STAGE_PARENT="$(mktemp -d)"
 STAGE_DIR="$STAGE_PARENT/$PLUGIN_SLUG"
@@ -23,7 +23,7 @@ if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=normal)" ]];
 fi
 
 if [[ -z "$VERSION" ]]; then
-  echo "Could not read the plugin version from translangs.php." >&2
+  echo "Could not read the plugin version from lingowp.php." >&2
   exit 1
 fi
 
@@ -63,9 +63,11 @@ rm -rf \
   "$BUILD_DIR"/AGENTS.md \
   "$BUILD_DIR"/CLAUDE.md \
   "$BUILD_DIR"/wp \
-  "$BUILD_DIR"/test
+  "$BUILD_DIR"/test \
+  "$BUILD_DIR"/src/Admin/ResetPageController.php \
+  "$BUILD_DIR"/templates/reset.php
 
-for required in translangs.php readme.txt LICENSE THIRD-PARTY-NOTICES.md assets/admin/build/index.js; do
+for required in lingowp.php readme.txt LICENSE THIRD-PARTY-NOTICES.md assets/admin/build/index.js; do
   if [[ ! -f "$BUILD_DIR/$required" ]]; then
     echo "Release is missing required file: $required" >&2
     exit 1

@@ -1,13 +1,13 @@
 <?php
 
-namespace TransLangs\Insights;
+namespace LingoWP\Insights;
 
-use TransLangs\Backend\BackendClient;
-use TransLangs\Backend\ConnectionRepository;
+use LingoWP\Backend\BackendClient;
+use LingoWP\Backend\ConnectionRepository;
 use WP_REST_Response;
 
 /**
- * Insights preview screen's single interaction (namespace translangs/v1):
+ * Insights preview screen's single interaction (namespace lingowp/v1):
  * the "Notify me at launch" button. Forwards straight to the backend on
  * click — no local persistence, no retry queue. It submits a fixed machine
  * code through the authenticated support-suggestion route; the browser never
@@ -15,7 +15,7 @@ use WP_REST_Response;
  */
 final class InsightsRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
     private const SUGGESTION_MESSAGE = 'feature_interest:translangs_insights';
 
     public function __construct(

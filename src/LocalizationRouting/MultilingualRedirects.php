@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\LocalizationRouting;
+namespace LingoWP\LocalizationRouting;
 
-use TransLangs\Resolution\RequestContext;
-use TransLangs\Language\Application\ResolveRequestLanguage;
+use LingoWP\Resolution\RequestContext;
+use LingoWP\Language\Application\ResolveRequestLanguage;
 
 /**
  * Keeps a visitor's language prefix intact through WordPress's own redirects.

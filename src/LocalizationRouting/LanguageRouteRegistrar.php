@@ -1,12 +1,12 @@
 <?php
 
-namespace TransLangs\LocalizationRouting;
+namespace LingoWP\LocalizationRouting;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Application\ResolveRequestLanguage;
 
 /**
  * Adds language-prefixed copies of WordPress's compiled rewrite rules and
- * exposes the active language as the query var "translangs_lang".
+ * exposes the active language as the query var "lingowp_lang".
  *
  * Examples (enabled = en, fr, es; default = en, no default prefix):
  *   /fr            -> front page, lang=fr
@@ -48,13 +48,13 @@ class LanguageRouteRegistrar
 
     public function maybeRefreshRewriteRules(): void
     {
-        $currentVersion = (string) get_option('translangs_rewrite_rules_version', '');
+        $currentVersion = (string) get_option('lingowp_rewrite_rules_version', '');
         if ($currentVersion === self::REWRITE_RULES_VERSION) {
             return;
         }
 
         update_option('rewrite_rules', '');
-        update_option('translangs_rewrite_rules_version', self::REWRITE_RULES_VERSION, false);
+        update_option('lingowp_rewrite_rules_version', self::REWRITE_RULES_VERSION, false);
 
     }
 
@@ -73,7 +73,7 @@ class LanguageRouteRegistrar
 
         $vars = $this->normalizeWooCommerceEndpointVars($vars);
 
-        if (($vars['translangs_is_front'] ?? '') !== '1') {
+        if (($vars['lingowp_is_front'] ?? '') !== '1') {
             return $vars;
         }
 
@@ -98,7 +98,7 @@ class LanguageRouteRegistrar
      */
     private function normalizeWooCommerceEndpointVars(array $vars): array
     {
-        if (empty($vars['translangs_lang'])) {
+        if (empty($vars['lingowp_lang'])) {
             return $vars;
         }
 
@@ -119,8 +119,8 @@ class LanguageRouteRegistrar
      */
     public function addQueryVar(array $vars): array
     {
-        $vars[] = 'translangs_lang';
-        $vars[] = 'translangs_is_front';
+        $vars[] = 'lingowp_lang';
+        $vars[] = 'lingowp_is_front';
 
         return $vars;
     }
@@ -166,7 +166,7 @@ class LanguageRouteRegistrar
 
     private function languageHomeQuery(string $lang): string
     {
-        return 'index.php?translangs_lang=' . rawurlencode($lang) . '&translangs_is_front=1';
+        return 'index.php?lingowp_lang=' . rawurlencode($lang) . '&lingowp_is_front=1';
     }
 
     private function isIndexQuery(string $query): bool
@@ -192,7 +192,7 @@ class LanguageRouteRegistrar
 
     private function injectLanguageQueryVar(string $query, string $lang): string
     {
-        $languageQuery = 'translangs_lang=' . rawurlencode($lang);
+        $languageQuery = 'lingowp_lang=' . rawurlencode($lang);
 
         if ($query === 'index.php') {
             return 'index.php?' . $languageQuery;
@@ -213,7 +213,7 @@ class LanguageRouteRegistrar
     {
         $enabled = $this->resolver->getEnabledLanguages();
         $default = $this->resolver->getDefaultLanguage();
-        $prefixDefault = (bool) get_option('translangs_prefix_default_language', false);
+        $prefixDefault = (bool) get_option('lingowp_prefix_default_language', false);
 
         if ($prefixDefault) {
             return $enabled;

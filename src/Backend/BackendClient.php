@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 /**
- * Thin wrapper over wp_remote_request for the Translangs backend (/api/v1).
+ * Thin wrapper over wp_remote_request for the LingoWP backend (/api/v1).
  *
  * Every call returns the same array shape so callers never juggle WP_Error:
  *   ['ok' => bool, 'status' => int, 'data' => mixed, 'error' => string]

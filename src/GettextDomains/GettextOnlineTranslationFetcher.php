@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
 /**
  * Installs a wordpress.org community translation for one plugin/theme +

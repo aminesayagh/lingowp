@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\AiTranslation;
+namespace LingoWP\AiTranslation;
 
 /**
  * Groups units by group_id, splits any group over 25 into sub-chunks, then

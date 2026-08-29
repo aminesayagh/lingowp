@@ -1,24 +1,24 @@
 <?php
 
-namespace TransLangs\Language\Infrastructure;
+namespace LingoWP\Language\Infrastructure;
 
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
 /**
  * Local source of truth for target-language metadata.
  *
- * A single JSON option `translangs_languages` holds a map keyed by language code.
+ * A single JSON option `lingowp_languages` holds a map keyed by language code.
  * Each entry carries the display/routing metadata the SPA and workspace need:
  *   { code, language, locale, region, name, display_name, slug, fallback_language,
  *     ai_style, direction, created_at, updated_at }
  *
  * Active/enabled runtime state is deliberately NOT stored here — that stays in
- * OptionLanguageRegistry (translangs_active_lang). The legacy code lists remain a
+ * OptionLanguageRegistry (lingowp_active_lang). The legacy code lists remain a
  * migration bridge; this map is the metadata authority.
  */
 final class LanguageMetadataStore
 {
-    public const OPTION = 'translangs_languages';
+    public const OPTION = 'lingowp_languages';
 
     /** @return array<string, array<string, mixed>> */
     public function all(): array

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Language\Infrastructure;
+namespace LingoWP\Language\Infrastructure;
 
 /**
  * Compatibility facade over WordPress's Site Language catalog.

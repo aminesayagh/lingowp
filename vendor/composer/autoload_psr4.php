@@ -6,12 +6,12 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'TransLangs\\' => array($baseDir . '/src'),
     'TenQuality\\Gettext\\Scanner\\' => array($vendorDir . '/10quality/gettext-wp-scanner/src'),
     'PhpParser\\' => array($vendorDir . '/nikic/php-parser/lib/PhpParser'),
     'Peast\\' => array($vendorDir . '/mck89/peast/lib/Peast'),
     'PHPCSStandards\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\' => array($vendorDir . '/dealerdirect/phpcodesniffer-composer-installer/src'),
     'Masterminds\\' => array($vendorDir . '/masterminds/html5/src'),
+    'LingoWP\\' => array($baseDir . '/src'),
     'Gettext\\Scanner\\' => array($vendorDir . '/gettext/php-scanner/src', $vendorDir . '/gettext/js-scanner/src'),
     'Gettext\\Languages\\' => array($vendorDir . '/gettext/languages/src'),
     'Gettext\\' => array($vendorDir . '/gettext/gettext/src'),

@@ -1,7 +1,7 @@
 <?php
 
-namespace TransLangs\Extraction;
-use TransLangs\Database\TranslationMemorySchema;
+namespace LingoWP\Extraction;
+use LingoWP\Database\TranslationMemorySchema;
 
 /**
  * Tier-2 ownership gate: the authoritative check of whether a text hash
@@ -10,11 +10,11 @@ use TransLangs\Database\TranslationMemorySchema;
  * by HtmlDiscovery (before inserting html rows), so a string that exists as
  * structured content is never duplicated as static text or hardcoded HTML.
  *
- * tl_option is included because branding text (blogname/tagline) discovered
+ * option is included because branding text (blogname/tagline) discovered
  * there commonly renders inline on the page too — a theme's header markup for
  * the site name often differs between the home page and inner pages (e.g. an
  * <h1> on the front page vs. a plain <div> elsewhere), which — without this —
- * would mint the same text as two separate tl_html rows (different selector,
+ * would mint the same text as two separate html rows (different selector,
  * same original_hash) instead of recognizing it as already-owned content.
  *
  * Reads only the five structured parent tables.
@@ -22,7 +22,7 @@ use TransLangs\Database\TranslationMemorySchema;
 final class OwnedStringIndex
 {
     /** Structured parent tables a static-text string could collide with. */
-    private const STRUCTURED = ['tl_post', 'tl_meta', 'tl_term', 'tl_html', 'tl_option'];
+    private const STRUCTURED = ['post', 'meta', 'term', 'html', 'option'];
 
     public function __construct(private \wpdb $wpdb) {}
 

@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace LingoWP\Resolution;
 
-use TransLangs\Shared\StaticAssetExtensions;
+use LingoWP\Shared\StaticAssetExtensions;
 
 /**
  * Answers questions about the current request.

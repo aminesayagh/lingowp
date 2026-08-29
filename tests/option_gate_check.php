@@ -17,8 +17,8 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use TransLangs\Shared\Text\TranslatableText;
-use TransLangs\Extraction\OptionSourceScanner;
+use LingoWP\Shared\Text\TranslatableText;
+use LingoWP\Extraction\OptionSourceScanner;
 
 $scanner = (new ReflectionClass(OptionSourceScanner::class))->newInstanceWithoutConstructor();
 $method  = new ReflectionMethod(OptionSourceScanner::class, 'looksTranslatable');

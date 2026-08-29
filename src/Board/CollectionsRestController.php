@@ -1,19 +1,19 @@
 <?php
 
-namespace TransLangs\Board;
+namespace LingoWP\Board;
 
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * Workspace content REST endpoints (namespace translangs/v1) — read-only board.
+ * Workspace content REST endpoints (namespace lingowp/v1) — read-only board.
  *
  * Collections are DERIVED groups, not stored rows: "Site settings" is the whole
- * tl_option table; each content collection is one WP post's tl_post units. A
+ * option table; each content collection is one WP post's post units. A
  * collection id is an opaque token this controller owns — `option:site` or
  * `content:{postId}` — and is deliberately distinct from a SourceRef ({kind}:{id},
  * which addresses a single text unit for writes). Status/counts derive from the
@@ -24,7 +24,7 @@ use WP_REST_Response;
  */
 final class CollectionsRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     /** Board search minimum. Below this the term is ignored and the tree is normal. */
     private const SEARCH_MIN = 2;
@@ -298,7 +298,7 @@ final class CollectionsRestController
     }
 
     /**
-     * tl_html rows the background crawl has flagged stale (see
+     * html rows the background crawl has flagged stale (see
      * WpDbSourceRepository::flagStaleHtmlSources()) — nobody has
      * re-encountered them via marking mode or the crawl within the grace
      * window. Html-only: staleness has no meaning for post/meta/term/option,
@@ -327,7 +327,7 @@ final class CollectionsRestController
     }
 
     /**
-     * Hard-delete every currently stale-flagged tl_html row. Confirmation-gated
+     * Hard-delete every currently stale-flagged html row. Confirmation-gated
      * in the UI, same as ignoreAll()/clearAll() — but unlike those, this is a
      * real delete of the source row itself, not a status flip or a
      * translation-only clear, since a stale row genuinely has nowhere else to

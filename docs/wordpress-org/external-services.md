@@ -1,6 +1,6 @@
 # External services and consent
 
-## TransLangs Cloud
+## LingoWP Cloud
 
 - Endpoint origin: `https://translangs-api.masayagh.com`.
 - Trigger: no connection on installation or onboarding configuration. An
@@ -20,20 +20,20 @@
   suggestion with the verified license owner, falling back to the site admin email.
 
 Local discovery, manual translation, translation storage, and frontend rendering
-remain available without TransLangs Cloud.
+remain available without LingoWP Cloud.
 
 ## WordPress.org language-pack API
 
 When an administrator requests an available gettext package for an installed
-theme or plugin, TransLangs may request package metadata and download the package
+theme or plugin, LingoWP may request package metadata and download the package
 from WordPress.org. The request concerns the installed component and requested
 locale; it is not an automatic visitor-tracking request.
 
 ## Release blockers
 
-- Publish final TransLangs Cloud Terms of Service and Privacy Policy URLs.
-- Configure the `translangs_cloud_terms_url` and
-  `translangs_cloud_privacy_url` filters, or replace their empty defaults with
+- Publish final LingoWP Cloud Terms of Service and Privacy Policy URLs.
+- Configure the `lingowp_cloud_terms_url` and
+  `lingowp_cloud_privacy_url` filters, or replace their empty defaults with
   canonical production URLs before submission.
 - Ensure the same URLs and data descriptions appear in `readme.txt`, the cloud
   connection UI, the service website, and the WordPress privacy-policy guidance.

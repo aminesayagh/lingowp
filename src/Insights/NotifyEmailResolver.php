@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Insights;
+namespace LingoWP\Insights;
 
 /** Resolves the WordPress admin address suggested by account-owner settings. */
 final class NotifyEmailResolver

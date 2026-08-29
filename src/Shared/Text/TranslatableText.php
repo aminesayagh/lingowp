@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Text;
+namespace LingoWP\Shared\Text;
 
 /**
  * Decides whether a discovered string is worth translating, applied AFTER the
@@ -11,7 +11,7 @@ namespace TransLangs\Shared\Text;
  * skipped only when it demonstrably carries nothing to translate —
  *   - empty after normalization;
  *   - no letter in any script (numbers, digit-dates like 2024-01-01, currency,
- *     percentages, phone numbers, symbols/arrows, and TransLangs' own digit
+ *     percentages, phone numbers, symbols/arrows, and LingoWP' own digit
  *     placeholder units like "{1}{2}{/2}{/1}");
  *   - the whole string is a bare URL, e-mail address, or filename.
  *

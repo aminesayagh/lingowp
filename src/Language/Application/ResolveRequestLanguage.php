@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Language\Application;
+namespace LingoWP\Language\Application;
 
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
 /**
  * Decides the active language for the current request.
@@ -89,12 +89,12 @@ class ResolveRequestLanguage
 
     private function cookieEnabled(): bool
     {
-        return (bool) get_option('translangs_cookie_preference', true);
+        return (bool) get_option('lingowp_cookie_preference', true);
     }
 
     private function browserDetectionEnabled(): bool
     {
-        return (bool) get_option('translangs_browser_detection', false);
+        return (bool) get_option('lingowp_browser_detection', false);
     }
 
     // ------------------------------------------------------------------
@@ -106,14 +106,14 @@ class ResolveRequestLanguage
      */
     private function resolveFromUrl(): ?string
     {
-        $lang = get_query_var('translangs_lang');
+        $lang = get_query_var('lingowp_lang');
 
         return $this->validate(is_string($lang) ? $lang : '');
     }
 
     /**
      * 1b. Admin "Preview on site" param: a logged-in editor can view any page in
-     *     a target language via ?translangs_preview=<lang>. Editor-gated so a bare
+     *     a target language via ?lingowp_preview=<lang>. Editor-gated so a bare
      *     URL never switches a public visitor's language. Unlike the other
      *     resolution steps, this also accepts a draft (not-yet-published) target
      *     language — the whole point of previewing is to check a translation
@@ -122,7 +122,7 @@ class ResolveRequestLanguage
     private function resolveFromPreview(): ?string
     {
         // phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only language preview, gated on edit_posts; it changes no state, so a nonce would only break shareable preview URLs.
-        if (empty($_GET['translangs_preview'])) {
+        if (empty($_GET['lingowp_preview'])) {
             return null;
         }
 
@@ -130,7 +130,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->validatePreviewable(sanitize_text_field(wp_unslash($_GET['translangs_preview'])));
+        return $this->validatePreviewable(sanitize_text_field(wp_unslash($_GET['lingowp_preview'])));
         // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
@@ -141,7 +141,7 @@ class ResolveRequestLanguage
      */
     private function resolveFromUnprefixedDefaultUrl(): ?string
     {
-        if ((bool) get_option('translangs_prefix_default_language', false)) {
+        if ((bool) get_option('lingowp_prefix_default_language', false)) {
             return null;
         }
 

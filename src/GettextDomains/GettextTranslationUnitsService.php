@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
 /**
  * The editable "translate this plugin/theme in-app" surface: the full list

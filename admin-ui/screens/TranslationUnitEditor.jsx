@@ -267,7 +267,7 @@ function EditableText( {
 			tabIndex={ 0 }
 			dir={ dir }
 			spellCheck={ false }
-			className="tl-seg"
+			className="lingowp-seg"
 			data-ph={ placeholder || '' }
 			aria-label="Translation text"
 			onInput={ () => onInput( ref.current.textContent ) }
@@ -730,7 +730,7 @@ export function ChipField( {
 				gap: '8px',
 			} }
 		>
-			<style>{ `.tl-seg:empty:before{content:attr(data-ph);color:var(--p-color-text-subdued);opacity:.6;pointer-events:none;}` }</style>
+			<style>{ `.lingowp-seg:empty:before{content:attr(data-ph);color:var(--p-color-text-subdued);opacity:.6;pointer-events:none;}` }</style>
 			<div
 				role="presentation"
 				dir={ dir }

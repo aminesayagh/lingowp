@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Text;
+namespace LingoWP\Shared\Text;
 
 /**
  * Deterministic in-memory digest of an identity-column map, used to index

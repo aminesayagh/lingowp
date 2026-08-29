@@ -1,12 +1,12 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * BYO provider key REST endpoints (namespace translangs/v1).
+ * BYO provider key REST endpoints (namespace lingowp/v1).
  *
  * Pure pass-through to the backend's /provider-keys routes. manage_options only.
  * The raw key is read from the request, forwarded, and unset immediately after —
@@ -14,7 +14,7 @@ use WP_REST_Response;
  */
 final class ProviderKeyRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     private const PROVIDERS = ['openai', 'anthropic'];
 

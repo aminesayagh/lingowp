@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
 /**
  * Which scanned strings a translator explicitly chose to skip, per (type,
@@ -14,7 +14,7 @@ namespace TransLangs\GettextDomains;
  */
 final class GettextIgnoredUnitsStore
 {
-    public const OPTION = 'translangs_gettext_ignored_units';
+    public const OPTION = 'lingowp_gettext_ignored_units';
 
     public function isIgnored(string $type, string $domain, string $locale, string $msgid, ?string $context): bool
     {

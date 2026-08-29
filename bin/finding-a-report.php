@@ -8,9 +8,9 @@
  * the two runs is the evidence for or against finding (A).
  */
 
-use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 
 if (!defined('ABSPATH')) {
     fwrite(STDERR, "Run through: wp eval-file bin/finding-a-report.php\n");
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 
 global $wpdb;
 
-$post = get_page_by_path('tltest-finding-a', OBJECT, 'post');
+$post = get_page_by_path('lingowp-test-finding-a', OBJECT, 'post');
 if (!$post) {
     fwrite(STDERR, "Fixture post not found. Run bin/finding-a-seed.php first.\n");
     exit(1);
@@ -34,7 +34,7 @@ if ($lang === '') {
     exit(1);
 }
 
-$parent = TranslationMemorySchema::parentTables()['tl_post'];
+$parent = TranslationMemorySchema::parentTables()['post'];
 $child  = $parent . '_translation';
 
 $statusName = static function ($s): string {
@@ -100,7 +100,7 @@ $orphans = (int) $wpdb->get_var($wpdb->prepare(
 echo str_repeat('─', 78) . "\n";
 echo "units: " . count((array) $rows)
    . " | translated: {$translated} | untranslated: {$missing} | needs_review: {$review}\n";
-echo "orphaned {$lang} children across tl_post: {$orphans}\n";
+echo "orphaned {$lang} children across post: {$orphans}\n";
 echo str_repeat('─', 78) . "\n";
 
 if ($missing === 0 && $review === 0) {

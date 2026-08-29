@@ -1,13 +1,13 @@
 <?php
 
-namespace TransLangs\Board;
+namespace LingoWP\Board;
 
-use TransLangs\Shared\Source\Type\HtmlSource;
-use TransLangs\Shared\Source\TranslatableMetaKeys;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Shared\Source\TranslationStatus;
+use LingoWP\Shared\Source\Type\HtmlSource;
+use LingoWP\Shared\Source\TranslatableMetaKeys;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Source\TranslationStatus;
 
 /**
  * The Collections read-model: derives board groups, expands one collection's
@@ -43,15 +43,15 @@ final class CollectionBoard
         if ($option['total'] > 0) {
             $collections[] = [
                 'id'             => 'option:site',
-                'label'          => __('Site settings', 'translangs'),
+                'label'          => __('Site settings', 'lingowp'),
                 'type'           => 'site_settings',
                 'preview_url'    => admin_url('options-general.php'),
                 'preview_target' => 'admin',
             ] + $option;
         }
 
-        // A content collection is one WP post's tl_post fields + its tl_meta,
-        // merged by post_id (preserving the post-type/title ordering of tl_post).
+        // A content collection is one WP post's post fields + its meta,
+        // merged by post_id (preserving the post-type/title ordering of post).
         $byPost = [];
         foreach ($this->repo->listPostCollections($lang, $search, $filters) as $c) {
             $byPost[$c['post_id']] = $c;
@@ -101,7 +101,7 @@ final class CollectionBoard
 
             $row = [
                 'id'             => 'content:' . $pid,
-                'label'          => $c['post_title'] !== '' ? $c['post_title'] : __('(no title)', 'translangs'),
+                'label'          => $c['post_title'] !== '' ? $c['post_title'] : __('(no title)', 'lingowp'),
                 'type'           => $isFront ? 'page' : $this->uxType($c['post_type']),
                 'total'          => $c['total'],
                 'translated'     => $c['translated'],
@@ -129,7 +129,7 @@ final class CollectionBoard
         if ($mediaTotals['total'] > 0) {
             $collections[] = [
                 'id'             => 'media:all',
-                'label'          => __('Media', 'translangs'),
+                'label'          => __('Media', 'lingowp'),
                 'type'           => 'media',
                 'preview_url'    => admin_url('upload.php'),
                 'preview_target' => 'admin',
@@ -163,7 +163,7 @@ final class CollectionBoard
         if ($html['total'] > 0) {
             $collections[] = [
                 'id'             => 'html:all',
-                'label'          => __('Template content', 'translangs'),
+                'label'          => __('Template content', 'lingowp'),
                 'type'           => 'html',
                 'preview_url'    => null,
                 'preview_target' => 'frontend',
@@ -187,7 +187,7 @@ final class CollectionBoard
         if ($id === 'option:site') {
             $optionPreview = ['preview_url' => admin_url('options-general.php'), 'preview_target' => 'admin'];
             $rows          = $this->repo->listOptionTexts($lang, $search, $filters);
-            $fallbacks     = $withFallback ? $this->fallbacksByHash('tl_option', $rows, $lang) : [];
+            $fallbacks     = $withFallback ? $this->fallbacksByHash('option', $rows, $lang) : [];
             return array_map(
                 fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name'], $fallbacks[$r['original_hash']] ?? null) + $optionPreview,
                 $rows
@@ -196,7 +196,7 @@ final class CollectionBoard
 
         if ($id === 'html:all') {
             $rows      = $this->repo->listHtmlTexts($lang, $search, $filters);
-            $fallbacks = $withFallback ? $this->fallbacksByHash('tl_html', $rows, $lang) : [];
+            $fallbacks = $withFallback ? $this->fallbacksByHash('html', $rows, $lang) : [];
             return array_map(
                 fn (array $r): array => $this->presentText('html', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null) + [
                     'preview_url'    => $this->htmlPreviewUrl($r['source_url'] ?? null, $lang),
@@ -227,7 +227,7 @@ final class CollectionBoard
                 ];
             }
             $postRows      = $this->repo->listPostTexts($postId, $lang, $search, $filters);
-            $postFallbacks = $withFallback ? $this->fallbacksByHash('tl_post', $postRows, $lang) : [];
+            $postFallbacks = $withFallback ? $this->fallbacksByHash('post', $postRows, $lang) : [];
             $posts         = array_map(
                 fn (array $r): array => $this->presentText('post', $r, (string) $r['field'], $postFallbacks[$r['original_hash']] ?? null) + $preview,
                 $postRows
@@ -243,7 +243,7 @@ final class CollectionBoard
 
         if ($id === 'media:all') {
             $postRows      = $this->repo->listMediaPostTexts($lang, $search, $filters);
-            $postFallbacks = $withFallback ? $this->fallbacksByHash('tl_post', $postRows, $lang) : [];
+            $postFallbacks = $withFallback ? $this->fallbacksByHash('post', $postRows, $lang) : [];
             $posts         = array_map(
                 fn (array $r): array => $this->presentText('post', $r, (string) $r['field'], $postFallbacks[$r['original_hash']] ?? null) + $this->mediaPreview($r),
                 $postRows
@@ -260,7 +260,7 @@ final class CollectionBoard
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
             $taxonomy  = $m[1];
             $rows      = $this->repo->listTaxonomyTexts($taxonomy, $lang, $search, $filters);
-            $fallbacks = $withFallback ? $this->fallbacksByHash('tl_term', $rows, $lang) : [];
+            $fallbacks = $withFallback ? $this->fallbacksByHash('term', $rows, $lang) : [];
             return array_map(
                 fn (array $r): array => $this->presentText('term', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null) + [
                     'preview_url'    => admin_url(
@@ -483,7 +483,7 @@ final class CollectionBoard
     }
 
     /**
-     * Fallback lookup for the meta kind: tl_meta_translation has no
+     * Fallback lookup for the meta kind: meta_translation has no
      * original_hash (meta is never hash-shared), so this walks the chain by
      * parent id instead — same narrowing/stop-once-resolved shape as
      * fallbacksByHash().
@@ -541,7 +541,7 @@ final class CollectionBoard
     {
         $sep = str_contains($base, '?') ? '&' : '?';
 
-        return $base . $sep . 'translangs_preview=' . rawurlencode($lang);
+        return $base . $sep . 'lingowp_preview=' . rawurlencode($lang);
     }
 
     /** Build an HTML preview on the current domain, including for legacy absolute rows. */

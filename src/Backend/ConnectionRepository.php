@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 /**
  * Stores the backend connection state in wp_options.
@@ -12,11 +12,11 @@ namespace TransLangs\Backend;
  */
 final class ConnectionRepository
 {
-    public const OPTION_TOKEN     = 'translangs_api_token';
-    public const OPTION_SITE_ID   = 'translangs_site_id';
-    public const OPTION_COMPLETED = 'translangs_onboarding_completed';
-    public const OPTION_OWNER_EMAIL = 'translangs_owner_email';
-    public const OPTION_SYNCED_ADMIN_EMAIL = 'translangs_synced_admin_email';
+    public const OPTION_TOKEN     = 'lingowp_api_token';
+    public const OPTION_SITE_ID   = 'lingowp_site_id';
+    public const OPTION_COMPLETED = 'lingowp_onboarding_completed';
+    public const OPTION_OWNER_EMAIL = 'lingowp_owner_email';
+    public const OPTION_SYNCED_ADMIN_EMAIL = 'lingowp_synced_admin_email';
 
     public function isConnected(): bool
     {

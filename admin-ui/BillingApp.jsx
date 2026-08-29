@@ -26,7 +26,7 @@ import BillingSites from './screens/BillingSites'
 import BillingToken from './screens/BillingToken'
 import OwnerEmailCard from './screens/OwnerEmailCard'
 
-const cfg = window.Translangs || {}
+const cfg = window.LingoWP || {}
 
 const queryClient = new QueryClient( {
 	defaultOptions: {
@@ -126,12 +126,12 @@ export default function BillingApp() {
 	// Same Frame-owned portal root as the main workspace, so Polaris
 	// popovers/modals anchor to the document instead of the wp-admin offset.
 	const [ portalRoot ] = useState( () => {
-		const existing = document.getElementById( 'translangs-portals' )
+		const existing = document.getElementById( 'lingowp-portals' )
 		if ( existing ) {
 			return existing
 		}
 		const el = document.createElement( 'div' )
-		el.id = 'translangs-portals'
+		el.id = 'lingowp-portals'
 		document.body.appendChild( el )
 		return el
 	} )
@@ -179,7 +179,7 @@ export default function BillingApp() {
 													as="span"
 													variant="headingMd"
 												>
-													Translangs
+													LingoWP
 												</Text>
 											</InlineStack>
 
@@ -230,7 +230,7 @@ export default function BillingApp() {
 												setRecoveryAvailable( false )
 											}
 										>
-											We found an existing Translangs
+											We found an existing LingoWP
 											account for this site — check your
 											owner email to move its subscription
 											and word balance here.
@@ -258,7 +258,7 @@ export default function BillingApp() {
 												{ ! connectionReady && (
 													<Box padding="500">
 														<Spinner
-															accessibilityLabel="Connecting to Translangs"
+															accessibilityLabel="Connecting to LingoWP"
 															size="small"
 														/>
 													</Box>
@@ -272,7 +272,7 @@ export default function BillingApp() {
 																	variant="headingMd"
 																>
 																	Connect to
-																	Translangs
+																	LingoWP
 																	Cloud
 																</Text>
 																<Text
@@ -292,7 +292,7 @@ export default function BillingApp() {
 																	WordPress
 																	admin email
 																	to
-																	Translangs
+																	LingoWP
 																	Cloud;
 																	translation
 																	text and
@@ -326,7 +326,7 @@ export default function BillingApp() {
 																	>
 																		Connect
 																		to
-																		Translangs
+																		LingoWP
 																		Cloud
 																	</Button>
 																	{ cfg.cloud_terms_url && (

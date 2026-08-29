@@ -1,22 +1,22 @@
 <?php
 
-namespace TransLangs\Admin;
+namespace LingoWP\Admin;
 
-use TransLangs\Backend\BackendEndpointResolver;
-use TransLangs\Backend\ConnectionRepository;
-use TransLangs\Backend\ConnectionStatus;
-use TransLangs\Backend\SiteMetadataProvider;
-use TransLangs\Database\OrphanTranslationSweep;
-use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Extraction\Html\HtmlDiscoveryCrawl;
-use TransLangs\Extraction\Structured\InitialDiscoveryScan;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Shared\PhpTemplateRenderer;
+use LingoWP\Backend\BackendEndpointResolver;
+use LingoWP\Backend\ConnectionRepository;
+use LingoWP\Backend\ConnectionStatus;
+use LingoWP\Backend\SiteMetadataProvider;
+use LingoWP\Database\OrphanTranslationSweep;
+use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\Extraction\Html\HtmlDiscoveryCrawl;
+use LingoWP\Extraction\Structured\InitialDiscoveryScan;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Shared\PhpTemplateRenderer;
 
 /**
  * Dev-only "reset everything" tool — drops every wp_tl_* table (including the
- * legacy static-text ones, no longer supported), deletes every translangs_*
+ * legacy static-text ones, no longer supported), deletes every lingowp_*
  * option/transient (config AND the API connection), and deactivates the
  * plugin. This is the button-triggered equivalent of a real uninstall minus
  * the file deletion: the admin is expected to reactivate manually afterwards,
@@ -29,8 +29,8 @@ use TransLangs\Shared\PhpTemplateRenderer;
 class ResetPageController
 {
     public const CAPABILITY = 'manage_options';
-    public const SLUG       = 'translangs-reset';
-    private const PARENT    = 'translangs';
+    public const SLUG       = 'lingowp-reset';
+    private const PARENT    = 'lingowp';
 
     public function __construct(
         private \wpdb $wpdb,
@@ -51,15 +51,15 @@ class ResetPageController
         add_action('admin_menu', [$this, 'addMenu'], 11);
 
         // Posts to admin-post.php so it can redirect before any output.
-        add_action('admin_post_translangs_reset_data', [$this, 'handleReset']);
+        add_action('admin_post_lingowp_reset_data', [$this, 'handleReset']);
     }
 
     public function addMenu(): void
     {
         add_submenu_page(
             self::PARENT,
-            __('Reset Translation Data', 'translangs'),
-            __('Reset Data', 'translangs'),
+            __('Reset Translation Data', 'lingowp'),
+            __('Reset Data', 'lingowp'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
@@ -69,7 +69,7 @@ class ResetPageController
     public function renderPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
         }
 
         PhpTemplateRenderer::render('reset.php', []);
@@ -85,10 +85,10 @@ class ResetPageController
     {
         if (
             !current_user_can(self::CAPABILITY)
-            || !isset($_POST['translangs_reset_nonce'])
-            || !wp_verify_nonce(sanitize_key($_POST['translangs_reset_nonce']), 'translangs_reset_data')
+            || !isset($_POST['lingowp_reset_nonce'])
+            || !wp_verify_nonce(sanitize_key($_POST['lingowp_reset_nonce']), 'lingowp_reset_data')
         ) {
-            wp_die(esc_html__('Security check failed. Please try again.', 'translangs'));
+            wp_die(esc_html__('Security check failed. Please try again.', 'lingowp'));
         }
 
         TranslationMemorySchema::dropAllTables($this->wpdb);
@@ -96,7 +96,7 @@ class ResetPageController
         $this->deleteConnection();
         $this->deleteConfiguration();
 
-        deactivate_plugins(TRANSLANGS_BASENAME);
+        deactivate_plugins(LINGOWP_BASENAME);
 
         wp_safe_redirect(admin_url('plugins.php'));
         exit;
@@ -118,7 +118,7 @@ class ResetPageController
     private function deleteConfiguration(): void
     {
         delete_option(TranslationMemorySchema::OPTION_DB_VERSION);
-        delete_option('translangs_rewrite_rules_version');
+        delete_option('lingowp_rewrite_rules_version');
         delete_option(OrphanTranslationSweep::OPTION_LAST_RUN);
         delete_option(InitialDiscoveryScan::OPTION_FLAG);
         delete_option(HtmlDiscoveryCrawl::OPTION_FLAG);

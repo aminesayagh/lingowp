@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\Shared\Parsing;
+namespace LingoWP\Shared\Parsing;
 
-use TransLangs\Shared\Text\StringNormalizer;
+use LingoWP\Shared\Text\StringNormalizer;
 
 /**
  * The placeholder chokepoint for type-5 composed units (parsing spec §5).

@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\LocalizationRouting;
+namespace LingoWP\LocalizationRouting;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Application\ResolveRequestLanguage;
 
 /**
  * One place that knows how a language prefix maps onto a URL path.
@@ -28,7 +28,7 @@ class LocalizedUrlBuilder
         $enabled = $this->resolver->getEnabledLanguages();
         $default = $this->resolver->getDefaultLanguage();
 
-        if ((bool) get_option('translangs_prefix_default_language', false)) {
+        if ((bool) get_option('lingowp_prefix_default_language', false)) {
             return $enabled;
         }
 

@@ -40,7 +40,7 @@ export const AI_STYLE_PLACEHOLDER =
 
 const PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic' }
 
-// AI model choices for a language: the Translangs subscription model (only when
+// AI model choices for a language: the LingoWP subscription model (only when
 // subscribed) plus one entry per provider key the user has stored. Falls back to
 // the legacy "Auto" when the user has neither — same single-option Select as
 // before. ponytail: value vocabulary is 'internal' | 'openai' | 'anthropic',
@@ -48,7 +48,7 @@ const PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic' }
 export function aiModelOptions( { hasSubscription, providerKeys } ) {
 	const opts = []
 	if ( hasSubscription ) {
-		opts.push( { label: 'Translangs model', value: 'internal' } )
+		opts.push( { label: 'LingoWP model', value: 'internal' } )
 	}
 	for ( const key of providerKeys || [] ) {
 		if ( PROVIDER_LABELS[ key.provider ] ) {
@@ -206,7 +206,7 @@ export default function LanguageManagerModal( {
 		<Modal open={ open } onClose={ onClose } title="Languages" large>
 			<Modal.Section>
 				<div
-					className="tl-wide-modal"
+					className="lingowp-wide-modal"
 					style={ {
 						display: 'flex',
 						gap: isFirstLanguage ? 0 : 16,
@@ -645,7 +645,7 @@ function LanguageForm( {
 					onChange={ setAiModel }
 					helpText={
 						hasSubscription && providerKeys.length > 0
-							? 'The Translangs model bills to your subscription; your own key bills to your provider account.'
+							? 'The LingoWP model bills to your subscription; your own key bills to your provider account.'
 							: undefined
 					}
 				/>

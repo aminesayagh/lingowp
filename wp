@@ -4,5 +4,5 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
 docker compose exec --user www-data -e HOME=/tmp \
-  --workdir /var/www/html/wp-content/plugins/translangs \
+  --workdir /var/www/html/wp-content/plugins/lingowp \
   wordpress wp --path=/var/www/html "$@"

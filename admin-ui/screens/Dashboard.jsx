@@ -142,7 +142,7 @@ function groupHeading( { type, label } ) {
 }
 
 const enc = encodeURIComponent
-const cfg = window.Translangs || {}
+const cfg = window.LingoWP || {}
 
 // Open a text's destination in a new tab. Front-end pages get a scroll-to-text
 // fragment so the browser jumps to (and highlights) the string being verified;
@@ -503,7 +503,7 @@ export default function Dashboard( {
 		if ( ! ai.available ) {
 			showToast(
 				'warning',
-				ai.error || 'AI unavailable — connect Translangs to enable it.'
+				ai.error || 'AI unavailable — connect LingoWP to enable it.'
 			)
 			return
 		}
@@ -595,7 +595,7 @@ export default function Dashboard( {
 		)
 	}
 
-	// Row menu "Switch to Translangs model": point a language that currently
+	// Row menu "Switch to LingoWP model": point a language that currently
 	// translates through the user's own provider key back at the subscription
 	// model. Only offered (see the LanguageList props below) when a subscription
 	// is active and the language's ai_model is a BYO provider.
@@ -605,7 +605,7 @@ export default function Dashboard( {
 		} ).then( ( res ) => {
 			if ( res.ok ) {
 				refreshLanguages()
-				showToast( 'success', 'Now using the Translangs model.' )
+				showToast( 'success', 'Now using the LingoWP model.' )
 			}
 		} )
 	}
@@ -787,7 +787,7 @@ export default function Dashboard( {
 	// deliberately NOT part of what's polled below — it's network-bound (one
 	// fetch per page) and can run far longer than the DB-only scan on a large
 	// site. Waiting for it would hold the dashboard hostage for no reason: the
-	// crawl keeps filling in tl_html in the background regardless, and newly
+	// crawl keeps filling in html in the background regardless, and newly
 	// discovered hardcoded text just shows up next time the html:all group is
 	// fetched (a manual refresh, reopening the group, etc.) — no spinner needed.
 	function refreshScan() {
@@ -1599,7 +1599,7 @@ export default function Dashboard( {
 											/>
 										) }
 										<Text as="span" variant="headingMd">
-											Translangs
+											LingoWP
 										</Text>
 									</InlineStack>
 									<Popover
@@ -1624,7 +1624,7 @@ export default function Dashboard( {
 											</Tooltip>
 										}
 									>
-										<div className="tl-settings-menu">
+										<div className="lingowp-settings-menu">
 											<ActionList
 												items={ [
 													{
@@ -1845,7 +1845,7 @@ export default function Dashboard( {
 									the Plugins & Themes board doesn't use. */ }
 									{ ! showGettextBoard && (
 										<div
-											className="tl-filters"
+											className="lingowp-filters"
 											style={ {
 												display: 'flex',
 												alignItems: 'center',
@@ -1895,7 +1895,7 @@ export default function Dashboard( {
 						{ showNeedsOnboarding && (
 							<Box padding="500">
 								<EmptyState
-									heading="Finish setting up Translangs"
+									heading="Finish setting up LingoWP"
 									action={ {
 										content: 'Continue setup',
 										onAction: onStartOnboarding,
@@ -2389,7 +2389,7 @@ function CollectionGroup( {
 	const allTexts = textsQ.data?.texts ?? []
 	const rows = allTexts.slice( 0, shown )
 
-	// Stale tl_html rows: text nobody (marking mode or the background crawl)
+	// Stale html rows: text nobody (marking mode or the background crawl)
 	// has re-encountered in the grace window. Html-only — staleness has no
 	// meaning for the other collection types.
 	const staleQ = useQuery( {
@@ -3084,7 +3084,7 @@ function TextUnitRow( {
 							{ showShimmer && (
 								<motion.span
 									aria-hidden="true"
-									className="tl-shimmer"
+									className="lingowp-shimmer"
 									initial={ { opacity: 0 } }
 									animate={ { opacity: 1 } }
 									transition={ { duration: 0.15 } }

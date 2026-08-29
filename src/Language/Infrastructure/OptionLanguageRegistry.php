@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Language\Infrastructure;
+namespace LingoWP\Language\Infrastructure;
 
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
 /**
  * Option-backed language registry.
@@ -11,8 +11,8 @@ use TransLangs\Language\Domain\LocaleNormalizer;
  * There is no languages table: no FK, join, or SQL integrity rule a table
  * would satisfy. Config is two autoloaded, pipe-delimited code lists:
  *
- *   translangs_active_lang    'fr_FR|ar'       currently enabled targets
- *   translangs_existing_lang  'fr_FR|ar|es_ES' every target ever added (append-only)
+ *   lingowp_active_lang    'fr_FR|ar'       currently enabled targets
+ *   lingowp_existing_lang  'fr_FR|ar|es_ES' every target ever added (append-only)
  *
  * Languages are identified by code everywhere — tl_translation stores the code
  * directly, so no numeric dictionary is needed. The existing roster is
@@ -24,7 +24,7 @@ use TransLangs\Language\Domain\LocaleNormalizer;
  * catalog, so runtime requests do not depend on fetching that catalog again.
  *
  * Source language is the normalized site locale, captured ONCE into the
- * translangs_source_locale option at setup. It is read from that option
+ * lingowp_source_locale option at setup. It is read from that option
  * at runtime — never live from get_locale(), which is filtered and can switch
  * mid-request, which would silently re-key everything. Never stored as a target.
  *
@@ -33,10 +33,10 @@ use TransLangs\Language\Domain\LocaleNormalizer;
  */
 final class OptionLanguageRegistry implements LanguageRegistry
 {
-    public const OPTION_ACTIVE          = 'translangs_active_lang';
-    public const OPTION_EXISTING        = 'translangs_existing_lang';
-    public const OPTION_SOURCE_LOCALE   = 'translangs_source_locale';
-    public const OPTION_SOURCE_METADATA = 'translangs_source_language';
+    public const OPTION_ACTIVE          = 'lingowp_active_lang';
+    public const OPTION_EXISTING        = 'lingowp_existing_lang';
+    public const OPTION_SOURCE_LOCALE   = 'lingowp_source_locale';
+    public const OPTION_SOURCE_METADATA = 'lingowp_source_language';
 
     public function getDefaultLanguage(): string
     {

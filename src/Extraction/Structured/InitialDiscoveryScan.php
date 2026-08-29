@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\Extraction\Structured;
+namespace LingoWP\Extraction\Structured;
 
-use TransLangs\Extraction\OptionSourceScanner;
+use LingoWP\Extraction\OptionSourceScanner;
 
 /**
  * Initial / activation discovery scan (data pipeline §2, Path B1).
@@ -19,9 +19,9 @@ use TransLangs\Extraction\OptionSourceScanner;
  */
 final class InitialDiscoveryScan
 {
-    public const HOOK        = 'translangs_initial_discovery_batch';
-    public const GROUP       = 'translangs';
-    public const OPTION_FLAG = 'translangs_needs_initial_scan';
+    public const HOOK        = 'lingowp_initial_discovery_batch';
+    public const GROUP       = 'lingowp';
+    public const OPTION_FLAG = 'lingowp_needs_initial_scan';
 
     private const BATCH = 200;
 

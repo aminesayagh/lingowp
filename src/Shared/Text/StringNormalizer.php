@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Text;
+namespace LingoWP\Shared\Text;
 
 /**
  * Makes strings deterministic before hashing and storage.

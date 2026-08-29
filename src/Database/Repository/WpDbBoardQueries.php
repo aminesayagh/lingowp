@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Database\Repository;
+namespace LingoWP\Database\Repository;
 
-use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Database\TranslationMemorySchema;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Database\TranslationMemorySchema;
 
 /**
  * Read-only board/collection queries: the Admin dashboard's listing, grouping,
@@ -18,7 +18,7 @@ final class WpDbBoardQueries
 
     public function listPostCollections(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_post');
+        $parent = $this->parent('post');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
@@ -53,7 +53,7 @@ final class WpDbBoardQueries
 
     public function listPostTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_post');
+        $parent = $this->parent('post');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
@@ -84,7 +84,7 @@ final class WpDbBoardQueries
 
     public function optionCollectionSummary(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_option');
+        $parent = $this->parent('option');
         $child  = $parent . '_translation';
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
@@ -111,7 +111,7 @@ final class WpDbBoardQueries
 
     public function listOptionTexts(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_option');
+        $parent = $this->parent('option');
         $child  = $parent . '_translation';
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
@@ -142,7 +142,7 @@ final class WpDbBoardQueries
 
     public function listTermCollections(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_term');
+        $parent = $this->parent('term');
         $child  = $parent . '_translation';
         $tt     = $this->wpdb->term_taxonomy;
         $terms  = $this->wpdb->terms;
@@ -184,7 +184,7 @@ final class WpDbBoardQueries
 
     public function listTermTexts(int $termTaxonomyId, string $langCode): array
     {
-        $parent = $this->parent('tl_term');
+        $parent = $this->parent('term');
         $child  = $parent . '_translation';
 
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
@@ -207,7 +207,7 @@ final class WpDbBoardQueries
 
     public function listTaxonomyTexts(string $taxonomy, string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_term');
+        $parent = $this->parent('term');
         $child  = $parent . '_translation';
         $tt     = $this->wpdb->term_taxonomy;
         $terms  = $this->wpdb->terms;
@@ -242,7 +242,7 @@ final class WpDbBoardQueries
 
     public function postMetaCounts(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_meta');
+        $parent = $this->parent('meta');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
@@ -276,7 +276,7 @@ final class WpDbBoardQueries
 
     public function listMetaTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_meta');
+        $parent = $this->parent('meta');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
@@ -311,7 +311,7 @@ final class WpDbBoardQueries
     /** @inheritDoc */
     public function listMediaPostTexts(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_post');
+        $parent = $this->parent('post');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
@@ -344,7 +344,7 @@ final class WpDbBoardQueries
     /** @inheritDoc */
     public function listMediaAltTexts(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_meta');
+        $parent = $this->parent('meta');
         $child  = $parent . '_translation';
         $posts  = $this->wpdb->posts;
 
@@ -379,7 +379,7 @@ final class WpDbBoardQueries
 
     public function htmlCollectionSummary(string $langCode, string $search = '', array $filters = []): array
     {
-        $parent = $this->parent('tl_html');
+        $parent = $this->parent('html');
         $child  = $parent . '_translation';
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
@@ -418,7 +418,7 @@ final class WpDbBoardQueries
     /** Shared query behind listHtmlTexts()/listStaleHtmlSources(), scoped by parent status. */
     private function htmlTextsByStatus(int $status, string $langCode, string $search, array $filters): array
     {
-        $parent = $this->parent('tl_html');
+        $parent = $this->parent('html');
         $child  = $parent . '_translation';
 
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
@@ -452,12 +452,12 @@ final class WpDbBoardQueries
         $done  = 0;
 
         // hash-link tables join on original_hash; meta joins on parent_id.
-        foreach (['tl_post', 'tl_term', 'tl_html', 'tl_option'] as $key) {
+        foreach (['post', 'term', 'html', 'option'] as $key) {
             [$t, $d] = $this->countTable($key, false, $langCode);
             $total  += $t;
             $done   += $d;
         }
-        [$t, $d] = $this->countTable('tl_meta', true, $langCode);
+        [$t, $d] = $this->countTable('meta', true, $langCode);
         $total  += $t;
         $done   += $d;
 

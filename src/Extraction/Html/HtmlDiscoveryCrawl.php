@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Extraction\Html;
+namespace LingoWP\Extraction\Html;
 
 /**
  * Background sweep of every known public URL (posts/pages, term archives,
@@ -15,7 +15,7 @@ namespace TransLangs\Extraction\Html;
  * share one "is the scan finished?" status with a fast DB-only one.
  *
  * Each fetched URL carries CrawlRequestMarker's token, which the crawler-only
- * data-tl-skip filters registered below check for — see CrawlSkipHooks for
+ * data-lingowp-skip filters registered below check for — see CrawlSkipHooks for
  * which hooks are skipped and why. Gated on the crawl marker so this never
  * touches marking-mode or real visitor output. Terms are deliberately not
  * included: get_term()/get_terms() return WP_Term objects, not rendered
@@ -24,9 +24,9 @@ namespace TransLangs\Extraction\Html;
  */
 final class HtmlDiscoveryCrawl
 {
-    public const HOOK        = 'translangs_html_crawl_batch';
-    public const GROUP       = 'translangs';
-    public const OPTION_FLAG = 'translangs_needs_html_crawl';
+    public const HOOK        = 'lingowp_html_crawl_batch';
+    public const GROUP       = 'lingowp';
+    public const OPTION_FLAG = 'lingowp_needs_html_crawl';
 
     /** Staleness grace period: see WpDbSourceRepository::flagStaleHtmlSources(). */
     private const STALE_GRACE_DAYS = 30;
@@ -298,7 +298,7 @@ final class HtmlDiscoveryCrawl
             return (string) $value;
         }
 
-        return '<span data-tl-skip="1">' . $value . '</span>';
+        return '<span data-lingowp-skip="1">' . $value . '</span>';
     }
 
     /** @param mixed $value */
@@ -310,6 +310,6 @@ final class HtmlDiscoveryCrawl
 
         // A div, not a span: this wraps block-level markup (post_content), and
         // a span wrapping block children is invalid nesting.
-        return '<div data-tl-skip="1">' . $value . '</div>';
+        return '<div data-lingowp-skip="1">' . $value . '</div>';
     }
 }

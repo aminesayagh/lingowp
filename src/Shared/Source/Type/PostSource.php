@@ -1,7 +1,7 @@
 <?php
 
-namespace TransLangs\Shared\Source\Type;
-use TransLangs\Shared\Source\SourceRecord;
+namespace LingoWP\Shared\Source\Type;
+use LingoWP\Shared\Source\SourceRecord;
 
 use InvalidArgumentException;
 
@@ -34,7 +34,7 @@ class PostSource extends SourceRecord
 
     public function table(): string
     {
-        return 'tl_post';
+        return 'post';
     }
 
     public function originalText(): string

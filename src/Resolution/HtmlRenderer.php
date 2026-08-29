@@ -1,11 +1,11 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace LingoWP\Resolution;
 
 use Masterminds\HTML5;
-use TransLangs\Shared\Source\Type\HtmlSource;
-use TransLangs\Shared\Parsing\HtmlUnitExtractor;
-use TransLangs\Shared\Text\TL_Key;
+use LingoWP\Shared\Source\Type\HtmlSource;
+use LingoWP\Shared\Parsing\HtmlUnitExtractor;
+use LingoWP\Shared\Text\TranslationKey;
 
 /**
  * Hardcoded-HTML translation renderer — the frontend REPLACE pass for the html
@@ -17,7 +17,7 @@ use TransLangs\Shared\Text\TL_Key;
  * unit is matched purely by the hash of its text.
  *
  * The same walk doubles as marking-mode DISCOVERY: pass $onUnit and each block's
- * (selector, unit text) is reported so the caller can mint tl_html parents. The
+ * (selector, unit text) is reported so the caller can mint html parents. The
  * selector is what an editor sees in the admin board; it is not part of the
  * translation key. Fail-open: any parse/DOM error leaves the HTML untouched.
  */
@@ -31,7 +31,7 @@ final class HtmlRenderer
      */
     public function render(string $html, array $map, ?callable $onUnit = null, ?callable $onDocument = null): string
     {
-        // $onDocument must be part of this guard: a site with no tl_html/tl_option
+        // $onDocument must be part of this guard: a site with no html/option
         // rows has an empty $map, and skipping the parse would silently skip every
         // document-level pass (SEO <head>) too.
         if (($map === [] && $onUnit === null && $onDocument === null) || !class_exists(HTML5::class)) {
@@ -56,7 +56,7 @@ final class HtmlRenderer
                     }
                 }
 
-                return $map[bin2hex(TL_Key::currentHash($unit))] ?? null;
+                return $map[bin2hex(TranslationKey::currentHash($unit))] ?? null;
             });
 
             // Document-level passes run on the SAME DOM — parsing and serializing

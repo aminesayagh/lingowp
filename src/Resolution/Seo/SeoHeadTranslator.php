@@ -1,11 +1,11 @@
 <?php
 
-namespace TransLangs\Resolution\Seo;
+namespace LingoWP\Resolution\Seo;
 
-use TransLangs\Shared\Parsing\SeoTemplateVariables;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Shared\Source\TranslatableMetaKeys;
-use TransLangs\Shared\Text\TL_Key;
+use LingoWP\Shared\Parsing\SeoTemplateVariables;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Source\TranslatableMetaKeys;
+use LingoWP\Shared\Text\TranslationKey;
 
 /**
  * Translates the SEO <title>, meta description, and Open Graph/Twitter Card
@@ -166,7 +166,7 @@ final class SeoHeadTranslator
             $post   = get_post($postId);
             $source = $post instanceof \WP_Post ? trim((string) $post->post_excerpt) : '';
             if ($source !== '') {
-                $description = $this->translatedHash('tl_post', $source, $lang) ?? $source;
+                $description = $this->translatedHash('post', $source, $lang) ?? $source;
             }
         }
 
@@ -196,7 +196,7 @@ final class SeoHeadTranslator
                 $dom,
                 $head,
                 'og:site_name',
-                $this->translatedHash('tl_option', $siteName, $lang) ?? $siteName
+                $this->translatedHash('option', $siteName, $lang) ?? $siteName
             );
         }
     }
@@ -397,10 +397,10 @@ final class SeoHeadTranslator
         $post = get_post($postId);
 
         $known = [
-            'title'    => [$post instanceof \WP_Post ? (string) $post->post_title : '', 'tl_post'],
-            'excerpt'  => [$post instanceof \WP_Post ? (string) $post->post_excerpt : '', 'tl_post'],
-            'sitename' => [(string) get_option('blogname'), 'tl_option'],
-            'sitedesc' => [(string) get_option('blogdescription'), 'tl_option'],
+            'title'    => [$post instanceof \WP_Post ? (string) $post->post_title : '', 'post'],
+            'excerpt'  => [$post instanceof \WP_Post ? (string) $post->post_excerpt : '', 'post'],
+            'sitename' => [(string) get_option('blogname'), 'option'],
+            'sitedesc' => [(string) get_option('blogdescription'), 'option'],
         ];
 
         if (!isset($known[$name])) {
@@ -436,7 +436,7 @@ final class SeoHeadTranslator
         $siteName = (string) get_option('blogname');
 
         $pairs = [];
-        foreach ([[$postTitle, 'tl_post'], [$siteName, 'tl_option']] as [$source, $table]) {
+        foreach ([[$postTitle, 'post'], [$siteName, 'option']] as [$source, $table]) {
             if (trim($source) === '') {
                 continue;
             }
@@ -546,7 +546,7 @@ final class SeoHeadTranslator
     /** Hash-link translation lookup for post titles and option branding. */
     private function translatedHash(string $tableKey, string $original, string $lang): ?string
     {
-        $hash    = TL_Key::currentHash($original);
+        $hash    = TranslationKey::currentHash($original);
         $fetched = $this->repository->fetchHashTranslations($tableKey, [$hash], $lang);
 
         return $fetched[strtolower(bin2hex($hash))] ?? null;

@@ -23,7 +23,7 @@ export default function App() {
 	const [ state, setState ] = useState( null )
 	// Onboarding is never a separate screen — the Dashboard is always the
 	// landing view. An unfinished onboarding only differs in that the
-	// Dashboard's "Finish setting up Translangs" notification can open this
+	// Dashboard's "Finish setting up LingoWP" notification can open this
 	// modal. Every onboarding field already has a sensible default (see
 	// Configuration.jsx), so the modal is deliberately not dismissible except
 	// via "Continue" — no separate "reopen" affordance is needed since it can
@@ -36,12 +36,12 @@ export default function App() {
 	// Polaris a portal root on <body> instead so overlays anchor to the document
 	// and position exactly against their activator.
 	const [ portalRoot ] = useState( () => {
-		const existing = document.getElementById( 'translangs-portals' )
+		const existing = document.getElementById( 'lingowp-portals' )
 		if ( existing ) {
 			return existing
 		}
 		const el = document.createElement( 'div' )
-		el.id = 'translangs-portals'
+		el.id = 'lingowp-portals'
 		document.body.appendChild( el )
 		return el
 	} )
@@ -59,11 +59,11 @@ export default function App() {
 	// instead of every Polaris Modal in the app.
 	useEffect( () => {
 		document.body.classList.toggle(
-			'translangs-onboarding-modal-open',
+			'lingowp-onboarding-modal-open',
 			onboardingModalOpen
 		)
 		return () => {
-			document.body.classList.remove( 'translangs-onboarding-modal-open' )
+			document.body.classList.remove( 'lingowp-onboarding-modal-open' )
 		}
 	}, [ onboardingModalOpen ] )
 
@@ -90,7 +90,7 @@ export default function App() {
 						<Modal
 							open={ onboardingModalOpen }
 							onClose={ () => {} }
-							title="Finish setting up Translangs"
+							title="Finish setting up LingoWP"
 						>
 							<Modal.Section>
 								{ state && (

@@ -26,14 +26,14 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-const TL_EXPECTED_DB_VERSION = '23';
+const TEST_EXPECTED_DB_VERSION = '23';
 
-$GLOBALS['tl_failed']    = 0;
-$GLOBALS['tl_total']     = 0;
-$GLOBALS['tl_finished']  = false;
+$GLOBALS['test_failed']    = 0;
+$GLOBALS['test_total']     = 0;
+$GLOBALS['test_finished']  = false;
 
 /** Abort unless this is unmistakably a local dev database at the expected schema. */
-function tl_guard(): void
+function test_guard(): void
 {
     $problems = [];
 
@@ -48,9 +48,9 @@ function tl_guard(): void
     // maybeUpgrade() runs DDL when the stored version is lower than DB_VERSION,
     // and DDL implicit-commits. Running mid-upgrade produces uninterpretable
     // results, so refuse rather than guess.
-    $version = (string) get_option('translangs_db_version', '');
-    if ($version !== TL_EXPECTED_DB_VERSION) {
-        $problems[] = "translangs_db_version is '{$version}', expected '" . TL_EXPECTED_DB_VERSION . "'";
+    $version = (string) get_option('lingowp_db_version', '');
+    if ($version !== TEST_EXPECTED_DB_VERSION) {
+        $problems[] = "lingowp_db_version is '{$version}', expected '" . TEST_EXPECTED_DB_VERSION . "'";
     }
 
     if ($problems !== []) {
@@ -60,25 +60,25 @@ function tl_guard(): void
 }
 
 /** Open the transaction and arm the rollback. */
-function tl_begin(): void
+function test_begin(): void
 {
     global $wpdb;
 
     $wpdb->query('SET autocommit = 0');
     $wpdb->query('START TRANSACTION');
 
-    register_shutdown_function('tl_teardown');
+    register_shutdown_function('test_teardown');
 }
 
 /** Roll back, then flush the object cache. Idempotent. */
-function tl_teardown(): void
+function test_teardown(): void
 {
     global $wpdb;
 
-    if (!empty($GLOBALS['tl_torn_down'])) {
+    if (!empty($GLOBALS['test_torn_down'])) {
         return;
     }
-    $GLOBALS['tl_torn_down'] = true;
+    $GLOBALS['test_torn_down'] = true;
 
     $wpdb->query('ROLLBACK');
     $wpdb->query('SET autocommit = 1');
@@ -88,43 +88,43 @@ function tl_teardown(): void
         wp_cache_flush();
     }
 
-    if (empty($GLOBALS['tl_finished'])) {
+    if (empty($GLOBALS['test_finished'])) {
         fwrite(STDERR, "\n!! Script ended early (fatal or exit). Transaction rolled back.\n");
     }
 }
 
-function tl_ok(string $label, bool $cond, string $detail = ''): void
+function test_ok(string $label, bool $cond, string $detail = ''): void
 {
-    $GLOBALS['tl_total']++;
+    $GLOBALS['test_total']++;
     if ($cond) {
         echo "PASS  $label\n";
         return;
     }
-    $GLOBALS['tl_failed']++;
+    $GLOBALS['test_failed']++;
     echo "FAIL  $label\n";
     if ($detail !== '') {
         echo "        $detail\n";
     }
 }
 
-function tl_section(string $name): void
+function test_section(string $name): void
 {
     echo "\n$name\n";
 }
 
 /** Print the summary, tear down, and exit with the right code. */
-function tl_done(): void
+function test_done(): void
 {
-    $failed = (int) $GLOBALS['tl_failed'];
-    $total  = (int) $GLOBALS['tl_total'];
+    $failed = (int) $GLOBALS['test_failed'];
+    $total  = (int) $GLOBALS['test_total'];
 
-    $GLOBALS['tl_finished'] = true;
+    $GLOBALS['test_finished'] = true;
 
     echo $failed === 0
         ? "\nAll $total assertions passed.\n"
         : "\n$failed of $total assertion(s) failed.\n";
 
-    tl_teardown();
+    test_teardown();
 
     if (class_exists('WP_CLI')) {
         WP_CLI::halt($failed === 0 ? 0 : 1);
@@ -133,7 +133,7 @@ function tl_done(): void
 }
 
 /** Raw insert helper — never wp_insert_post(), which would fire discovery hooks. */
-function tl_insert(string $table, array $data): int
+function test_insert(string $table, array $data): int
 {
     global $wpdb;
     $wpdb->insert($table, $data);
@@ -141,7 +141,7 @@ function tl_insert(string $table, array $data): int
 }
 
 /** One scalar from a prepared query. */
-function tl_var(string $sql, ...$args)
+function test_var(string $sql, ...$args)
 {
     global $wpdb;
     return $args === []
@@ -150,7 +150,7 @@ function tl_var(string $sql, ...$args)
 }
 
 /** Row count matching a prepared query. */
-function tl_count(string $sql, ...$args): int
+function test_count(string $sql, ...$args): int
 {
-    return (int) tl_var($sql, ...$args);
+    return (int) test_var($sql, ...$args);
 }

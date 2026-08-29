@@ -1,14 +1,14 @@
 <?php
 
-namespace TransLangs\Extraction\Html;
+namespace LingoWP\Extraction\Html;
 
-use TransLangs\Shared\Source\Type\HtmlSource;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Extraction\OwnedStringIndex;
-use TransLangs\Resolution\HtmlRenderer;
+use LingoWP\Shared\Source\Type\HtmlSource;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Extraction\OwnedStringIndex;
+use LingoWP\Resolution\HtmlRenderer;
 
 /**
- * Shared hardcoded-HTML discovery walk: mints a tl_html parent for each
+ * Shared hardcoded-HTML discovery walk: mints a html parent for each
  * block-level unit no structured source already owns, and refreshes
  * last_seen_at for every candidate hash the walk resolves.
  *
@@ -29,7 +29,7 @@ final class HtmlDiscovery
 
     /**
      * @param string      $html      final rendered page HTML (or fragment) to walk
-     * @param string|null $sourceUrl page URL, stored on newly minted tl_html rows
+     * @param string|null $sourceUrl page URL, stored on newly minted html rows
      */
     public function discover(string $html, ?string $sourceUrl): void
     {
@@ -43,7 +43,7 @@ final class HtmlDiscovery
             return;
         }
 
-        // Collapse candidates sharing an original_hash to one per pass. tl_html
+        // Collapse candidates sharing an original_hash to one per pass. html
         // is keyed on original_hash alone (see HtmlSource's class doc), so this
         // is not needed to prevent a duplicate row — INSERT IGNORE already
         // guarantees that. It avoids handing upsertSources()/
@@ -69,15 +69,15 @@ final class HtmlDiscovery
         }
 
         // Refresh last_seen_at for every candidate hash this pass touched that
-        // has a tl_html row — the inserts above and any pre-existing html-owned
+        // has a html row — the inserts above and any pre-existing html-owned
         // matches alike. Hashes owned by post/meta/term simply match no row in
-        // tl_html (those tables have their own save-time lifecycle and carry no
+        // html (those tables have their own save-time lifecycle and carry no
         // staleness tracking), so this scopes itself correctly with no branch.
         $this->repository->touchHtmlSeen($hashes);
     }
 
     /**
-     * Flag tl_html rows nobody has re-encountered in over $graceDays as stale,
+     * Flag html rows nobody has re-encountered in over $graceDays as stale,
      * for admin review. Called by HtmlDiscoveryCrawl once a full sweep
      * completes — see WpDbSourceRepository::flagStaleHtmlSources().
      */

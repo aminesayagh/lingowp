@@ -1,6 +1,6 @@
 # Third-party notices
 
-TransLangs includes or compiles code and assets from third-party projects. The
+LingoWP includes or compiles code and assets from third-party projects. The
 release archive retains the license files shipped by Composer dependencies in
 `vendor/`. JavaScript dependency metadata and license texts are available from
 the human-readable source repository and its lockfile.
@@ -16,7 +16,7 @@ the human-readable source repository and its lockfile.
 
 - Shopify Polaris, Polaris Icons, and Polaris Tokens — Shopify's Polaris license.
   That license restricts use to interfaces that integrate with or interoperate
-  with Shopify software or services. TransLangs intentionally retains Polaris;
+  with Shopify software or services. LingoWP intentionally retains Polaris;
   marketplace acceptance of this dependency is an acknowledged release risk.
 - TanStack Query and TanStack Virtual — MIT license.
 - Motion — MIT license.

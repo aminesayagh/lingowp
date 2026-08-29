@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Shared\Source;
-use TransLangs\Shared\Source\Type\PostSource;
-use TransLangs\Shared\Source\Type\PostMetaSource;
-use TransLangs\Shared\Text\TL_Key;
-use TransLangs\Shared\Text\IdentityKey;
+namespace LingoWP\Shared\Source;
+use LingoWP\Shared\Source\Type\PostSource;
+use LingoWP\Shared\Source\Type\PostMetaSource;
+use LingoWP\Shared\Text\TranslationKey;
+use LingoWP\Shared\Text\IdentityKey;
 
 /**
  * A discovered source string ready to be written to its parent table.
@@ -22,7 +22,7 @@ use TransLangs\Shared\Text\IdentityKey;
  */
 abstract class SourceRecord
 {
-    /** Parent table key (TranslationMemorySchema::parentTables() index), e.g. 'tl_post'.
+    /** Parent table key (TranslationMemorySchema::parentTables() index), e.g. 'post'.
      * The table is the record's kind — there is no separate numeric type. */
     abstract public function table(): string;
 
@@ -41,7 +41,7 @@ abstract class SourceRecord
     /** original_hash = SHA-256(normalized original text), raw 32 bytes. */
     final public function originalHash(): string
     {
-        return TL_Key::currentHash($this->originalText());
+        return TranslationKey::currentHash($this->originalText());
     }
 
     /**

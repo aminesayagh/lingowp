@@ -31,7 +31,7 @@ const RECEIPT_STATUS = {
 // Survives the full-page round trip to PayPal and back (a real navigation,
 // not a fetch — React state doesn't survive that, sessionStorage does).
 // Self-cleaning: read once on return and removed immediately.
-const PENDING_ACTION_KEY = 'translangs_pending_billing_action'
+const PENDING_ACTION_KEY = 'lingowp_pending_billing_action'
 
 function planLabel( plan ) {
 	return plan.tier.charAt( 0 ).toUpperCase() + plan.tier.slice( 1 )

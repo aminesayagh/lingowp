@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace LingoWP\Resolution;
 
 /**
  * Deferred, memoized "should this resolver act on this request?" verdict,

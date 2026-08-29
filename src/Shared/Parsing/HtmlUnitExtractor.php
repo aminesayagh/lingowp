@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Parsing;
+namespace LingoWP\Shared\Parsing;
 
 use Masterminds\HTML5;
 
@@ -166,7 +166,7 @@ final class HtmlUnitExtractor
         if (isset(self::PRUNE_TAGS[$tag])) {
             return true;
         }
-        if ($element->hasAttribute('data-tl-skip') || $element->hasAttribute('data-tl-region')) {
+        if ($element->hasAttribute('data-lingowp-skip') || $element->hasAttribute('data-lingowp-region')) {
             return true;
         }
         if (strtolower(trim($element->getAttribute('translate'))) === 'no') {

@@ -13,12 +13,12 @@
  * Re-runnable — it deletes and recreates its own fixture post.
  */
 
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Database\Repository\WpDbBoardQueries;
-use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Database\Repository\WpDbBoardQueries;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 
 if (!defined('ABSPATH')) {
     fwrite(STDERR, "Run through: wp eval-file bin/finding-a-seed.php\n");
@@ -38,7 +38,7 @@ $targets  = $registry->getTargetLanguages();
 if ($targets === []) {
     fwrite(STDERR,
         "No target language is enabled.\n" .
-        "Enable one in the TransLangs settings screen first, then re-run.\n");
+        "Enable one in the LingoWP settings screen first, then re-run.\n");
     exit(1);
 }
 
@@ -50,9 +50,9 @@ echo "target language: {$lang}\n\n";
 
 // ── Fixture ─────────────────────────────────────────────────────────────────
 
-const TL_FIXTURE_SLUG = 'tltest-finding-a';
+const TEST_FIXTURE_SLUG = 'lingowp-test-finding-a';
 
-$existing = get_page_by_path(TL_FIXTURE_SLUG, OBJECT, 'post');
+$existing = get_page_by_path(TEST_FIXTURE_SLUG, OBJECT, 'post');
 if ($existing) {
     wp_delete_post($existing->ID, true);
     echo "removed previous fixture post\n";
@@ -66,8 +66,8 @@ $content =
 // wp_insert_post fires wp_after_insert_post, so discovery runs for real here —
 // the same path a human editing in wp-admin takes.
 $postId = wp_insert_post([
-    'post_title'   => 'TLTEST Finding A',
-    'post_name'    => TL_FIXTURE_SLUG,
+    'post_title'   => 'LINGOWP_TEST Finding A',
+    'post_name'    => TEST_FIXTURE_SLUG,
     'post_content' => $content,
     'post_status'  => 'publish',
     'post_type'    => 'post',
@@ -82,7 +82,7 @@ echo "created post {$postId}\n";
 
 // ── Verify discovery split it into three units ──────────────────────────────
 
-$parent = TranslationMemorySchema::parentTables()['tl_post'];
+$parent = TranslationMemorySchema::parentTables()['post'];
 
 $rows = $wpdb->get_results($wpdb->prepare(
     "SELECT id, original_text FROM {$parent}
@@ -125,7 +125,7 @@ $titleRow = $wpdb->get_var($wpdb->prepare(
     TranslationStatus::SOURCE_DISCOVERED
 ));
 if ($titleRow) {
-    $repo->saveTranslation(SourceRef::make('post', (int) $titleRow), $lang, "[{$lang}] Titre TLTEST", TranslationStatus::REVIEWED, null);
+    $repo->saveTranslation(SourceRef::make('post', (int) $titleRow), $lang, "[{$lang}] Titre LINGOWP_TEST", TranslationStatus::REVIEWED, null);
 }
 
 // ── What to do next ─────────────────────────────────────────────────────────

@@ -236,7 +236,7 @@ export default function BillingToken() {
 					Site token
 				</Text>
 				<Text as="span" tone="subdued">
-					Connects this site to Translangs.
+					Connects this site to LingoWP.
 				</Text>
 				{ fetchError && (
 					<Banner
@@ -353,7 +353,7 @@ export default function BillingToken() {
 								</InlineStack>
 								<Text as="span" tone="subdued" variant="bodySm">
 									Use a key with a spend limit set at your
-									provider. Translangs can&apos;t cap your
+									provider. LingoWP can&apos;t cap your
 									spending.
 								</Text>
 								{ activeEntry && (

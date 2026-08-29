@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace LingoWP\Resolution;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Resolution\RequestContext;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Resolution\RequestContext;
 
 /**
  * Gettext resolution: WordPress-native, file-based.

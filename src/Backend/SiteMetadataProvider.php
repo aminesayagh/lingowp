@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
-use TransLangs\Language\Domain\LanguageRegistry;
+use LingoWP\Language\Domain\LanguageRegistry;
 
 /**
  * Builds the site payload sent to POST /license/connect at call time.
@@ -15,14 +15,14 @@ use TransLangs\Language\Domain\LanguageRegistry;
  * the key back. There is no update endpoint post-issue in this version, so
  * there is nothing to build for a later sync.
  *
- * translangs_categories is unrelated to the site-connect payload — it is a
+ * lingowp_categories is unrelated to the site-connect payload — it is a
  * local-only selection read by the /translate flow (AiTranslationRunner,
  * GettextDomainRestController) for style context, kept here purely as
  * storage.
  */
 final class SiteMetadataProvider
 {
-    public const OPTION_CATEGORIES = 'translangs_categories';
+    public const OPTION_CATEGORIES = 'lingowp_categories';
 
     public function __construct(
         private LanguageRegistry $languages,

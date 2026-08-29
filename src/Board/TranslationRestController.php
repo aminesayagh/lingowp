@@ -1,20 +1,20 @@
 <?php
 
-namespace TransLangs\Board;
+namespace LingoWP\Board;
 
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
-use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
 
 final class TranslationRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     public function __construct(
         private WpDbSourceRepository $repo,

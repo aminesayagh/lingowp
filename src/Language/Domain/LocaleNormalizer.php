@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Language\Domain;
+namespace LingoWP\Language\Domain;
 
 /**
  * Canonicalizes WordPress locale identifiers without discarding region.

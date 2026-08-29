@@ -1,14 +1,14 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace LingoWP\Extraction;
 
-use TransLangs\Extraction\Html\HtmlDiscoveryCrawl;
-use TransLangs\Extraction\Structured\InitialDiscoveryScan;
-use TransLangs\Extraction\Structured\SeoDiscoveryRescan;
+use LingoWP\Extraction\Html\HtmlDiscoveryCrawl;
+use LingoWP\Extraction\Structured\InitialDiscoveryScan;
+use LingoWP\Extraction\Structured\SeoDiscoveryRescan;
 use WP_REST_Response;
 
 /**
- * Initial-scan status + manual refresh endpoints (namespace translangs/v1).
+ * Initial-scan status + manual refresh endpoints (namespace lingowp/v1).
  *
  * GET /scan/status reports running|completed|failed for the setup screen —
  * never text/term/dependency counts (arch: those are not actionable during
@@ -20,7 +20,7 @@ use WP_REST_Response;
 
 final class ScanRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     public function __construct(
         private InitialDiscoveryScan $scan,
@@ -100,7 +100,7 @@ final class ScanRestController
 
     /**
      * Rescan SEO meta only — for data that arrived without firing a save hook
-     * (direct-SQL importers, or SEO fields that predate Translangs).
+     * (direct-SQL importers, or SEO fields that predate LingoWP).
      *
      * Separate from /scan/refresh on purpose: this is proportional to the SEO data
      * present rather than to the whole site, and it must stay available even when

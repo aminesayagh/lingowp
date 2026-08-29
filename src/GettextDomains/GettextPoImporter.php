@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
 /**
  * Compiles an uploaded `.po` file into the standard WordPress `.mo` path for

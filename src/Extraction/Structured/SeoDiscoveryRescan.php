@@ -1,8 +1,8 @@
 <?php
 
-namespace TransLangs\Extraction\Structured;
+namespace LingoWP\Extraction\Structured;
 
-use TransLangs\Shared\Source\TranslatableMetaKeys;
+use LingoWP\Shared\Source\TranslatableMetaKeys;
 
 /**
  * Re-discovers SEO meta that arrived without firing a save hook
@@ -11,7 +11,7 @@ use TransLangs\Shared\Source\TranslatableMetaKeys;
  * The normal editing loop needs nothing: added/updated/deleted_post_meta already
  * reconcile any key written through update_post_meta(). What they miss is meta
  * written by direct SQL — importers and migration tools — and SEO data that
- * predates Translangs being installed.
+ * predates LingoWP being installed.
  *
  * Deliberately NOT folded into InitialDiscoveryScan: that owns a posts -> terms
  * -> options workflow and a single activation flag, and overloading its status
@@ -22,8 +22,8 @@ use TransLangs\Shared\Source\TranslatableMetaKeys;
  */
 final class SeoDiscoveryRescan
 {
-    public const HOOK  = 'translangs_seo_rescan_batch';
-    public const GROUP = 'translangs';
+    public const HOOK  = 'lingowp_seo_rescan_batch';
+    public const GROUP = 'lingowp';
 
     /** Mirrors InitialDiscoveryScan::BATCH — same keyset-pagination shape. */
     private const BATCH = 200;
@@ -173,7 +173,7 @@ final class SeoDiscoveryRescan
      * list. A rescan of every allow-listed key would sweep WooCommerce and site
      * custom fields for no reason; intersecting (rather than using SEO_KEYS
      * directly) also respects a site removing one of these via the
-     * `translangs_translatable_meta_keys` filter.
+     * `lingowp_translatable_meta_keys` filter.
      *
      * @return string[]
      */

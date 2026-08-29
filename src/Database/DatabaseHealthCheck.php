@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Database;
+namespace LingoWP\Database;
 
 /**
  * Computes the current schema integrity state: storage engines, foreign

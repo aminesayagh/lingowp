@@ -1,8 +1,8 @@
-// Tiny REST client for the translangs/v1 API. The REST root and nonce are handed
-// in by wp_localize_script (OnboardingPageController) as window.Translangs. The
+// Tiny REST client for the lingowp/v1 API. The REST root and nonce are handed
+// in by wp_localize_script (OnboardingPageController) as window.LingoWP. The
 // api_token is never exposed here — it stays server-side.
 
-const cfg = window.Translangs || { rest: '', nonce: '' }
+const cfg = window.LingoWP || { rest: '', nonce: '' }
 
 async function request( method, path, body, { signal } = {} ) {
 	try {

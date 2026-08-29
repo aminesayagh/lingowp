@@ -1,16 +1,16 @@
 <?php
 
-namespace TransLangs\Resolution;
-use TransLangs\Resolution\PageOwnedHashes;
-use TransLangs\Resolution\RequestContext;
+namespace LingoWP\Resolution;
+use LingoWP\Resolution\PageOwnedHashes;
+use LingoWP\Resolution\RequestContext;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Shared\Text\IdentityKey;
-use TransLangs\Shared\Parsing\HtmlUnitExtractor;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Shared\Text\TL_Key;
-use TransLangs\Shared\Source\TranslatableMetaKeys;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Shared\Text\IdentityKey;
+use LingoWP\Shared\Parsing\HtmlUnitExtractor;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Text\TranslationKey;
+use LingoWP\Shared\Source\TranslatableMetaKeys;
 
 /**
  * Structured render resolution (post, term, meta).
@@ -106,17 +106,17 @@ final class StructuredRenderResolver
             if (!$post instanceof \WP_Post) {
                 continue;
             }
-            $postHashes[] = TL_Key::currentHash((string) $post->post_title);
-            $postHashes[] = TL_Key::currentHash((string) $post->post_excerpt);
+            $postHashes[] = TranslationKey::currentHash((string) $post->post_title);
+            $postHashes[] = TranslationKey::currentHash((string) $post->post_excerpt);
             foreach ($this->unitExtractor->units((string) $post->post_content) as $unit) {
-                $postHashes[] = TL_Key::currentHash($unit);
+                $postHashes[] = TranslationKey::currentHash($unit);
             }
             foreach ($this->metaKeys() as $metaKey) {
                 $metaLookups[] = $this->metaLookup($post->ID, $metaKey);
             }
         }
 
-        $this->ensureHashLoaded('tl_post', $postHashes);
+        $this->ensureHashLoaded('post', $postHashes);
         $this->ensureMetaLoaded($metaLookups);
 
         return $posts;
@@ -134,7 +134,7 @@ final class StructuredRenderResolver
             return $title;
         }
 
-        return $this->hashValue('tl_post', (string) $title);
+        return $this->hashValue('post', (string) $title);
     }
 
     /**
@@ -154,13 +154,13 @@ final class StructuredRenderResolver
 
         $hashes = [];
         foreach ($this->unitExtractor->units($content) as $unit) {
-            $hashes[] = TL_Key::currentHash($unit);
+            $hashes[] = TranslationKey::currentHash($unit);
         }
-        $this->ensureHashLoaded('tl_post', $hashes);
+        $this->ensureHashLoaded('post', $hashes);
 
         return $this->unitExtractor->render(
             $content,
-            fn(string $unit): ?string => $this->hashMap[$this->hashKey('tl_post', TL_Key::currentHash($unit))] ?? null
+            fn(string $unit): ?string => $this->hashMap[$this->hashKey('post', TranslationKey::currentHash($unit))] ?? null
         );
     }
 
@@ -176,7 +176,7 @@ final class StructuredRenderResolver
             return $excerpt;
         }
 
-        return $this->hashValue('tl_post', (string) $excerpt);
+        return $this->hashValue('post', (string) $excerpt);
     }
 
     // ── scalar post meta (parent_id) ──────────────────────────────────────────
@@ -258,7 +258,7 @@ final class StructuredRenderResolver
     /** Hash-link lookup: hash the original text, read the map, fall back to original. */
     private function hashValue(string $tableKey, string $original): string
     {
-        $hash = TL_Key::currentHash($original);
+        $hash = TranslationKey::currentHash($original);
         $this->ensureHashLoaded($tableKey, [$hash]);
 
         return $this->hashMap[$this->hashKey($tableKey, $hash)] ?? $original;
@@ -278,14 +278,14 @@ final class StructuredRenderResolver
 
         $hashes = [];
         foreach ($objects as $term) {
-            $hashes[] = TL_Key::currentHash((string) $term->name);
-            $hashes[] = TL_Key::currentHash((string) $term->description);
+            $hashes[] = TranslationKey::currentHash((string) $term->name);
+            $hashes[] = TranslationKey::currentHash((string) $term->description);
         }
-        $this->ensureHashLoaded('tl_term', $hashes);
+        $this->ensureHashLoaded('term', $hashes);
 
         foreach ($objects as $term) {
-            $nameKey = $this->hashKey('tl_term', TL_Key::currentHash((string) $term->name));
-            $descKey = $this->hashKey('tl_term', TL_Key::currentHash((string) $term->description));
+            $nameKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->name));
+            $descKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->description));
             if (isset($this->hashMap[$nameKey])) {
                 $term->name = $this->hashMap[$nameKey];
             }
@@ -360,7 +360,7 @@ final class StructuredRenderResolver
             if ($remaining === []) {
                 break;
             }
-            $fetched = $this->repository->fetchParentTranslations('tl_meta', array_values($remaining), $lang);
+            $fetched = $this->repository->fetchParentTranslations('meta', array_values($remaining), $lang);
             foreach ($remaining as $key => $lookup) {
                 if (isset($fetched[$key])) {
                     $this->metaMap[$key] = $fetched[$key];

@@ -9,7 +9,7 @@
 
 require __DIR__ . '/../src/Shared/Parsing/UnitStructureGuard.php';
 
-use TransLangs\Shared\Parsing\UnitStructureGuard;
+use LingoWP\Shared\Parsing\UnitStructureGuard;
 
 $cases = [
     // [label, source, submission, expected errors (sorted)]

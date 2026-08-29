@@ -87,7 +87,7 @@ export function AnimatedMenu( { open, onClose, activator, children } ) {
 						</motion.div>
 					) }
 				</AnimatePresence>,
-				document.getElementById( 'translangs-portals' ) || document.body
+				document.getElementById( 'lingowp-portals' ) || document.body
 			) }
 		</>
 	)
@@ -126,7 +126,7 @@ export function LanguageRow( {
 		// passes onSwitchToInternal in that case, so this just checks the value.
 		onSwitchToInternal &&
 			( lang.ai_model === 'openai' || lang.ai_model === 'anthropic' ) && {
-				content: 'Switch to Translangs model',
+				content: 'Switch to LingoWP model',
 				onAction: () => {
 					setMenuOpen( false )
 					onSwitchToInternal()

@@ -1,26 +1,26 @@
 <?php
 
-namespace TransLangs\Database\Repository;
+namespace LingoWP\Database\Repository;
 
-use TransLangs\Shared\Source\Type\HtmlSource;
-use TransLangs\Shared\Text\IdentityKey;
-use TransLangs\Shared\Source\SourceRecord;
-use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Shared\Text\TL_Key;
-use TransLangs\Shared\Text\TranslatableText;
-use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Database\TranslationMemorySchema;
+use LingoWP\Shared\Source\Type\HtmlSource;
+use LingoWP\Shared\Text\IdentityKey;
+use LingoWP\Shared\Source\SourceRecord;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Text\TranslationKey;
+use LingoWP\Shared\Text\TranslatableText;
+use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Database\TranslationMemorySchema;
 
 /**
  * $wpdb persistence for the per-type content tables — the sole implementation
  * of the translation persistence contract (writes, render reads, board reads,
  * discovery reconciliation), backed by TWO child-key models:
  *
- *   hash-link (tl_post/tl_term/tl_html/tl_option): child keyed
+ *   hash-link (post/term/html/option): child keyed
  *     (original_hash, lang_code); a translation is shared by every parent
  *     position with the same text. Render reads it by hash (no parent join);
  *     ignore/delete are text-global.
- *   parent_id (tl_meta): child keyed (parent_id, lang_code); the position
+ *   parent_id (meta): child keyed (parent_id, lang_code); the position
  *     owns its translation. Render reads it by joining the parent.
  *
  * Binary identity columns (every *_hash) travel as hex via UNHEX(%s). Parent
@@ -56,7 +56,7 @@ final class WpDbSourceRepository
         $inserted = 0;
         foreach ($this->groupByTable($records) as $tableKey => $group) {
             $inserted += $this->insertParents($tableKey, $group);
-            if ($tableKey === 'tl_html') {
+            if ($tableKey === 'html') {
                 $this->refreshHtmlSourceUrls($group);
             }
         }
@@ -135,7 +135,7 @@ final class WpDbSourceRepository
             return;
         }
 
-        $table = $this->parent('tl_html');
+        $table = $this->parent('html');
         foreach (array_chunk($records, self::INSERT_CHUNK) as $chunk) {
             $selects = [];
             $args    = [];
@@ -166,7 +166,7 @@ final class WpDbSourceRepository
      * for a set of original hashes in one language, from that type's child table.
      * Keyed by lowercase hex(original_hash) => translated_text.
      *
-     * @param string   $parentTableKey TranslationMemorySchema key, e.g. 'tl_post'
+     * @param string   $parentTableKey TranslationMemorySchema key, e.g. 'post'
      * @param string[] $hashes         raw 32-byte original hashes
      * @return array<string, string>
      */
@@ -232,7 +232,7 @@ final class WpDbSourceRepository
      * (parent.status = 0) to its child for $langCode. Keyed by
      * IdentityKey::of(lookup) => translated_text.
      *
-     * @param string                           $parentTableKey e.g. 'tl_meta'
+     * @param string                           $parentTableKey e.g. 'meta'
      * @param array<int, array<string,scalar>> $lookups        list of identity-column maps
      * @return array<string, string>
      */
@@ -260,7 +260,7 @@ final class WpDbSourceRepository
             }
             $tupleList = '(' . implode(', ', $columns) . ') IN (' . implode(', ', $tuples) . ')';
 
-            $sql = "SELECT {$select}, tr.translated_text AS tl_text
+            $sql = "SELECT {$select}, tr.translated_text AS test_text
                     FROM {$parent} p
                     INNER JOIN {$child} tr ON tr.parent_id = p.id AND tr.lang_code = %s
                     WHERE p.status = 0 AND {$tupleList}";
@@ -268,7 +268,7 @@ final class WpDbSourceRepository
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
             $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
             foreach ((array) $rows as $row) {
-                $out[$this->rowIdentityKey($columns, $row)] = (string) $row['tl_text'];
+                $out[$this->rowIdentityKey($columns, $row)] = (string) $row['test_text'];
             }
         }
 
@@ -277,7 +277,7 @@ final class WpDbSourceRepository
 
     /**
      * Fallback-chain lookup for parent_id types (meta): unlike hash-link
-     * children, tl_meta_translation has no original_hash column (meta
+     * children, meta_translation has no original_hash column (meta
      * translations are never hash-shared), so a fallback probe needs the
      * parent row ids directly rather than a hash set.
      *
@@ -290,7 +290,7 @@ final class WpDbSourceRepository
             return [];
         }
 
-        $child = $this->parent('tl_meta') . '_translation';
+        $child = $this->parent('meta') . '_translation';
         $out   = [];
 
         foreach (array_chunk(array_values($parentIds), self::SELECT_CHUNK) as $chunk) {
@@ -330,7 +330,7 @@ final class WpDbSourceRepository
 
     /**
      * Post-content collections for one language: one row per WP post that has
-     * discovered tl_post sources, with per-status counts. Joined to wp_posts for
+     * discovered post sources, with per-status counts. Joined to wp_posts for
      * post_type + title — also load-bearing for search: a term matching the post's
      * own title/slug widens the match to the whole post, not just post_type/title
      * display. For the workspace group list (Pages/Posts/CPT).
@@ -344,7 +344,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_post text units of one WP post for one language, each with
+     * The discovered post text units of one WP post for one language, each with
      * its translation (or null when untranslated). For expanding a content group.
      *
      * @return array<int, array{id:int, field:string, original_text:string,
@@ -356,7 +356,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The single Site-settings collection (all discovered tl_option sources) with
+     * The single Site-settings collection (all discovered option sources) with
      * per-status counts for one language.
      *
      * @return array{total:int, translated:int, needs_review:int, missing:int}
@@ -367,7 +367,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_option text units for one language, each with its
+     * The discovered option text units for one language, each with its
      * translation (or null). For expanding the Site-settings group.
      *
      * @return array<int, array{id:int, option_name:string, original_text:string,
@@ -391,7 +391,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_term text units of one term for one language.
+     * The discovered term text units of one term for one language.
      *
      * Takes no `$search`: the board expands taxonomies whole via listTaxonomyTexts,
      * and this one exists only to feed AI translation of a single term.
@@ -405,7 +405,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_term text units of every term in one taxonomy for one
+     * The discovered term text units of every term in one taxonomy for one
      * language, ordered by term name then field.
      *
      * @return array<int, array{id:int, field:string, original_text:string,
@@ -418,7 +418,7 @@ final class WpDbSourceRepository
 
     /**
      * Post-meta per-status counts grouped by WP post (joined to wp_posts) for one
-     * language. Merged into each post's content collection alongside tl_post — the
+     * language. Merged into each post's content collection alongside post — the
      * wp_posts join is also load-bearing for search, same as listPostCollections().
      *
      * @return array<int, array{post_id:int, post_type:string, post_title:string,
@@ -430,7 +430,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_meta text units of one post for one language.
+     * The discovered meta text units of one post for one language.
      *
      * @return array<int, array{id:int, meta_key:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
@@ -441,7 +441,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_post text units (title, and post_content's
+     * The discovered post text units (title, and post_content's
      * paragraph-level units) of every image attachment for one language,
      * across ALL matching posts at once — unlike listPostTexts(), which is
      * scoped to one post. Each row carries post_id, since the Media
@@ -457,7 +457,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_meta ALT text of every image attachment for one
+     * The discovered meta ALT text of every image attachment for one
      * language, across ALL matching posts at once — the meta counterpart of
      * listMediaPostTexts().
      *
@@ -470,8 +470,8 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The single Template-content collection (all discovered tl_html block units)
-     * with per-status counts for one language. tl_html has no post link, so every
+     * The single Template-content collection (all discovered html block units)
+     * with per-status counts for one language. html has no post link, so every
      * marked block shares one bucket.
      *
      * @return array{total:int, translated:int, needs_review:int, missing:int}
@@ -482,7 +482,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * The discovered tl_html text units for one language (field = selector).
+     * The discovered html text units for one language (field = selector).
      *
      * @return array<int, array{id:int, field:string, original_text:string,
      *   translated_text:?string, status:?int, provider:?string}>
@@ -493,7 +493,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * tl_html rows flagged SOURCE_STALE (see flagStaleHtmlSources()) — nobody has
+     * html rows flagged SOURCE_STALE (see flagStaleHtmlSources()) — nobody has
      * re-encountered them via marking mode or the background crawl in the grace
      * window. Same shape as listHtmlTexts(), for the admin review-before-delete
      * surface.
@@ -519,8 +519,8 @@ final class WpDbSourceRepository
 
     /**
      * Refresh last_seen_at for every hash a discovery pass resolved that has a
-     * tl_html row (see HtmlDiscovery::discover()) — both freshly inserted rows
-     * and ones already owned by tl_html. A hash belonging to another parent
+     * html row (see HtmlDiscovery::discover()) — both freshly inserted rows
+     * and ones already owned by html. A hash belonging to another parent
      * table simply matches no row here, so this is safe to call with a walk's
      * full candidate set without first working out which table owns what.
      *
@@ -532,7 +532,7 @@ final class WpDbSourceRepository
             return;
         }
 
-        $parent       = $this->parent('tl_html');
+        $parent       = $this->parent('html');
         $hexes        = array_map('bin2hex', array_values(array_unique($rawHashes)));
         $placeholders = implode(', ', array_fill(0, count($hexes), 'UNHEX(%s)'));
 
@@ -543,7 +543,7 @@ final class WpDbSourceRepository
     }
 
     /**
-     * Flag tl_html rows nobody has re-encountered (marking mode or the crawl)
+     * Flag html rows nobody has re-encountered (marking mode or the crawl)
      * in over $graceDays as stale, for admin review — never an automatic
      * delete, since a bounded crawl scope or a single fetch failure can make a
      * still-valid row look absent without it actually being gone.
@@ -552,7 +552,7 @@ final class WpDbSourceRepository
      */
     public function flagStaleHtmlSources(int $graceDays): int
     {
-        $parent = $this->parent('tl_html');
+        $parent = $this->parent('html');
 
         $sql = "UPDATE {$parent}
                     SET status = %d
@@ -572,9 +572,9 @@ final class WpDbSourceRepository
     }
 
     /**
-     * Hard-delete confirmed-stale tl_html rows. Only ever acts on rows already
+     * Hard-delete confirmed-stale html rows. Only ever acts on rows already
      * flagged SOURCE_STALE, never anything else. No child-translation cleanup
-     * needed: tl_html_translation has no FK to its parent (hash-link, shared by
+     * needed: html_translation has no FK to its parent (hash-link, shared by
      * many parent rows) — OrphanTranslationSweep already reaps translation rows
      * whose hash no longer exists in any parent table, on its own daily sweep.
      *
@@ -586,7 +586,7 @@ final class WpDbSourceRepository
             return 0;
         }
 
-        $parent       = $this->parent('tl_html');
+        $parent       = $this->parent('html');
         $placeholders = implode(', ', array_fill(0, count($ids), '%d'));
 
         $sql = "DELETE FROM {$parent} WHERE status = %d AND id IN ({$placeholders})";
@@ -634,7 +634,7 @@ final class WpDbSourceRepository
         $parent = $this->parent($ref->parentTableKey());
         $isMeta = $ref->kind === 'meta';
         $isPost = $ref->kind === 'post';
-        // 'field'/'post_id' are only needed (and only exist as columns) on tl_post —
+        // 'field'/'post_id' are only needed (and only exist as columns) on post —
         // used to tell a post_content paragraph apart from post_title/post_excerpt.
         $selected = $isMeta ? 'original_text, meta_key' : ($isPost ? 'original_text, field, post_id' : 'original_text');
 
@@ -686,7 +686,7 @@ final class WpDbSourceRepository
             return [];
         }
 
-        $parent = $this->parent('tl_meta');
+        $parent = $this->parent('meta');
         $child  = $parent . '_translation';
         $keySet = implode(', ', array_fill(0, count($metaKeys), '%s'));
 
@@ -733,8 +733,8 @@ final class WpDbSourceRepository
      */
     public function hasAnyTranslation(int $postId, string $langCode): bool
     {
-        return $this->existsTranslatedChild('tl_post', false, $postId, $langCode)
-            || $this->existsTranslatedChild('tl_meta', true, $postId, $langCode);
+        return $this->existsTranslatedChild('post', false, $postId, $langCode)
+            || $this->existsTranslatedChild('meta', true, $postId, $langCode);
     }
 
     /** Cheap EXISTS check: does $postId have at least one translated child row in $langCode for this table? */
@@ -948,7 +948,7 @@ final class WpDbSourceRepository
             $count += max(0, (int) $result);
         }
 
-        $metaChild = $this->parent('tl_meta') . '_translation';
+        $metaChild = $this->parent('meta') . '_translation';
         $sql       = "INSERT IGNORE INTO {$metaChild}
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
                 SELECT parent_id, %s, translated_text, %d, provider, %s, %s
@@ -993,7 +993,7 @@ final class WpDbSourceRepository
             }
         }
 
-        $metaChild = $this->parent('tl_meta') . '_translation';
+        $metaChild = $this->parent('meta') . '_translation';
         $sql       = "SELECT 1 FROM {$metaChild} t1
                 LEFT JOIN {$metaChild} t2 ON t2.parent_id = t1.parent_id AND t2.lang_code = %s
                 WHERE t1.lang_code = %s AND t2.id IS NULL
@@ -1004,15 +1004,15 @@ final class WpDbSourceRepository
     }
 
     /**
-     * Drop the per-language map PublicRenderPipeline caches under 'tl:html:{lang}'
-     * (now covering both tl_html and tl_option), so an edited template or option
+     * Drop the per-language map PublicRenderPipeline caches under 'lingowp:html:{lang}'
+     * (now covering both html and option), so an edited template or option
      * translation shows on the next render instead of waiting out the 300s TTL.
      * No-op for other kinds.
      */
     private function flushHtmlCache(SourceRef $ref, string $langCode): void
     {
         if (($ref->kind === 'html' || $ref->kind === 'option') && $langCode !== '' && function_exists('wp_cache_delete')) {
-            wp_cache_delete('tl:html:' . $langCode, 'translangs');
+            wp_cache_delete('lingowp:html:' . $langCode, 'lingowp');
         }
     }
 
@@ -1119,8 +1119,8 @@ final class WpDbSourceRepository
     public function reconcilePost(int $postId, array $records): void
     {
         $byTable = $this->groupByTable($records);
-        $this->reconcileScope('tl_post', 'post_id = %d', [$postId], $byTable['tl_post'] ?? []);
-        $this->reconcileScope('tl_meta', 'post_id = %d', [$postId], $byTable['tl_meta'] ?? []);
+        $this->reconcileScope('post', 'post_id = %d', [$postId], $byTable['post'] ?? []);
+        $this->reconcileScope('meta', 'post_id = %d', [$postId], $byTable['meta'] ?? []);
     }
 
     /**
@@ -1131,7 +1131,7 @@ final class WpDbSourceRepository
     public function reconcilePostMetaKey(int $postId, string $metaKey, array $records): void
     {
         $this->reconcileScope(
-            'tl_meta',
+            'meta',
             'post_id = %d AND meta_key_hash = UNHEX(%s)',
             [$postId, bin2hex(hash('sha256', $metaKey, true))],
             $records
@@ -1145,7 +1145,7 @@ final class WpDbSourceRepository
      */
     public function reconcileTerm(int $termTaxonomyId, array $records): void
     {
-        $this->reconcileScope('tl_term', 'term_taxonomy_id = %d', [$termTaxonomyId], $records);
+        $this->reconcileScope('term', 'term_taxonomy_id = %d', [$termTaxonomyId], $records);
     }
 
     /**
@@ -1157,7 +1157,7 @@ final class WpDbSourceRepository
      */
     public function reconcileOption(int $optionId, array $records): void
     {
-        $this->reconcileScope('tl_option', 'option_id = %d', [$optionId], $records);
+        $this->reconcileScope('option', 'option_id = %d', [$optionId], $records);
     }
 
     /**

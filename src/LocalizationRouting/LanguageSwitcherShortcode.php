@@ -1,12 +1,12 @@
 <?php
 
-namespace TransLangs\LocalizationRouting;
+namespace LingoWP\LocalizationRouting;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Infrastructure\SupportedLanguages;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Infrastructure\SupportedLanguages;
 
 /**
- * Renders the language switcher and registers the [tls_language_switcher]
+ * Renders the language switcher and registers the [lingowp_language_switcher]
  * shortcode.
  *
  * For each enabled language it builds the URL of the CURRENT page in that
@@ -21,7 +21,7 @@ use TransLangs\Language\Infrastructure\SupportedLanguages;
  */
 class LanguageSwitcherShortcode
 {
-    public const SHORTCODE = 'tls_language_switcher';
+    public const SHORTCODE = 'lingowp_language_switcher';
 
     public function __construct(
         private ResolveRequestLanguage $resolver,
@@ -85,8 +85,8 @@ class LanguageSwitcherShortcode
             $htmlLang = str_replace('_', '-', $lang);
 
             $items .= sprintf(
-                '<li class="tls-language-switcher__item%1$s">'
-                . '<a href="%2$s" hreflang="%3$s" lang="%3$s" data-tls-lang="%4$s"%5$s>%6$s</a>'
+                '<li class="lingowp-language-switcher__item%1$s">'
+                . '<a href="%2$s" hreflang="%3$s" lang="%3$s" data-lingowp-lang="%4$s"%5$s>%6$s</a>'
                 . '</li>',
                 $isActive ? ' is-active' : '',
                 esc_url($url),
@@ -97,7 +97,7 @@ class LanguageSwitcherShortcode
             );
         }
 
-        return '<ul class="tls-language-switcher">' . $items . '</ul>';
+        return '<ul class="lingowp-language-switcher">' . $items . '</ul>';
     }
 
     /**
@@ -107,26 +107,26 @@ class LanguageSwitcherShortcode
      */
     public function enqueue(): void
     {
-        if (file_exists(TRANSLANGS_DIR . 'assets/public/switcher.css')) {
+        if (file_exists(LINGOWP_DIR . 'assets/public/switcher.css')) {
             wp_enqueue_style(
-                'tls-switcher',
-                TRANSLANGS_URL . 'assets/public/switcher.css',
+                'lingowp-switcher',
+                LINGOWP_URL . 'assets/public/switcher.css',
                 [],
-                TRANSLANGS_VERSION
+                LINGOWP_VERSION
             );
         }
 
         // Register a no-src handle so we can attach inline JS to it.
-        wp_register_script('tls-switcher', false, [], TRANSLANGS_VERSION, true);
-        wp_enqueue_script('tls-switcher');
+        wp_register_script('lingowp-switcher', false, [], LINGOWP_VERSION, true);
+        wp_enqueue_script('lingowp-switcher');
 
         $cookie = ResolveRequestLanguage::COOKIE_NAME;
 
         $js = <<<JS
 document.addEventListener('click', function (e) {
-    var a = e.target.closest('a[data-tls-lang]');
+    var a = e.target.closest('a[data-lingowp-lang]');
     if (!a) { return; }
-    var lang = a.getAttribute('data-tls-lang');
+    var lang = a.getAttribute('data-lingowp-lang');
     if (lang) {
         document.cookie = '{$cookie}=' + encodeURIComponent(lang) + '; path=/; max-age=31536000; SameSite=Lax';
     }
@@ -134,7 +134,7 @@ document.addEventListener('click', function (e) {
 });
 JS;
 
-        wp_add_inline_script('tls-switcher', $js);
+        wp_add_inline_script('lingowp-switcher', $js);
     }
 
     // ------------------------------------------------------------------

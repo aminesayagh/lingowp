@@ -13,7 +13,7 @@ scanner has passed.
   click, WordPress sends a fixed machine code through the authenticated support
   suggestion route; the backend resolves the account email.
 - Online language-package downloads return safely when ZipArchive is absent.
-- Deactivation cancels known TransLangs Action Scheduler work; uninstall repeats
+- Deactivation cancels known LingoWP Action Scheduler work; uninstall repeats
   cleanup when Action Scheduler is available and removes known options/caches.
 
 ## Manual review targets

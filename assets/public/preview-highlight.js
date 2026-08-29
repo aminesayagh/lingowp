@@ -1,12 +1,12 @@
 /**
  * Preview highlighter. When the admin opens "Preview on site" the page is
- * loaded with ?translangs_preview=<lang>&translangs_focus=<key>; the plugin
- * injects window.TranslangsPreview = { selector, text }. We locate that string
+ * loaded with ?lingowp_preview=<lang>&lingowp_focus=<key>; the plugin
+ * injects window.LingoWPPreview = { selector, text }. We locate that string
  * on the page, outline every occurrence, and scroll the first into view.
  * Best-effort and read-only.
  */
 ;( function () {
-	const cfg = window.TranslangsPreview
+	const cfg = window.LingoWPPreview
 	if ( ! cfg || ( ! cfg.selector && ! cfg.text ) ) {
 		return
 	}
@@ -129,7 +129,7 @@
 
 	function highlight( els ) {
 		els.forEach( function ( el ) {
-			el.classList.add( 'translangs-focus' )
+			el.classList.add( 'lingowp-focus' )
 		} )
 		els[ 0 ].scrollIntoView( { behavior: 'smooth', block: 'center' } )
 	}

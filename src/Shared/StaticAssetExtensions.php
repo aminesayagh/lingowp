@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared;
+namespace LingoWP\Shared;
 
 /**
  * File extensions that are never a translatable HTML page — the single list

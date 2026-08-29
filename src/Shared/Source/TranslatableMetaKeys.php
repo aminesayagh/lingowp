@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Source;
+namespace LingoWP\Shared\Source;
 
 /**
  * The single source of truth for which post-meta keys are translatable
@@ -9,7 +9,7 @@ namespace TransLangs\Shared\Source;
  * Discovery (StructuredSourceScanner) and render resolution
  * (StructuredRenderResolver) MUST agree on this list, or a key discovered on
  * save would never resolve on render. Sites extend it via the
- * `translangs_translatable_meta_keys` filter.
+ * `lingowp_translatable_meta_keys` filter.
  */
 final class TranslatableMetaKeys
 {
@@ -98,7 +98,7 @@ final class TranslatableMetaKeys
     public static function keys(): array
     {
         $keys = function_exists('apply_filters')
-            ? apply_filters('translangs_translatable_meta_keys', self::DEFAULTS)
+            ? apply_filters('lingowp_translatable_meta_keys', self::DEFAULTS)
             : self::DEFAULTS;
 
         return array_values(array_filter(

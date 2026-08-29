@@ -1,18 +1,18 @@
 <?php
 
-namespace TransLangs\Onboarding;
+namespace LingoWP\Onboarding;
 
-use TransLangs\Backend\ConnectionRepository;
-use TransLangs\Backend\ConnectionStatus;
-use TransLangs\Backend\SiteConnector;
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Domain\LocaleNormalizer;
-use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
+use LingoWP\Backend\ConnectionRepository;
+use LingoWP\Backend\ConnectionStatus;
+use LingoWP\Backend\SiteConnector;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Infrastructure\WordPressLanguageCatalog;
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * Onboarding REST endpoints (namespace translangs/v1).
+ * Onboarding REST endpoints (namespace lingowp/v1).
  *
  * Every route requires manage_options; WordPress cookie auth + the X-WP-Nonce the
  * SPA sends establish the user. The raw api_token is never returned. All errors
@@ -20,7 +20,7 @@ use WP_REST_Response;
  */
 final class OnboardingRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
     private const URL_RISK_NEW_SITE_DAYS = 30;
     private const URL_RISK_SMALL_SITE_MAX_URLS = 20;
 
@@ -93,13 +93,13 @@ final class OnboardingRestController
         $browserDetection = (bool) $request->get_param('browser_detection');
         $autoRedirect     = (bool) $request->get_param('auto_redirect') && $browserDetection; // auto-redirect requires detection
 
-        update_option('translangs_prefix_default_language', (bool) $request->get_param('prefix_default_language'));
-        update_option('translangs_cookie_preference', (bool) $request->get_param('cookie_preference'));
-        update_option('translangs_browser_detection', $browserDetection);
-        update_option('translangs_auto_redirect', $autoRedirect);
+        update_option('lingowp_prefix_default_language', (bool) $request->get_param('prefix_default_language'));
+        update_option('lingowp_cookie_preference', (bool) $request->get_param('cookie_preference'));
+        update_option('lingowp_browser_detection', $browserDetection);
+        update_option('lingowp_auto_redirect', $autoRedirect);
         // The URL structure just went live: freeze it so later visits never
         // recompute the recommendation from the site's (changing) risk profile.
-        update_option('translangs_url_structure_initialized', true);
+        update_option('lingowp_url_structure_initialized', true);
 
         // Configuration is the last required user action. Persist completion
         // before starting the scan so navigating to Workspace (or reloading)
@@ -108,7 +108,7 @@ final class OnboardingRestController
 
         // Cloud connection is deliberately separate from onboarding. Manual
         // translation remains fully local until an administrator explicitly
-        // chooses "Connect to Translangs Cloud" in the Workspace or Billing UI.
+        // chooses "Connect to LingoWP Cloud" in the Workspace or Billing UI.
         // Keep the existing response fields for compatibility with older builds.
         return rest_ensure_response([
             'ok'        => true,
@@ -164,10 +164,10 @@ final class OnboardingRestController
             update_option('WPLANG', $requestedLocale === 'en_US' ? '' : $requestedLocale);
         }
 
-        update_option('translangs_prefix_default_language', (bool) $request->get_param('prefix_default_language'));
-        update_option('translangs_cookie_preference', (bool) $request->get_param('cookie_preference'));
-        update_option('translangs_browser_detection', $browserDetection);
-        update_option('translangs_auto_redirect', (bool) $request->get_param('auto_redirect') && $browserDetection);
+        update_option('lingowp_prefix_default_language', (bool) $request->get_param('prefix_default_language'));
+        update_option('lingowp_cookie_preference', (bool) $request->get_param('cookie_preference'));
+        update_option('lingowp_browser_detection', $browserDetection);
+        update_option('lingowp_auto_redirect', (bool) $request->get_param('auto_redirect') && $browserDetection);
 
         return rest_ensure_response([
             'ok'               => true,
@@ -182,8 +182,8 @@ final class OnboardingRestController
      */
     private function recommendedPrefixDefaultLanguage(): bool
     {
-        if ((bool) get_option('translangs_url_structure_initialized', false)) {
-            return (bool) get_option('translangs_prefix_default_language', false);
+        if ((bool) get_option('lingowp_url_structure_initialized', false)) {
+            return (bool) get_option('lingowp_prefix_default_language', false);
         }
 
         return $this->urlChangeRisk() === 'low';
@@ -263,10 +263,10 @@ final class OnboardingRestController
     private function currentSettings(): array
     {
         return [
-            'prefix_default_language' => (bool) get_option('translangs_prefix_default_language', false),
-            'cookie_preference'       => (bool) get_option('translangs_cookie_preference', true),
-            'browser_detection'       => (bool) get_option('translangs_browser_detection', false),
-            'auto_redirect'           => (bool) get_option('translangs_auto_redirect', false),
+            'prefix_default_language' => (bool) get_option('lingowp_prefix_default_language', false),
+            'cookie_preference'       => (bool) get_option('lingowp_cookie_preference', true),
+            'browser_detection'       => (bool) get_option('lingowp_browser_detection', false),
+            'auto_redirect'           => (bool) get_option('lingowp_auto_redirect', false),
         ];
     }
 }

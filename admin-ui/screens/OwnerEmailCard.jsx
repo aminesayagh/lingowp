@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
 import { errorMessage } from '../errors'
 
-const cfg = window.Translangs || {}
+const cfg = window.LingoWP || {}
 
 // The licence's owner_email — who receives confirmations/receipts, and the
 // only address that can add or remove sites. Never blocks translation itself;

@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Setup;
+namespace LingoWP\Setup;
 
 /**
  * Runs once on plugin deactivation.
@@ -24,12 +24,12 @@ class Deactivator
         }
 
         foreach ([
-            'translangs_initial_discovery_batch',
-            'translangs_html_crawl_batch',
-            'translangs_seo_rescan_batch',
-            'translangs_orphan_sweep',
+            'lingowp_initial_discovery_batch',
+            'lingowp_html_crawl_batch',
+            'lingowp_seo_rescan_batch',
+            'lingowp_orphan_sweep',
         ] as $hook) {
-            as_unschedule_all_actions($hook, [], 'translangs');
+            as_unschedule_all_actions($hook, [], 'lingowp');
         }
     }
 }

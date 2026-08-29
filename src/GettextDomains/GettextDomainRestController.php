@@ -1,22 +1,22 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
-use TransLangs\GettextDomains\InstalledGettextComponentDiscovery;
-use TransLangs\Backend\BackendClient;
-use TransLangs\Backend\BillingEntitlementsService;
-use TransLangs\Backend\ConnectionStatus;
-use TransLangs\GettextDomains\GettextDomainRegistry;
-use TransLangs\GettextDomains\GettextOnlineTranslationFetcher;
-use TransLangs\GettextDomains\GettextPoImporter;
-use TransLangs\GettextDomains\GettextTranslationUnitsService;
-use TransLangs\Language\Domain\LocaleNormalizer;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\GettextDomains\InstalledGettextComponentDiscovery;
+use LingoWP\Backend\BackendClient;
+use LingoWP\Backend\BillingEntitlementsService;
+use LingoWP\Backend\ConnectionStatus;
+use LingoWP\GettextDomains\GettextDomainRegistry;
+use LingoWP\GettextDomains\GettextOnlineTranslationFetcher;
+use LingoWP\GettextDomains\GettextPoImporter;
+use LingoWP\GettextDomains\GettextTranslationUnitsService;
+use LingoWP\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * Gettext translation-file management (namespace translangs/v1): for every
+ * Gettext translation-file management (namespace lingowp/v1): for every
  * installed plugin/theme domain × active target locale, find an existing
  * wordpress.org translation, import one by hand, download the one currently
  * installed, or edit it directly in-app — one string at a time, the full
@@ -30,7 +30,7 @@ use WP_REST_Response;
  */
 final class GettextDomainRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     /** Matches the Content board's own pagination shape (offset/limit/has_more). */
     private const DEFAULT_LIMIT = 50;

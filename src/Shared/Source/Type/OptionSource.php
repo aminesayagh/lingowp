@@ -1,7 +1,7 @@
 <?php
 
-namespace TransLangs\Shared\Source\Type;
-use TransLangs\Shared\Source\SourceRecord;
+namespace LingoWP\Shared\Source\Type;
+use LingoWP\Shared\Source\SourceRecord;
 
 use InvalidArgumentException;
 
@@ -49,7 +49,7 @@ final class OptionSource extends SourceRecord
 
     public function table(): string
     {
-        return 'tl_option';
+        return 'option';
     }
 
     public function originalText(): string

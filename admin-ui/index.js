@@ -7,7 +7,7 @@ import App from './App'
 import BillingApp from './BillingApp'
 import InsightsApp from './InsightsApp'
 
-const mount = document.getElementById( 'translangs-app' )
+const mount = document.getElementById( 'lingowp-app' )
 if ( mount ) {
 	createRoot( mount ).render(
 		<NuqsAdapter>
@@ -16,7 +16,7 @@ if ( mount ) {
 	)
 }
 
-const billingMount = document.getElementById( 'translangs-billing-app' )
+const billingMount = document.getElementById( 'lingowp-billing-app' )
 if ( billingMount ) {
 	createRoot( billingMount ).render(
 		<NuqsAdapter>
@@ -25,7 +25,7 @@ if ( billingMount ) {
 	)
 }
 
-const insightsMount = document.getElementById( 'translangs-insights-app' )
+const insightsMount = document.getElementById( 'lingowp-insights-app' )
 if ( insightsMount ) {
 	createRoot( insightsMount ).render(
 		<NuqsAdapter>

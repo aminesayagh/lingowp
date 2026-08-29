@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Parsing;
+namespace LingoWP\Shared\Parsing;
 
 /**
  * The one validation entry point every translation write goes through — manual

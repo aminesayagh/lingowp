@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Database;
+namespace LingoWP\Database;
 
 /**
  * Reclaims hash-link translation children whose last parent source is gone.
@@ -23,11 +23,11 @@ namespace TransLangs\Database;
  */
 final class OrphanTranslationSweep
 {
-    public const HOOK  = 'translangs_orphan_sweep';
-    public const GROUP = 'translangs';
+    public const HOOK  = 'lingowp_orphan_sweep';
+    public const GROUP = 'lingowp';
 
     /** Read by DatabaseHealthReport as "Orphan sweep (types 4-5)". */
-    public const OPTION_LAST_RUN = 'translangs_age_out_last_run';
+    public const OPTION_LAST_RUN = 'lingowp_age_out_last_run';
 
     /**
      * Rows per table per run. A multi-table DELETE cannot take LIMIT, so each

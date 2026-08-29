@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace LingoWP\Resolution;
 
 /**
  * Tier-1 ownership gate: the set of original hashes this request already

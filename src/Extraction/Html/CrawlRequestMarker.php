@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Extraction\Html;
+namespace LingoWP\Extraction\Html;
 
 /**
  * Marks and recognises the background crawler's own loopback requests, so the
- * crawler-only data-tl-skip filters (HtmlDiscoveryCrawl::register()) never
+ * crawler-only data-lingowp-skip filters (HtmlDiscoveryCrawl::register()) never
  * fire on real visitor or marking-mode traffic — only on the URLs the crawler
  * fetched itself.
  *
@@ -14,7 +14,7 @@ namespace TransLangs\Extraction\Html;
  */
 final class CrawlRequestMarker
 {
-    private const QUERY_ARG = 'translangs_crawl';
+    private const QUERY_ARG = 'lingowp_crawl';
 
     private function __construct()
     {
@@ -39,6 +39,6 @@ final class CrawlRequestMarker
     {
         static $token = null;
 
-        return $token ??= hash_hmac('sha256', 'translangs_html_crawl', wp_salt('auth'));
+        return $token ??= hash_hmac('sha256', 'lingowp_html_crawl', wp_salt('auth'));
     }
 }

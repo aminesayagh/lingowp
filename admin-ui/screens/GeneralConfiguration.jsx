@@ -249,7 +249,7 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 							/>
 							<Text as="p" tone="subdued" variant="bodySm">
 								This also changes WordPress’s Site Language and
-								the source language used by TransLangs.
+								the source language used by LingoWP.
 							</Text>
 						</BlockStack>
 

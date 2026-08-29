@@ -1,21 +1,21 @@
 <?php
 
-namespace TransLangs\AiTranslation;
+namespace LingoWP\AiTranslation;
 
-use TransLangs\Language\Domain\LocaleNormalizer;
-use TransLangs\Board\CollectionBoard;
+use LingoWP\Language\Domain\LocaleNormalizer;
+use LingoWP\Board\CollectionBoard;
 
-use TransLangs\Backend\BillingEntitlementsService;
-use TransLangs\Backend\ConnectionStatus;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Shared\Source\TranslationStatus;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Backend\BillingEntitlementsService;
+use LingoWP\Backend\ConnectionStatus;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Source\TranslationStatus;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * AI translation + quota endpoints (namespace translangs/v1).
+ * AI translation + quota endpoints (namespace lingowp/v1).
  *
  * This is SYNCHRONOUS: a request resolves the pending source units for its scope,
  * then hands off to AiTranslationRunner, which batches via TranslationBatchPlanner
@@ -37,7 +37,7 @@ use WP_REST_Response;
  */
 final class AiTranslationController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     public function __construct(
         private WpDbSourceRepository $repo,
@@ -254,7 +254,7 @@ final class AiTranslationController
         return null;
     }
 
-    /** tl_html rows have no post link, so group by crawl source when known; a shared
+    /** html rows have no post link, so group by crawl source when known; a shared
      *  fallback bucket for url-less rows still gets sub-chunked correctly downstream. */
     private function htmlGroupId(): callable
     {

@@ -1,14 +1,14 @@
 <?php
 
-namespace TransLangs\Language\Application;
+namespace LingoWP\Language\Application;
 
-use TransLangs\Database\SourceLanguageSnapshot;
-use TransLangs\Extraction\Html\HtmlDiscoveryCrawl;
-use TransLangs\Extraction\Structured\InitialDiscoveryScan;
-use TransLangs\Language\Domain\LocaleNormalizer;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
+use LingoWP\Database\SourceLanguageSnapshot;
+use LingoWP\Extraction\Html\HtmlDiscoveryCrawl;
+use LingoWP\Extraction\Structured\InitialDiscoveryScan;
+use LingoWP\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Language\Infrastructure\WordPressLanguageCatalog;
 
 /**
  * Reacts to WordPress's own Site Language (WPLANG) changing after setup.
@@ -26,7 +26,7 @@ use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
  */
 final class SourceLanguageTransition
 {
-    private const NOTICE_TRANSIENT = 'translangs_wplang_transition_notice';
+    private const NOTICE_TRANSIENT = 'lingowp_wplang_transition_notice';
 
     public function __construct(
         private OptionLanguageRegistry $registry,
@@ -91,7 +91,7 @@ final class SourceLanguageTransition
             $this->store->save($this->buildTargetEntry($oldSourceCode, $oldSourceMeta, $newCode));
             $this->registry->enableLanguage($oldSourceCode);
 
-            do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
+            do_action('lingowp_language_roster_changed', $this->registry->getTargetLanguages());
 
             // 5. Re-index current site content as the new source's content.
             update_option(InitialDiscoveryScan::OPTION_FLAG, 1);
@@ -99,7 +99,7 @@ final class SourceLanguageTransition
 
             // 6. Invalidate rewrite rules — same as LanguageRestController.
             delete_option('rewrite_rules');
-            delete_option('translangs_rewrite_rules_version');
+            delete_option('lingowp_rewrite_rules_version');
 
             $this->wpdb->query('COMMIT'); // phpcs:ignore WordPress.DB
         } catch (\Throwable $e) {
@@ -131,7 +131,7 @@ final class SourceLanguageTransition
             '<div class="notice notice-info is-dismissible"><p>%s</p></div>',
             sprintf(
                 /* translators: 1: previous source locale (now a target), 2: new source locale */
-                esc_html__('TransLangs: source language switched from %1$s to %2$s. %1$s is now a target language seeded with your previous content; any existing %2$s translations are preserved but no longer shown as a target.', 'translangs'),
+                esc_html__('LingoWP: source language switched from %1$s to %2$s. %1$s is now a target language seeded with your previous content; any existing %2$s translations are preserved but no longer shown as a target.', 'lingowp'),
                 esc_html($from),
                 esc_html($to)
             )

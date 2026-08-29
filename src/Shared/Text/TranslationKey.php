@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Text;
+namespace LingoWP\Shared\Text;
 
 /**
  * The text-hash helper for the schema.
@@ -11,7 +11,7 @@ namespace TransLangs\Shared\Text;
  * remains here is currentHash() — the single definition of
  * original_hash = SHA-256(normalized text).
  */
-final class TL_Key
+final class TranslationKey
 {
     private function __construct() {}
 

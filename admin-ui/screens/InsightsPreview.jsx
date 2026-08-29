@@ -44,7 +44,7 @@ export function GhostBars( { items } ) {
 						} }
 					>
 						<div
-							className="tl-ghost-shimmer"
+							className="lingowp-ghost-shimmer"
 							style={ {
 								height: '100%',
 								width: `${ ( item.width / max ) * 100 }%`,
@@ -72,7 +72,7 @@ function GhostStatGrid( { items } ) {
 						{ item.label }
 					</Text>
 					<div
-						className="tl-ghost-shimmer"
+						className="lingowp-ghost-shimmer"
 						style={ { height: 24, borderRadius: 6 } }
 					/>
 				</BlockStack>
@@ -106,7 +106,7 @@ function GhostHealth( { items } ) {
 						</Text>
 					</InlineStack>
 					<div
-						className="tl-ghost-shimmer"
+						className="lingowp-ghost-shimmer"
 						style={ { width: 32, height: 12, borderRadius: 4 } }
 					/>
 				</InlineStack>
@@ -130,11 +130,11 @@ export function GhostKpiRow( { items } ) {
 							{ item.label }
 						</Text>
 						<div
-							className="tl-ghost-shimmer"
+							className="lingowp-ghost-shimmer"
 							style={ { height: 28, borderRadius: 6 } }
 						/>
 						<div
-							className="tl-ghost-shimmer"
+							className="lingowp-ghost-shimmer"
 							style={ {
 								height: 10,
 								width: '60%',

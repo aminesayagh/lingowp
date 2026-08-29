@@ -9,7 +9,7 @@
  *
  * Targets Polaris input classes only (not the mount) so it also covers fields in
  * Modals, which render in a portal at <body>. This stylesheet is enqueued only on
- * the Translangs SPA screen, so the legacy settings form and the rest of wp-admin
+ * the LingoWP SPA screen, so the legacy settings form and the rest of wp-admin
  * are unaffected. !important is needed to beat wp-admin's `input[type=text]`.
  */
 .Polaris-TextField__Input,
@@ -34,34 +34,34 @@
 }
 
 /*
- * Full-width Translangs screen: strip wp-admin's .wrap left/right margin and
+ * Full-width LingoWP screen: strip wp-admin's .wrap left/right margin and
  * Polaris Page's inline padding + max-width so the dashboard spans the whole
- * content area. Scoped to our screen (only .wrap that holds #translangs-app).
+ * content area. Scoped to our screen (only .wrap that holds #lingowp-app).
  */
-.wrap:has(> #translangs-app) {
+.wrap:has(> #lingowp-app) {
 	margin: 0 !important;
 }
-#translangs-app .Polaris-Page {
+#lingowp-app .Polaris-Page {
 	padding-inline-start: 0 !important;
 	padding-inline-end: 12px !important;
 	max-width: none !important;
 }
 
 /* Same full-width treatment for the Billing screen's own mount root. */
-.wrap:has(> #translangs-billing-app) {
+.wrap:has(> #lingowp-billing-app) {
 	margin: 0 !important;
 }
-#translangs-billing-app .Polaris-Page {
+#lingowp-billing-app .Polaris-Page {
 	padding-inline-start: 0 !important;
 	padding-inline-end: 12px !important;
 	max-width: none !important;
 }
 
 /* Same full-width treatment for the Insights screen's own mount root. */
-.wrap:has(> #translangs-insights-app) {
+.wrap:has(> #lingowp-insights-app) {
 	margin: 0 !important;
 }
-#translangs-insights-app .Polaris-Page {
+#lingowp-insights-app .Polaris-Page {
 	padding-inline-start: 0 !important;
 	padding-inline-end: 12px !important;
 	max-width: none !important;
@@ -72,24 +72,24 @@
  * separate itself from a list. We embed it in the header, so strip that chrome
  * (container level only — filter pills keep their own borders).
  */
-#translangs-app .tl-filters .Polaris-Filters,
-#translangs-app .tl-filters .Polaris-Filters__Container,
-#translangs-app .tl-filters .Polaris-Filters__FiltersWrapper,
-#translangs-app .tl-filters .Polaris-Filters__FiltersInner,
-#translangs-app .tl-filters .Polaris-Filters__FiltersStickyArea {
+#lingowp-app .lingowp-filters .Polaris-Filters,
+#lingowp-app .lingowp-filters .Polaris-Filters__Container,
+#lingowp-app .lingowp-filters .Polaris-Filters__FiltersWrapper,
+#lingowp-app .lingowp-filters .Polaris-Filters__FiltersInner,
+#lingowp-app .lingowp-filters .Polaris-Filters__FiltersStickyArea {
 	border-block-end: 0 !important;
 	padding: 0 !important;
 }
-#translangs-app .tl-filters > .Polaris-Box {
+#lingowp-app .lingowp-filters > .Polaris-Box {
 	border-block-end: 0 !important;
 }
 
 /*
  * Widen the language-manager (Configuration) modal beyond Polaris "large".
- * Scoped via :has() to the dialog that contains our .tl-wide-modal marker, so
+ * Scoped via :has() to the dialog that contains our .lingowp-wide-modal marker, so
  * other large modals keep their default width.
  */
-.Polaris-Modal-Dialog__Modal.Polaris-Modal-Dialog--sizeLarge:has(.tl-wide-modal) {
+.Polaris-Modal-Dialog__Modal.Polaris-Modal-Dialog--sizeLarge:has(.lingowp-wide-modal) {
 	max-width: min(1300px, 92vw);
 	width: min(1300px, 92vw);
 }
@@ -97,13 +97,13 @@
 /*
  * wp-admin's common.css sets `dd, li { margin-bottom: 6px; }` globally, which
  * bleeds into Polaris lists. Neutralize it on both our mount and the body-level
- * portal root (#translangs-portals, where Popover/ActionList/dropdown <li> render
+ * portal root (#lingowp-portals, where Popover/ActionList/dropdown <li> render
  * via App.jsx) — both are ours, so the rest of wp-admin keeps its spacing.
  */
-#translangs-app dd,
-#translangs-app li,
-#translangs-portals dd,
-#translangs-portals li {
+#lingowp-app dd,
+#lingowp-app li,
+#lingowp-portals dd,
+#lingowp-portals li {
 	margin-bottom: 0;
 }
 
@@ -118,21 +118,21 @@
  * 2. .Polaris-Frame__Main draws a permanent border-inline-end, meant to
  *    separate content from a sidebar — with no sidebar it's a stray 1px line.
  */
-#translangs-app .Polaris-Frame {
+#lingowp-app .Polaris-Frame {
 	min-height: 0;
 }
-#translangs-app .Polaris-Frame__Main {
+#lingowp-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }
-#translangs-billing-app .Polaris-Frame {
+#lingowp-billing-app .Polaris-Frame {
 	min-height: 0;
 }
-#translangs-billing-app .Polaris-Frame__Main {
+#lingowp-billing-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }
-#translangs-insights-app .Polaris-Frame {
+#lingowp-insights-app .Polaris-Frame {
 	min-height: 0;
 }
-#translangs-insights-app .Polaris-Frame__Main {
+#lingowp-insights-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }

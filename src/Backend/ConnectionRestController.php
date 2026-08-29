@@ -1,15 +1,15 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
-use TransLangs\Backend\ConnectionRepository;
-use TransLangs\Backend\ConnectionStatus;
-use TransLangs\Backend\SiteConnector;
+use LingoWP\Backend\ConnectionRepository;
+use LingoWP\Backend\ConnectionStatus;
+use LingoWP\Backend\SiteConnector;
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * Connection lifecycle REST endpoints (namespace translangs/v1).
+ * Connection lifecycle REST endpoints (namespace lingowp/v1).
  *
  * manage_options only; never returns the raw license key, and never accepts
  * one from the client either — confirm() only ever takes an opaque confirm
@@ -20,7 +20,7 @@ use WP_REST_Response;
  */
 final class ConnectionRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     public function __construct(
         private ConnectionRepository $connection,

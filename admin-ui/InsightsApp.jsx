@@ -20,7 +20,7 @@ import { errorMessage } from './errors'
 import { GhostKpiRow, Hero, TopicSection } from './screens/InsightsPreview'
 import { KPI_ROW, TOPICS } from './screens/insightsContent.mjs'
 
-const cfg = window.Translangs || {}
+const cfg = window.LingoWP || {}
 
 const queryClient = new QueryClient( {
 	defaultOptions: {
@@ -66,12 +66,12 @@ export default function InsightsApp() {
 	// Same Frame-owned portal root as the other mounts, so Polaris
 	// popovers/modals anchor to the document instead of the wp-admin offset.
 	const [ portalRoot ] = useState( () => {
-		const existing = document.getElementById( 'translangs-portals' )
+		const existing = document.getElementById( 'lingowp-portals' )
 		if ( existing ) {
 			return existing
 		}
 		const el = document.createElement( 'div' )
-		el.id = 'translangs-portals'
+		el.id = 'lingowp-portals'
 		document.body.appendChild( el )
 		return el
 	} )
@@ -120,7 +120,7 @@ export default function InsightsApp() {
 														as="span"
 														variant="headingMd"
 													>
-														Translangs
+														LingoWP
 													</Text>
 												</InlineStack>
 

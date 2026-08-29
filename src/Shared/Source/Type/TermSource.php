@@ -1,7 +1,7 @@
 <?php
 
-namespace TransLangs\Shared\Source\Type;
-use TransLangs\Shared\Source\SourceRecord;
+namespace LingoWP\Shared\Source\Type;
+use LingoWP\Shared\Source\SourceRecord;
 
 use InvalidArgumentException;
 
@@ -33,7 +33,7 @@ final class TermSource extends SourceRecord
 
     public function table(): string
     {
-        return 'tl_term';
+        return 'term';
     }
 
     public function originalText(): string

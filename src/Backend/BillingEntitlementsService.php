@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 /**
  * Cached GET /me/entitlements result — the canonical read for all billing UI
@@ -13,7 +13,7 @@ namespace TransLangs\Backend;
  */
 final class BillingEntitlementsService
 {
-    private const CACHE = 'translangs_entitlements_cache';
+    private const CACHE = 'lingowp_entitlements_cache';
     private const TTL    = 60;
 
     public function __construct(private BackendClient $backend) {}

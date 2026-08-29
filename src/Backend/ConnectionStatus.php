@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 /**
  * Tracks whether AI-backed features are usable right now.
@@ -27,7 +27,7 @@ namespace TransLangs\Backend;
  */
 final class ConnectionStatus
 {
-    private const TRANSIENT = 'translangs_backend_status';
+    private const TRANSIENT = 'lingowp_backend_status';
     private const TTL       = 15 * MINUTE_IN_SECONDS;
 
     public function __construct(

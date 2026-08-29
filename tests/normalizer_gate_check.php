@@ -11,12 +11,12 @@
  */
 
 require __DIR__ . '/../src/Shared/Text/StringNormalizer.php';
-require __DIR__ . '/../src/Shared/Text/TL_Key.php';
+require __DIR__ . '/../src/Shared/Text/TranslationKey.php';
 require __DIR__ . '/../src/Shared/Text/TranslatableText.php';
 
-use TransLangs\Shared\Text\StringNormalizer;
-use TransLangs\Shared\Text\TL_Key;
-use TransLangs\Shared\Text\TranslatableText;
+use LingoWP\Shared\Text\StringNormalizer;
+use LingoWP\Shared\Text\TranslationKey;
+use LingoWP\Shared\Text\TranslatableText;
 
 $failed = 0;
 $total  = 0;
@@ -101,24 +101,24 @@ ok('case folded (OU === ou)',       StringNormalizer::normalize('OU') === String
 $nbsp = StringNormalizer::normalize("a\u{00A0}b");
 ok('NBSP is not collapsed (no /u modifier)', $nbsp === "a\u{00A0}b", 'got ' . json_encode($nbsp));
 
-// ── B. TL_Key::currentHash ───────────────────────────────────────────────────
+// ── B. TranslationKey::currentHash ───────────────────────────────────────────────────
 
-echo "\nTL_Key::currentHash:\n";
+echo "\nTranslationKey::currentHash:\n";
 
-ok('raw 32 bytes', strlen(TL_Key::currentHash('About Us')) === 32);
+ok('raw 32 bytes', strlen(TranslationKey::currentHash('About Us')) === 32);
 ok(
     'is sha256 of the normalized form',
-    TL_Key::currentHash('About Us') === hash('sha256', StringNormalizer::normalize('About Us'), true)
+    TranslationKey::currentHash('About Us') === hash('sha256', StringNormalizer::normalize('About Us'), true)
 );
 ok(
     'normalization collides as expected',
-    TL_Key::currentHash('About Us') === TL_Key::currentHash("  about\r\nus ")
+    TranslationKey::currentHash('About Us') === TranslationKey::currentHash("  about\r\nus ")
 );
 ok(
     'accents do not collide',
-    TL_Key::currentHash('Où') !== TL_Key::currentHash('Ou')
+    TranslationKey::currentHash('Où') !== TranslationKey::currentHash('Ou')
 );
-ok('TL_Key::normalize delegates', TL_Key::normalize('  A B  ') === StringNormalizer::normalize('  A B  '));
+ok('TranslationKey::normalize delegates', TranslationKey::normalize('  A B  ') === StringNormalizer::normalize('  A B  '));
 
 // ── C. TranslatableText::isTranslatable — the discovery gate ─────────────────
 // A gate, never a transformer. Applied AFTER normalization. Anchored full-string

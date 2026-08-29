@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Language\Infrastructure;
+namespace LingoWP\Language\Infrastructure;
 
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
-/** WordPress core's Site Language catalog, shaped for the TransLangs UI. */
+/** WordPress core's Site Language catalog, shaped for the LingoWP UI. */
 final class WordPressLanguageCatalog
 {
     /** @var array<string, array<string, string>>|null */
@@ -18,7 +18,7 @@ final class WordPressLanguageCatalog
         }
 
         // WordPress stores the Site Language catalog in this network-level
-        // transient. Reading it directly keeps the TransLangs REST request
+        // transient. Reading it directly keeps the LingoWP REST request
         // local: wp_get_available_translations() may perform a synchronous
         // WordPress.org request when the transient is cold, which must never
         // hold the workspace response open.

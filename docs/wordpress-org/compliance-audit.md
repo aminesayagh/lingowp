@@ -12,7 +12,7 @@ security scanners, compatibility checks, or marketplace review have passed.
 | External services | Blocked | Data flows are disclosed, but final public Terms of Service and Privacy Policy URLs have not been supplied. |
 | Consent | Ready for review | A fresh installation does not connect automatically. An administrator must select the cloud connection action. Insights submits a fixed machine-coded support suggestion only after its notification button is clicked. |
 | Privacy guide | Ready for review | Suggested policy text is registered through WordPress's Privacy Policy Guide. Final legal links remain a release gate. |
-| Internationalization | Blocked | PHP uses the `translangs` text domain and script translations are registered. Many React strings still need conversion to WordPress i18n calls before submission. |
+| Internationalization | Blocked | PHP uses the `lingowp` text domain and script translations are registered. Many React strings still need conversion to WordPress i18n calls before submission. |
 | Uninstall/deactivation | Ready for review | Known options, transients, and Action Scheduler hooks are cleaned up. Confirm retention expectations manually before release. |
 | Bundled code and assets | Needs review | `THIRD-PARTY-NOTICES.md` summarizes dependencies. Compare it with both lockfiles and the actual ZIP before release. |
 | Readme and metadata | Needs verification | Marketplace fields are populated, but `Tested up to`, contributor identity, name availability, and legal URLs require owner confirmation. |

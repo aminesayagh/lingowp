@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
 /**
  * Every installed plugin/theme's textdomain → {label, kind, slug, version,
@@ -26,8 +26,8 @@ final class InstalledGettextComponentDiscovery
         $map = [];
 
         foreach (get_plugins() as $pluginFile => $data) {
-            // Translangs itself is never a translation target on its own board.
-            if ($pluginFile === TRANSLANGS_BASENAME) {
+            // LingoWP itself is never a translation target on its own board.
+            if ($pluginFile === LINGOWP_BASENAME) {
                 continue;
             }
 

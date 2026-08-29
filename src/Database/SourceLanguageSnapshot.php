@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Database;
+namespace LingoWP\Database;
 
 /**
  * Snapshots the current source content as a translation under a given
@@ -39,7 +39,7 @@ final class SourceLanguageSnapshot
                 continue;
             }
 
-            // Parent-id child (tl_meta): keyed (parent_id, lang_code).
+            // Parent-id child (meta): keyed (parent_id, lang_code).
             $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
                 "INSERT IGNORE INTO {$child}
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)

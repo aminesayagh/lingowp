@@ -9,7 +9,7 @@ import {
 import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
 
-const cfg = window.Translangs || {}
+const cfg = window.LingoWP || {}
 
 // Rail quota card (wireframe 2.1 footer / 3.2). Fed by GET /billing/entitlements
 // (via Dashboard's existing fetch, shared with its billingBlocked calc) — shows
@@ -17,7 +17,7 @@ const cfg = window.Translangs || {}
 // disconnected) it says so — the plugin still works offline, only AI actions
 // are disabled.
 function unavailableCopy() {
-	return 'AI is off — reconnect Translangs in Settings to enable AI translation.'
+	return 'AI is off — reconnect LingoWP in Settings to enable AI translation.'
 }
 
 function CloudDisclosure() {
@@ -25,7 +25,7 @@ function CloudDisclosure() {
 		<BlockStack gap="050">
 			<Text as="span" tone="subdued" variant="bodySm">
 				Connecting sends this site&apos;s domain and WordPress admin
-				email to Translangs Cloud. Translation text is sent only when
+				email to LingoWP Cloud. Translation text is sent only when
 				you request AI translation.
 			</Text>
 			{ ( cfg.cloud_terms_url || cfg.cloud_privacy_url ) && (
@@ -72,7 +72,7 @@ export default function QuotaCard( {
 	// rendered above every branch rather than folded into just one of them.
 	const recoveryNotice = recoveryAvailable && (
 		<Banner tone="info" onDismiss={ onDismissRecoveryNotice }>
-			We found an existing Translangs account for this site — check your
+			We found an existing LingoWP account for this site — check your
 			owner email to move its subscription and word balance here.
 		</Banner>
 	)
@@ -131,7 +131,7 @@ export default function QuotaCard( {
 							<>
 								<CloudDisclosure />
 								<Button variant="plain" onClick={ onConnect }>
-									Connect to Translangs Cloud
+									Connect to LingoWP Cloud
 								</Button>
 							</>
 						) }

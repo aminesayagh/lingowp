@@ -15,9 +15,9 @@ declare(strict_types=1);
 $base = dirname(__DIR__);
 require $base . '/vendor/autoload.php';
 
-use TransLangs\Shared\Parsing\HtmlUnitExtractor;
-use TransLangs\Shared\Parsing\TranslationUnitCodec;
-use TransLangs\Shared\Text\TL_Key;
+use LingoWP\Shared\Parsing\HtmlUnitExtractor;
+use LingoWP\Shared\Parsing\TranslationUnitCodec;
+use LingoWP\Shared\Text\TranslationKey;
 
 $failed = 0;
 $total  = 0;
@@ -59,9 +59,9 @@ ok('render injected no html wrapper', !str_contains($out, '<html'), $out);
 // 3. Extraction is deterministic — the same piece hashes identically, which is
 //    what lets discovery and render agree on a row.
 ok('same piece hashes identically',
-    TL_Key::currentHash($units[0]) === TL_Key::currentHash('About Us'));
+    TranslationKey::currentHash($units[0]) === TranslationKey::currentHash('About Us'));
 ok('distinct pieces hash differently',
-    TL_Key::currentHash($units[0]) !== TL_Key::currentHash($units[1]));
+    TranslationKey::currentHash($units[0]) !== TranslationKey::currentHash($units[1]));
 
 // 4. A round-trip through render() with a no-op translator is lossless.
 $identity = $ex->render($html, static fn(string $u): ?string => null);

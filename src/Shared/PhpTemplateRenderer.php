@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared;
+namespace LingoWP\Shared;
 
 /**
  * Minimal template renderer.
@@ -15,12 +15,12 @@ class PhpTemplateRenderer
      */
     public static function render(string $template, array $data = []): void
     {
-        $file = TRANSLANGS_DIR . 'templates/' . ltrim($template, '/');
+        $file = LINGOWP_DIR . 'templates/' . ltrim($template, '/');
 
         if (!is_readable($file)) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 trigger_error(
-                    sprintf('TransLangs template not found: %s', esc_html($template)),
+                    sprintf('LingoWP template not found: %s', esc_html($template)),
                     E_USER_WARNING
                 );
             }

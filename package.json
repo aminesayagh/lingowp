@@ -1,8 +1,8 @@
 {
-	"name": "translangs-admin",
+	"name": "lingowp-admin",
 	"version": "1.0.0",
 	"private": true,
-	"description": "TransLangs admin board (React, @wordpress/scripts).",
+	"description": "LingoWP admin board (React, @wordpress/scripts).",
 	"scripts": {
 		"build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build",
 		"format": "wp-scripts format",

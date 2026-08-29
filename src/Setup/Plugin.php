@@ -1,79 +1,79 @@
 <?php
 
-namespace TransLangs\Setup;
+namespace LingoWP\Setup;
 
-use TransLangs\Admin\AdminAssets;
-use TransLangs\GettextDomains\InstalledGettextComponentDiscovery;
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Application\SourceLanguageTransition;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Language\Infrastructure\SupportedLanguages;
-use TransLangs\Resolution\GettextResolver;
-use TransLangs\Resolution\DateResolver;
-use TransLangs\Resolution\NumberResolver;
-use TransLangs\Resolution\Seo\HreflangPresenter;
-use TransLangs\LocalizationRouting\MultilingualRedirects;
-use TransLangs\Resolution\HtmlRenderer;
-use TransLangs\Shared\Parsing\HtmlUnitExtractor;
-use TransLangs\Resolution\OptionResolver;
-use TransLangs\Resolution\PageOwnedHashes;
-use TransLangs\Extraction\OwnedStringIndex;
-use TransLangs\LocalizationRouting\LanguageRouteRegistrar;
-use TransLangs\LocalizationRouting\LanguageSwitcherShortcode;
-use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
-use TransLangs\Resolution\PublicLinkRewriter;
-use TransLangs\Resolution\PublicRenderPipeline;
-use TransLangs\Resolution\Seo\SeoHeadTranslator;
-use TransLangs\Resolution\Seo\LanguageAwareRobotsMeta;
-use TransLangs\Resolution\RequestContext;
-use TransLangs\Resolution\StructuredRenderResolver;
-use TransLangs\Shared\Parsing\TranslationUnitCodec;
-use TransLangs\Extraction\Html\HtmlDiscovery;
-use TransLangs\Extraction\Html\HtmlDiscoveryCrawl;
-use TransLangs\Extraction\Structured\InitialDiscoveryScan;
-use TransLangs\Extraction\OptionSourceScanner;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Database\Repository\WpDbBoardQueries;
-use TransLangs\Admin\DatabaseHealthReport;
-use TransLangs\Database\DatabaseHealthCheck;
-use TransLangs\Onboarding\OnboardingPageController;
-use TransLangs\Admin\ResetPageController;
-use TransLangs\Extraction\Structured\SeoDiscoveryRescan;
-use TransLangs\Extraction\Structured\SourceLifecycleRefresher;
-use TransLangs\Extraction\Structured\StructuredSourceScanner;
-use TransLangs\Database\OrphanTranslationSweep;
-use TransLangs\Database\SourceLanguageSnapshot;
-use TransLangs\Database\TranslationMemorySchema;
-use TransLangs\Backend\BackendClient;
-use TransLangs\Backend\BackendEndpointResolver;
-use TransLangs\Backend\ConnectionRepository;
-use TransLangs\Backend\ConnectionStatus;
-use TransLangs\Backend\SiteConnector;
-use TransLangs\Backend\SiteMetadataProvider;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
-use TransLangs\Onboarding\OnboardingRestController;
-use TransLangs\Backend\ConnectionRestController;
-use TransLangs\Backend\ProviderKeyRestController;
-use TransLangs\Backend\BillingEntitlementsService;
-use TransLangs\Backend\BillingRestController;
-use TransLangs\Language\LanguageRestController;
-use TransLangs\Board\CollectionsRestController;
-use TransLangs\Board\CollectionBoard;
-use TransLangs\Board\TranslationRestController;
-use TransLangs\AiTranslation\AiTranslationController;
-use TransLangs\AiTranslation\AiTranslationRunner;
-use TransLangs\Extraction\ScanRestController;
-use TransLangs\GettextDomains\GettextDomainRestController;
-use TransLangs\GettextDomains\GettextDomainRegistry;
-use TransLangs\GettextDomains\GettextIgnoredUnitsStore;
-use TransLangs\GettextDomains\GettextOnlineTranslationFetcher;
-use TransLangs\GettextDomains\GettextPoImporter;
-use TransLangs\GettextDomains\GettextTemplateGenerator;
-use TransLangs\GettextDomains\GettextTranslatedPercentCache;
-use TransLangs\GettextDomains\GettextTranslationUnitsService;
-use TransLangs\Insights\InsightsRestController;
-use TransLangs\Insights\NotifyEmailResolver;
-use TransLangs\Privacy\PrivacyPolicyContent;
+use LingoWP\Admin\AdminAssets;
+use LingoWP\GettextDomains\InstalledGettextComponentDiscovery;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Application\SourceLanguageTransition;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Language\Infrastructure\SupportedLanguages;
+use LingoWP\Resolution\GettextResolver;
+use LingoWP\Resolution\DateResolver;
+use LingoWP\Resolution\NumberResolver;
+use LingoWP\Resolution\Seo\HreflangPresenter;
+use LingoWP\LocalizationRouting\MultilingualRedirects;
+use LingoWP\Resolution\HtmlRenderer;
+use LingoWP\Shared\Parsing\HtmlUnitExtractor;
+use LingoWP\Resolution\OptionResolver;
+use LingoWP\Resolution\PageOwnedHashes;
+use LingoWP\Extraction\OwnedStringIndex;
+use LingoWP\LocalizationRouting\LanguageRouteRegistrar;
+use LingoWP\LocalizationRouting\LanguageSwitcherShortcode;
+use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\Resolution\PublicLinkRewriter;
+use LingoWP\Resolution\PublicRenderPipeline;
+use LingoWP\Resolution\Seo\SeoHeadTranslator;
+use LingoWP\Resolution\Seo\LanguageAwareRobotsMeta;
+use LingoWP\Resolution\RequestContext;
+use LingoWP\Resolution\StructuredRenderResolver;
+use LingoWP\Shared\Parsing\TranslationUnitCodec;
+use LingoWP\Extraction\Html\HtmlDiscovery;
+use LingoWP\Extraction\Html\HtmlDiscoveryCrawl;
+use LingoWP\Extraction\Structured\InitialDiscoveryScan;
+use LingoWP\Extraction\OptionSourceScanner;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Database\Repository\WpDbBoardQueries;
+use LingoWP\Admin\DatabaseHealthReport;
+use LingoWP\Database\DatabaseHealthCheck;
+use LingoWP\Onboarding\OnboardingPageController;
+use LingoWP\Admin\ResetPageController;
+use LingoWP\Extraction\Structured\SeoDiscoveryRescan;
+use LingoWP\Extraction\Structured\SourceLifecycleRefresher;
+use LingoWP\Extraction\Structured\StructuredSourceScanner;
+use LingoWP\Database\OrphanTranslationSweep;
+use LingoWP\Database\SourceLanguageSnapshot;
+use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\Backend\BackendClient;
+use LingoWP\Backend\BackendEndpointResolver;
+use LingoWP\Backend\ConnectionRepository;
+use LingoWP\Backend\ConnectionStatus;
+use LingoWP\Backend\SiteConnector;
+use LingoWP\Backend\SiteMetadataProvider;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
+use LingoWP\Onboarding\OnboardingRestController;
+use LingoWP\Backend\ConnectionRestController;
+use LingoWP\Backend\ProviderKeyRestController;
+use LingoWP\Backend\BillingEntitlementsService;
+use LingoWP\Backend\BillingRestController;
+use LingoWP\Language\LanguageRestController;
+use LingoWP\Board\CollectionsRestController;
+use LingoWP\Board\CollectionBoard;
+use LingoWP\Board\TranslationRestController;
+use LingoWP\AiTranslation\AiTranslationController;
+use LingoWP\AiTranslation\AiTranslationRunner;
+use LingoWP\Extraction\ScanRestController;
+use LingoWP\GettextDomains\GettextDomainRestController;
+use LingoWP\GettextDomains\GettextDomainRegistry;
+use LingoWP\GettextDomains\GettextIgnoredUnitsStore;
+use LingoWP\GettextDomains\GettextOnlineTranslationFetcher;
+use LingoWP\GettextDomains\GettextPoImporter;
+use LingoWP\GettextDomains\GettextTemplateGenerator;
+use LingoWP\GettextDomains\GettextTranslatedPercentCache;
+use LingoWP\GettextDomains\GettextTranslationUnitsService;
+use LingoWP\Insights\InsightsRestController;
+use LingoWP\Insights\NotifyEmailResolver;
+use LingoWP\Privacy\PrivacyPolicyContent;
 
 /**
  * @phpstan-type BackendBundle array{connection: ConnectionRepository, backendClient: BackendClient,
@@ -164,7 +164,7 @@ class Plugin
         return [$languageRegistry, $languageResolver, $urlBuilder, $context];
     }
 
-    /** Language-prefixed permalinks + the [tls_language_switcher] shortcode. */
+    /** Language-prefixed permalinks + the [lingowp_language_switcher] shortcode. */
     private function bootLocalizationRouting(ResolveRequestLanguage $languageResolver, LocalizedUrlBuilder $urlBuilder): void
     {
         (new LanguageRouteRegistrar($languageResolver))->register();
@@ -192,7 +192,7 @@ class Plugin
         $htmlRenderer  = new HtmlRenderer($unitExtractor);
         $htmlDiscovery = new HtmlDiscovery($htmlRenderer, $ownedStringIndex, $sourceRepository);
 
-        // Options discovery (Path E): allowlisted wp_options text → tl_option.
+        // Options discovery (Path E): allowlisted wp_options text → option.
         $optionScanner = new OptionSourceScanner($sourceRepository, $wpdb);
 
         // Path E's save-time trigger, mirroring SourceLifecycleRefresher for
@@ -370,8 +370,11 @@ class Plugin
         (new OnboardingPageController(new NotifyEmailResolver()))->register();
 
         // Dev-only "reset translation data" tool. Never registered on a
-        // real customer site — see ResetPageController's class doc.
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        // real customer site — see ResetPageController's class doc. The
+        // class_exists() guard matters because the release zip strips this
+        // file entirely (bin/build-release-zip.sh), so a production site
+        // with WP_DEBUG mistakenly on must skip this, not fatal.
+        if (defined('WP_DEBUG') && WP_DEBUG && class_exists(ResetPageController::class)) {
             (new ResetPageController(
                 $wpdb,
                 $backend['connection'],
@@ -385,7 +388,7 @@ class Plugin
     }
 
     /**
-     * True for requests that may legitimately talk to the Translangs backend:
+     * True for requests that may legitimately talk to the LingoWP backend:
      * the WordPress admin, the REST API (the SPA's calls), and cron/loopback
      * (the Action Scheduler queue runner). False for ordinary front-end page
      * views, so visitor traffic never loads the connection layer.

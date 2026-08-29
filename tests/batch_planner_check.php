@@ -8,7 +8,7 @@
 
 require __DIR__ . '/../src/AiTranslation/TranslationBatchPlanner.php';
 
-use TransLangs\AiTranslation\TranslationBatchPlanner;
+use LingoWP\AiTranslation\TranslationBatchPlanner;
 
 $failed = 0;
 

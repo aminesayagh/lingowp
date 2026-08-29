@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Parsing;
+namespace LingoWP\Shared\Parsing;
 
 /**
  * Enforces that a submitted translation keeps the same inline-tag marker

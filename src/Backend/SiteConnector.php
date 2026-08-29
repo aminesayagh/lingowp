@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 /**
  * Registers (or re-provisions) this site with the backend using its current
@@ -120,7 +120,7 @@ final class SiteConnector
      *     (ConnectionRepository::storeVerifiedOwnerEmail()) so the Billing
      *     page can read it back on a later visit.
      *   - { license_key, site_id } — attach-website: a *different* site was
-     *     just added from the owner's own Translangs dashboard, not
+     *     just added from the owner's own LingoWP dashboard, not
      *     something this install initiated. Never trusts a key handed in by
      *     the browser — the raw key only ever comes from this
      *     server-to-server exchange.

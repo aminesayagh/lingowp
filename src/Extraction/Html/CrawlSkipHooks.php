@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Extraction\Html;
+namespace LingoWP\Extraction\Html;
 
 /**
  * The single source of truth for which WordPress hooks HtmlDiscoveryCrawl
@@ -12,9 +12,9 @@ namespace TransLangs\Extraction\Html;
 final class CrawlSkipHooks
 {
     /** Hooks whose output is already translated via a separate mechanism
-     * (StructuredRenderResolver + tl_post) or never translatable at all
+     * (StructuredRenderResolver + post) or never translatable at all
      * (comments) — redundant or wrong to also discover through the HTML
-     * crawl. Wrapped in <span data-tl-skip="1">. */
+     * crawl. Wrapped in <span data-lingowp-skip="1">. */
     private const REDUNDANT = ['comment_text', 'the_title', 'get_the_excerpt'];
 
     /** Same wrap, different reason: computed fresh at render time by a
@@ -33,7 +33,7 @@ final class CrawlSkipHooks
     private const DYNAMIC = ['wp_date' => 'date', 'wc_price' => 'price'];
 
     /** Hooks whose output may contain block-level child markup — wrapped in
-     * <div data-tl-skip="1"> instead (a <span> wrapping block children is
+     * <div data-lingowp-skip="1"> instead (a <span> wrapping block children is
      * invalid nesting). */
     private const BLOCK = ['the_content'];
 

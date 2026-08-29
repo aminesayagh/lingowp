@@ -12,9 +12,9 @@
 
 ## Blocking owner decisions and evidence
 
-- [ ] Confirm `TransLangs`, the `translangs` slug, and `aminesayagh` contributor identity are available and final.
-- [ ] Publish and provide canonical TransLangs Cloud Terms of Service and Privacy Policy URLs.
-- [ ] Make `https://github.com/aminesayagh/translangs` public and publish the exact `v1.0.0` tag referenced by `readme.txt`.
+- [ ] Confirm `LingoWP`, the `lingowp` slug, and `aminesayagh` contributor identity are available and final.
+- [ ] Publish and provide canonical LingoWP Cloud Terms of Service and Privacy Policy URLs.
+- [ ] Make `https://github.com/aminesayagh/lingowp` public and publish the exact `v1.0.0` tag referenced by `readme.txt`.
 - [ ] Convert remaining React interface strings to WordPress i18n calls and generate translation assets.
 - [ ] Complete the compatibility matrix and update `Tested up to` to the newest version actually tested.
 - [ ] Reconcile every production dependency and bundled asset against `THIRD-PARTY-NOTICES.md`.

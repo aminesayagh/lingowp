@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Database;
+namespace LingoWP\Database;
 
 /**
- * Pure DDL definitions for the TransLangs content tables.
+ * Pure DDL definitions for the LingoWP content tables.
  *
  * Ten content tables: five readable PARENT source tables (post, meta, term,
  * html, option), each with its own CHILD translation table, in TWO key variants:
@@ -30,7 +30,7 @@ final class TableDefinitions
 {
     private function __construct() {}
 
-    /** wp_tl_post — identity (post_id, field, original_hash). post_content rows are fragments. */
+    /** wp_lingowp_post — identity (post_id, field, original_hash). post_content rows are fragments. */
     public static function post(string $table, string $postsTable, string $charsetCollate): string
     {
         return "CREATE TABLE IF NOT EXISTS {$table} (
@@ -51,7 +51,7 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    /** wp_tl_meta — identity (post_id, meta_key_hash, context_hash, original_hash). */
+    /** wp_lingowp_meta — identity (post_id, meta_key_hash, context_hash, original_hash). */
     public static function meta(string $table, string $postsTable, string $charsetCollate): string
     {
         return "CREATE TABLE IF NOT EXISTS {$table} (
@@ -75,7 +75,7 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    /** wp_tl_option — identity (option_id, option_path_hash, original_hash). Owner FK to wp_options. */
+    /** wp_lingowp_option — identity (option_id, option_path_hash, original_hash). Owner FK to wp_options. */
     public static function option(string $table, string $optionsTable, string $charsetCollate): string
     {
         return "CREATE TABLE IF NOT EXISTS {$table} (
@@ -98,7 +98,7 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
-    /** wp_tl_term — identity (term_taxonomy_id, field, original_hash). */
+    /** wp_lingowp_term — identity (term_taxonomy_id, field, original_hash). */
     public static function term(string $table, string $termTaxonomyTable, string $charsetCollate): string
     {
         return "CREATE TABLE IF NOT EXISTS {$table} (
@@ -120,7 +120,7 @@ final class TableDefinitions
     }
 
     /**
-     * wp_tl_html — identity is original_hash alone. No content FK.
+     * wp_lingowp_html — identity is original_hash alone. No content FK.
      *
      * The same text is exactly one row regardless of how many DOM locations
      * render it — the translation is already shared via the hash-link child

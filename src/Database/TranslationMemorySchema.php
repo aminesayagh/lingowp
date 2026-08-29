@@ -1,13 +1,13 @@
 <?php
 
-namespace TransLangs\Database;
+namespace LingoWP\Database;
 
-use TransLangs\Database\ConstraintVerifier;
-use TransLangs\Database\SchemaFailure;
-use TransLangs\Database\TableDefinitions;
+use LingoWP\Database\ConstraintVerifier;
+use LingoWP\Database\SchemaFailure;
+use LingoWP\Database\TableDefinitions;
 
 /**
- * Schema orchestrator — install, verify, and version-gate the TransLangs tables.
+ * Schema orchestrator — install, verify, and version-gate the LingoWP tables.
  *
  * Ten content tables: five readable PARENT source tables and five CHILD
  * per-language translation tables. Created with raw DDL — never dbDelta().
@@ -18,15 +18,15 @@ use TransLangs\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '23';
-    public const OPTION_DB_VERSION = 'translangs_db_version';
+    public const DB_VERSION        = '1';
+    public const OPTION_DB_VERSION = 'lingowp_db_version';
 
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
-    public const HASH_LINK_CHILDREN = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
+    public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option'];
 
     /** parent_id children (meta): FK constraint name => parent table key. */
     private const PARENT_ID_CHILD_FKS = [
-        'fk_meta_tr_parent' => 'tl_meta',
+        'fk_meta_tr_parent' => 'meta',
     ];
 
     public static function maybeUpgrade(): void
@@ -54,17 +54,16 @@ class TranslationMemorySchema
         global $wpdb;
 
         self::assertParentTablesAreInnoDB();
-        self::dropStaleOptionTables();
 
         $cc = $wpdb->get_charset_collate();
         $p  = self::parentTables();
 
         // 1. Create the five parent tables first — they are the child FK targets.
-        $wpdb->query(TableDefinitions::post($p['tl_post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::meta($p['tl_meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::term($p['tl_term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::html($p['tl_html'], $cc));                                       // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::option($p['tl_option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::html($p['html'], $cc));                                       // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
 
         // 2a. Hash-link children (post/term/html): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
@@ -84,13 +83,6 @@ class TranslationMemorySchema
                 )
             );
         }
-
-        // 2c. Upgrade path: an existing wp_tl_html (pre-v21) lacks last_seen_at.
-        self::migrateHtmlLastSeenAt();
-
-        // 2d. Upgrade path: an existing wp_tl_html (pre-v22) is keyed
-        // (selector_hash, original_hash) instead of original_hash alone.
-        self::migrateHtmlIdentityToHashOnly();
 
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
         $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
@@ -121,10 +113,10 @@ class TranslationMemorySchema
     {
         $p        = self::parentTables();
         $expected = [
-            'fk_post_owner'   => $p['tl_post'],
-            'fk_meta_owner'   => $p['tl_meta'],
-            'fk_term_owner'   => $p['tl_term'],
-            'fk_option_owner' => $p['tl_option'],
+            'fk_post_owner'   => $p['post'],
+            'fk_meta_owner'   => $p['meta'],
+            'fk_term_owner'   => $p['term'],
+            'fk_option_owner' => $p['option'],
         ];
 
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
@@ -152,88 +144,6 @@ class TranslationMemorySchema
         }
     }
 
-    /**
-     * One-time migration: tl_option's child switched from the parent_id model to
-     * hash-link. CREATE TABLE IF NOT EXISTS cannot reshape an existing table, so
-     * if the child still carries the old `parent_id` column, drop both option
-     * tables (child first for the FK) and let the install recreate them in the
-     * current hash-link shape. Guarded — it never touches a correct table.
-     */
-    private static function dropStaleOptionTables(): void
-    {
-        global $wpdb;
-
-        $child = $wpdb->prefix . 'tl_option_translation';
-
-        if (self::columnExists($child, 'parent_id')) {
-            $wpdb->query('DROP TABLE IF EXISTS ' . $child);                       // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_option');  // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-        }
-    }
-
-    /**
-     * Add last_seen_at to an existing wp_tl_html (pre-v21). Guarded by an
-     * information_schema column check so it never re-runs or touches a freshly
-     * created table (which already has the column via TableDefinitions::html()).
-     * Existing rows get NULL, which the staleness query never matches — nothing
-     * is retroactively flagged stale on upgrade day (see HtmlDiscovery, the html
-     * repository staleness methods).
-     */
-    private static function migrateHtmlLastSeenAt(): void
-    {
-        global $wpdb;
-
-        $table = self::parentTables()['tl_html'];
-
-        if (self::columnExists($table, 'last_seen_at')) {
-            return;
-        }
-
-        $wpdb->query("ALTER TABLE {$table} ADD COLUMN last_seen_at datetime NULL"); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-    }
-
-    /**
-     * Collapse an existing wp_tl_html (pre-v22) from identity
-     * (selector_hash, original_hash) to original_hash alone. The same text at
-     * two DOM locations used to mint two parent rows sharing one translation
-     * (the child table was always keyed by original_hash alone) — cluttering
-     * the flat html:all board without ever producing a second translation, so
-     * collapsing the parent identity loses nothing translation-wise.
-     *
-     * Guarded by an information_schema column check so it never re-runs or
-     * touches a freshly created table (which is already original_hash-only
-     * via TableDefinitions::html()). Existing duplicates are deduped — lowest
-     * id per original_hash kept — before the unique key is rebuilt, since
-     * MySQL would otherwise reject a UNIQUE KEY the current duplicate rows
-     * already violate.
-     */
-    private static function migrateHtmlIdentityToHashOnly(): void
-    {
-        global $wpdb;
-
-        $table = self::parentTables()['tl_html'];
-
-        if (!self::columnExists($table, 'selector_hash')) {
-            return;
-        }
-
-        // Keep the earliest row per original_hash; later duplicates are pure
-        // location clutter now that the parent identity is hash-only.
-        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            "DELETE p1 FROM {$table} p1
-                INNER JOIN {$table} p2
-                    ON p2.original_hash = p1.original_hash AND p2.id < p1.id"
-        );
-
-        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            "ALTER TABLE {$table}
-                DROP INDEX uniq_source,
-                DROP INDEX idx_hash,
-                DROP COLUMN selector_hash,
-                ADD UNIQUE KEY uniq_source (original_hash)"
-        );
-    }
-
     /** Storage engine of one table per information_schema, or null if unknown. */
     private static function engineOf(string $table): ?string
     {
@@ -250,52 +160,35 @@ class TranslationMemorySchema
         return is_string($engine) ? $engine : null;
     }
 
-    /** Whether $table currently has a column named $column, per information_schema. */
-    private static function columnExists(string $table, string $column): bool
-    {
-        global $wpdb;
-
-        $found = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
-                $table,
-                $column
-            )
-        );
-
-        return $found === $column;
-    }
-
     /**
      * Set behavior options on first activation only (add_option is a no-op if they exist).
      * The source language is captured ONCE here: the normalized site
-     * locale is frozen into translangs_source_locale so runtime never reads the
+     * locale is frozen into lingowp_source_locale so runtime never reads the
      * filtered, mid-request-switchable get_locale().
      */
     public static function setDefaultOptions(): void
     {
-        add_option('translangs_enabled_languages', []);
-        add_option('translangs_prefix_default_language', false);
-        add_option('translangs_cookie_preference', true);
-        add_option('translangs_browser_detection', false);
-        add_option('translangs_auto_redirect', false);
+        add_option('lingowp_enabled_languages', []);
+        add_option('lingowp_prefix_default_language', false);
+        add_option('lingowp_cookie_preference', true);
+        add_option('lingowp_browser_detection', false);
+        add_option('lingowp_auto_redirect', false);
 
         // Onboarding: not yet completed. Credentials (token/site_id) are written on
         // connect with autoload=false and are deliberately not seeded here.
-        add_option(\TransLangs\Backend\ConnectionRepository::OPTION_COMPLETED, false);
-        add_option(\TransLangs\Backend\SiteMetadataProvider::OPTION_CATEGORIES, []);
-        add_option(\TransLangs\Language\Infrastructure\LanguageMetadataStore::OPTION, []);
+        add_option(\LingoWP\Backend\ConnectionRepository::OPTION_COMPLETED, false);
+        add_option(\LingoWP\Backend\SiteMetadataProvider::OPTION_CATEGORIES, []);
+        add_option(\LingoWP\Language\Infrastructure\LanguageMetadataStore::OPTION, []);
 
         add_option(
-            \TransLangs\Language\Infrastructure\OptionLanguageRegistry::OPTION_SOURCE_LOCALE,
-            \TransLangs\Language\Domain\LocaleNormalizer::current()
+            \LingoWP\Language\Infrastructure\OptionLanguageRegistry::OPTION_SOURCE_LOCALE,
+            \LingoWP\Language\Domain\LocaleNormalizer::current()
         );
 
         // Capture a stable, readable label alongside the frozen source locale.
         // The workspace can continue displaying the original language correctly
         // even if WordPress's WPLANG option changes later.
-        (new \TransLangs\Language\Infrastructure\OptionLanguageRegistry())
+        (new \LingoWP\Language\Infrastructure\OptionLanguageRegistry())
             ->getDefaultLanguageDetails();
     }
 
@@ -307,11 +200,11 @@ class TranslationMemorySchema
         global $wpdb;
 
         return [
-            'tl_post'   => $wpdb->prefix . 'tl_post',
-            'tl_meta'   => $wpdb->prefix . 'tl_meta',
-            'tl_term'   => $wpdb->prefix . 'tl_term',
-            'tl_html'   => $wpdb->prefix . 'tl_html',
-            'tl_option' => $wpdb->prefix . 'tl_option',
+            'post'   => $wpdb->prefix . 'lingowp_post',
+            'meta'   => $wpdb->prefix . 'lingowp_meta',
+            'term'   => $wpdb->prefix . 'lingowp_term',
+            'html'   => $wpdb->prefix . 'lingowp_html',
+            'option' => $wpdb->prefix . 'lingowp_option',
         ];
     }
 
@@ -328,7 +221,7 @@ class TranslationMemorySchema
     }
 
     /**
-     * Reset-button tool: drop every TransLangs table, children before parents
+     * Reset-button tool: drop every LingoWP table, children before parents
      * (FK-safe, same order as uninstall.php's DROP).
      */
     public static function dropAllTables(\wpdb $wpdb): void
@@ -342,10 +235,10 @@ class TranslationMemorySchema
     /** Dev-only reset tool: the reciprocal of setDefaultOptions() above. */
     public static function deleteConfigOptions(): void
     {
-        delete_option('translangs_enabled_languages');
-        delete_option('translangs_prefix_default_language');
-        delete_option('translangs_cookie_preference');
-        delete_option('translangs_browser_detection');
-        delete_option('translangs_auto_redirect');
+        delete_option('lingowp_enabled_languages');
+        delete_option('lingowp_prefix_default_language');
+        delete_option('lingowp_cookie_preference');
+        delete_option('lingowp_browser_detection');
+        delete_option('lingowp_auto_redirect');
     }
 }

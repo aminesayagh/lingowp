@@ -11,8 +11,8 @@ require __DIR__ . '/../src/Shared/Parsing/UnitStructureGuard.php';
 require __DIR__ . '/../src/Shared/Parsing/SeoTemplateVariables.php';
 require __DIR__ . '/../src/Shared/Parsing/TranslationSubmissionGuard.php';
 
-use TransLangs\Shared\Parsing\SeoTemplateVariables;
-use TransLangs\Shared\Parsing\TranslationSubmissionGuard;
+use LingoWP\Shared\Parsing\SeoTemplateVariables;
+use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
 
 $YT = '_yoast_wpseo_title';
 $RT = 'rank_math_title';

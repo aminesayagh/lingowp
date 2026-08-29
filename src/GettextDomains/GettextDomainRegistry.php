@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\GettextDomains;
+namespace LingoWP\GettextDomains;
 
 /**
  * Option-backed status tracker for gettext translation files: for each
@@ -15,7 +15,7 @@ namespace TransLangs\GettextDomains;
  */
 final class GettextDomainRegistry
 {
-    public const OPTION = 'translangs_gettext_domains';
+    public const OPTION = 'lingowp_gettext_domains';
 
     public const STATUS_FOUND_ONLINE     = 'found_online';
     public const STATUS_IMPORTED         = 'imported';

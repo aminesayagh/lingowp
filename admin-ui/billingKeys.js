@@ -5,4 +5,4 @@
 // order (see reference-billing-api-integration.md §4). Keep this one
 // constant in sync rather than duplicating the literal — a mismatch here
 // would silently break the poll-until-settled "words increased" check.
-export const PENDING_WORDS_KEY = 'translangs_pending_words_before'
+export const PENDING_WORDS_KEY = 'lingowp_pending_words_before'

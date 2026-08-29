@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Resolution\Seo;
+namespace LingoWP\Resolution\Seo;
 
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Resolution\RequestContext;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Resolution\RequestContext;
 
 /**
  * Default noindex for a page with no translated content yet in the visitor's

@@ -1,22 +1,22 @@
 <?php
 
-namespace TransLangs\Onboarding;
+namespace LingoWP\Onboarding;
 
-use TransLangs\Insights\NotifyEmailResolver;
+use LingoWP\Insights\NotifyEmailResolver;
 
 /**
- * Mounts the React + Polaris onboarding/dashboard SPA on the top-level TransLangs
+ * Mounts the React + Polaris onboarding/dashboard SPA on the top-level LingoWP
  * admin page. The SPA (built by @wordpress/scripts into assets/admin/build) renders
- * into a single root node and talks to the translangs/v1 REST API. The REST root
+ * into a single root node and talks to the lingowp/v1 REST API. The REST root
  * and nonce are handed to the SPA via wp_localize_script — the api_token never is.
  */
 final class OnboardingPageController
 {
     public const CAPABILITY = 'manage_options';
-    public const SLUG       = 'translangs';
-    private const BILLING_SLUG  = 'translangs-billing';
-    private const INSIGHTS_SLUG = 'translangs-insights';
-    private const HANDLE    = 'translangs-app';
+    public const SLUG       = 'lingowp';
+    private const BILLING_SLUG  = 'lingowp-billing';
+    private const INSIGHTS_SLUG = 'lingowp-insights';
+    private const HANDLE    = 'lingowp-app';
 
     private string $hookSuffix = '';
     private string $billingHookSuffix = '';
@@ -33,8 +33,8 @@ final class OnboardingPageController
     public function addMenu(): void
     {
         $hook = add_menu_page(
-            __('TransLangs', 'translangs'),
-            __('TransLangs', 'translangs'),
+            __('LingoWP', 'lingowp'),
+            __('LingoWP', 'lingowp'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage'],
@@ -44,8 +44,8 @@ final class OnboardingPageController
 
         add_submenu_page(
             self::SLUG,
-            __('TransLangs', 'translangs'),
-            __('Workspace', 'translangs'),
+            __('LingoWP', 'lingowp'),
+            __('Workspace', 'lingowp'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
@@ -53,8 +53,8 @@ final class OnboardingPageController
 
         $insightsHook = add_submenu_page(
             self::SLUG,
-            __('Insights', 'translangs'),
-            __('Insights', 'translangs'),
+            __('Insights', 'lingowp'),
+            __('Insights', 'lingowp'),
             self::CAPABILITY,
             self::INSIGHTS_SLUG,
             [$this, 'renderInsightsPage']
@@ -62,8 +62,8 @@ final class OnboardingPageController
 
         $billingHook = add_submenu_page(
             self::SLUG,
-            __('Billing', 'translangs'),
-            __('Billing', 'translangs'),
+            __('Billing', 'lingowp'),
+            __('Billing', 'lingowp'),
             self::CAPABILITY,
             self::BILLING_SLUG,
             [$this, 'renderBillingPage']
@@ -76,7 +76,7 @@ final class OnboardingPageController
 
     private function menuIcon(): string
     {
-        $logo = TRANSLANGS_DIR . 'assets/images/logo-white.svg';
+        $logo = LINGOWP_DIR . 'assets/images/lingowp-white-logo.svg';
         if (!is_readable($logo)) {
             return 'dashicons-translation';
         }
@@ -92,28 +92,28 @@ final class OnboardingPageController
     public function renderPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
         }
 
-        echo '<div class="wrap"><div id="translangs-app"></div></div>';
+        echo '<div class="wrap"><div id="lingowp-app"></div></div>';
     }
 
     public function renderBillingPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
         }
 
-        echo '<div class="wrap"><div id="translangs-billing-app"></div></div>';
+        echo '<div class="wrap"><div id="lingowp-billing-app"></div></div>';
     }
 
     public function renderInsightsPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'translangs'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
         }
 
-        echo '<div class="wrap"><div id="translangs-insights-app"></div></div>';
+        echo '<div class="wrap"><div id="lingowp-insights-app"></div></div>';
     }
 
     public function enqueue(string $hook): void
@@ -122,13 +122,13 @@ final class OnboardingPageController
             return;
         }
 
-        $base  = TRANSLANGS_DIR . 'assets/admin/build/';
+        $base  = LINGOWP_DIR . 'assets/admin/build/';
         $asset = $base . 'index.asset.php';
 
         if (!is_readable($asset)) {
             add_action('admin_notices', static function (): void {
                 echo '<div class="notice notice-error"><p>'
-                    . esc_html__('TransLangs admin assets are not built. Run "npm install && npm run build" in the plugin.', 'translangs')
+                    . esc_html__('LingoWP admin assets are not built. Run "npm install && npm run build" in the plugin.', 'lingowp')
                     . '</p></div>';
             });
             return;
@@ -139,9 +139,9 @@ final class OnboardingPageController
 
         wp_enqueue_script(
             self::HANDLE,
-            TRANSLANGS_URL . 'assets/admin/build/index.js',
+            LINGOWP_URL . 'assets/admin/build/index.js',
             $meta['dependencies'] ?? [],
-            $meta['version'] ?? TRANSLANGS_VERSION,
+            $meta['version'] ?? LINGOWP_VERSION,
             true
         );
 
@@ -149,9 +149,9 @@ final class OnboardingPageController
         if (is_readable($css)) {
             wp_enqueue_style(
                 self::HANDLE,
-                TRANSLANGS_URL . 'assets/admin/build/index.css',
+                LINGOWP_URL . 'assets/admin/build/index.css',
                 [],
-                $meta['version'] ?? TRANSLANGS_VERSION
+                $meta['version'] ?? LINGOWP_VERSION
             );
 
             // Swap to the generated index-rtl.css on RTL admin locales (Arabic).
@@ -160,18 +160,18 @@ final class OnboardingPageController
 
         $notifyEmail = $this->notifyEmailResolver->resolve();
 
-        wp_localize_script(self::HANDLE, 'Translangs', [
-            'rest'                => esc_url_raw(rest_url('translangs/v1')),
+        wp_localize_script(self::HANDLE, 'LingoWP', [
+            'rest'                => esc_url_raw(rest_url('lingowp/v1')),
             'nonce'               => wp_create_nonce('wp_rest'),
-            'logo'                => esc_url_raw(TRANSLANGS_URL . 'assets/images/Logo-blue.svg'),
-            'flags_base_url'      => esc_url_raw(TRANSLANGS_URL . 'assets/flags/'),
+            'logo'                => esc_url_raw(LINGOWP_URL . 'assets/images/lingowp-logo.svg'),
+            'flags_base_url'      => esc_url_raw(LINGOWP_URL . 'assets/flags/'),
             'billing_url'         => esc_url_raw(admin_url('admin.php?page=' . self::BILLING_SLUG)),
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
-            'cloud_terms_url'     => esc_url_raw((string) apply_filters('translangs_cloud_terms_url', '')),
-            'cloud_privacy_url'   => esc_url_raw((string) apply_filters('translangs_cloud_privacy_url', '')),
+            'cloud_terms_url'     => esc_url_raw((string) apply_filters('lingowp_cloud_terms_url', '')),
+            'cloud_privacy_url'   => esc_url_raw((string) apply_filters('lingowp_cloud_privacy_url', '')),
         ]);
 
-        wp_set_script_translations(self::HANDLE, 'translangs', TRANSLANGS_DIR . 'languages');
+        wp_set_script_translations(self::HANDLE, 'lingowp', LINGOWP_DIR . 'languages');
     }
 }

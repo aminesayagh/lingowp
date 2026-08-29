@@ -491,11 +491,11 @@ function GettextRowActions( { row, onImported, onManual } ) {
 		body.append( 'locale', row.locale )
 		try {
 			const res = await fetch(
-				`${ ( window.Translangs || {} ).rest }/gettext-domains/import`,
+				`${ ( window.LingoWP || {} ).rest }/gettext-domains/import`,
 				{
 					method: 'POST',
 					headers: {
-						'X-WP-Nonce': ( window.Translangs || {} ).nonce,
+						'X-WP-Nonce': ( window.LingoWP || {} ).nonce,
 					},
 					body,
 				}
@@ -978,7 +978,7 @@ function GettextUnitRow( {
 							{ translating && (
 								<motion.span
 									aria-hidden="true"
-									className="tl-shimmer"
+									className="lingowp-shimmer"
 									initial={ { opacity: 0 } }
 									animate={ { opacity: 1 } }
 									transition={ { duration: 0.15 } }

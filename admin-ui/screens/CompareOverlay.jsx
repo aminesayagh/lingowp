@@ -679,13 +679,13 @@ export default function CompareOverlay( {
 						{ translating && (
 							<motion.span
 								aria-hidden="true"
-								className="tl-shimmer"
+								className="lingowp-shimmer"
 								initial={ { opacity: 0 } }
 								animate={ { opacity: 1 } }
 								transition={ { duration: 0.15 } }
 								dir={ targetDir }
 								style={ {
-									// .tl-shimmer's display:flex + align-items:
+									// .lingowp-shimmer's display:flex + align-items:
 									// center is tuned for a single-line table
 									// cell — this is a wrapped paragraph, so
 									// override both back to a plain top-aligned

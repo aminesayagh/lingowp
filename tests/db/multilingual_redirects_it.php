@@ -33,15 +33,15 @@
 
 require __DIR__ . '/_harness.php';
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
-use TransLangs\LocalizationRouting\MultilingualRedirects;
-use TransLangs\Resolution\RequestContext;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\LocalizationRouting\MultilingualRedirects;
+use LingoWP\Resolution\RequestContext;
 
-tl_guard();
-tl_begin();
+test_guard();
+test_begin();
 
 // ── Setup: one throwaway enabled target language ─────────────────────────────
 // zz_ZZ is not a real WordPress locale, so it cannot collide with anything
@@ -61,17 +61,17 @@ $store->save(['code' => 'yy_YY', 'slug' => 'yy']);
 $registry->enableLanguage('yy_YY');
 
 $default = $registry->getDefaultLanguage();
-tl_ok('default language is set up', $default !== '', "default=$default");
-tl_ok('zz_ZZ is now enabled', $registry->isEnabledLanguage('zz_ZZ'));
-tl_ok('yy_YY is now enabled', $registry->isEnabledLanguage('yy_YY'));
+test_ok('default language is set up', $default !== '', "default=$default");
+test_ok('zz_ZZ is now enabled', $registry->isEnabledLanguage('zz_ZZ'));
+test_ok('yy_YY is now enabled', $registry->isEnabledLanguage('yy_YY'));
 
 $context = new RequestContext();
 
 $_SERVER['REQUEST_METHOD'] = 'GET';
-$_SERVER['REQUEST_URI']    = '/tltest-redirect-page/';
+$_SERVER['REQUEST_URI']    = '/lingowp-test-redirect-page/';
 
 /** Fresh instance so ResolveRequestLanguage's internal memoization never leaks between scenarios. */
-function tl_redirects(OptionLanguageRegistry $registry, RequestContext $context): MultilingualRedirects
+function test_redirects(OptionLanguageRegistry $registry, RequestContext $context): MultilingualRedirects
 {
     $resolver = new ResolveRequestLanguage($registry);
     return new MultilingualRedirects($resolver, new LocalizedUrlBuilder($resolver), $context);
@@ -79,52 +79,52 @@ function tl_redirects(OptionLanguageRegistry $registry, RequestContext $context)
 
 // ── 1. register() wires the filter ────────────────────────────────────────────
 
-tl_section('register(): wires the wp_redirect filter');
+test_section('register(): wires the wp_redirect filter');
 
-$redirects = tl_redirects($registry, $context);
+$redirects = test_redirects($registry, $context);
 $redirects->register();
-tl_ok(
+test_ok(
     'preserveLanguagePrefix is registered on wp_redirect',
     has_filter('wp_redirect', [$redirects, 'preserveLanguagePrefix']) !== false
 );
 
 // ── 2. Non-string input / default-language request: untouched ────────────────
 
-tl_section('gating: non-string input, default-language request');
+test_section('gating: non-string input, default-language request');
 
-set_query_var('translangs_lang', '');
+set_query_var('lingowp_lang', '');
 
-tl_ok('false passes through unchanged', tl_redirects($registry, $context)->preserveLanguagePrefix(false, 301) === false);
-tl_ok('empty string passes through unchanged', tl_redirects($registry, $context)->preserveLanguagePrefix('', 301) === '');
+test_ok('false passes through unchanged', test_redirects($registry, $context)->preserveLanguagePrefix(false, 301) === false);
+test_ok('empty string passes through unchanged', test_redirects($registry, $context)->preserveLanguagePrefix('', 301) === '');
 
-tl_ok(
+test_ok(
     'default-language request leaves a relative path untouched',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/tltest-old-slug/', 301) === '/tltest-old-slug/'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/lingowp-test-old-slug/', 301) === '/lingowp-test-old-slug/'
 );
 
 // ── 3. Translated-language request: prefixing ────────────────────────────────
 
-tl_section('translated-language request: prefixing');
+test_section('translated-language request: prefixing');
 
-set_query_var('translangs_lang', 'zz_ZZ');
+set_query_var('lingowp_lang', 'zz_ZZ');
 
-tl_ok(
+test_ok(
     'relative path gets the /zz/ prefix',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/tltest-old-slug/', 301) === '/zz/tltest-old-slug/'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/lingowp-test-old-slug/', 301) === '/zz/lingowp-test-old-slug/'
 );
 
-$absoluteIn  = home_url('/tltest-old-slug/');
-$absoluteOut = home_url('/zz/tltest-old-slug/');
-tl_ok(
+$absoluteIn  = home_url('/lingowp-test-old-slug/');
+$absoluteOut = home_url('/zz/lingowp-test-old-slug/');
+test_ok(
     'absolute same-site URL stays absolute, gets the /zz/ prefix',
-    tl_redirects($registry, $context)->preserveLanguagePrefix($absoluteIn, 301) === $absoluteOut,
-    (string) tl_redirects($registry, $context)->preserveLanguagePrefix($absoluteIn, 301)
+    test_redirects($registry, $context)->preserveLanguagePrefix($absoluteIn, 301) === $absoluteOut,
+    (string) test_redirects($registry, $context)->preserveLanguagePrefix($absoluteIn, 301)
 );
 
-tl_ok(
+test_ok(
     'query string and fragment survive the rewrite',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/tltest-old-slug/?foo=bar#baz', 301)
-        === '/zz/tltest-old-slug/?foo=bar#baz'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/lingowp-test-old-slug/?foo=bar#baz', 301)
+        === '/zz/lingowp-test-old-slug/?foo=bar#baz'
 );
 
 // Regression: a redirect target that's ALREADY correctly prefixed at the
@@ -137,13 +137,13 @@ tl_ok(
 // fought forever. Bailing as soon as the existing prefix already matches the
 // active language — before ever calling addPrefix()/stripPrefix() — is what
 // prevents the round trip that loses the slash.
-tl_ok(
+test_ok(
     'an already-correctly-prefixed language-home path (with trailing slash) is untouched',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/zz/', 301) === '/zz/'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/zz/', 301) === '/zz/'
 );
-tl_ok(
+test_ok(
     'an already-correctly-prefixed language-home path (no trailing slash) is untouched either way',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/zz', 301) === '/zz'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/zz', 301) === '/zz'
 );
 
 // LocalizedUrlBuilder::stripPrefix() drops the trailing slash when it strips
@@ -153,73 +153,73 @@ tl_ok(
 // shared infrastructure this fix reuses as-is, not something to change here;
 // the real-world case (wp_old_slug_redirect()'s $link from get_permalink())
 // is always the no-existing-prefix path anyway.
-tl_ok(
+test_ok(
     'idempotent against an existing different (but real, enabled) prefix — no double-prefixing',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/yy/tltest-old-slug/', 301) === '/zz/tltest-old-slug'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/yy/lingowp-test-old-slug/', 301) === '/zz/lingowp-test-old-slug'
 );
 
 // ── 4. Off-site and admin/login destinations: never touched ──────────────────
 
-tl_section('off-site and admin/login destinations are never touched');
+test_section('off-site and admin/login destinations are never touched');
 
-$offSite = 'https://tltest-external.example/callback?token=abc';
-tl_ok(
+$offSite = 'https://lingowp-test-external.example/callback?token=abc';
+test_ok(
     'off-site absolute URL is untouched',
-    tl_redirects($registry, $context)->preserveLanguagePrefix($offSite, 302) === $offSite
+    test_redirects($registry, $context)->preserveLanguagePrefix($offSite, 302) === $offSite
 );
 
 $adminAbsolute = admin_url('post.php?post=1&action=edit');
-tl_ok(
+test_ok(
     'admin_url() destination is untouched',
-    tl_redirects($registry, $context)->preserveLanguagePrefix($adminAbsolute, 302) === $adminAbsolute
+    test_redirects($registry, $context)->preserveLanguagePrefix($adminAbsolute, 302) === $adminAbsolute
 );
 
-tl_ok(
+test_ok(
     'relative wp-admin path is untouched',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/wp-admin/edit.php', 302) === '/wp-admin/edit.php'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/wp-admin/edit.php', 302) === '/wp-admin/edit.php'
 );
 
-$loginRedirect = '/wp-login.php?redirect_to=' . rawurlencode('/tltest-old-slug/');
-tl_ok(
+$loginRedirect = '/wp-login.php?redirect_to=' . rawurlencode('/lingowp-test-old-slug/');
+test_ok(
     'wp-login.php destination is untouched',
-    tl_redirects($registry, $context)->preserveLanguagePrefix($loginRedirect, 302) === $loginRedirect
+    test_redirects($registry, $context)->preserveLanguagePrefix($loginRedirect, 302) === $loginRedirect
 );
 
 // ── 5. Non-front-end current request: untouched even in a translated language ─
 
-tl_section('current request is non-front-end (e.g. admin): untouched regardless of active language');
+test_section('current request is non-front-end (e.g. admin): untouched regardless of active language');
 
 $_SERVER['REQUEST_URI'] = '/wp-admin/edit.php';
-tl_ok(
+test_ok(
     'admin current-request context leaves the redirect target untouched',
-    tl_redirects($registry, $context)->preserveLanguagePrefix('/tltest-old-slug/', 301) === '/tltest-old-slug/'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/lingowp-test-old-slug/', 301) === '/lingowp-test-old-slug/'
 );
-$_SERVER['REQUEST_URI'] = '/tltest-redirect-page/';
+$_SERVER['REQUEST_URI'] = '/lingowp-test-redirect-page/';
 
-set_query_var('translangs_lang', '');
+set_query_var('lingowp_lang', '');
 
 // ── 6. correctedPrefixSlug(): case-mismatch recovery decision ────────────────
 // Pure — no request/redirect side effects — tested directly rather than via
 // redirectMiscasedPrefix(), which calls exit() on a match.
 
-tl_section('correctedPrefixSlug(): case-mismatch recovery decision');
+test_section('correctedPrefixSlug(): case-mismatch recovery decision');
 
-$plain = tl_redirects($registry, $context);
+$plain = test_redirects($registry, $context);
 
-tl_ok(
+test_ok(
     'a case-mismatched but real prefix resolves to its correct casing',
     $plain->correctedPrefixSlug('ZZ') === 'zz',
     (string) $plain->correctedPrefixSlug('ZZ')
 );
 
-tl_ok(
+test_ok(
     'an already-correctly-cased prefix needs no correction (null — that 404 is real)',
     $plain->correctedPrefixSlug('zz') === null
 );
 
-tl_ok(
+test_ok(
     'a prefix that is not any enabled language at all needs no correction (null — normal 404 stands)',
     $plain->correctedPrefixSlug('xx') === null
 );
 
-tl_done();
+test_done();

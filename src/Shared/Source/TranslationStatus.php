@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Source;
+namespace LingoWP\Shared\Source;
 
 /**
  * Status vocabulary. The column is a SIGNED tinyint so "done" reads as a
@@ -16,7 +16,7 @@ namespace TransLangs\Shared\Source;
  * There is no stale parent status and no "original changed" derivation for
  * post/meta/term/option: a source-text edit deletes the stale parent and
  * seeds the new translation as needs_review, so child status alone drives the
- * admin queue. tl_html is the one deliberate exception — its identity is a
+ * admin queue. html is the one deliberate exception — its identity is a
  * bare content hash with no owning entity to reconcile against, so a crawl
  * can never be sure "not found this pass" means "gone" rather than "outside
  * this crawl's URL scope" or "one fetch failed". SOURCE_STALE flags a

@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Resolution;
+namespace LingoWP\Resolution;
 
 use Masterminds\HTML5;
-use TransLangs\LocalizationRouting\LocalizedUrlBuilder;
-use TransLangs\Shared\StaticAssetExtensions;
+use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\Shared\StaticAssetExtensions;
 
 final class PublicLinkRewriter
 {
@@ -81,7 +81,7 @@ final class PublicLinkRewriter
             '/<a\\b[^>]*\\bhref\\s*=\\s*(["\\\'])(.*?)\\1[^>]*>/is',
             function (array $matches) use ($targetLang): string {
                 $tag = $matches[0];
-                if (preg_match('/\\s(?:data-tls-lang|hreflang)\\b/i', $tag) === 1) {
+                if (preg_match('/\\s(?:data-lingowp-lang|hreflang)\\b/i', $tag) === 1) {
                     return $tag;
                 }
 
@@ -106,7 +106,7 @@ final class PublicLinkRewriter
 
     private function shouldSkipElement(\DOMElement $element): bool
     {
-        if ($element->hasAttribute('data-tls-lang') || $element->hasAttribute('hreflang')) {
+        if ($element->hasAttribute('data-lingowp-lang') || $element->hasAttribute('hreflang')) {
             return true;
         }
 

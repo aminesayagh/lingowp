@@ -1,9 +1,9 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 /**
- * Resolves the Translangs backend base URL.
+ * Resolves the LingoWP backend base URL.
  *
  * This plugin is distributed publicly, so nothing here can depend on a site
  * owner editing wp-config.php — resolution is self-contained in the plugin.
@@ -14,7 +14,7 @@ namespace TransLangs\Backend;
  */
 final class BackendEndpointResolver
 {
-    public const OPTION_ORIGIN = 'translangs_api_origin';
+    public const OPTION_ORIGIN = 'lingowp_api_origin';
 
     private const VERSION_PATH = '/api/v1';
 
@@ -29,7 +29,7 @@ final class BackendEndpointResolver
     public function origin(): string
     {
         // 1. Filter override (programmatic — mu-plugin/hosting integration).
-        $filtered = apply_filters('translangs_api_origin', '');
+        $filtered = apply_filters('lingowp_api_origin', '');
         if (is_string($filtered) && $filtered !== '') {
             return $this->normalize($filtered);
         }

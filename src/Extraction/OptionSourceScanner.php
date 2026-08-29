@@ -1,13 +1,13 @@
 <?php
 
-namespace TransLangs\Extraction;
+namespace LingoWP\Extraction;
 
-use TransLangs\Shared\Source\Type\OptionSource;
-use TransLangs\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Source\Type\OptionSource;
+use LingoWP\Database\Repository\WpDbSourceRepository;
 
 /**
  * Options discovery (Path E): extract the small subset of visitor-facing text
- * stored in wp_options and upsert it into tl_option. Conservative by design —
+ * stored in wp_options and upsert it into option. Conservative by design —
  * an ALLOWLIST of option paths, never a blind sweep of every option — so plugin
  * configuration and serialized data are left untouched (see the wp_options
  * translation strategy spec). Discovery only; rendering is OptionResolver's job
@@ -21,7 +21,7 @@ final class OptionSourceScanner
      *   value = list of dot-paths into the (maybe-serialized) value; '' means the
      *           scalar value itself. A path pointing at a container is walked
      *           recursively, one source per leaf string.
-     * Extend via the `translangs_option_paths` filter (e.g. theme_mods/widgets).
+     * Extend via the `lingowp_option_paths` filter (e.g. theme_mods/widgets).
      */
     private const ALLOWLIST = [
         'blogname'        => [''],
@@ -88,7 +88,7 @@ final class OptionSourceScanner
             $list[$name] = [''];
         }
 
-        $list = apply_filters('translangs_option_paths', $list);
+        $list = apply_filters('lingowp_option_paths', $list);
 
         return is_array($list) ? $list : self::ALLOWLIST;
     }

@@ -1,26 +1,26 @@
 <?php
 
-namespace TransLangs\Language;
+namespace LingoWP\Language;
 
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Language\Infrastructure\LanguageMetadataStore;
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
-use TransLangs\Language\Infrastructure\WordPressLanguageCatalog;
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Language\Infrastructure\WordPressLanguageCatalog;
+use LingoWP\Language\Domain\LocaleNormalizer;
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * Target-language REST endpoints (namespace translangs/v1).
+ * Target-language REST endpoints (namespace lingowp/v1).
  *
  * The JSON metadata store is the local source of truth for which languages exist;
  * the registry tracks which are enabled (active) for runtime routing. Creating an
- * "active" language enables it and fires translangs_language_roster_changed so the
+ * "active" language enables it and fires lingowp_language_roster_changed so the
  * background metadata sync (P4) picks up the new active_languages list.
  */
 final class LanguageRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     public function __construct(
         private LanguageMetadataStore $store,
@@ -167,7 +167,7 @@ final class LanguageRestController
         if ($status === 'active') {
             $this->registry->enableLanguage($code);
             $this->invalidateLanguageRoutes();
-            do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
+            do_action('lingowp_language_roster_changed', $this->registry->getTargetLanguages());
         }
 
         return rest_ensure_response([
@@ -180,7 +180,7 @@ final class LanguageRestController
 
     /**
      * Edit one language (PATCH: only provided fields change) and/or move it between
-     * active and draft. Enabling/disabling fires translangs_language_roster_changed
+     * active and draft. Enabling/disabling fires lingowp_language_roster_changed
      * so the background metadata sync (P4) pushes the new active_languages list.
      */
     public function update(WP_REST_Request $request): WP_REST_Response
@@ -227,11 +227,11 @@ final class LanguageRestController
         if ($status === 'active') {
             $this->registry->enableLanguage($code);
             $this->invalidateLanguageRoutes();
-            do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
+            do_action('lingowp_language_roster_changed', $this->registry->getTargetLanguages());
         } elseif ($status === 'draft') {
             $this->registry->disableLanguage($code);
             $this->invalidateLanguageRoutes();
-            do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
+            do_action('lingowp_language_roster_changed', $this->registry->getTargetLanguages());
         } elseif ($slug !== null) {
             $this->invalidateLanguageRoutes();
         }
@@ -260,7 +260,7 @@ final class LanguageRestController
         $this->registry->disableLanguage($code);
         $this->store->remove($code);
         $this->invalidateLanguageRoutes();
-        do_action('translangs_language_roster_changed', $this->registry->getTargetLanguages());
+        do_action('lingowp_language_roster_changed', $this->registry->getTargetLanguages());
 
         return rest_ensure_response(['ok' => true]);
     }
@@ -322,6 +322,6 @@ final class LanguageRestController
     private function invalidateLanguageRoutes(): void
     {
         delete_option('rewrite_rules');
-        delete_option('translangs_rewrite_rules_version');
+        delete_option('lingowp_rewrite_rules_version');
     }
 }

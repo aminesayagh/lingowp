@@ -12,15 +12,15 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use TransLangs\Shared\Source\Type\HtmlSource;
-use TransLangs\Shared\Source\Type\OptionSource;
-use TransLangs\Shared\Source\Type\PostMetaSource;
-use TransLangs\Shared\Source\Type\PostSource;
-use TransLangs\Shared\Source\Type\SplitPostSource;
-use TransLangs\Shared\Source\Type\TermSource;
-use TransLangs\Shared\Source\SourceRef;
-use TransLangs\Shared\Text\IdentityKey;
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Shared\Source\Type\HtmlSource;
+use LingoWP\Shared\Source\Type\OptionSource;
+use LingoWP\Shared\Source\Type\PostMetaSource;
+use LingoWP\Shared\Source\Type\PostSource;
+use LingoWP\Shared\Source\Type\SplitPostSource;
+use LingoWP\Shared\Source\Type\TermSource;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Text\IdentityKey;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
 $failed = 0;
 $total  = 0;
@@ -124,7 +124,7 @@ foreach ($expected as $name => [$obj, $cols]) {
 ok('SplitPostSource shares PostSource identity columns (finding A root)',
     array_keys($split->identity()) === array_keys($post->identity()));
 ok('SplitPostSource shares PostSource table',
-    $split->table() === $post->table() && $split->table() === 'tl_post');
+    $split->table() === $post->table() && $split->table() === 'post');
 
 // ── D. Per-type construction rules ───────────────────────────────────────────
 
@@ -142,7 +142,7 @@ ok('HtmlSource rejects empty selector', throws(fn() => new HtmlSource('   ', nul
 ok('HtmlSource strips scheme and domain from source URL',
     $html->sourceUrl() === '/');
 ok('HtmlSource preserves path and query only',
-    (new HtmlSource('body', 'https://translangs.masayagh.com/hello-world/?page=2#section', 'x'))->sourceUrl()
+    (new HtmlSource('body', 'https://example.com/hello-world/?page=2#section', 'x'))->sourceUrl()
         === '/hello-world/?page=2');
 ok('HtmlSource normalizes a relative source URL',
     (new HtmlSource('body', 'hello-world/', 'x'))->sourceUrl() === '/hello-world/');

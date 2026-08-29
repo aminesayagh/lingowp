@@ -1,18 +1,18 @@
 <?php
 
-namespace TransLangs\Extraction\Structured;
+namespace LingoWP\Extraction\Structured;
 
-use TransLangs\Shared\Parsing\HtmlUnitExtractor;
-use TransLangs\Shared\Source\Type\PostMetaSource;
-use TransLangs\Shared\Source\PostMetaValuePaths;
-use TransLangs\Shared\Source\Type\PostSource;
-use TransLangs\Shared\Source\SourceRecord;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Shared\Source\Type\SplitPostSource;
-use TransLangs\Shared\Source\Type\TermSource;
-use TransLangs\Shared\Parsing\SeoTemplateVariables;
-use TransLangs\Shared\Text\TL_Key;
-use TransLangs\Shared\Source\TranslatableMetaKeys;
+use LingoWP\Shared\Parsing\HtmlUnitExtractor;
+use LingoWP\Shared\Source\Type\PostMetaSource;
+use LingoWP\Shared\Source\PostMetaValuePaths;
+use LingoWP\Shared\Source\Type\PostSource;
+use LingoWP\Shared\Source\SourceRecord;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Source\Type\SplitPostSource;
+use LingoWP\Shared\Source\Type\TermSource;
+use LingoWP\Shared\Parsing\SeoTemplateVariables;
+use LingoWP\Shared\Text\TranslationKey;
+use LingoWP\Shared\Source\TranslatableMetaKeys;
 
 /**
  * Save-time structured discovery for owned WordPress content (data pipeline §1-2,
@@ -108,7 +108,7 @@ final class StructuredSourceScanner
 
         foreach (self::POST_FIELDS as $field) {
             $text = (string) $post->{$field};
-            if (TL_Key::normalize($text) === '') {
+            if (TranslationKey::normalize($text) === '') {
                 continue;
             }
             $records[] = new PostSource($post->ID, $field, $text);
@@ -118,7 +118,7 @@ final class StructuredSourceScanner
         // block-level piece, text-tailed. Extracts the stored markup ($post->
         // post_content) — block comments/wrappers are scaffolding and ignored.
         foreach ($this->unitExtractor->units((string) $post->post_content) as $unit) {
-            if (TL_Key::normalize($unit) === '') {
+            if (TranslationKey::normalize($unit) === '') {
                 continue;
             }
             $records[] = new SplitPostSource($post->ID, 'post_content', $unit);
@@ -168,7 +168,7 @@ final class StructuredSourceScanner
         $records = [];
 
         foreach (['name' => $name, 'description' => $description] as $field => $text) {
-            if (TL_Key::normalize($text) === '') {
+            if (TranslationKey::normalize($text) === '') {
                 continue;
             }
             $records[] = new TermSource($termTaxonomyId, $field, $text);
@@ -262,7 +262,7 @@ final class StructuredSourceScanner
             : [];
 
         $list = function_exists('apply_filters')
-            ? apply_filters('translangs_translatable_taxonomies', $all)
+            ? apply_filters('lingowp_translatable_taxonomies', $all)
             : $all;
 
         return array_values(array_filter(

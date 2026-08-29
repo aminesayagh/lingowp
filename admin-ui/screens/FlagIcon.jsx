@@ -34,7 +34,7 @@ export function flagIconUrl( lang ) {
 	}
 
 	return `${
-		window.Translangs?.flags_base_url || ''
+		window.LingoWP?.flags_base_url || ''
 	}${ cc.toLowerCase() }.svg`
 }
 

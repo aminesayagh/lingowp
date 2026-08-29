@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared\Source;
+namespace LingoWP\Shared\Source;
 
 use InvalidArgumentException;
 
@@ -16,11 +16,11 @@ final class SourceRef
 {
     /** kind token => parent table key (TranslationMemorySchema::parentTables() index). */
     private const TABLES = [
-        'post'   => 'tl_post',
-        'meta'   => 'tl_meta',
-        'term'   => 'tl_term',
-        'html'   => 'tl_html',
-        'option' => 'tl_option',
+        'post'   => 'post',
+        'meta'   => 'meta',
+        'term'   => 'term',
+        'html'   => 'html',
+        'option' => 'option',
     ];
 
     private function __construct(
@@ -40,7 +40,7 @@ final class SourceRef
         return new self($kind, $id);
     }
 
-    /** The SourceRef kind token for a parent table key, e.g. 'tl_post' => 'post'. */
+    /** The SourceRef kind token for a parent table key, e.g. 'post' => 'post'. */
     public static function kindForTable(string $tableKey): string
     {
         $kind = array_search($tableKey, self::TABLES, true);
@@ -69,7 +69,7 @@ final class SourceRef
         return $this->kind . ':' . $this->id;
     }
 
-    /** Parent table key (unprefixed), e.g. 'tl_post'. */
+    /** Parent table key (unprefixed), e.g. 'post'. */
     public function parentTableKey(): string
     {
         return self::TABLES[$this->kind];

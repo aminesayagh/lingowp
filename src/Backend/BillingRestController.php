@@ -1,12 +1,12 @@
 <?php
 
-namespace TransLangs\Backend;
+namespace LingoWP\Backend;
 
 use WP_REST_Request;
 use WP_REST_Response;
 
 /**
- * Billing REST endpoints (namespace translangs/v1).
+ * Billing REST endpoints (namespace lingowp/v1).
  *
  * Pure pass-through to the backend's /billing/* and /me/entitlements routes.
  * manage_options only. subscribe()/changePlan()/orderPack()/captureOrder()
@@ -17,7 +17,7 @@ use WP_REST_Response;
  */
 final class BillingRestController
 {
-    private const NS = 'translangs/v1';
+    private const NS = 'lingowp/v1';
 
     public function __construct(
         private BackendClient $backendClient,

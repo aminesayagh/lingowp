@@ -1,12 +1,12 @@
 <?php
 
-namespace TransLangs\Resolution;
-use TransLangs\Resolution\RequestContext;
+namespace LingoWP\Resolution;
+use LingoWP\Resolution\RequestContext;
 
-use TransLangs\Language\Application\ResolveRequestLanguage;
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Database\Repository\WpDbSourceRepository;
-use TransLangs\Shared\Text\TL_Key;
+use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Shared\Text\TranslationKey;
 
 /**
  * Frontend rendering for translatable wp_options text (branding). Replaces the
@@ -17,7 +17,7 @@ use TransLangs\Shared\Text\TL_Key;
  * Scope: the two universal branding strings (site name + tagline), which surface
  * through `bloginfo` (e.g. <title>, meta tags) outside the page body. All other
  * discovered wp_options text (theme mods, widgets) is swapped in the final-HTML
- * output pass in PublicRenderPipeline, which shares the same tl_option hash map.
+ * output pass in PublicRenderPipeline, which shares the same option hash map.
  */
 final class OptionResolver
 {
@@ -54,7 +54,7 @@ final class OptionResolver
 
         // Hash-link: the rendered text IS the key (like post/term/html) — no
         // need to know the option row id.
-        $hash = strtolower(bin2hex(TL_Key::currentHash($output)));
+        $hash = strtolower(bin2hex(TranslationKey::currentHash($output)));
 
         return $this->map()[$hash] ?? $output;
     }
@@ -65,7 +65,7 @@ final class OptionResolver
         if ($this->map === null) {
             $map = [];
             foreach ($this->languageRegistry->resolutionChain($this->lang) as $lang) {
-                $map += $this->repository->fetchAllHashTranslations('tl_option', $lang);
+                $map += $this->repository->fetchAllHashTranslations('option', $lang);
             }
             $this->map = $map;
         }
