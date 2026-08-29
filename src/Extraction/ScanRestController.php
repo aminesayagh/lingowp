@@ -22,11 +22,18 @@ final class ScanRestController
 {
     private const NS = 'lingowp/v1';
 
+    private InitialDiscoveryScan $scan;
+    private SeoDiscoveryRescan $seoRescan;
+    private HtmlDiscoveryCrawl $htmlCrawl;
+
     public function __construct(
-        private InitialDiscoveryScan $scan,
-        private SeoDiscoveryRescan $seoRescan,
-        private HtmlDiscoveryCrawl $htmlCrawl
+        InitialDiscoveryScan $scan,
+        SeoDiscoveryRescan $seoRescan,
+        HtmlDiscoveryCrawl $htmlCrawl
     ) {
+        $this->scan      = $scan;
+        $this->seoRescan = $seoRescan;
+        $this->htmlCrawl = $htmlCrawl;
     }
 
     public function register(): void

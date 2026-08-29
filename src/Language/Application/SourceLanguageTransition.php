@@ -28,12 +28,22 @@ final class SourceLanguageTransition
 {
     private const NOTICE_TRANSIENT = 'lingowp_wplang_transition_notice';
 
+    private OptionLanguageRegistry $registry;
+    private LanguageMetadataStore $store;
+    private SourceLanguageSnapshot $snapshot;
+    private \wpdb $wpdb;
+
     public function __construct(
-        private OptionLanguageRegistry $registry,
-        private LanguageMetadataStore $store,
-        private SourceLanguageSnapshot $snapshot,
-        private \wpdb $wpdb
-    ) {}
+        OptionLanguageRegistry $registry,
+        LanguageMetadataStore $store,
+        SourceLanguageSnapshot $snapshot,
+        \wpdb $wpdb
+    ) {
+        $this->registry = $registry;
+        $this->store    = $store;
+        $this->snapshot = $snapshot;
+        $this->wpdb     = $wpdb;
+    }
 
     public function register(): void
     {

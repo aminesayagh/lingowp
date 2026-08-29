@@ -19,11 +19,19 @@ final class BillingRestController
 {
     private const NS = 'lingowp/v1';
 
+    private BackendClient $backendClient;
+    private BillingEntitlementsService $entitlements;
+    private ConnectionRepository $connection;
+
     public function __construct(
-        private BackendClient $backendClient,
-        private BillingEntitlementsService $entitlements,
-        private ConnectionRepository $connection
-    ) {}
+        BackendClient $backendClient,
+        BillingEntitlementsService $entitlements,
+        ConnectionRepository $connection
+    ) {
+        $this->backendClient = $backendClient;
+        $this->entitlements  = $entitlements;
+        $this->connection    = $connection;
+    }
 
     public function register(): void
     {

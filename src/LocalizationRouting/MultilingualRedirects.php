@@ -21,11 +21,18 @@ use LingoWP\Language\Application\ResolveRequestLanguage;
  */
 class MultilingualRedirects
 {
+    private ResolveRequestLanguage $resolver;
+    private LocalizedUrlBuilder $prefixer;
+    private RequestContext $context;
+
     public function __construct(
-        private ResolveRequestLanguage $resolver,
-        private LocalizedUrlBuilder $prefixer,
-        private RequestContext $context
+        ResolveRequestLanguage $resolver,
+        LocalizedUrlBuilder $prefixer,
+        RequestContext $context
     ) {
+        $this->resolver = $resolver;
+        $this->prefixer = $prefixer;
+        $this->context  = $context;
     }
 
     public function register(): void

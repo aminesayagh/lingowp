@@ -23,7 +23,12 @@ use LingoWP\Shared\Text\TranslationKey;
  */
 final class HtmlRenderer
 {
-    public function __construct(private HtmlUnitExtractor $extractor) {}
+    private HtmlUnitExtractor $extractor;
+
+    public function __construct(HtmlUnitExtractor $extractor)
+    {
+        $this->extractor = $extractor;
+    }
 
     /**
      * @param array<string, string>        $map    lowercase hex(original_hash) => translated unit string
@@ -67,13 +72,13 @@ final class HtmlRenderer
             if ($onDocument !== null) {
                 try {
                     $onDocument($dom);
-                } catch (\Throwable) {
+                } catch (\Throwable $e) {
                     // Body translations stand; this pass simply made no change.
                 }
             }
 
             return $html5->saveHTML($dom);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             return $html;
         }
     }

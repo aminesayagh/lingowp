@@ -13,8 +13,11 @@ use LingoWP\Language\Application\ResolveRequestLanguage;
  */
 class LocalizedUrlBuilder
 {
-    public function __construct(private ResolveRequestLanguage $resolver)
+    private ResolveRequestLanguage $resolver;
+
+    public function __construct(ResolveRequestLanguage $resolver)
     {
+        $this->resolver = $resolver;
     }
 
     /**

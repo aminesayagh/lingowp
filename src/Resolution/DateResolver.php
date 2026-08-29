@@ -57,10 +57,15 @@ final class DateResolver
     /** @var array<string, \IntlDateFormatter|null> "lang|pattern" => formatter, memoized per request */
     private array $formatters = [];
 
+    private ResolveRequestLanguage $language;
+    private RequestContext $context;
+
     public function __construct(
-        private ResolveRequestLanguage $language,
-        private RequestContext $context
+        ResolveRequestLanguage $language,
+        RequestContext $context
     ) {
+        $this->language = $language;
+        $this->context  = $context;
     }
 
     public function register(): void
@@ -102,7 +107,7 @@ final class DateResolver
             }
 
             return $result;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             return $value;
         }
     }
@@ -158,11 +163,14 @@ final class DateResolver
             return null;
         }
 
-        return match ($token) {
-            'a' => mb_strtolower($out),
-            'A' => mb_strtoupper($out),
-            default => $out,
-        };
+        switch ($token) {
+            case 'a':
+                return mb_strtolower($out);
+            case 'A':
+                return mb_strtoupper($out);
+            default:
+                return $out;
+        }
     }
 
     private function formatterFor(string $pattern): ?\IntlDateFormatter
@@ -184,7 +192,7 @@ final class DateResolver
                 \IntlDateFormatter::GREGORIAN,
                 $pattern
             );
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             $formatter = null;
         }
 

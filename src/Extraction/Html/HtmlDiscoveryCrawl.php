@@ -45,10 +45,15 @@ final class HtmlDiscoveryCrawl
      * not block the rest of a batch; it just gets deferred to marking mode. */
     private const FETCH_TIMEOUT_SECONDS = 8;
 
+    private \wpdb $wpdb;
+    private HtmlDiscovery $htmlDiscovery;
+
     public function __construct(
-        private \wpdb $wpdb,
-        private HtmlDiscovery $htmlDiscovery
+        \wpdb $wpdb,
+        HtmlDiscovery $htmlDiscovery
     ) {
+        $this->wpdb          = $wpdb;
+        $this->htmlDiscovery = $htmlDiscovery;
     }
 
     public function register(): void

@@ -33,11 +33,18 @@ use LingoWP\Resolution\RequestContext;
  */
 class LanguageAwareRobotsMeta
 {
+    private ResolveRequestLanguage $resolver;
+    private RequestContext $context;
+    private WpDbSourceRepository $repository;
+
     public function __construct(
-        private ResolveRequestLanguage $resolver,
-        private RequestContext $context,
-        private WpDbSourceRepository $repository
+        ResolveRequestLanguage $resolver,
+        RequestContext $context,
+        WpDbSourceRepository $repository
     ) {
+        $this->resolver   = $resolver;
+        $this->context    = $context;
+        $this->repository = $repository;
     }
 
     public function register(): void

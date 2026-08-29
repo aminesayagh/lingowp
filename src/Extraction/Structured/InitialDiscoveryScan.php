@@ -25,11 +25,19 @@ final class InitialDiscoveryScan
 
     private const BATCH = 200;
 
+    private \wpdb $wpdb;
+    private StructuredSourceScanner $scanner;
+    private OptionSourceScanner $optionScanner;
+
     public function __construct(
-        private \wpdb $wpdb,
-        private StructuredSourceScanner $scanner,
-        private OptionSourceScanner $optionScanner
-    ) {}
+        \wpdb $wpdb,
+        StructuredSourceScanner $scanner,
+        OptionSourceScanner $optionScanner
+    ) {
+        $this->wpdb          = $wpdb;
+        $this->scanner       = $scanner;
+        $this->optionScanner = $optionScanner;
+    }
 
     public function register(): void
     {

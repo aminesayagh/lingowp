@@ -28,10 +28,16 @@ final class OptionSourceScanner
         'blogdescription' => [''],
     ];
 
+    private WpDbSourceRepository $repository;
+    private \wpdb $wpdb;
+
     public function __construct(
-        private WpDbSourceRepository $repository,
-        private \wpdb $wpdb
-    ) {}
+        WpDbSourceRepository $repository,
+        \wpdb $wpdb
+    ) {
+        $this->repository = $repository;
+        $this->wpdb       = $wpdb;
+    }
 
     /**
      * Discover allowlisted option text, reconciling one wp_options row at a time
@@ -122,7 +128,7 @@ final class OptionSourceScanner
     }
 
     /** Descend a dot-path into an array/object value; null if the path is absent. */
-    private function valueAtPath(mixed $value, string $path): mixed
+    private function valueAtPath($value, string $path)
     {
         if ($path === '') {
             return $value;
@@ -147,7 +153,7 @@ final class OptionSourceScanner
      *
      * @return list<array{0:string,1:string}>
      */
-    private function collectStrings(mixed $node, string $prefix): array
+    private function collectStrings($node, string $prefix): array
     {
         if (is_string($node)) {
             return [[$prefix, $node]];

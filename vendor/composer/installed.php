@@ -3,7 +3,7 @@
         'name' => 'lingowp/lingowp',
         'pretty_version' => 'dev-master',
         'version' => 'dev-master',
-        'reference' => 'e10251382177ea62fb26ac28c4ac95110e161143',
+        'reference' => 'b8ffe847c7281d57f3add93c79a457c212088c7f',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -67,7 +67,7 @@
         'lingowp/lingowp' => array(
             'pretty_version' => 'dev-master',
             'version' => 'dev-master',
-            'reference' => 'e10251382177ea62fb26ac28c4ac95110e161143',
+            'reference' => 'b8ffe847c7281d57f3add93c79a457c212088c7f',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

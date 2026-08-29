@@ -30,10 +30,16 @@ final class ConnectionStatus
     private const TRANSIENT = 'lingowp_backend_status';
     private const TTL       = 15 * MINUTE_IN_SECONDS;
 
+    private BillingEntitlementsService $entitlements;
+    private ConnectionRepository $connection;
+
     public function __construct(
-        private BillingEntitlementsService $entitlements,
-        private ConnectionRepository $connection
-    ) {}
+        BillingEntitlementsService $entitlements,
+        ConnectionRepository $connection
+    ) {
+        $this->entitlements = $entitlements;
+        $this->connection   = $connection;
+    }
 
     /** @return array{available: bool, error: string} */
     public function current(): array

@@ -31,7 +31,12 @@ final class SeoHeadTranslator
     /** @var array<string, array<int, array{meta_key:string, original_text:string, translated_text:?string}>> */
     private array $stateCache = [];
 
-    public function __construct(private WpDbSourceRepository $repository) {}
+    private WpDbSourceRepository $repository;
+
+    public function __construct(WpDbSourceRepository $repository)
+    {
+        $this->repository = $repository;
+    }
 
     /**
      * Translate the head tags of an already-parsed document, in place.

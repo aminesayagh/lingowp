@@ -14,11 +14,19 @@ namespace LingoWP\GettextDomains;
  */
 final class GettextTranslationUnitsService
 {
+    private GettextTemplateGenerator $scanner;
+    private GettextPoImporter $paths;
+    private GettextIgnoredUnitsStore $ignored;
+
     public function __construct(
-        private GettextTemplateGenerator $scanner,
-        private GettextPoImporter $paths,
-        private GettextIgnoredUnitsStore $ignored
-    ) {}
+        GettextTemplateGenerator $scanner,
+        GettextPoImporter $paths,
+        GettextIgnoredUnitsStore $ignored
+    ) {
+        $this->scanner = $scanner;
+        $this->paths   = $paths;
+        $this->ignored = $ignored;
+    }
 
     /**
      * @param 'plugin'|'theme' $type

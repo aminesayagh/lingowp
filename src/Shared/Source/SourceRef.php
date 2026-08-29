@@ -23,10 +23,16 @@ final class SourceRef
         'option' => 'option',
     ];
 
+    public string $kind;
+    public int $id;
+
     private function __construct(
-        public readonly string $kind,
-        public readonly int $id
-    ) {}
+        string $kind,
+        int $id
+    ) {
+        $this->kind = $kind;
+        $this->id   = $id;
+    }
 
     public static function make(string $kind, int $id): self
     {

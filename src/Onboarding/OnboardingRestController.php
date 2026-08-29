@@ -24,11 +24,19 @@ final class OnboardingRestController
     private const URL_RISK_NEW_SITE_DAYS = 30;
     private const URL_RISK_SMALL_SITE_MAX_URLS = 20;
 
+    private ConnectionRepository $connection;
+    private LanguageRegistry $languages;
+    private ConnectionStatus $status;
+
     public function __construct(
-        private ConnectionRepository $connection,
-        private LanguageRegistry $languages,
-        private ConnectionStatus $status
-    ) {}
+        ConnectionRepository $connection,
+        LanguageRegistry $languages,
+        ConnectionStatus $status
+    ) {
+        $this->connection = $connection;
+        $this->languages  = $languages;
+        $this->status     = $status;
+    }
 
     public function register(): void
     {

@@ -32,15 +32,30 @@ class ResetPageController
     public const SLUG       = 'lingowp-reset';
     private const PARENT    = 'lingowp';
 
+    private \wpdb $wpdb;
+    private ConnectionRepository $connection;
+    private BackendEndpointResolver $endpointResolver;
+    private ConnectionStatus $connectionStatus;
+    private SiteMetadataProvider $siteMetadata;
+    private OptionLanguageRegistry $languageRegistry;
+    private LanguageMetadataStore $languageMetadata;
+
     public function __construct(
-        private \wpdb $wpdb,
-        private ConnectionRepository $connection,
-        private BackendEndpointResolver $endpointResolver,
-        private ConnectionStatus $connectionStatus,
-        private SiteMetadataProvider $siteMetadata,
-        private OptionLanguageRegistry $languageRegistry,
-        private LanguageMetadataStore $languageMetadata
+        \wpdb $wpdb,
+        ConnectionRepository $connection,
+        BackendEndpointResolver $endpointResolver,
+        ConnectionStatus $connectionStatus,
+        SiteMetadataProvider $siteMetadata,
+        OptionLanguageRegistry $languageRegistry,
+        LanguageMetadataStore $languageMetadata
     ) {
+        $this->wpdb              = $wpdb;
+        $this->connection        = $connection;
+        $this->endpointResolver  = $endpointResolver;
+        $this->connectionStatus  = $connectionStatus;
+        $this->siteMetadata      = $siteMetadata;
+        $this->languageRegistry  = $languageRegistry;
+        $this->languageMetadata  = $languageMetadata;
     }
 
     public function register(): void

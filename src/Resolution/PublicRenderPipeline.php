@@ -26,16 +26,34 @@ final class PublicRenderPipeline
     private ?string $targetLang = null;
     private bool $marking = false;
 
+    private ResolveRequestLanguage $languageResolver;
+    private RequestContext $requestContext;
+    private PublicLinkRewriter $linkRewriter;
+    private WpDbSourceRepository $repository;
+    private HtmlRenderer $htmlRenderer;
+    private HtmlDiscovery $htmlDiscovery;
+    private SeoHeadTranslator $seoHead;
+    private LanguageRegistry $languageRegistry;
+
     public function __construct(
-        private ResolveRequestLanguage $languageResolver,
-        private RequestContext $requestContext,
-        private PublicLinkRewriter $linkRewriter,
-        private WpDbSourceRepository $repository,
-        private HtmlRenderer $htmlRenderer,
-        private HtmlDiscovery $htmlDiscovery,
-        private SeoHeadTranslator $seoHead,
-        private LanguageRegistry $languageRegistry
-    ) {}
+        ResolveRequestLanguage $languageResolver,
+        RequestContext $requestContext,
+        PublicLinkRewriter $linkRewriter,
+        WpDbSourceRepository $repository,
+        HtmlRenderer $htmlRenderer,
+        HtmlDiscovery $htmlDiscovery,
+        SeoHeadTranslator $seoHead,
+        LanguageRegistry $languageRegistry
+    ) {
+        $this->languageResolver = $languageResolver;
+        $this->requestContext   = $requestContext;
+        $this->linkRewriter     = $linkRewriter;
+        $this->repository       = $repository;
+        $this->htmlRenderer     = $htmlRenderer;
+        $this->htmlDiscovery    = $htmlDiscovery;
+        $this->seoHead          = $seoHead;
+        $this->languageRegistry = $languageRegistry;
+    }
 
     public function register(): void
     {

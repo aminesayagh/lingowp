@@ -48,14 +48,28 @@ final class StructuredRenderResolver
     /** @var string[]|null memoized allow-listed meta keys */
     private ?array $metaKeys = null;
 
+    private ResolveRequestLanguage $language;
+    private RequestContext $context;
+    private WpDbSourceRepository $repository;
+    private HtmlUnitExtractor $unitExtractor;
+    private PageOwnedHashes $pageOwned;
+    private LanguageRegistry $languageRegistry;
+
     public function __construct(
-        private ResolveRequestLanguage $language,
-        private RequestContext $context,
-        private WpDbSourceRepository $repository,
-        private HtmlUnitExtractor $unitExtractor,
-        private PageOwnedHashes $pageOwned,
-        private LanguageRegistry $languageRegistry
-    ) {}
+        ResolveRequestLanguage $language,
+        RequestContext $context,
+        WpDbSourceRepository $repository,
+        HtmlUnitExtractor $unitExtractor,
+        PageOwnedHashes $pageOwned,
+        LanguageRegistry $languageRegistry
+    ) {
+        $this->language         = $language;
+        $this->context          = $context;
+        $this->repository       = $repository;
+        $this->unitExtractor    = $unitExtractor;
+        $this->pageOwned        = $pageOwned;
+        $this->languageRegistry = $languageRegistry;
+    }
 
     public function register(): void
     {

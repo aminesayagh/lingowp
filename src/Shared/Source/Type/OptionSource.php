@@ -20,13 +20,20 @@ use InvalidArgumentException;
 final class OptionSource extends SourceRecord
 {
     private string $optionName;
+    private int    $optionId;
+    private string $optionPath;
+    private string $text;
 
     public function __construct(
-        private int    $optionId,
-        string         $optionName,
-        private string $optionPath,
-        private string $text
+        int    $optionId,
+        string $optionName,
+        string $optionPath,
+        string $text
     ) {
+        $this->optionId   = $optionId;
+        $this->optionPath = $optionPath;
+        $this->text       = $text;
+
         if ($optionId <= 0) {
             throw new InvalidArgumentException('OptionSource: option id must be positive.');
         }

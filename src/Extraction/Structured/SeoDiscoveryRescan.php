@@ -73,10 +73,16 @@ final class SeoDiscoveryRescan
         '_seopress_social_twitter_desc',
     ];
 
+    private \wpdb $wpdb;
+    private StructuredSourceScanner $scanner;
+
     public function __construct(
-        private \wpdb $wpdb,
-        private StructuredSourceScanner $scanner
-    ) {}
+        \wpdb $wpdb,
+        StructuredSourceScanner $scanner
+    ) {
+        $this->wpdb    = $wpdb;
+        $this->scanner = $scanner;
+    }
 
     public function register(): void
     {

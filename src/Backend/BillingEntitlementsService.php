@@ -16,7 +16,12 @@ final class BillingEntitlementsService
     private const CACHE = 'lingowp_entitlements_cache';
     private const TTL    = 60;
 
-    public function __construct(private BackendClient $backend) {}
+    private BackendClient $backend;
+
+    public function __construct(BackendClient $backend)
+    {
+        $this->backend = $backend;
+    }
 
     /** @return array{ok:bool, status:int, data:mixed, error:string} */
     public function rawEntitlements(bool $bypassCache = false): array

@@ -23,12 +23,22 @@ final class AiTranslationRunner
 {
     private const PROVIDER = 'ai';
 
+    private BackendClient $backend;
+    private WpDbSourceRepository $repo;
+    private OptionLanguageRegistry $registry;
+    private LanguageMetadataStore $metadata;
+
     public function __construct(
-        private BackendClient $backend,
-        private WpDbSourceRepository $repo,
-        private OptionLanguageRegistry $registry,
-        private LanguageMetadataStore $metadata
-    ) {}
+        BackendClient $backend,
+        WpDbSourceRepository $repo,
+        OptionLanguageRegistry $registry,
+        LanguageMetadataStore $metadata
+    ) {
+        $this->backend  = $backend;
+        $this->repo     = $repo;
+        $this->registry = $registry;
+        $this->metadata = $metadata;
+    }
 
     /**
      * Per-target-language AI config for the /translations payload's `languages`

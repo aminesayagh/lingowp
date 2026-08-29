@@ -14,11 +14,19 @@ class PostSource extends SourceRecord
 {
     private const FIELDS = ['post_title', 'post_content', 'post_excerpt'];
 
+    private int    $postId;
+    private string $field;
+    private string $text;
+
     public function __construct(
-        private int    $postId,
-        private string $field,
-        private string $text
+        int    $postId,
+        string $field,
+        string $text
     ) {
+        $this->postId = $postId;
+        $this->field  = $field;
+        $this->text   = $text;
+
         if ($postId <= 0) {
             throw new InvalidArgumentException('PostSource: post id must be positive.');
         }

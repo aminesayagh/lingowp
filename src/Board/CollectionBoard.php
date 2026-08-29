@@ -20,7 +20,14 @@ use LingoWP\Shared\Source\TranslationStatus;
  */
 final class CollectionBoard
 {
-    public function __construct(private WpDbSourceRepository $repo, private LanguageRegistry $languages) {}
+    private WpDbSourceRepository $repo;
+    private LanguageRegistry $languages;
+
+    public function __construct(WpDbSourceRepository $repo, LanguageRegistry $languages)
+    {
+        $this->repo      = $repo;
+        $this->languages = $languages;
+    }
 
     /**
      * Every collection group for a language + search term (Site settings first,
@@ -545,7 +552,7 @@ final class CollectionBoard
     }
 
     /** Build an HTML preview on the current domain, including for legacy absolute rows. */
-    public function htmlPreviewUrl(mixed $sourceUrl, string $lang): ?string
+    public function htmlPreviewUrl($sourceUrl, string $lang): ?string
     {
         $path = HtmlSource::normalizeSourceUrl(is_string($sourceUrl) ? $sourceUrl : null);
 
@@ -569,13 +576,23 @@ final class CollectionBoard
         }
 
         foreach ($progress as $value) {
-            $matches = match ($value) {
-                'not_started' => $collection['translated'] === 0,
-                'in_progress' => $collection['translated'] > 0
-                    && ($collection['missing'] > 0 || $collection['needs_review'] > 0),
-                'complete'    => $collection['missing'] === 0 && $collection['needs_review'] === 0,
-                'has_review'  => $collection['needs_review'] > 0,
-            };
+            switch ($value) {
+                case 'not_started':
+                    $matches = $collection['translated'] === 0;
+                    break;
+                case 'in_progress':
+                    $matches = $collection['translated'] > 0
+                        && ($collection['missing'] > 0 || $collection['needs_review'] > 0);
+                    break;
+                case 'complete':
+                    $matches = $collection['missing'] === 0 && $collection['needs_review'] === 0;
+                    break;
+                case 'has_review':
+                    $matches = $collection['needs_review'] > 0;
+                    break;
+                default:
+                    throw new \RuntimeException('Unhandled match case: ' . var_export($value, true));
+            }
             if ($matches) {
                 return true;
             }

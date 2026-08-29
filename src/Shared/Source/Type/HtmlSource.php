@@ -24,12 +24,17 @@ final class HtmlSource extends SourceRecord
     public const SELECTOR_MAX_LENGTH = 255;
 
     private string $selector;
+    private ?string $sourceUrl;
+    private string $text;
 
     public function __construct(
-        string          $selector,
-        private ?string $sourceUrl,
-        private string  $text
+        string $selector,
+        ?string $sourceUrl,
+        string $text
     ) {
+        $this->sourceUrl = $sourceUrl;
+        $this->text      = $text;
+
         $selector = trim($selector);
         if ($selector === '') {
             throw new InvalidArgumentException('HtmlSource: selector is required.');

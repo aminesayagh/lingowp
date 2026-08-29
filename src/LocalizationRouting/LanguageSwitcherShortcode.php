@@ -23,11 +23,18 @@ class LanguageSwitcherShortcode
 {
     public const SHORTCODE = 'lingowp_language_switcher';
 
+    private ResolveRequestLanguage $resolver;
+    private LocalizedUrlBuilder $prefixer;
+    private SupportedLanguages $languages;
+
     public function __construct(
-        private ResolveRequestLanguage $resolver,
-        private LocalizedUrlBuilder $prefixer,
-        private SupportedLanguages $languages
+        ResolveRequestLanguage $resolver,
+        LocalizedUrlBuilder $prefixer,
+        SupportedLanguages $languages
     ) {
+        $this->resolver  = $resolver;
+        $this->prefixer  = $prefixer;
+        $this->languages = $languages;
     }
 
     public function register(): void
@@ -168,10 +175,13 @@ JS;
 
     private function labelFor(string $lang, string $show): string
     {
-        return match ($show) {
-            'english' => $this->languages->label($lang),
-            'code'    => strtoupper($lang),
-            default   => $this->languages->nativeLabel($lang),
-        };
+        switch ($show) {
+            case 'english':
+                return $this->languages->label($lang);
+            case 'code':
+                return strtoupper($lang);
+            default:
+                return $this->languages->nativeLabel($lang);
+        }
     }
 }

@@ -15,7 +15,12 @@ namespace LingoWP\Database;
  */
 final class SourceLanguageSnapshot
 {
-    public function __construct(private \wpdb $wpdb) {}
+    private \wpdb $wpdb;
+
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
+    }
 
     public function copyCurrentSourceAsTranslation(string $langCode): void
     {

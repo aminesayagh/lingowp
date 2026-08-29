@@ -22,7 +22,12 @@ final class OnboardingPageController
     private string $billingHookSuffix = '';
     private string $insightsHookSuffix = '';
 
-    public function __construct(private NotifyEmailResolver $notifyEmailResolver) {}
+    private NotifyEmailResolver $notifyEmailResolver;
+
+    public function __construct(NotifyEmailResolver $notifyEmailResolver)
+    {
+        $this->notifyEmailResolver = $notifyEmailResolver;
+    }
 
     public function register(): void
     {

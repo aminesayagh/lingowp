@@ -23,7 +23,12 @@ use LingoWP\Database\TranslationMemorySchema;
  */
 final class DatabaseHealthReport
 {
-    public function __construct(private DatabaseHealthCheck $check) {}
+    private DatabaseHealthCheck $check;
+
+    public function __construct(DatabaseHealthCheck $check)
+    {
+        $this->check = $check;
+    }
 
     public function register(): void
     {

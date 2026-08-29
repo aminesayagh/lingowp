@@ -14,7 +14,12 @@ use LingoWP\Database\TranslationMemorySchema;
  */
 final class WpDbBoardQueries
 {
-    public function __construct(private \wpdb $wpdb) {}
+    private \wpdb $wpdb;
+
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
+    }
 
     public function listPostCollections(string $langCode, string $search = '', array $filters = []): array
     {
@@ -563,11 +568,19 @@ final class WpDbBoardQueries
 
         $originClauses = [];
         foreach ($filters['origin'] ?? [] as $origin) {
-            $originClauses[] = match ($origin) {
-                'manual'         => '(t.id IS NOT NULL AND t.provider IS NULL)',
-                'ai'             => '(t.id IS NOT NULL AND t.provider IS NOT NULL)',
-                'not_translated' => 't.id IS NULL',
-            };
+            switch ($origin) {
+                case 'manual':
+                    $originClauses[] = '(t.id IS NOT NULL AND t.provider IS NULL)';
+                    break;
+                case 'ai':
+                    $originClauses[] = '(t.id IS NOT NULL AND t.provider IS NOT NULL)';
+                    break;
+                case 'not_translated':
+                    $originClauses[] = 't.id IS NULL';
+                    break;
+                default:
+                    throw new \RuntimeException('Unhandled match case: ' . var_export($origin, true));
+            }
         }
         if ($originClauses !== []) {
             $predicate .= ' AND (' . implode(' OR ', $originClauses) . ')';
@@ -575,18 +588,28 @@ final class WpDbBoardQueries
 
         $lengthClauses = [];
         foreach ($filters['text_length'] ?? [] as $length) {
-            $lengthClauses[] = match ($length) {
-                'short'  => 'CHAR_LENGTH(p.original_text) <= 80',
-                'medium' => '(CHAR_LENGTH(p.original_text) BETWEEN 81 AND 300)',
-                'long'   => 'CHAR_LENGTH(p.original_text) > 300',
+            switch ($length) {
+                case 'short':
+                    $lengthClauses[] = 'CHAR_LENGTH(p.original_text) <= 80';
+                    break;
+                case 'medium':
+                    $lengthClauses[] = '(CHAR_LENGTH(p.original_text) BETWEEN 81 AND 300)';
+                    break;
+                case 'long':
+                    $lengthClauses[] = 'CHAR_LENGTH(p.original_text) > 300';
+                    break;
                 // Mirrors admin-ui/screens/lengthWarning.mjs: 30% relative threshold
                 // with a 15-char floor, same rule the UI warns on after a translation.
-                'length_mismatch' => '(t.translated_text IS NOT NULL
+                case 'length_mismatch':
+                    $lengthClauses[] = '(t.translated_text IS NOT NULL
                     AND CHAR_LENGTH(p.original_text) > 0
                     AND CHAR_LENGTH(t.translated_text) > 0
                     AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text))
-                        > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15))',
-            };
+                        > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15))';
+                    break;
+                default:
+                    throw new \RuntimeException('Unhandled match case: ' . var_export($length, true));
+            }
         }
         if ($lengthClauses !== []) {
             $predicate .= ' AND (' . implode(' OR ', $lengthClauses) . ')';

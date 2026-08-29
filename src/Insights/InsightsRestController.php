@@ -18,10 +18,16 @@ final class InsightsRestController
     private const NS = 'lingowp/v1';
     private const SUGGESTION_MESSAGE = 'feature_interest:translangs_insights';
 
+    private BackendClient $backendClient;
+    private ConnectionRepository $connection;
+
     public function __construct(
-        private BackendClient $backendClient,
-        private ConnectionRepository $connection
-    ) {}
+        BackendClient $backendClient,
+        ConnectionRepository $connection
+    ) {
+        $this->backendClient = $backendClient;
+        $this->connection    = $connection;
+    }
 
     public function register(): void
     {

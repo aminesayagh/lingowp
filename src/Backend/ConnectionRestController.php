@@ -22,11 +22,19 @@ final class ConnectionRestController
 {
     private const NS = 'lingowp/v1';
 
+    private ConnectionRepository $connection;
+    private ConnectionStatus $status;
+    private SiteConnector $siteConnector;
+
     public function __construct(
-        private ConnectionRepository $connection,
-        private ConnectionStatus $status,
-        private SiteConnector $siteConnector
-    ) {}
+        ConnectionRepository $connection,
+        ConnectionStatus $status,
+        SiteConnector $siteConnector
+    ) {
+        $this->connection    = $connection;
+        $this->status        = $status;
+        $this->siteConnector = $siteConnector;
+    }
 
     public function register(): void
     {

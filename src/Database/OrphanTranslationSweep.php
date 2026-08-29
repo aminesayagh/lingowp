@@ -43,7 +43,12 @@ final class OrphanTranslationSweep
      */
     private const MIN_AGE_SECONDS = 3600;
 
-    public function __construct(private \wpdb $wpdb) {}
+    private \wpdb $wpdb;
+
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
+    }
 
     public function register(): void
     {

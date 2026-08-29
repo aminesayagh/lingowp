@@ -20,7 +20,12 @@ final class PublicLinkRewriter
         'xmlrpc.php'  => true,
     ];
 
-    public function __construct(private LocalizedUrlBuilder $urlBuilder) {}
+    private LocalizedUrlBuilder $urlBuilder;
+
+    public function __construct(LocalizedUrlBuilder $urlBuilder)
+    {
+        $this->urlBuilder = $urlBuilder;
+    }
 
     public function rewrite(string $html, string $targetLang): string
     {
@@ -70,7 +75,7 @@ final class PublicLinkRewriter
             }
 
             return $changed ? $html5->saveHTML($dom) : $html;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             return $html;
         }
     }
@@ -227,7 +232,7 @@ final class PublicLinkRewriter
     /**
      * @return array<string, mixed>|false
      */
-    private function urlParts(string $url): array|false
+    private function urlParts(string $url)
     {
         return function_exists('wp_parse_url') ? wp_parse_url($url) : parse_url($url);
     }

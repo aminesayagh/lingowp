@@ -28,7 +28,12 @@ class ResolveRequestLanguage
 
     private ?string $resolved = null;
 
-    public function __construct(private LanguageRegistry $registry) {}
+    private LanguageRegistry $registry;
+
+    public function __construct(LanguageRegistry $registry)
+    {
+        $this->registry = $registry;
+    }
 
     /**
      * Resolve and memoize the active language for this request.

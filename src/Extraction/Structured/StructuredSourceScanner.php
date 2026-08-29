@@ -42,10 +42,16 @@ final class StructuredSourceScanner
         'wp_template_part', 'wp_template', 'page', 'post',
     ];
 
+    private WpDbSourceRepository $repository;
+    private HtmlUnitExtractor $unitExtractor;
+
     public function __construct(
-        private WpDbSourceRepository $repository,
-        private HtmlUnitExtractor $unitExtractor
-    ) {}
+        WpDbSourceRepository $repository,
+        HtmlUnitExtractor $unitExtractor
+    ) {
+        $this->repository    = $repository;
+        $this->unitExtractor = $unitExtractor;
+    }
 
     /**
      * Save-time discovery for one post (types 1 + 2). Upserts current strings
@@ -144,7 +150,7 @@ final class StructuredSourceScanner
      *
      * @return SourceRecord[]
      */
-    private function metaCandidates(int $postId, string $metaKey, mixed $value): array
+    private function metaCandidates(int $postId, string $metaKey, $value): array
     {
         $records = [];
 

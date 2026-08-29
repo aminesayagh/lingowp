@@ -26,7 +26,9 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-const TEST_EXPECTED_DB_VERSION = '23';
+// Sourced from the schema class itself, not duplicated as a literal, so this
+// can't go stale again the next time DB_VERSION is bumped.
+const TEST_EXPECTED_DB_VERSION = \LingoWP\Database\TranslationMemorySchema::DB_VERSION;
 
 $GLOBALS['test_failed']    = 0;
 $GLOBALS['test_total']     = 0;

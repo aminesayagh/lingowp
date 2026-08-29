@@ -18,10 +18,8 @@
 	<arg name="colors"/>
 	<arg value="sp"/>
 
-	<!-- Lower bound under evaluation for wider WP-host reach; raise this back
-	     to match composer.json's "php" constraint once/if the floor is
-	     actually lowered there. No upper bound: also flags anything
-	     deprecated on current PHP. -->
+	<!-- Matches composer.json's "php" floor. No upper bound: also flags
+	     anything deprecated on current PHP. -->
 	<config name="testVersion" value="7.4-"/>
 
 	<!-- WP-aware: knows which PHP 8-only functions (str_contains(), etc.)

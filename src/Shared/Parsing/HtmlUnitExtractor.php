@@ -36,7 +36,12 @@ final class HtmlUnitExtractor
         'dd' => true, 'dt' => true, 'dl' => true, 'form' => true, 'fieldset' => true, 'address' => true,
     ];
 
-    public function __construct(private TranslationUnitCodec $codec) {}
+    private TranslationUnitCodec $codec;
+
+    public function __construct(TranslationUnitCodec $codec)
+    {
+        $this->codec = $codec;
+    }
 
     /**
      * Discovery: the ordered list of block-unit strings in a field's HTML
@@ -127,7 +132,7 @@ final class HtmlUnitExtractor
                 $block->removeChild($block->firstChild);
             }
             $block->appendChild($imported);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             // fail-open: leave the block as-is
         }
     }
@@ -156,7 +161,7 @@ final class HtmlUnitExtractor
             $this->walkNode($fragment, $html5, $dom, $onUnit);
 
             return $html5->saveHTML($fragment);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             return $html;
         }
     }

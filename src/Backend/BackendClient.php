@@ -30,10 +30,16 @@ final class BackendClient
     // before we ever get the chance to time out on our own terms.
     private const TRANSLATE_TIMEOUT = 120;
 
+    private BackendEndpointResolver $resolver;
+    private ConnectionRepository $connection;
+
     public function __construct(
-        private BackendEndpointResolver $resolver,
-        private ConnectionRepository $connection
-    ) {}
+        BackendEndpointResolver $resolver,
+        ConnectionRepository $connection
+    ) {
+        $this->resolver   = $resolver;
+        $this->connection = $connection;
+    }
 
     /** GET /health — reachability check, no auth. */
     public function getHealth(): array
@@ -307,44 +313,76 @@ final class BackendClient
      * human sentence there, not a slug, so any 401 is treated as "credential
      * invalid" regardless of its detail text.
      */
-    private function errorForStatus(int $status, mixed $data): string
+    private function errorForStatus(int $status, $data): string
     {
         $detail = is_array($data) ? (string) ($data['detail'] ?? '') : '';
 
-        return match (true) {
-            $status === 429 && $detail === 'rebind_cooldown_active'  => 'ERR_REBIND_COOLDOWN',
-            $status === 429                                          => 'ERR_RATE_LIMITED',
-            $status === 400 && $detail === 'domain_not_allowed'      => 'ERR_DOMAIN_NOT_ALLOWED',
-            $status === 400 && $detail === 'domain_unreachable'      => 'ERR_DOMAIN_UNREACHABLE',
-            $status === 400 && $detail === 'invalid_or_expired_token' => 'ERR_INVALID_CONFIRM_TOKEN', // /license/confirm
-            $status === 410 && $detail === 'reclaim_target_gone'     => 'ERR_RECLAIM_TARGET_GONE', // /license/confirm
-            $status === 400 && $detail === 'invalid_key'             => 'ERR_INVALID_API_KEY',     // /provider-keys: provider rejected the key
-            $status === 502 && $detail === 'provider_unreachable'    => 'ERR_PROVIDER_UNREACHABLE', // /provider-keys: couldn't reach provider to validate
-            $status === 404 && $detail === 'site_not_found'          => 'ERR_SITE_NOT_FOUND',
-            $status === 400 && $detail === 'unknown_plan'            => 'ERR_UNKNOWN_PLAN',        // /billing/subscription(/plan)
-            $status === 400 && $detail === 'unknown_pack'            => 'ERR_UNKNOWN_PACK',        // /billing/packs/order
-            $status === 409 && $detail === 'already_subscribed'     => 'ERR_ALREADY_SUBSCRIBED',
-            $status === 409 && $detail === 'no_active_subscription' => 'ERR_NO_ACTIVE_SUBSCRIPTION',
-            $status === 409 && $detail === 'already_on_plan'        => 'ERR_ALREADY_ON_PLAN',
-            $status === 409 && $detail === 'billing_cycle_change_not_supported' => 'ERR_BILLING_CYCLE_CHANGE_NOT_SUPPORTED', // /billing/subscription/plan: crossing cadence isn't a supported change-plan action
-            $status === 409 && $detail === 'plan_change_already_pending' => 'ERR_PLAN_CHANGE_PENDING', // /billing/subscription/plan: a revision is already approved and scheduled
-            $status === 409 && $detail === 'active_subscription_required' => 'ERR_SUBSCRIPTION_REQUIRED',
-            $status === 409 && $detail === 'owner_email_already_taken' => 'ERR_OWNER_EMAIL_TAKEN', // /owner/assign-owner
-            $status === 403 && $detail === 'owner_email_required'    => 'ERR_OWNER_EMAIL_REQUIRED', // POST /owner/websites
-            $status === 403 && $detail === 'sites_limit_reached'     => 'ERR_SITES_LIMIT_REACHED',  // POST /owner/websites
-            $status === 409 && $detail === 'domain_claimed'          => 'ERR_DOMAIN_CLAIMED',       // POST /owner/websites
-            $status === 403 && $detail === 'order_not_owned'         => 'ERR_ORDER_NOT_OWNED',      // /billing/packs/order/{id}/capture
-            $status === 402 && $detail === 'site_over_plan_limit'    => 'ERR_SITE_OVER_PLAN_LIMIT',  // /translations: over_slot asked for platform AI anyway
-            $status === 402 && $detail === 'hosted_ai_unavailable'   => 'ERR_HOSTED_AI_UNAVAILABLE',  // /translations: no active subscription
-            $status === 402 && $detail === 'insufficient_ai_words'   => 'ERR_INSUFFICIENT_AI_WORDS',  // /translations: allowance + word packs exhausted
-            $status === 402                                          => 'ERR_LICENSE_DETACHED', // key valid, license_id IS NULL — reconnect to reattach
-            $status === 410                                          => 'ERR_LICENSE_REVOKED',  // key valid but revoked — delete key, reconnect
-            $status === 400                                          => 'ERR_INVALID_REQUEST', // shape/limit violation (e.g. >100 items, >25/group)
-            $status === 401 || $status === 403                       => 'ERR_INVALID_TOKEN',    // key unrecognised — delete key, reconnect; 401 detail is a sentence, never slug-matched
-            $status === 404                                          => 'ERR_NOT_FOUND',
-            $status === 422                                          => 'ERR_INVALID_PAYLOAD',
-            default                                                   => 'ERR_BACKEND', // covers 503/500 — no retry here, see AiTranslationRunner
-        };
+        switch (true) {
+            case $status === 429 && $detail === 'rebind_cooldown_active':
+                return 'ERR_REBIND_COOLDOWN';
+            case $status === 429:
+                return 'ERR_RATE_LIMITED';
+            case $status === 400 && $detail === 'domain_not_allowed':
+                return 'ERR_DOMAIN_NOT_ALLOWED';
+            case $status === 400 && $detail === 'domain_unreachable':
+                return 'ERR_DOMAIN_UNREACHABLE';
+            case $status === 400 && $detail === 'invalid_or_expired_token': // /license/confirm
+                return 'ERR_INVALID_CONFIRM_TOKEN';
+            case $status === 410 && $detail === 'reclaim_target_gone': // /license/confirm
+                return 'ERR_RECLAIM_TARGET_GONE';
+            case $status === 400 && $detail === 'invalid_key': // /provider-keys: provider rejected the key
+                return 'ERR_INVALID_API_KEY';
+            case $status === 502 && $detail === 'provider_unreachable': // /provider-keys: couldn't reach provider to validate
+                return 'ERR_PROVIDER_UNREACHABLE';
+            case $status === 404 && $detail === 'site_not_found':
+                return 'ERR_SITE_NOT_FOUND';
+            case $status === 400 && $detail === 'unknown_plan': // /billing/subscription(/plan)
+                return 'ERR_UNKNOWN_PLAN';
+            case $status === 400 && $detail === 'unknown_pack': // /billing/packs/order
+                return 'ERR_UNKNOWN_PACK';
+            case $status === 409 && $detail === 'already_subscribed':
+                return 'ERR_ALREADY_SUBSCRIBED';
+            case $status === 409 && $detail === 'no_active_subscription':
+                return 'ERR_NO_ACTIVE_SUBSCRIPTION';
+            case $status === 409 && $detail === 'already_on_plan':
+                return 'ERR_ALREADY_ON_PLAN';
+            case $status === 409 && $detail === 'billing_cycle_change_not_supported': // /billing/subscription/plan: crossing cadence isn't a supported change-plan action
+                return 'ERR_BILLING_CYCLE_CHANGE_NOT_SUPPORTED';
+            case $status === 409 && $detail === 'plan_change_already_pending': // /billing/subscription/plan: a revision is already approved and scheduled
+                return 'ERR_PLAN_CHANGE_PENDING';
+            case $status === 409 && $detail === 'active_subscription_required':
+                return 'ERR_SUBSCRIPTION_REQUIRED';
+            case $status === 409 && $detail === 'owner_email_already_taken': // /owner/assign-owner
+                return 'ERR_OWNER_EMAIL_TAKEN';
+            case $status === 403 && $detail === 'owner_email_required': // POST /owner/websites
+                return 'ERR_OWNER_EMAIL_REQUIRED';
+            case $status === 403 && $detail === 'sites_limit_reached': // POST /owner/websites
+                return 'ERR_SITES_LIMIT_REACHED';
+            case $status === 409 && $detail === 'domain_claimed': // POST /owner/websites
+                return 'ERR_DOMAIN_CLAIMED';
+            case $status === 403 && $detail === 'order_not_owned': // /billing/packs/order/{id}/capture
+                return 'ERR_ORDER_NOT_OWNED';
+            case $status === 402 && $detail === 'site_over_plan_limit': // /translations: over_slot asked for platform AI anyway
+                return 'ERR_SITE_OVER_PLAN_LIMIT';
+            case $status === 402 && $detail === 'hosted_ai_unavailable': // /translations: no active subscription
+                return 'ERR_HOSTED_AI_UNAVAILABLE';
+            case $status === 402 && $detail === 'insufficient_ai_words': // /translations: allowance + word packs exhausted
+                return 'ERR_INSUFFICIENT_AI_WORDS';
+            case $status === 402: // key valid, license_id IS NULL — reconnect to reattach
+                return 'ERR_LICENSE_DETACHED';
+            case $status === 410: // key valid but revoked — delete key, reconnect
+                return 'ERR_LICENSE_REVOKED';
+            case $status === 400: // shape/limit violation (e.g. >100 items, >25/group)
+                return 'ERR_INVALID_REQUEST';
+            case $status === 401 || $status === 403: // key unrecognised — delete key, reconnect; 401 detail is a sentence, never slug-matched
+                return 'ERR_INVALID_TOKEN';
+            case $status === 404:
+                return 'ERR_NOT_FOUND';
+            case $status === 422:
+                return 'ERR_INVALID_PAYLOAD';
+            default: // covers 503/500 — no retry here, see AiTranslationRunner
+                return 'ERR_BACKEND';
+        }
     }
 
     private function error(string $code): array

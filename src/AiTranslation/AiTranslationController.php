@@ -39,14 +39,28 @@ final class AiTranslationController
 {
     private const NS = 'lingowp/v1';
 
+    private WpDbSourceRepository $repo;
+    private OptionLanguageRegistry $registry;
+    private CollectionBoard $collections;
+    private BillingEntitlementsService $entitlements;
+    private AiTranslationRunner $runner;
+    private ConnectionStatus $connectionStatus;
+
     public function __construct(
-        private WpDbSourceRepository $repo,
-        private OptionLanguageRegistry $registry,
-        private CollectionBoard $collections,
-        private BillingEntitlementsService $entitlements,
-        private AiTranslationRunner $runner,
-        private ConnectionStatus $connectionStatus
-    ) {}
+        WpDbSourceRepository $repo,
+        OptionLanguageRegistry $registry,
+        CollectionBoard $collections,
+        BillingEntitlementsService $entitlements,
+        AiTranslationRunner $runner,
+        ConnectionStatus $connectionStatus
+    ) {
+        $this->repo             = $repo;
+        $this->registry         = $registry;
+        $this->collections      = $collections;
+        $this->entitlements     = $entitlements;
+        $this->runner           = $runner;
+        $this->connectionStatus = $connectionStatus;
+    }
 
     public function register(): void
     {

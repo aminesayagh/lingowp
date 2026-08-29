@@ -44,11 +44,19 @@ final class CollectionsRestController
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT     = 100;
 
+    private WpDbSourceRepository $repo;
+    private OptionLanguageRegistry $registry;
+    private CollectionBoard $board;
+
     public function __construct(
-        private WpDbSourceRepository $repo,
-        private OptionLanguageRegistry $registry,
-        private CollectionBoard $board
-    ) {}
+        WpDbSourceRepository $repo,
+        OptionLanguageRegistry $registry,
+        CollectionBoard $board
+    ) {
+        $this->repo     = $repo;
+        $this->registry = $registry;
+        $this->board    = $board;
+    }
 
     public function register(): void
     {
@@ -126,10 +134,17 @@ final class CollectionsRestController
         ));
 
         if ($status !== 'all') {
-            $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
-                'untranslated' => $c['missing'] > 0,
-                'needs_review' => $c['needs_review'] > 0,
-                'translated'   => $c['translated'] > 0,
+            $collections = array_values(array_filter($collections, static function (array $c) use ($status): bool {
+                switch ($status) {
+                    case 'untranslated':
+                        return $c['missing'] > 0;
+                    case 'needs_review':
+                        return $c['needs_review'] > 0;
+                    case 'translated':
+                        return $c['translated'] > 0;
+                    default:
+                        throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                }
             }));
         }
 
@@ -189,10 +204,17 @@ final class CollectionsRestController
         if ($status !== 'all') {
             // presentText() labels a text 'missing' | 'needs_review' | 'reviewed' | 'translated';
             // 'reviewed' shares the "translated" bucket everywhere else (see summaryFor()).
-            $texts = array_values(array_filter($texts, static fn (array $t): bool => match ($status) {
-                'untranslated' => $t['status'] === 'missing',
-                'needs_review' => $t['status'] === 'needs_review',
-                'translated'   => $t['status'] === 'translated' || $t['status'] === 'reviewed',
+            $texts = array_values(array_filter($texts, static function (array $t) use ($status): bool {
+                switch ($status) {
+                    case 'untranslated':
+                        return $t['status'] === 'missing';
+                    case 'needs_review':
+                        return $t['status'] === 'needs_review';
+                    case 'translated':
+                        return $t['status'] === 'translated' || $t['status'] === 'reviewed';
+                    default:
+                        throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                }
             }));
         }
 
@@ -230,10 +252,17 @@ final class CollectionsRestController
             fn (array $collection): bool => $this->board->collectionMatchesFilters($collection, $filters)
         ));
         if ($status !== 'all') {
-            $collections = array_values(array_filter($collections, static fn (array $c): bool => match ($status) {
-                'untranslated' => $c['missing'] > 0,
-                'needs_review' => $c['needs_review'] > 0,
-                'translated'   => $c['translated'] > 0,
+            $collections = array_values(array_filter($collections, static function (array $c) use ($status): bool {
+                switch ($status) {
+                    case 'untranslated':
+                        return $c['missing'] > 0;
+                    case 'needs_review':
+                        return $c['needs_review'] > 0;
+                    case 'translated':
+                        return $c['translated'] > 0;
+                    default:
+                        throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                }
             }));
         }
 

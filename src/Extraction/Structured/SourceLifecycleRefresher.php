@@ -19,7 +19,12 @@ final class SourceLifecycleRefresher
 {
     private static bool $discovering = false;
 
-    public function __construct(private StructuredSourceScanner $scanner) {}
+    private StructuredSourceScanner $scanner;
+
+    public function __construct(StructuredSourceScanner $scanner)
+    {
+        $this->scanner = $scanner;
+    }
 
     public function register(): void
     {
@@ -31,7 +36,7 @@ final class SourceLifecycleRefresher
         add_action('edited_term', [$this, 'refreshTerm'], 10, 3);
     }
 
-    public function refreshPost(int $postId, mixed $post = null, bool $update = false, mixed $postBefore = null): void
+    public function refreshPost(int $postId, $post = null, bool $update = false, $postBefore = null): void
     {
         unset($post, $update, $postBefore);
 
@@ -58,7 +63,7 @@ final class SourceLifecycleRefresher
      * parents stale (translations are kept, not deleted); the scanner decides
      * whether the key is discoverable in the first place.
      */
-    public function refreshMeta(mixed $metaId, int $objectId, string $metaKey, mixed $metaValue): void
+    public function refreshMeta($metaId, int $objectId, string $metaKey, $metaValue): void
     {
         unset($metaId, $metaValue);
 

@@ -5,6 +5,7 @@ targets, not claims of compatibility.
 
 | WordPress | PHP | Environment | Scenarios | Result |
 | --- | --- | --- | --- | --- |
+| 6.2 | 7.4 | Single site | Activate, configure languages, manual translation, frontend rendering | Not run |
 | 6.2 | 8.1 | Single site | Activate, configure languages, manual translation, frontend rendering | Not run |
 | Latest supported | 8.2 | Single site | Full smoke test, explicit cloud opt-in, Insights notification | Not run |
 | Latest supported | 8.3 | Single site | Full smoke test, background discovery, deactivation/reactivation | Not run |

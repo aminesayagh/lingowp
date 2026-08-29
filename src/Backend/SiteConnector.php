@@ -11,13 +11,25 @@ namespace LingoWP\Backend;
  */
 final class SiteConnector
 {
+    private BackendClient $backend;
+    private ConnectionRepository $connection;
+    private SiteMetadataProvider $metadata;
+    private ConnectionStatus $status;
+    private BillingEntitlementsService $entitlements;
+
     public function __construct(
-        private BackendClient $backend,
-        private ConnectionRepository $connection,
-        private SiteMetadataProvider $metadata,
-        private ConnectionStatus $status,
-        private BillingEntitlementsService $entitlements
-    ) {}
+        BackendClient $backend,
+        ConnectionRepository $connection,
+        SiteMetadataProvider $metadata,
+        ConnectionStatus $status,
+        BillingEntitlementsService $entitlements
+    ) {
+        $this->backend      = $backend;
+        $this->connection   = $connection;
+        $this->metadata     = $metadata;
+        $this->status       = $status;
+        $this->entitlements = $entitlements;
+    }
 
     /**
      * @return array{ok: bool, error: string, recoveryAvailable: bool}

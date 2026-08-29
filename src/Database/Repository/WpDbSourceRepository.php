@@ -39,7 +39,14 @@ final class WpDbSourceRepository
     private const INSERT_CHUNK = 100;
     private const SELECT_CHUNK = 200;
 
-    public function __construct(private \wpdb $wpdb, private WpDbBoardQueries $board) {}
+    private \wpdb $wpdb;
+    private WpDbBoardQueries $board;
+
+    public function __construct(\wpdb $wpdb, WpDbBoardQueries $board)
+    {
+        $this->wpdb  = $wpdb;
+        $this->board = $board;
+    }
 
     // ── discovery write ────────────────────────────────────────────────────────
 
@@ -1382,8 +1389,12 @@ final class WpDbSourceRepository
         return $groups;
     }
 
-    /** Append one cell's placeholder + arg; binary (*_hash) uses UNHEX, NULL is literal. */
-    private function cell(string $column, mixed $value, array &$args): string
+    /**
+     * Append one cell's placeholder + arg; binary (*_hash) uses UNHEX, NULL is literal.
+     *
+     * @param mixed $value
+     */
+    private function cell(string $column, $value, array &$args): string
     {
         if ($value === null) {
             return 'NULL';

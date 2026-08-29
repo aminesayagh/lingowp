@@ -15,11 +15,12 @@ final class PostMetaValuePaths
     private function __construct() {}
 
     /**
+     * @param mixed $value
      * @return list<array{context: ?string, text: string}>
      *         A scalar string yields one entry with context = null; arrays /
      *         JSON yield one entry per translatable string leaf with its path.
      */
-    public static function extract(mixed $value): array
+    public static function extract($value): array
     {
         if (is_string($value)) {
             $decoded = self::decodeJson($value);

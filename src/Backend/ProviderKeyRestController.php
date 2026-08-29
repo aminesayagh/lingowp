@@ -18,7 +18,12 @@ final class ProviderKeyRestController
 
     private const PROVIDERS = ['openai', 'anthropic'];
 
-    public function __construct(private BackendClient $backendClient) {}
+    private BackendClient $backendClient;
+
+    public function __construct(BackendClient $backendClient)
+    {
+        $this->backendClient = $backendClient;
+    }
 
     public function register(): void
     {

@@ -26,7 +26,12 @@ namespace LingoWP\GettextDomains;
  */
 final class GettextOnlineTranslationFetcher
 {
-    public function __construct(private GettextPoImporter $paths) {}
+    private GettextPoImporter $paths;
+
+    public function __construct(GettextPoImporter $paths)
+    {
+        $this->paths = $paths;
+    }
 
     /**
      * Note: the installed file is named after $slug (matching the package's

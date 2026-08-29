@@ -69,10 +69,15 @@ final class NumberResolver
     /** @var array<string, \NumberFormatter|null> "lang|decimals" => formatter, memoized per request */
     private array $formatters = [];
 
+    private ResolveRequestLanguage $language;
+    private RequestContext $context;
+
     public function __construct(
-        private ResolveRequestLanguage $language,
-        private RequestContext $context
+        ResolveRequestLanguage $language,
+        RequestContext $context
     ) {
+        $this->language = $language;
+        $this->context  = $context;
     }
 
     public function register(): void
@@ -105,7 +110,7 @@ final class NumberResolver
             $formatted = $formatter->format((float) $number);
 
             return $formatted === false ? $value : $formatted;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             return $value;
         }
     }
@@ -121,7 +126,7 @@ final class NumberResolver
             $formatter = new \NumberFormatter($this->lang . '@numbers=latn', \NumberFormatter::DECIMAL);
             $formatter->setAttribute(\NumberFormatter::FRACTION_DIGITS, $decimals);
             $formatter->setAttribute(\NumberFormatter::ROUNDING_MODE, \NumberFormatter::ROUND_HALFUP);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             $formatter = null;
         }
 

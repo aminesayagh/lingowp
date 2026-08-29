@@ -22,11 +22,19 @@ final class LanguageRestController
 {
     private const NS = 'lingowp/v1';
 
+    private LanguageMetadataStore $store;
+    private OptionLanguageRegistry $registry;
+    private WpDbSourceRepository $repo;
+
     public function __construct(
-        private LanguageMetadataStore $store,
-        private OptionLanguageRegistry $registry,
-        private WpDbSourceRepository $repo
-    ) {}
+        LanguageMetadataStore $store,
+        OptionLanguageRegistry $registry,
+        WpDbSourceRepository $repo
+    ) {
+        $this->store    = $store;
+        $this->registry = $registry;
+        $this->repo     = $repo;
+    }
 
     public function register(): void
     {

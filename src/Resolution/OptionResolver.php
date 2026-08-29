@@ -29,12 +29,22 @@ final class OptionResolver
     /** @var array<string, string>|null hex(original_hash) => translated_text */
     private ?array $map = null;
 
+    private ResolveRequestLanguage $language;
+    private RequestContext $context;
+    private WpDbSourceRepository $repository;
+    private LanguageRegistry $languageRegistry;
+
     public function __construct(
-        private ResolveRequestLanguage $language,
-        private RequestContext $context,
-        private WpDbSourceRepository $repository,
-        private LanguageRegistry $languageRegistry
-    ) {}
+        ResolveRequestLanguage $language,
+        RequestContext $context,
+        WpDbSourceRepository $repository,
+        LanguageRegistry $languageRegistry
+    ) {
+        $this->language         = $language;
+        $this->context          = $context;
+        $this->repository       = $repository;
+        $this->languageRegistry = $languageRegistry;
+    }
 
     public function register(): void
     {

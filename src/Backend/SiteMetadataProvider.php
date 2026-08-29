@@ -24,10 +24,16 @@ final class SiteMetadataProvider
 {
     public const OPTION_CATEGORIES = 'lingowp_categories';
 
+    private LanguageRegistry $languages;
+    private ConnectionRepository $connection;
+
     public function __construct(
-        private LanguageRegistry $languages,
-        private ConnectionRepository $connection
-    ) {}
+        LanguageRegistry $languages,
+        ConnectionRepository $connection
+    ) {
+        $this->languages  = $languages;
+        $this->connection = $connection;
+    }
 
     /** @return array{domain: string, admin_email: string} */
     public function buildForCreate(): array

@@ -11,7 +11,12 @@ namespace LingoWP\Database;
  */
 final class ConstraintVerifier
 {
-    public function __construct(private \wpdb $wpdb) {}
+    private \wpdb $wpdb;
+
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
+    }
 
     /**
      * Returns constraint names from $expected that are absent in information_schema.

@@ -36,18 +36,40 @@ final class GettextDomainRestController
     private const DEFAULT_LIMIT = 50;
     private const MAX_LIMIT     = 100;
 
+    private InstalledGettextComponentDiscovery $components;
+    private GettextDomainRegistry $registry;
+    private OptionLanguageRegistry $languageRegistry;
+    private GettextOnlineTranslationFetcher $fetcher;
+    private GettextPoImporter $importer;
+    private GettextTranslationUnitsService $units;
+    private BackendClient $backend;
+    private BillingEntitlementsService $entitlements;
+    private ConnectionStatus $connectionStatus;
+    private GettextTranslatedPercentCache $percentCache;
+
     public function __construct(
-        private InstalledGettextComponentDiscovery $components,
-        private GettextDomainRegistry $registry,
-        private OptionLanguageRegistry $languageRegistry,
-        private GettextOnlineTranslationFetcher $fetcher,
-        private GettextPoImporter $importer,
-        private GettextTranslationUnitsService $units,
-        private BackendClient $backend,
-        private BillingEntitlementsService $entitlements,
-        private ConnectionStatus $connectionStatus,
-        private GettextTranslatedPercentCache $percentCache
-    ) {}
+        InstalledGettextComponentDiscovery $components,
+        GettextDomainRegistry $registry,
+        OptionLanguageRegistry $languageRegistry,
+        GettextOnlineTranslationFetcher $fetcher,
+        GettextPoImporter $importer,
+        GettextTranslationUnitsService $units,
+        BackendClient $backend,
+        BillingEntitlementsService $entitlements,
+        ConnectionStatus $connectionStatus,
+        GettextTranslatedPercentCache $percentCache
+    ) {
+        $this->components       = $components;
+        $this->registry         = $registry;
+        $this->languageRegistry = $languageRegistry;
+        $this->fetcher          = $fetcher;
+        $this->importer         = $importer;
+        $this->units            = $units;
+        $this->backend          = $backend;
+        $this->entitlements     = $entitlements;
+        $this->connectionStatus = $connectionStatus;
+        $this->percentCache     = $percentCache;
+    }
 
     public function register(): void
     {

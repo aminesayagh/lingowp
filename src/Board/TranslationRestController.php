@@ -16,11 +16,19 @@ final class TranslationRestController
 {
     private const NS = 'lingowp/v1';
 
+    private WpDbSourceRepository $repo;
+    private OptionLanguageRegistry $registry;
+    private CollectionBoard $collections;
+
     public function __construct(
-        private WpDbSourceRepository $repo,
-        private OptionLanguageRegistry $registry,
-        private CollectionBoard $collections
-    ) {}
+        WpDbSourceRepository $repo,
+        OptionLanguageRegistry $registry,
+        CollectionBoard $collections
+    ) {
+        $this->repo        = $repo;
+        $this->registry    = $registry;
+        $this->collections = $collections;
+    }
 
     public function register(): void
     {

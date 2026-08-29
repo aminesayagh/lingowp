@@ -13,11 +13,19 @@ final class TermSource extends SourceRecord
 {
     private const FIELDS = ['name', 'description'];
 
+    private int    $termTaxonomyId;
+    private string $field;
+    private string $text;
+
     public function __construct(
-        private int    $termTaxonomyId,
-        private string $field,
-        private string $text
+        int    $termTaxonomyId,
+        string $field,
+        string $text
     ) {
+        $this->termTaxonomyId = $termTaxonomyId;
+        $this->field          = $field;
+        $this->text           = $text;
+
         if ($termTaxonomyId <= 0) {
             throw new InvalidArgumentException('TermSource: term_taxonomy_id must be positive.');
         }

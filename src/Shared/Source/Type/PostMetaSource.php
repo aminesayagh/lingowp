@@ -12,12 +12,22 @@ use InvalidArgumentException;
  */
 final class PostMetaSource extends SourceRecord
 {
+    private int     $postId;
+    private string  $metaKey;
+    private ?string $context;
+    private string  $text;
+
     public function __construct(
-        private int     $postId,
-        private string  $metaKey,
-        private ?string $context,
-        private string  $text
+        int     $postId,
+        string  $metaKey,
+        ?string $context,
+        string  $text
     ) {
+        $this->postId  = $postId;
+        $this->metaKey = $metaKey;
+        $this->context = $context;
+        $this->text    = $text;
+
         if ($postId <= 0) {
             throw new InvalidArgumentException('PostMetaSource: post id must be positive.');
         }

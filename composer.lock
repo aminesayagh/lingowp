@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "50204822f1c3242a98ba8d6efeafba29",
+    "content-hash": "a97081be2885b0e4fef91ef9d7a0374c",
     "packages": [
         {
             "name": "10quality/gettext-wp-scanner",
@@ -1191,7 +1191,7 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.1"
+        "php": ">=7.4"
     },
     "platform-dev": {},
     "plugin-api-version": "2.9.0"

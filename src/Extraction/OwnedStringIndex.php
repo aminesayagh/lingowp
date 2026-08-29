@@ -24,7 +24,12 @@ final class OwnedStringIndex
     /** Structured parent tables a static-text string could collide with. */
     private const STRUCTURED = ['post', 'meta', 'term', 'html', 'option'];
 
-    public function __construct(private \wpdb $wpdb) {}
+    private \wpdb $wpdb;
+
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
+    }
 
     /**
      * Which of the given hashes are already owned by a structured source.

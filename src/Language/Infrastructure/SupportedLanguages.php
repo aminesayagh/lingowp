@@ -7,8 +7,11 @@ namespace LingoWP\Language\Infrastructure;
  */
 class SupportedLanguages
 {
-    public function __construct(private LanguageMetadataStore $store)
+    private LanguageMetadataStore $store;
+
+    public function __construct(LanguageMetadataStore $store)
     {
+        $this->store = $store;
     }
 
     /**

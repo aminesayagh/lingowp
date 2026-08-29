@@ -14,7 +14,12 @@ final class DatabaseHealthCheck
     /** Translation row count past which the deferred large-site indexes are suggested (§7, D21). */
     private const DEFERRED_INDEX_ROW_THRESHOLD = 500000;
 
-    public function __construct(private \wpdb $wpdb) {}
+    private \wpdb $wpdb;
+
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
+    }
 
     /**
      * @return array{

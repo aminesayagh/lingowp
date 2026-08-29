@@ -24,10 +24,16 @@ final class GettextResolver
 {
     private bool $didSwitch = false;
 
+    private ResolveRequestLanguage $language;
+    private RequestContext $context;
+
     public function __construct(
-        private ResolveRequestLanguage $language,
-        private RequestContext $context
-    ) {}
+        ResolveRequestLanguage $language,
+        RequestContext $context
+    ) {
+        $this->language = $language;
+        $this->context  = $context;
+    }
 
     public function register(): void
     {

@@ -20,11 +20,18 @@ use LingoWP\Resolution\HtmlRenderer;
  */
 final class HtmlDiscovery
 {
+    private HtmlRenderer $htmlRenderer;
+    private OwnedStringIndex $ownedIndex;
+    private WpDbSourceRepository $repository;
+
     public function __construct(
-        private HtmlRenderer $htmlRenderer,
-        private OwnedStringIndex $ownedIndex,
-        private WpDbSourceRepository $repository
+        HtmlRenderer $htmlRenderer,
+        OwnedStringIndex $ownedIndex,
+        WpDbSourceRepository $repository
     ) {
+        $this->htmlRenderer = $htmlRenderer;
+        $this->ownedIndex   = $ownedIndex;
+        $this->repository   = $repository;
     }
 
     /**
