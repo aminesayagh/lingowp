@@ -59,6 +59,10 @@ final class SiteConnector
 
         $siteId = (string) ($data['site_id'] ?? '');
         $this->applyCredential($siteId, $licenseKey);
+        // An explicit connect (this method is never called by the automatic
+        // ensureValid() path while opted out — see there) is exactly the
+        // "reconnect" gesture, so it always re-enables future auto-connect.
+        $this->connection->setOptedOut(false);
 
         return ['ok' => true, 'error' => '', 'recoveryAvailable' => !empty($data['recovery_available'])];
     }
@@ -180,12 +184,18 @@ final class SiteConnector
     }
 
     /**
-     * The one place a stale local credential self-heals. A 401 (unrecognised),
-     * 402 (detached from its billing account), or 410 (revoked) key are all
-     * dead the same way — the fix in every case is to drop it and connect()
-     * again, which either issues a fresh working key synchronously or, for
-     * attach-website, waits on a confirm email. There is no more "leave it
-     * alone" case: domain no longer factors into auth at all.
+     * The one place a stale — or entirely absent — local credential self-heals.
+     * A missing key (fresh/never-onboarded install), a 401 (unrecognised), a
+     * 402 (detached from its billing account), or a 410 (revoked) key are all
+     * fixed the same way: drop whatever's there and connect() again, which
+     * either issues a fresh working key synchronously or, for attach-website,
+     * waits on a confirm email. There is no more "leave it alone" case for any
+     * of those: domain no longer factors into auth at all.
+     *
+     * Never touches the backend at all once the admin has explicitly
+     * disconnected (Billing → Danger zone, ConnectionRepository::isOptedOut())
+     * — that flag is the one case genuinely left alone, until an explicit
+     * "Connect" click (connect() itself clears it).
      *
      * On a healthy key, this is also where the two out-of-band sync checks
      * run once per admin page load (see syncDomainIfChanged()/
@@ -196,9 +206,17 @@ final class SiteConnector
      */
     public function ensureValid(): array
     {
+        if ($this->connection->isOptedOut()) {
+            return ['available' => false, 'error' => 'ERR_NOT_CONNECTED'];
+        }
+
         $status = $this->status->refresh();
 
-        if (!in_array($status['error'], ['ERR_INVALID_TOKEN', 'ERR_LICENSE_DETACHED', 'ERR_LICENSE_REVOKED'], true)) {
+        $needsConnect = in_array($status['error'], [
+            'ERR_NOT_CONNECTED', 'ERR_INVALID_TOKEN', 'ERR_LICENSE_DETACHED', 'ERR_LICENSE_REVOKED',
+        ], true);
+
+        if (!$needsConnect) {
             if ($status['available']) {
                 $this->syncDomainIfChanged();
                 $this->syncAdminEmailIfChanged();

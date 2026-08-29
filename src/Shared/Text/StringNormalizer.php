@@ -31,7 +31,7 @@ namespace LingoWP\Shared\Text;
  * algorithm defines row relationships. It is the ONE shared normalizer used by
  * discovery, the render resolvers, gettext capture, and the HTML parser —
  * identical bytes in, identical hash out, everywhere. Changing any rule re-hashes
- * every string, so existing tl_* rows must be re-discovered (drop the tables) or
+ * every string, so existing lingowp_* rows must be re-discovered (drop the tables) or
  * migrated by hand; there is no automatic versioning.
  */
 final class StringNormalizer

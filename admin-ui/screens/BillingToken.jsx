@@ -88,6 +88,8 @@ export default function BillingToken() {
 	const [ confirmOpen, setConfirmOpen ] = useState( false )
 	const [ recovering, setRecovering ] = useState( false )
 	const [ recoverBanner, setRecoverBanner ] = useState( null ) // { tone, content } | null
+	const [ disconnectOpen, setDisconnectOpen ] = useState( false )
+	const [ disconnecting, setDisconnecting ] = useState( false )
 
 	const [ providerKeys, setProviderKeys ] = useState( null ) // null = loading, else { [provider]: keyData }, at most one entry
 	const [ providerKeysError, setProviderKeysError ] = useState( '' )
@@ -222,6 +224,15 @@ export default function BillingToken() {
 			tone: 'critical',
 			content: errorMessage( res.error ),
 		} )
+	}
+
+	async function doDisconnect() {
+		setDisconnecting( true )
+		await api.post( '/connection/disconnect' )
+		setDisconnecting( false )
+		setDisconnectOpen( false )
+		setRecoverBanner( null )
+		await fetchStatus()
 	}
 
 	const keyPlaceholder =
@@ -376,7 +387,9 @@ export default function BillingToken() {
 				<Card>
 					<InlineStack align="space-between" blockAlign="center">
 						<BlockStack gap="100">
-							<Text as="span">Create a new key</Text>
+							<Text as="span" tone="critical">
+								Create a new key
+							</Text>
 							<Text as="span" tone="subdued" variant="bodySm">
 								Immediately creates a new key for this site.
 								Your current key stops working right away.
@@ -391,6 +404,28 @@ export default function BillingToken() {
 						</Button>
 					</InlineStack>
 				</Card>
+				{ status?.connected && (
+					<Card>
+						<InlineStack align="space-between" blockAlign="center">
+							<BlockStack gap="100">
+								<Text as="span" tone="critical">
+									Disconnect from LingoWP Cloud
+								</Text>
+								<Text as="span" tone="subdued" variant="bodySm">
+									Disables AI translation, provider keys, and
+									billing until you reconnect. Your manually
+									translated content is unaffected.
+								</Text>
+							</BlockStack>
+							<Button
+								tone="critical"
+								onClick={ () => setDisconnectOpen( true ) }
+							>
+								Disconnect
+							</Button>
+						</InlineStack>
+					</Card>
+				) }
 			</BlockStack>
 
 			<Modal
@@ -438,6 +473,34 @@ export default function BillingToken() {
 				<Modal.Section>
 					<Text as="p">
 						This key will be removed. You can add it again anytime.
+					</Text>
+				</Modal.Section>
+			</Modal>
+
+			<Modal
+				open={ disconnectOpen }
+				onClose={ () => setDisconnectOpen( false ) }
+				title="Disconnect from LingoWP Cloud?"
+				primaryAction={ {
+					content: 'Disconnect',
+					destructive: true,
+					loading: disconnecting,
+					onAction: doDisconnect,
+				} }
+				secondaryActions={ [
+					{
+						content: 'Cancel',
+						onAction: () => setDisconnectOpen( false ),
+					},
+				] }
+			>
+				<Modal.Section>
+					<Text as="p">
+						AI translation, provider keys, and billing all stop
+						working immediately. Local, manually translated content
+						is unaffected. This site will not reconnect on its own —
+						come back here and click Connect whenever you want cloud
+						features again.
 					</Text>
 				</Modal.Section>
 			</Modal>

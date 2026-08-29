@@ -230,10 +230,10 @@ export default function BillingApp() {
 												setRecoveryAvailable( false )
 											}
 										>
-											We found an existing LingoWP
-											account for this site — check your
-											owner email to move its subscription
-											and word balance here.
+											We found an existing LingoWP account
+											for this site — check your owner
+											email to move its subscription and
+											word balance here.
 										</Banner>
 									) }
 									{ connectionReady &&
@@ -291,8 +291,7 @@ export default function BillingApp() {
 																	domain and
 																	WordPress
 																	admin email
-																	to
-																	LingoWP
+																	to LingoWP
 																	Cloud;
 																	translation
 																	text and

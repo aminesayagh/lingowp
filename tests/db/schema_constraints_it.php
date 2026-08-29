@@ -39,7 +39,7 @@ $rows = $wpdb->get_results($wpdb->prepare(
        AND REFERENCED_TABLE_NAME IS NOT NULL
        AND TABLE_NAME LIKE %s",
     $schema,
-    $wpdb->prefix . 'tl\_%'
+    $wpdb->prefix . 'lingowp\_%'
 ), ARRAY_A);
 
 $found = [];
@@ -64,7 +64,7 @@ foreach ($expectedFks as $name => $table) {
 }
 
 $unexpected = array_diff_key($found, $expectedFks);
-test_ok('no unexpected FKs on tl_* tables', $unexpected === [], 'extra: ' . json_encode(array_keys($unexpected)));
+test_ok('no unexpected FKs on lingowp_* tables', $unexpected === [], 'extra: ' . json_encode(array_keys($unexpected)));
 
 // Cross-check the code's own verifier agrees with reality.
 $verifier = new ConstraintVerifier($wpdb);

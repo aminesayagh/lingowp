@@ -33,9 +33,7 @@ export function flagIconUrl( lang ) {
 		return null
 	}
 
-	return `${
-		window.LingoWP?.flags_base_url || ''
-	}${ cc.toLowerCase() }.svg`
+	return `${ window.LingoWP?.flags_base_url || '' }${ cc.toLowerCase() }.svg`
 }
 
 // Flags are 4:3, not square — a fixed height with width derived from it avoids

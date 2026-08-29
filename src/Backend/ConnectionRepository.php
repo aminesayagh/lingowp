@@ -17,6 +17,7 @@ final class ConnectionRepository
     public const OPTION_COMPLETED = 'lingowp_onboarding_completed';
     public const OPTION_OWNER_EMAIL = 'lingowp_owner_email';
     public const OPTION_SYNCED_ADMIN_EMAIL = 'lingowp_synced_admin_email';
+    public const OPTION_CLOUD_OPT_OUT = 'lingowp_cloud_opt_out';
 
     public function isConnected(): bool
     {
@@ -43,9 +44,10 @@ final class ConnectionRepository
      * Display-only, never the real key: a fixed placeholder plus the last 4
      * real characters (Stripe/GitHub-style) — everything else is constant,
      * independent of the actual stored value, so there is nothing here an
-     * attacker could use even if screenshotted or logged. 'tl_live_' is the
-     * real, confirmed prefix every issued key uses (backend's
-     * LICENSE_KEY_PREFIX), not a guess.
+     * attacker could use even if screenshotted or logged. 'lingowp_live_' is
+     * the LingoWP-branded prefix (renamed from the legacy 'tl_live_') —
+     * the backend's LICENSE_KEY_PREFIX must be updated to match, or this
+     * mask will misrepresent real issued keys until it is.
      */
     public function maskedKey(): string
     {
@@ -54,7 +56,7 @@ final class ConnectionRepository
             return '';
         }
 
-        return 'tl_live_' . str_repeat('•', 16) . substr($token, -4);
+        return 'lingowp_live_' . str_repeat('•', 16) . substr($token, -4);
     }
 
     public function store(string $siteId, string $token): void
@@ -71,14 +73,16 @@ final class ConnectionRepository
     }
 
     /**
-     * Full wipe for the dev reset tool: credentials AND the onboarding-completed
-     * flag, so the site looks like a genuine first activation. Unlike clear()
-     * (a normal disconnect), onboarding-completed is not preserved here.
+     * Full wipe for the dev reset tool: credentials, the onboarding-completed
+     * flag, AND the cloud opt-out flag, so the site looks like a genuine first
+     * activation. Unlike clear() (a normal disconnect, which sets opt-out),
+     * nothing here is preserved.
      */
     public function forgetAll(): void
     {
         $this->clear();
         delete_option(self::OPTION_COMPLETED);
+        $this->setOptedOut(false);
     }
 
     public function isOnboardingComplete(): bool
@@ -123,5 +127,26 @@ final class ConnectionRepository
     public function storeSyncedAdminEmail(string $email): void
     {
         update_option(self::OPTION_SYNCED_ADMIN_EMAIL, $email);
+    }
+
+    /**
+     * Whether the admin has explicitly disconnected (Billing → Danger zone).
+     * Gates SiteConnector::ensureValid()'s auto-connect: an opted-out site is
+     * never contacted again on its own, only via an explicit "Connect" click,
+     * which clears this flag.
+     */
+    public function isOptedOut(): bool
+    {
+        return (bool) get_option(self::OPTION_CLOUD_OPT_OUT, false);
+    }
+
+    public function setOptedOut(bool $optedOut): void
+    {
+        if ($optedOut) {
+            update_option(self::OPTION_CLOUD_OPT_OUT, true);
+            return;
+        }
+
+        delete_option(self::OPTION_CLOUD_OPT_OUT);
     }
 }

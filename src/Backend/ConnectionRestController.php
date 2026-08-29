@@ -50,6 +50,7 @@ final class ConnectionRestController
         register_rest_route(self::NS, '/connection/connect', ['methods' => 'POST', 'callback' => [$this, 'connect']] + $guard);
         register_rest_route(self::NS, '/connection/confirm', ['methods' => 'POST', 'callback' => [$this, 'confirm']] + $guard);
         register_rest_route(self::NS, '/connection/recover', ['methods' => 'POST', 'callback' => [$this, 'recover']] + $guard);
+        register_rest_route(self::NS, '/connection/disconnect', ['methods' => 'POST', 'callback' => [$this, 'disconnect']] + $guard);
     }
 
     public function canManage(): bool
@@ -148,5 +149,22 @@ final class ConnectionRestController
         $result = $this->siteConnector->recover();
 
         return new WP_REST_Response(['ok' => $result['ok'], 'error' => $result['error']], 200);
+    }
+
+    /**
+     * Billing page's "Disconnect from LingoWP Cloud" (Danger zone). Drops the
+     * local credential and records that this admin opted out, so
+     * SiteConnector::ensureValid() stops auto-connecting on every load — the
+     * one thing that action is otherwise for. Nothing is sent to the backend;
+     * there is no self-service "revoke this key" route, and there doesn't
+     * need to be — an unused key just sits there until reconnected.
+     */
+    public function disconnect(): WP_REST_Response
+    {
+        $this->connection->clear();
+        $this->connection->setOptedOut(true);
+        $this->status->clearCache();
+
+        return $this->respond(false, ['available' => false, 'error' => 'ERR_NOT_CONNECTED']);
     }
 }

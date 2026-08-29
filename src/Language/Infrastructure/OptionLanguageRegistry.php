@@ -14,8 +14,8 @@ use LingoWP\Language\Domain\LocaleNormalizer;
  *   lingowp_active_lang    'fr_FR|ar'       currently enabled targets
  *   lingowp_existing_lang  'fr_FR|ar|es_ES' every target ever added (append-only)
  *
- * Languages are identified by code everywhere — tl_translation stores the code
- * directly, so no numeric dictionary is needed. The existing roster is
+ * Languages are identified by code everywhere — every translation table stores
+ * the code directly, so no numeric dictionary is needed. The existing roster is
  * append-only: a soft-deleted language leaves the active list but stays in
  * existing, so its translations (keyed by code) survive and re-enabling is
  * instant.

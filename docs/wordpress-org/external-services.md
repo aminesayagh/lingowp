@@ -3,10 +3,13 @@
 ## LingoWP Cloud
 
 - Endpoint origin: `https://translangs-api.masayagh.com`.
-- Trigger: no connection on installation or onboarding configuration. An
-  administrator explicitly selects a connection action.
-- Connection data: site domain, WordPress administrator email, default language,
-  WordPress/plugin versions, and site metadata required by the connection API.
+- Trigger: connects automatically on the first admin page load after
+  activation — no separate onboarding step or connection action required. An
+  administrator can fully disconnect at any time from Billing → Danger zone,
+  which stops all further requests to LingoWP Cloud until they reconnect
+  (an explicit "Connect" action, which re-enables automatic reconnection).
+- Connection data: site domain and WordPress administrator email — the only
+  two fields the connect request actually sends.
 - AI translation data: selected source text, source/target language identifiers,
   and translation grouping identifiers, sent only when AI translation is requested.
 - Provider keys: keys entered by an administrator are sent for validation and

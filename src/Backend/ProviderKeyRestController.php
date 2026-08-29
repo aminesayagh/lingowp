@@ -50,7 +50,10 @@ final class ProviderKeyRestController
 
         return rest_ensure_response([
             'ok'    => $result['ok'],
-            'keys'  => $result['data'] ?? [],
+            // Only trust $result['data'] as the keys list on success — on failure
+            // it's the backend's decoded error body (e.g. {"detail": "..."}), not
+            // a list, and ?? [] alone would not catch that (it's non-null).
+            'keys'  => $result['ok'] ? ($result['data'] ?? []) : [],
             'error' => $result['error'],
         ]);
     }

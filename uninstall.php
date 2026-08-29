@@ -73,6 +73,7 @@ $options = [
     'lingowp_site_id',
     'lingowp_owner_email',
     'lingowp_api_origin',
+    'lingowp_cloud_opt_out',
     // Gettext workspace state.
     'lingowp_gettext_domains',
     'lingowp_gettext_ignored_units',

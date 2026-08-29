@@ -50,7 +50,7 @@ export function aiModelOptions( { hasSubscription, providerKeys } ) {
 	if ( hasSubscription ) {
 		opts.push( { label: 'LingoWP model', value: 'internal' } )
 	}
-	for ( const key of providerKeys || [] ) {
+	for ( const key of Array.isArray( providerKeys ) ? providerKeys : [] ) {
 		if ( PROVIDER_LABELS[ key.provider ] ) {
 			opts.push( {
 				label: `Your ${ PROVIDER_LABELS[ key.provider ] } key`,
@@ -107,7 +107,10 @@ export default function LanguageManagerModal( {
 		] ).then( ( [ keysRes, entitlementsRes ] ) => {
 			setAiEngines( {
 				hasSubscription: !! entitlementsRes.entitlements?.active,
-				providerKeys: keysRes.keys || [],
+				// Array.isArray, not `|| []`: a failed /provider-keys call can
+				// still hand back a truthy non-array error body, which `|| []`
+				// would let straight through.
+				providerKeys: Array.isArray( keysRes.keys ) ? keysRes.keys : [],
 			} )
 		} )
 	}, [ open ] )

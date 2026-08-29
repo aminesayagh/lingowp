@@ -23,11 +23,6 @@ function unavailableCopy() {
 function CloudDisclosure() {
 	return (
 		<BlockStack gap="050">
-			<Text as="span" tone="subdued" variant="bodySm">
-				Connecting sends this site&apos;s domain and WordPress admin
-				email to LingoWP Cloud. Translation text is sent only when
-				you request AI translation.
-			</Text>
 			{ ( cfg.cloud_terms_url || cfg.cloud_privacy_url ) && (
 				<Text as="span" tone="subdued" variant="bodySm">
 					{ cfg.cloud_terms_url && (
@@ -130,7 +125,7 @@ export default function QuotaCard( {
 						{ neverConnected && (
 							<>
 								<CloudDisclosure />
-								<Button variant="plain" onClick={ onConnect }>
+								<Button variant="primary" onClick={ onConnect }>
 									Connect to LingoWP Cloud
 								</Button>
 							</>

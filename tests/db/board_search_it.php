@@ -136,7 +136,11 @@ $repo->saveTranslation(
     TranslationStatus::MACHINE,
     'test'
 );
-$titleRow = $repo->listPostTexts($postId, $LANG, 'Needle Page')[0] ?? [];
+// A title-text search widens to every row on the post (postNameClauses(), by
+// design — see its docblock), so [0] after the field/id ORDER BY is not
+// necessarily the title row. Pick it by its known id instead.
+$titleTexts = $repo->listPostTexts($postId, $LANG, 'Needle Page');
+$titleRow   = current(array_filter($titleTexts, static fn (array $r): bool => $r['id'] === $titleId)) ?: [];
 test_ok('fixture translation saved', ($titleRow['translated_text'] ?? null) === 'Page Aiguille LINGOWP_TEST');
 
 /** The collection row for our fixture post, or null — the dev site has other posts. */
