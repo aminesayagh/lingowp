@@ -88,6 +88,7 @@ final class StructuredRenderResolver
         add_filter('get_term', [$this, 'term'], 10, 2);
         add_filter('get_terms', [$this, 'terms'], 10, 1);
         add_filter('get_the_terms', [$this, 'theTerms'], 10, 1);
+        add_filter('get_the_author_description', [$this, 'authorDescription'], 10, 1);
     }
 
     /** Scalar meta render lookup — matched by location (no original text here). @return array<string, scalar> */
@@ -265,6 +266,27 @@ final class StructuredRenderResolver
         }
 
         return $terms;
+    }
+
+    // ── author bio (hash-link) ────────────────────────────────────────────────
+
+    /**
+     * get_the_author_description filter — fires from get_the_author_meta('description')
+     * / the_author_meta('description'), the documented WP API for the author bio.
+     * A theme calling get_user_meta($id, 'description', true) directly bypasses
+     * this, same known limitation as the ALT/SEO meta keys not covering every
+     * possible reader.
+     *
+     * @param mixed $description
+     * @return mixed
+     */
+    public function authorDescription($description)
+    {
+        if (!$this->isActive()) {
+            return $description;
+        }
+
+        return $this->hashValue('user', (string) $description);
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

@@ -154,6 +154,70 @@ final class WpDbBoardQueries
         }, (array) $rows);
     }
 
+    /** The single Author-bios collection (all discovered user sources) with per-status counts. */
+    public function userCollectionSummary(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('user');
+        $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT COUNT(*)           AS total,
+                       SUM(t.status > 0)  AS translated,
+                       SUM(t.status = %d) AS needs_review,
+                       SUM(t.id IS NULL)  AS missing
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d{$match}";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $row = $this->wpdb->get_row($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A) ?: [];
+
+        return $this->summaryRow($row);
+    }
+
+    /** The discovered author-bio text units for one language. For expanding the Author-bios group. */
+    public function listUserTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('user');
+        $child  = $parent . '_translation';
+        $users  = $this->wpdb->users;
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT p.id AS id, p.user_id AS user_id, u.display_name AS display_name,
+                       p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
+                FROM {$parent} p
+                JOIN {$users} u ON u.ID = p.user_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d{$match}
+                ORDER BY u.display_name, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit                 = $this->textUnitRow($r);
+            $unit['user_id']      = (int) $r['user_id'];
+            $unit['display_name'] = (string) $r['display_name'];
+            return $unit;
+        }, (array) $rows);
+    }
+
 
     public function listTermCollections(string $langCode, string $search = '', array $filters = []): array
     {
@@ -476,7 +540,7 @@ final class WpDbBoardQueries
         $done  = 0;
 
         // hash-link tables join on original_hash; meta joins on parent_id.
-        foreach (['post', 'term', 'html', 'option'] as $key) {
+        foreach (['post', 'term', 'html', 'option', 'user'] as $key) {
             [$t, $d] = $this->countTable($key, false, $langCode);
             $total  += $t;
             $done   += $d;

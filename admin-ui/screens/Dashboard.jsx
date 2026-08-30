@@ -196,6 +196,7 @@ const CONTENT_TYPE_FILTERS = [
 	{ key: 'html', label: 'Template content' },
 	{ key: 'plugin', label: 'Plugin text' },
 	{ key: 'theme', label: 'Theme text' },
+	{ key: 'author_bios', label: 'Author bios' },
 ]
 const TEXT_LENGTH_FILTERS = [
 	{ key: 'short', label: 'Short text' },

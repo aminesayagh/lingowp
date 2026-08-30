@@ -58,6 +58,19 @@ final class CollectionBoard
             ] + $option;
         }
 
+        // All discovered author bios bundle into one card, same as Site settings
+        // does for options — not one collection per user.
+        $userBios = $this->repo->userCollectionSummary($lang, $search, $filters);
+        if ($userBios['total'] > 0) {
+            $collections[] = [
+                'id'             => 'user:bios',
+                'label'          => __('Author bios', 'lingowp'),
+                'type'           => 'author_bios',
+                'preview_url'    => admin_url('users.php'),
+                'preview_target' => 'admin',
+            ] + $userBios;
+        }
+
         // A content collection is one WP post's post fields + its meta,
         // merged by post_id (preserving the post-type/title ordering of post).
         $byPost = [];
@@ -198,6 +211,16 @@ final class CollectionBoard
             $fallbacks     = $withFallback ? $this->fallbacksByHash('option', $rows, $lang) : [];
             return array_map(
                 fn (array $r): array => $this->presentText('option', $r, (string) $r['option_name'], $fallbacks[$r['original_hash']] ?? null) + $optionPreview,
+                $rows
+            );
+        }
+
+        if ($id === 'user:bios') {
+            $userPreview = ['preview_url' => admin_url('users.php'), 'preview_target' => 'admin'];
+            $rows        = $this->repo->listUserTexts($lang, $search, $filters);
+            $fallbacks   = $withFallback ? $this->fallbacksByHash('user', $rows, $lang) : [];
+            return array_map(
+                fn (array $r): array => $this->presentText('user', $r, (string) $r['display_name'], $fallbacks[$r['original_hash']] ?? null) + $userPreview,
                 $rows
             );
         }
@@ -377,6 +400,12 @@ final class CollectionBoard
                 $this->repo->listOptionTexts($lang)
             );
         }
+        if ($id === 'user:bios') {
+            return array_map(
+                static fn (array $u): SourceRef => SourceRef::make('user', (int) $u['id']),
+                $this->repo->listUserTexts($lang)
+            );
+        }
         if ($id === 'html:all') {
             return array_map(
                 static fn (array $u): SourceRef => SourceRef::make('html', (int) $u['id']),
@@ -463,7 +492,7 @@ final class CollectionBoard
     }
 
     /**
-     * Batched fallback lookup for hash-link kinds (post/term/html/option),
+     * Batched fallback lookup for hash-link kinds (post/term/html/option/user),
      * walking the language's fallback_language chain one hop at a time —
      * same narrowing-remaining-set shape as StructuredRenderResolver's render
      * path — so an N-row collection costs at most one query per chain hop,

@@ -390,6 +390,29 @@ final class WpDbSourceRepository
     }
 
     /**
+     * The single Author-bios collection (all discovered user sources) with
+     * per-status counts for one language.
+     *
+     * @return array{total:int, translated:int, needs_review:int, missing:int}
+     */
+    public function userCollectionSummary(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->userCollectionSummary($langCode, $search, $filters);
+    }
+
+    /**
+     * The discovered author-bio text units for one language, each with its
+     * translation (or null). For expanding the Author-bios group.
+     *
+     * @return array<int, array{id:int, user_id:int, display_name:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listUserTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->listUserTexts($langCode, $search, $filters);
+    }
+
+    /**
      * Taxonomy collections (grouped by term) with per-status counts for one
      * language, joined to wp_term_taxonomy + wp_terms for the term name.
      *
@@ -1396,6 +1419,18 @@ final class WpDbSourceRepository
     public function reconcileOption(int $optionId, array $records): void
     {
         $this->reconcileScope('option', 'option_id = %d', [$optionId], $records);
+    }
+
+    /**
+     * Reconcile one user's author-bio parent. Same delete-stale + carry-forward
+     * rule as options/terms: an edited bio keeps its translation, re-attached to
+     * the new text as needs_review; a cleared bio deletes the parent.
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcileUser(int $userId, array $records): void
+    {
+        $this->reconcileScope('user', 'user_id = %d', [$userId], $records);
     }
 
     /**
