@@ -36,9 +36,10 @@ final class WpDbBoardQueries
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
                        wp.post_mime_type AS post_mime_type,
                        COUNT(*)              AS total,
-                       SUM(t.status > 0)     AS translated,
-                       SUM(t.status = %d)    AS needs_review,
-                       SUM(t.id IS NULL)     AS missing
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
@@ -49,7 +50,6 @@ final class WpDbBoardQueries
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
-            TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs,
@@ -104,9 +104,10 @@ final class WpDbBoardQueries
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT COUNT(*)           AS total,
-                       SUM(t.status > 0)  AS translated,
-                       SUM(t.status = %d) AS needs_review,
-                       SUM(t.id IS NULL)  AS missing
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
@@ -114,7 +115,6 @@ final class WpDbBoardQueries
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
-            TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -163,9 +163,10 @@ final class WpDbBoardQueries
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT COUNT(*)           AS total,
-                       SUM(t.status > 0)  AS translated,
-                       SUM(t.status = %d) AS needs_review,
-                       SUM(t.id IS NULL)  AS missing
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
@@ -173,7 +174,6 @@ final class WpDbBoardQueries
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
-            TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -230,9 +230,10 @@ final class WpDbBoardQueries
 
         $sql = "SELECT p.term_taxonomy_id AS term_taxonomy_id, tx.taxonomy AS taxonomy, tm.name AS name,
                        COUNT(*)              AS total,
-                       SUM(t.status > 0)     AS translated,
-                       SUM(t.status = %d)    AS needs_review,
-                       SUM(t.id IS NULL)     AS missing
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
                 FROM {$parent} p
                 JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
                 JOIN {$terms} tm ON tm.term_id = tx.term_id
@@ -244,7 +245,6 @@ final class WpDbBoardQueries
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
-            TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -334,9 +334,10 @@ final class WpDbBoardQueries
         $sql = "SELECT p.post_id AS post_id, wp.post_type AS post_type, wp.post_title AS post_title,
                        wp.post_mime_type AS post_mime_type,
                        COUNT(*)              AS total,
-                       SUM(t.status > 0)     AS translated,
-                       SUM(t.status = %d)    AS needs_review,
-                       SUM(t.id IS NULL)     AS missing
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
                 FROM {$parent} p
                 JOIN {$posts} wp ON wp.ID = p.post_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
@@ -347,7 +348,6 @@ final class WpDbBoardQueries
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
-            TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs,
@@ -413,9 +413,10 @@ final class WpDbBoardQueries
         // term_meta is a parent_id child: join on parent_id, not original_hash.
         $sql = "SELECT tx.taxonomy AS taxonomy,
                        COUNT(*)              AS total,
-                       SUM(t.status > 0)     AS translated,
-                       SUM(t.status = %d)    AS needs_review,
-                       SUM(t.id IS NULL)     AS missing
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
                 FROM {$parent} p
                 JOIN {$tt} tx ON tx.term_id = p.term_id
                 LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
@@ -425,7 +426,6 @@ final class WpDbBoardQueries
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
-            TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -552,9 +552,10 @@ final class WpDbBoardQueries
         [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
 
         $sql = "SELECT COUNT(*)           AS total,
-                       SUM(t.status > 0)  AS translated,
-                       SUM(t.status = %d) AS needs_review,
-                       SUM(t.id IS NULL)  AS missing
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
@@ -562,7 +563,6 @@ final class WpDbBoardQueries
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
-            TranslationStatus::NEEDS_REVIEW,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -829,9 +829,140 @@ final class WpDbBoardQueries
         ];
     }
 
+    /** Same special-casing as WpDbSourceRepository::parent() — see its doc comment. */
     private function parent(string $tableKey): string
     {
+        if ($tableKey === 'woo_attribute_label') {
+            return TranslationMemorySchema::wooAttributeLabelTable();
+        }
+        if ($tableKey === 'woo_tax_rate') {
+            return TranslationMemorySchema::wooTaxRateTable();
+        }
+
         return TranslationMemorySchema::parentTables()[$tableKey];
+    }
+
+    /**
+     * Board summary for WooCommerce attribute labels. Callers MUST check
+     * class_exists('WooCommerce') first — unlike every other summary method,
+     * this table doesn't exist on a site without WooCommerce, and a missing
+     * table errors rather than just returning zero rows.
+     */
+    public function wooAttributeLabelCollectionSummary(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('woo_attribute_label');
+        $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT COUNT(*)           AS total,
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d{$match}";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $row = $this->wpdb->get_row($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A) ?: [];
+
+        return $this->summaryRow($row);
+    }
+
+    /** Text units for the 'woo:attribute_labels' board card. See summary method's caller note. */
+    public function listWooAttributeLabelTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('woo_attribute_label');
+        $child  = $parent . '_translation';
+        $owner  = $this->wpdb->prefix . 'woocommerce_attribute_taxonomies';
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT p.id AS id, o.attribute_name AS field, p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
+                FROM {$parent} p
+                JOIN {$owner} o ON o.attribute_id = p.attribute_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d{$match}
+                ORDER BY o.attribute_name, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(fn (array $r): array => $this->textUnitRow($r), (array) $rows);
+    }
+
+    /** Board summary for WooCommerce tax rate names. Same caller note as attribute labels above. */
+    public function wooTaxRateCollectionSummary(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('woo_tax_rate');
+        $child  = $parent . '_translation';
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT COUNT(*)           AS total,
+                       SUM(t.translated_text IS NOT NULL AND t.status = -1)  AS needs_review,
+                       SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
+                       SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
+                       SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
+                FROM {$parent} p
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d{$match}";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $row = $this->wpdb->get_row($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A) ?: [];
+
+        return $this->summaryRow($row);
+    }
+
+    /** Text units for the 'woo:tax_rates' board card. See summary method's caller note. */
+    public function listWooTaxRateTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('woo_tax_rate');
+        $child  = $parent . '_translation';
+        $owner  = $this->wpdb->prefix . 'woocommerce_tax_rates';
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT p.id AS id,
+                       TRIM(CONCAT_WS(' ', o.tax_rate_country, o.tax_rate_state)) AS field,
+                       p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
+                FROM {$parent} p
+                JOIN {$owner} o ON o.tax_rate_id = p.tax_rate_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d{$match}
+                ORDER BY field, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(fn (array $r): array => $this->textUnitRow($r), (array) $rows);
     }
 
     /** Group-by-post collection row shared by listPostCollections()/postMetaCounts(). */
@@ -845,6 +976,7 @@ final class WpDbBoardQueries
             'total'          => (int) $r['total'],
             'translated'     => (int) $r['translated'],
             'needs_review'   => (int) $r['needs_review'],
+            'pending'        => (int) $r['pending'],
             'missing'        => (int) $r['missing'],
         ];
     }
@@ -856,6 +988,7 @@ final class WpDbBoardQueries
             'total'        => (int) ($row['total'] ?? 0),
             'translated'   => (int) ($row['translated'] ?? 0),
             'needs_review' => (int) ($row['needs_review'] ?? 0),
+            'pending'      => (int) ($row['pending'] ?? 0),
             'missing'      => (int) ($row['missing'] ?? 0),
         ];
     }

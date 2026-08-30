@@ -17,6 +17,7 @@ use LingoWP\Shared\Parsing\SeoTemplateVariables;
 use LingoWP\Shared\Text\TranslationKey;
 use LingoWP\Shared\Source\TranslatableMetaKeys;
 use LingoWP\Shared\Source\ScannablePostStatuses;
+use LingoWP\Shared\Source\BlockAttributeValues;
 
 /**
  * Save-time structured discovery for owned WordPress content (data pipeline §1-2,
@@ -202,6 +203,21 @@ final class StructuredSourceScanner
                 continue;
             }
             $records[] = new SplitPostSource($post->ID, 'post_content', $unit);
+        }
+
+        // Some blocks (Search, Navigation Link, Post Terms, …) store their
+        // whole visible text only in their own settings, inside the block
+        // comment's JSON — never in real page markup, so the DOM-based scan
+        // above never sees it (see BlockContentAttributes' class doc). Reads
+        // the RAW stored post_content, not the texturized/autop'd $content
+        // above — wptexturize() would corrupt straight quotes inside a block's
+        // JSON attributes, breaking parse_blocks() entirely. Reuses PostSource
+        // directly: a block-attribute value's identity is exactly (post_id,
+        // 'post_content', original_hash), the same shape as a regular
+        // split-content piece, so it shares the existing carry-forward/prune
+        // reconciliation with zero changes needed there.
+        foreach (BlockAttributeValues::extract((string) $post->post_content) as $text) {
+            $records[] = new PostSource($post->ID, 'post_content', $text);
         }
 
         if (function_exists('get_post_meta')) {

@@ -141,6 +141,17 @@ $gateCases = [
     ['filename rejected',                'photo.jpg',               false],
     ['dotted filename rejected',         'my.file.name.pdf',        false],
 
+    // Checklist §5/6 finding: BlockContentAttributes can hand this filter a
+    // Post Date block's manual date-override value (its "datetime" attribute
+    // is role=content per WordPress's own schema) — the standard ISO 8601
+    // machine timestamp, unlike a plain digit-date, has a literal "T"
+    // separator (a real letter), so the no-letter rule alone would miss it.
+    ['ISO timestamp with T rejected',       '2024-01-01T00:00:00',        false],
+    ['ISO timestamp with Z rejected',       '2024-01-01T00:00:00Z',       false],
+    ['ISO timestamp with millis rejected',  '2024-01-01T00:00:00.123Z',   false],
+    ['ISO timestamp with offset rejected',  '2024-01-01T00:00:00+02:00',  false],
+    ['space-separated timestamp rejected',  '2024-01-01 00:00:00',        false],
+
     ['prose containing a url kept',      'Visit https://x.com/a today', true],
     ['prose containing an email kept',   'Mail us at a@b.com now',      true],
     ['short word kept',                  'Ok',                      true],

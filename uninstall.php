@@ -28,6 +28,8 @@ if (function_exists('as_unschedule_all_actions')) {
 }
 
 // Drop tables in FK-safe order: children before the parents they reference.
+// Includes the two WooCommerce-conditional tables (attribute label, tax rate
+// name) — DROP TABLE IF EXISTS is safe whether or not they were ever created.
 $tables = [
     // children
     $wpdb->prefix . 'lingowp_post_translation',
@@ -35,12 +37,20 @@ $tables = [
     $wpdb->prefix . 'lingowp_term_translation',
     $wpdb->prefix . 'lingowp_html_translation',
     $wpdb->prefix . 'lingowp_option_translation',
+    $wpdb->prefix . 'lingowp_user_translation',
+    $wpdb->prefix . 'lingowp_term_meta_translation',
+    $wpdb->prefix . 'lingowp_woo_attribute_label_translation',
+    $wpdb->prefix . 'lingowp_woo_tax_rate_translation',
     // parents
     $wpdb->prefix . 'lingowp_post',
     $wpdb->prefix . 'lingowp_meta',
     $wpdb->prefix . 'lingowp_term',
     $wpdb->prefix . 'lingowp_html',
     $wpdb->prefix . 'lingowp_option',
+    $wpdb->prefix . 'lingowp_user',
+    $wpdb->prefix . 'lingowp_term_meta',
+    $wpdb->prefix . 'lingowp_woo_attribute_label',
+    $wpdb->prefix . 'lingowp_woo_tax_rate',
 ];
 
 foreach ($tables as $table) {
@@ -65,6 +75,7 @@ $options = [
     'lingowp_age_out_last_run',
     'lingowp_needs_initial_scan',
     'lingowp_needs_html_crawl',
+    'lingowp_woo_tables_installed',
     // Onboarding / backend connection.
     'lingowp_languages',
     'lingowp_categories',

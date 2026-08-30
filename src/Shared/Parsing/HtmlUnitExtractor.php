@@ -17,23 +17,59 @@ use Masterminds\HTML5;
  *                    over the page <body>, keying by DOM selector instead of text.
  *
  * Fail-open everywhere: any parse/DOM error leaves the HTML (or the block) as-is.
+ * See BLOCK_TAGS/STANDALONE_TEXT_TAGS/isPruned()'s doc comments for the Verse/
+ * table-cell/citation-and-summary exceptions this shares with the whole-page
+ * type-5 pipeline (one parser, one fix, both callers benefit).
  */
 final class HtmlUnitExtractor
 {
-    /** Whole subtree skipped (never descended). */
+    /**
+     * Whole subtree skipped (never descended). `pre` is unconditional here — the
+     * one exception (a Gutenberg Verse block, real prose, not code) is exempted
+     * by its own CSS class in isPruned(), never by the bare tag, so a Code or
+     * Preformatted block's `<pre>` stays pruned exactly as before.
+     */
     private const PRUNE_TAGS = [
         'script' => true, 'style' => true, 'noscript' => true, 'template' => true,
         'textarea' => true, 'iframe' => true, 'svg' => true, 'canvas' => true, 'pre' => true,
     ];
 
-    /** Block-level tags: each leaf is its own unit (a container recurses). */
+    /**
+     * Block-level tags: each leaf is its own unit (a container recurses).
+     * `thead`/`tbody`/`tfoot` are only ever valid inside `table` (already a
+     * member), so adding them can only affect that one case — without them,
+     * hasChildBlock(table) only sees these direct children (never tr/th/td, its
+     * grandchildren), wrongly finds no block child, and the whole table +
+     * every cell collapses into one leaf. `pre` is likewise only reached here
+     * for the one case isPruned() lets through (Verse) — every other `<pre>`
+     * is pruned above and never reaches this list at all.
+     */
     private const BLOCK_TAGS = [
         'p' => true, 'div' => true, 'li' => true, 'ul' => true, 'ol' => true,
         'h1' => true, 'h2' => true, 'h3' => true, 'h4' => true, 'h5' => true, 'h6' => true,
-        'td' => true, 'th' => true, 'tr' => true, 'table' => true, 'section' => true,
+        'td' => true, 'th' => true, 'tr' => true, 'table' => true, 'thead' => true,
+        'tbody' => true, 'tfoot' => true, 'section' => true,
         'article' => true, 'header' => true, 'footer' => true, 'main' => true, 'aside' => true,
         'nav' => true, 'blockquote' => true, 'figure' => true, 'figcaption' => true,
         'dd' => true, 'dt' => true, 'dl' => true, 'form' => true, 'fieldset' => true, 'address' => true,
+        'pre' => true,
+    ];
+
+    /**
+     * Tags that hold standalone supplementary text (a Quote's <cite>, a Details
+     * block's <summary>) but aren't themselves in BLOCK_TAGS. Handled by a
+     * dedicated branch in walkNode() — NOT by adding them to BLOCK_TAGS — because
+     * that would change hasChildBlock() for every existing paragraph too: a
+     * `<p>text <cite>x</cite> more text</p>` would suddenly see cite count as a
+     * block child, turn the whole <p> into a container instead of a leaf, and
+     * silently drop its bare surrounding text nodes (only wrapped elements are
+     * ever collected during container recursion). Kept separate, this branch
+     * only ever fires for the case it's meant to fix: cite/summary encountered
+     * while already recursing through a container (blockquote/details), where a
+     * bare text child would otherwise have nowhere to attach.
+     */
+    private const STANDALONE_TEXT_TAGS = [
+        'cite' => true, 'summary' => true,
     ];
 
     private TranslationUnitCodec $codec;
@@ -98,6 +134,15 @@ final class HtmlUnitExtractor
                 continue;
             }
 
+            // See STANDALONE_TEXT_TAGS's doc comment: only fires here, mid-recursion —
+            // never changes how cite/summary behave as an ordinary inline piece of an
+            // already-recognized leaf paragraph (a completely different code path,
+            // TranslationUnitCodec::encode()'s own walk(), untouched by this branch).
+            if (isset(self::STANDALONE_TEXT_TAGS[$tag]) && !$this->hasChildBlock($child)) {
+                $this->handleLeaf($child, $html5, $dom, $onUnit);
+                continue;
+            }
+
             if (!isset(self::BLOCK_TAGS[$tag]) || $this->hasChildBlock($child)) {
                 $this->walkNode($child, $html5, $dom, $onUnit); // wrapper / container: descend
                 continue;
@@ -113,7 +158,13 @@ final class HtmlUnitExtractor
     private function handleLeaf(\DOMElement $block, HTML5 $html5, \DOMDocument $dom, callable $onUnit): void
     {
         try {
-            $encoded    = $this->codec->encode($block);
+            // Verse is the one leaf whose whitespace is visually significant
+            // (white-space: pre-wrap — a poem's line breaks) — every other leaf
+            // wants tidy()'s normal collapsing (browsers already collapse
+            // whitespace in normal flow, so that's not a real loss anywhere else).
+            $preserveWhitespace = strtolower($block->tagName) === 'pre'
+                && $this->hasClass($block, 'wp-block-verse');
+            $encoded = $this->codec->encode($block, $preserveWhitespace);
             $translated = $onUnit($block, $encoded);
             if ($translated === null || $translated === '') {
                 return;
@@ -168,7 +219,12 @@ final class HtmlUnitExtractor
 
     public function isPruned(\DOMElement $element, string $tag): bool
     {
-        if (isset(self::PRUNE_TAGS[$tag])) {
+        // A Verse block's <pre> is real prose (a poem), unlike Code's <pre><code>
+        // or Preformatted's bare <pre> — exempted by its own block CSS class,
+        // never by the bare tag, so those two keep being pruned unconditionally.
+        // Falls through to the ordinary opt-out checks below, so a site can still
+        // force-exclude one specific verse block via translate="no" etc.
+        if (!($tag === 'pre' && $this->hasClass($element, 'wp-block-verse')) && isset(self::PRUNE_TAGS[$tag])) {
             return true;
         }
         if ($element->hasAttribute('data-lingowp-skip') || $element->hasAttribute('data-lingowp-region')) {
@@ -181,9 +237,15 @@ final class HtmlUnitExtractor
             return true;
         }
 
+        return $this->hasClass($element, 'notranslate');
+    }
+
+    /** Space-separated `class` attribute membership, case-insensitive. */
+    private function hasClass(\DOMElement $element, string $class): bool
+    {
         $classes = preg_split('/\s+/', strtolower(trim($element->getAttribute('class')))) ?: [];
 
-        return in_array('notranslate', $classes, true);
+        return in_array($class, $classes, true);
     }
 
     private function hasChildBlock(\DOMElement $element): bool

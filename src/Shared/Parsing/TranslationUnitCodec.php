@@ -29,13 +29,18 @@ final class TranslationUnitCodec
     ];
 
     /**
+     * @param bool $preserveWhitespace Skip tidy()'s whitespace-run collapsing —
+     *   for the one leaf whose whitespace is visually significant (a Verse
+     *   block's `white-space: pre-wrap` line breaks). A deliberate, narrow
+     *   deviation from tidy()'s normal hash-stable collapsing, documented on
+     *   tidy() itself; every other caller wants the default (false).
      * @return array{unit: string, tags: array<int, array{open: string, close: string}>, wrap: ?array{0: string, 1: string}}
      */
-    public function encode(\DOMElement $block): array
+    public function encode(\DOMElement $block, bool $preserveWhitespace = false): array
     {
         $counter = 0;
         $tags    = [];
-        $unit    = $this->tidy($this->walk($block, $counter, $tags));
+        $unit    = $this->tidy($this->walk($block, $counter, $tags), $preserveWhitespace);
         $strip   = $this->stripWrapper($unit);
 
         if ($strip === null) {
@@ -97,9 +102,19 @@ final class TranslationUnitCodec
      * entity-preserving, and a strict subset of StringNormalizer's whitespace
      * rules, so the unit hash is unchanged — this only tidies what is stored and
      * shown (e.g. a multi-line "{1}\n  Dashboard {/1}" becomes "{1} Dashboard {/1}").
+     *
+     * $preserveWhitespace skips the run-collapsing (only the outer edges are
+     * trimmed) — the one exception is a Verse block's `<pre>`, where internal
+     * newlines are the poem's actual line breaks, not incidental theme
+     * indentation; collapsing them would flatten a multi-line verse to one line
+     * the moment it's captured, independent of translation.
      */
-    private function tidy(string $unit): string
+    private function tidy(string $unit, bool $preserveWhitespace = false): string
     {
+        if ($preserveWhitespace) {
+            return trim($unit);
+        }
+
         return trim((string) preg_replace('/\s+/', ' ', $unit));
     }
 

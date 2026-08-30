@@ -15,11 +15,24 @@ use LingoWP\Database\TableDefinitions;
  * version is bumped only once verification passes. There is no data migration
  * here: pre-existing tables are assumed dropped out of band, and
  * CREATE TABLE IF NOT EXISTS is idempotent.
+ *
+ * Plus two CONDITIONAL parent/child pairs — see maybeInstallWooCommerceTables() —
+ * that only exist on a site with WooCommerce active, unlike the fourteen above,
+ * which install unconditionally on every site. Kept deliberately separate from
+ * DB_VERSION and from every list the core maintenance jobs loop over.
  */
 class TranslationMemorySchema
 {
     public const DB_VERSION        = '4';
     public const OPTION_DB_VERSION = 'lingowp_db_version';
+
+    /**
+     * Flag for the SEPARATE, conditional WooCommerce table pair — deliberately
+     * not folded into DB_VERSION/install() above, because those tables can only
+     * exist on a site that has WooCommerce, while DB_VERSION's install() runs
+     * unconditionally on every site. See maybeInstallWooCommerceTables().
+     */
+    public const WOOCOMMERCE_TABLES_OPTION = 'lingowp_woo_tables_installed';
 
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
     public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option', 'user'];
@@ -108,6 +121,72 @@ class TranslationMemorySchema
 
         // 5. Version is written only after verification passes.
         update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
+    }
+
+    /**
+     * Separate, conditional install for the two WooCommerce-owned tables
+     * (attribute label, tax rate name) — NOT part of DB_VERSION/install() above,
+     * and deliberately NOT added to HASH_LINK_CHILDREN or any other list the
+     * core maintenance jobs (orphan sweep, AI queue, fallback-copy) loop over
+     * unconditionally on every site: those tables can only exist where
+     * WooCommerce does, so a shared "every table like this" loop would query a
+     * table that doesn't exist on a non-WooCommerce site. Reached only through
+     * their own explicit, WooCommerce-gated repository methods
+     * (reconcileWooAttributeLabel()/reconcileWooTaxRate()).
+     *
+     * Cheap on every boot (one get_option() read in the common already-installed
+     * case) and self-healing: called from Plugin::boot() on every request, so a
+     * site that activates WooCommerce after LingoWP already installed picks this
+     * up on its very next page load, with no separate re-check needed.
+     */
+    public static function maybeInstallWooCommerceTables(): void
+    {
+        if (!class_exists('WooCommerce') || get_option(self::WOOCOMMERCE_TABLES_OPTION, false)) {
+            return;
+        }
+
+        global $wpdb;
+
+        $cc         = $wpdb->get_charset_collate();
+        $labelTable = self::wooAttributeLabelTable();
+        $rateTable  = self::wooTaxRateTable();
+
+        $wpdb->query(TableDefinitions::wooAttributeLabel($labelTable, $wpdb->prefix . 'woocommerce_attribute_taxonomies', $cc)); // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::hashLinkTranslation($labelTable . '_translation', $cc));                                  // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::wooTaxRate($rateTable, $wpdb->prefix . 'woocommerce_tax_rates', $cc));                    // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::hashLinkTranslation($rateTable . '_translation', $cc));                                   // phpcs:ignore WordPress.DB
+
+        $missing = (new ConstraintVerifier($wpdb))->findMissing([
+            'fk_woo_attribute_label_owner' => $labelTable,
+            'fk_woo_tax_rate_owner'        => $rateTable,
+        ]);
+
+        if ($missing !== []) {
+            $wpdb->query('DROP TABLE IF EXISTS ' . $labelTable . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own helper; no values interpolated
+            $wpdb->query('DROP TABLE IF EXISTS ' . $rateTable . '_translation');  // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own helper; no values interpolated
+            $wpdb->query('DROP TABLE IF EXISTS ' . $labelTable);                  // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own helper; no values interpolated
+            $wpdb->query('DROP TABLE IF EXISTS ' . $rateTable);                   // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own helper; no values interpolated
+
+            throw SchemaFailure::missingForeignKeys($missing);
+        }
+
+        update_option(self::WOOCOMMERCE_TABLES_OPTION, true);
+    }
+
+    /** wp_lingowp_woo_attribute_label — only ever installed when WooCommerce is active. */
+    public static function wooAttributeLabelTable(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'lingowp_woo_attribute_label';
+    }
+
+    /** wp_lingowp_woo_tax_rate — only ever installed when WooCommerce is active. */
+    public static function wooTaxRateTable(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'lingowp_woo_tax_rate';
     }
 
     /**
@@ -234,11 +313,20 @@ class TranslationMemorySchema
 
     /**
      * Reset-button tool: drop every LingoWP table, children before parents
-     * (FK-safe, same order as uninstall.php's DROP).
+     * (FK-safe, same order as uninstall.php's DROP) — including the two
+     * conditional WooCommerce tables, if they were ever created (DROP TABLE IF
+     * EXISTS is safe either way).
      */
     public static function dropAllTables(\wpdb $wpdb): void
     {
-        foreach ([...self::childTables(), ...self::parentTables()] as $table) {
+        $wooTables = [
+            self::wooAttributeLabelTable() . '_translation',
+            self::wooTaxRateTable() . '_translation',
+            self::wooAttributeLabelTable(),
+            self::wooTaxRateTable(),
+        ];
+
+        foreach ([...self::childTables(), ...self::parentTables(), ...$wooTables] as $table) {
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
             $wpdb->query('DROP TABLE IF EXISTS ' . $table);
         }
@@ -252,5 +340,6 @@ class TranslationMemorySchema
         delete_option('lingowp_cookie_preference');
         delete_option('lingowp_browser_detection');
         delete_option('lingowp_auto_redirect');
+        delete_option(self::WOOCOMMERCE_TABLES_OPTION);
     }
 }

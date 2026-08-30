@@ -107,6 +107,58 @@ ok('the img becomes a bare void marker, not a text-bearing tag pair',
     $imgUnits[0] === 'Intro text {1/} more text',
     'got ' . json_encode($imgUnits));
 
+// 8. Checklist §5 (Gutenberg): a Table block's thead/tbody cells each become
+// their own unit, not one giant merged blob (thead/tbody weren't recognized
+// as block containers, so hasChildBlock(table) missed them entirely).
+$tableHtml = '<table><thead><tr><th>Header One</th><th>Header Two</th></tr></thead>'
+    . '<tbody><tr><td>Cell One</td><td>Cell Two</td></tr></tbody></table>';
+$tableUnits = $ex->units($tableHtml);
+ok('table cells split one-per-unit across thead and tbody',
+    $tableUnits === ['Header One', 'Header Two', 'Cell One', 'Cell Two'],
+    'got ' . json_encode($tableUnits));
+
+// 9. Checklist §5: a Quote's <cite> and a Details block's <summary> are
+// standalone text tags — extracted as their own unit when they're a sibling
+// of a real block (blockquote/details), not silently dropped.
+$quoteUnits = $ex->units('<blockquote><p>Quoted text.</p><cite>Citation Author</cite></blockquote>');
+ok('quote citation extracted as its own unit',
+    $quoteUnits === ['Quoted text.', 'Citation Author'], 'got ' . json_encode($quoteUnits));
+
+$detailsUnits = $ex->units('<details><summary>Summary text</summary><p>Body text.</p></details>');
+ok('details summary extracted as its own unit',
+    $detailsUnits === ['Summary text', 'Body text.'], 'got ' . json_encode($detailsUnits));
+
+// 9b. REGRESSION GUARD: the fix above must NOT change how cite/summary behave
+// as an ordinary inline piece of an ALREADY-recognized leaf paragraph — a naive
+// "just add cite to BLOCK_TAGS" fix would make hasChildBlock($p) see cite as a
+// block child, turn <p> into a container, and silently drop its bare
+// surrounding text nodes (only wrapped elements survive container recursion).
+$pWithCiteUnits = $ex->units('<p>Text before <cite>Source</cite> text after.</p>');
+ok('cite as one inline piece of a normal paragraph still produces ONE unit (no regression)',
+    $pWithCiteUnits === ['Text before {1}Source{/1} text after.'],
+    'got ' . json_encode($pWithCiteUnits));
+
+// 10. Checklist §5: a Verse block's <pre> is real prose (a poem), not code —
+// exempted from PRUNE_TAGS by its own class, with internal newlines preserved
+// (white-space: pre-wrap — they're the poem's actual line breaks, not
+// incidental whitespace tidy() would otherwise collapse away).
+$verseHtml = "<pre class=\"wp-block-verse\">Line one.\nLine two.</pre>";
+$verseUnits = $ex->units($verseHtml);
+ok('verse block is discovered with its real line break preserved',
+    $verseUnits === ["Line one.\nLine two."], 'got ' . json_encode($verseUnits));
+
+$verseRendered = $ex->render($verseHtml, static fn(string $u): ?string => "Ligne un.\nLigne deux.");
+ok('verse translation round-trip preserves real line breaks in the rendered output',
+    str_contains($verseRendered, "Ligne un.\nLigne deux."), $verseRendered);
+
+// 10b. REGRESSION GUARD: Code and Preformatted blocks share the bare <pre> tag
+// with Verse but must stay fully excluded — the exemption is keyed on the
+// wp-block-verse CSS class, never the tag alone.
+$codeAndPreformatted = '<pre class="wp-block-code"><code>code_should_not_translate();</code></pre>'
+    . '<pre class="wp-block-preformatted">preformatted should not translate.</pre>';
+ok('code and preformatted blocks remain fully excluded (no regression)',
+    $ex->units($codeAndPreformatted) === []);
+
 echo $failed === 0
     ? "\nAll $total assertions passed.\n"
     : "\n$failed of $total assertion(s) failed.\n";

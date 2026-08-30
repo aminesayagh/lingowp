@@ -72,9 +72,11 @@ if (!function_exists('lingowp_get_switcher')) {
 if (!function_exists('lingowp_source_repository')) {
     /**
      * The booted source repository — the one stable entry point an add-on
-     * plugin (lingowp-acf, lingowp-elementor, …) uses to register content it
+     * plugin (lingowp-acf, lingowp-woocommerce, …) uses to register content it
      * discovers, via whichever reconcile*() method matches its source type
-     * (e.g. reconcileTermMeta() for a taxonomy term's meta). Everything else
+     * (e.g. reconcileTermMeta() for a taxonomy term's meta,
+     * reconcileWooAttributeLabel()/reconcileWooTaxRate() for the two
+     * WooCommerce-owned tables lingowp-woocommerce maintains). Everything else
      * on WpDbSourceRepository is available too, but reconcile*() is the
      * supported add-on surface — the rest may change without notice.
      */

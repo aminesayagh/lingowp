@@ -528,6 +528,41 @@ final class WpDbSourceRepository
     }
 
     /**
+     * The single "Product attribute labels" collection with per-status counts
+     * for one language. Callers MUST check class_exists('WooCommerce') first —
+     * see WpDbBoardQueries::wooAttributeLabelCollectionSummary()'s own doc.
+     *
+     * @return array{total:int, translated:int, needs_review:int, missing:int}
+     */
+    public function wooAttributeLabelCollectionSummary(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->wooAttributeLabelCollectionSummary($langCode, $search, $filters);
+    }
+
+    /** The discovered attribute-label text units for one language. Same caller note as above. */
+    public function listWooAttributeLabelTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->listWooAttributeLabelTexts($langCode, $search, $filters);
+    }
+
+    /**
+     * The single "Tax rate names" collection with per-status counts for one
+     * language. Same caller note as wooAttributeLabelCollectionSummary().
+     *
+     * @return array{total:int, translated:int, needs_review:int, missing:int}
+     */
+    public function wooTaxRateCollectionSummary(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->wooTaxRateCollectionSummary($langCode, $search, $filters);
+    }
+
+    /** The discovered tax-rate-name text units for one language. Same caller note as above. */
+    public function listWooTaxRateTexts(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->listWooTaxRateTexts($langCode, $search, $filters);
+    }
+
+    /**
      * Taxonomy collections (grouped by term) with per-status counts for one
      * language, joined to wp_term_taxonomy + wp_terms for the term name.
      *
@@ -1600,6 +1635,32 @@ final class WpDbSourceRepository
     }
 
     /**
+     * Reconcile one WooCommerce attribute's label. Same delete-stale +
+     * carry-forward rule as every other reconcile*() — an edited label keeps
+     * its translation as needs_review; a deleted attribute (empty $records,
+     * called from the woocommerce_attribute_deleted hook) deletes the parent.
+     * The table only exists when WooCommerce is active — this method is only
+     * ever called from lingowp-woocommerce, which already gates on that.
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcileWooAttributeLabel(int $attributeId, array $records): void
+    {
+        $this->reconcileScope('woo_attribute_label', 'attribute_id = %d', [$attributeId], $records);
+    }
+
+    /**
+     * Reconcile one WooCommerce tax rate's name. Same shape as
+     * reconcileWooAttributeLabel() above.
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcileWooTaxRate(int $taxRateId, array $records): void
+    {
+        $this->reconcileScope('woo_tax_rate', 'tax_rate_id = %d', [$taxRateId], $records);
+    }
+
+    /**
      * Upsert $records, then for each still-discovered parent in scope that is
      * absent from $records (a position whose text changed): carry its translation
      * forward to its replacement as needs_review, then delete the stale parent
@@ -1775,9 +1836,21 @@ final class WpDbSourceRepository
 
     // ── helpers ────────────────────────────────────────────────────────────────
 
+    /**
+     * True for a hash-link SHAPE (child keyed by original_hash+lang_code, no
+     * parent_id column) — deliberately checked here rather than via
+     * TranslationMemorySchema::HASH_LINK_CHILDREN alone, since the two
+     * WooCommerce-conditional tables are hash-link SHAPED (their child table
+     * was created with hashLinkTranslation(), same DDL as post/option/user)
+     * but are kept OUT of that shared constant so the generic maintenance jobs
+     * that loop over it don't query a table that might not exist. Every
+     * per-ref operation below (save/ignore/delete/carry-forward) needs the
+     * correct shape regardless of which list the key is (or isn't) in.
+     */
     private function isHashLink(string $tableKey): bool
     {
-        return in_array($tableKey, TranslationMemorySchema::HASH_LINK_CHILDREN, true);
+        return in_array($tableKey, TranslationMemorySchema::HASH_LINK_CHILDREN, true)
+            || in_array($tableKey, ['woo_attribute_label', 'woo_tax_rate'], true);
     }
 
     /** Lowercase hex of a parent's original_hash, or null if the parent is gone. */
@@ -1879,8 +1952,25 @@ final class WpDbSourceRepository
         return str_ends_with($column, '_hash');
     }
 
+    /**
+     * The two WooCommerce-conditional tables are deliberately NOT in
+     * TranslationMemorySchema::parentTables() — several generic maintenance
+     * jobs (SourceLanguageSnapshot, DatabaseHealthCheck) loop over every entry
+     * there unconditionally on every site, and would query a table that
+     * doesn't exist on one without WooCommerce. Resolved here instead, so
+     * every OTHER generic method on this class (reconcileScope(),
+     * fetchHashTranslations(), …) still works transparently for these two
+     * keys without knowing they're special.
+     */
     private function parent(string $tableKey): string
     {
+        if ($tableKey === 'woo_attribute_label') {
+            return TranslationMemorySchema::wooAttributeLabelTable();
+        }
+        if ($tableKey === 'woo_tax_rate') {
+            return TranslationMemorySchema::wooTaxRateTable();
+        }
+
         return TranslationMemorySchema::parentTables()[$tableKey];
     }
 }

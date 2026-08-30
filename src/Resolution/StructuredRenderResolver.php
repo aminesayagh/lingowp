@@ -13,6 +13,7 @@ use LingoWP\Shared\Text\TranslationKey;
 use LingoWP\Shared\Source\TranslatableMetaKeys;
 use LingoWP\Shared\Source\TranslatableTermMetaKeys;
 use LingoWP\Shared\Source\PostMetaValuePaths;
+use LingoWP\Shared\Source\BlockContentAttributes;
 
 /**
  * Structured render resolution (post, term, meta, user, term_meta).
@@ -27,7 +28,12 @@ use LingoWP\Shared\Source\PostMetaValuePaths;
  *     (a plain scalar — the common case) returns it directly; a location with
  *     more than one leaf (a repeater, a JSON blob) reads the raw stored value
  *     and patches each translated leaf into a copy of it (PostMetaValuePaths::patch()).
+ *   - blockAttributes() is a third, separate mechanism: some blocks store text
+ *     only in their own settings (never in real page markup), reached via
+ *     WordPress's render_block_data filter rather than the_content — see its
+ *     own doc comment and BlockContentAttributes for the full reasoning.
  *
+
  * Maps are preloaded in batches per WP_Query — never a query per string. A
  * missing entry means untranslated or ignored (ignore deletes the child), so the
  * original text renders. Gettext and the HTML fallback are handled elsewhere.
@@ -85,6 +91,7 @@ final class StructuredRenderResolver
         add_filter('the_posts', [$this, 'preloadPosts'], 10, 2);
         add_filter('the_title', [$this, 'title'], 10, 2);
         add_filter('the_content', [$this, 'content'], 10, 1);
+        add_filter('render_block_data', [$this, 'blockAttributes'], 10, 1);
         add_filter('get_the_excerpt', [$this, 'excerpt'], 10, 2);
         // wp_get_attachment_caption() reads post_excerpt directly and fires this
         // filter instead of get_the_excerpt — the gallery/[caption] shortcode paths
@@ -195,6 +202,39 @@ final class StructuredRenderResolver
             $content,
             fn(string $unit): ?string => $this->hashMap[$this->hashKey('post', TranslationKey::currentHash($unit))] ?? null
         );
+    }
+
+    /**
+     * render_block_data fires once per block — including every nested block,
+     * not just top-level ones (WP_Block::render() applies it too) —
+     * immediately before that block renders. Some blocks (Search, Navigation
+     * Link, Post Terms, …) store their whole visible text only in these attrs,
+     * never in real page markup, so content() above never sees it (see
+     * BlockContentAttributes' class doc). Only meaningful for a dynamic block
+     * (one with a render_callback): a static block reproduces its own saved
+     * HTML verbatim and ignores attrs entirely, so mutating attrs for one
+     * would be a silent no-op — isDynamic() skips those, leaving them to
+     * content()'s existing DOM-based swap.
+     *
+     * @param array<string, mixed> $parsedBlock
+     * @return array<string, mixed>
+     */
+    public function blockAttributes(array $parsedBlock): array
+    {
+        $name = $parsedBlock['blockName'] ?? null;
+
+        if (!$this->isActive() || !is_string($name) || $name === '' || !BlockContentAttributes::isDynamic($name)) {
+            return $parsedBlock;
+        }
+
+        foreach (BlockContentAttributes::contentKeys($name) as $key) {
+            $value = $parsedBlock['attrs'][$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $parsedBlock['attrs'][$key] = $this->hashValue('post', $value);
+            }
+        }
+
+        return $parsedBlock;
     }
 
     /**

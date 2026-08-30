@@ -134,6 +134,55 @@ final class TableDefinitions
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
+    /**
+     * wp_lingowp_woo_attribute_label — identity (attribute_id, original_hash). Owner FK to
+     * WooCommerce's own wp_woocommerce_attribute_taxonomies(attribute_id) — this table only
+     * exists (and is only ever created) on a site that has WooCommerce active, unlike every
+     * other table here; see TranslationMemorySchema::maybeInstallWooCommerceTables().
+     */
+    public static function wooAttributeLabel(string $table, string $ownerTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    attribute_id           bigint unsigned  NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (attribute_id, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_woo_attribute_label_owner FOREIGN KEY (attribute_id)
+        REFERENCES {$ownerTable} (attribute_id) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /**
+     * wp_lingowp_woo_tax_rate — identity (tax_rate_id, original_hash). Owner FK to
+     * WooCommerce's own wp_woocommerce_tax_rates(tax_rate_id) — same conditional-existence
+     * note as wooAttributeLabel() above.
+     */
+    public static function wooTaxRate(string $table, string $ownerTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    tax_rate_id            bigint unsigned  NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (tax_rate_id, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_woo_tax_rate_owner FOREIGN KEY (tax_rate_id)
+        REFERENCES {$ownerTable} (tax_rate_id) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
     /** wp_lingowp_term — identity (term_taxonomy_id, field, original_hash). */
     public static function term(string $table, string $termTaxonomyTable, string $charsetCollate): string
     {

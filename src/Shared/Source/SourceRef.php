@@ -23,6 +23,11 @@ final class SourceRef
         'option'    => 'option',
         'user'      => 'user',
         'term_meta' => 'term_meta',
+
+        // Conditional — only exist on a site with WooCommerce active; see
+        // TranslationMemorySchema::maybeInstallWooCommerceTables().
+        'woo_attribute_label' => 'woo_attribute_label',
+        'woo_tax_rate'        => 'woo_tax_rate',
     ];
 
     public string $kind;

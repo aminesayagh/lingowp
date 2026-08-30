@@ -151,6 +151,12 @@ class Plugin
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
 
+        // Separate, conditional install for the two WooCommerce-owned tables —
+        // cheap no-op on every boot once installed, or on any site without
+        // WooCommerce; see TranslationMemorySchema's own doc for why this is
+        // kept apart from the unconditional install above.
+        TranslationMemorySchema::maybeInstallWooCommerceTables();
+
         $languageRegistry = new OptionLanguageRegistry();
 
         // Reacts to WordPress's own Site Language changing after setup. Not

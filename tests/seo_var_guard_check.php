@@ -8,6 +8,7 @@
  */
 
 require __DIR__ . '/../src/Shared/Parsing/UnitStructureGuard.php';
+require __DIR__ . '/../src/Shared/Parsing/ShortcodeGuard.php';
 require __DIR__ . '/../src/Shared/Parsing/SeoTemplateVariables.php';
 require __DIR__ . '/../src/Shared/Parsing/TranslationSubmissionGuard.php';
 
