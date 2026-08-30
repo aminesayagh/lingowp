@@ -9,7 +9,7 @@ use LingoWP\Database\TableDefinitions;
 /**
  * Schema orchestrator — install, verify, and version-gate the LingoWP tables.
  *
- * Twelve content tables: six readable PARENT source tables and six CHILD
+ * Fourteen content tables: seven readable PARENT source tables and seven CHILD
  * per-language translation tables. Created with raw DDL — never dbDelta().
  * Parent engines are checked first, and every FK is verified after creation;
  * version is bumped only once verification passes. There is no data migration
@@ -18,15 +18,20 @@ use LingoWP\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '3';
+    public const DB_VERSION        = '4';
     public const OPTION_DB_VERSION = 'lingowp_db_version';
 
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
     public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option', 'user'];
 
-    /** parent_id children (meta): FK constraint name => parent table key. */
-    private const PARENT_ID_CHILD_FKS = [
-        'fk_meta_tr_parent' => 'meta',
+    /**
+     * parent_id children (meta, term_meta): FK constraint name => parent table key.
+     * Public (like HASH_LINK_CHILDREN): WpDbSourceRepository loops over its values
+     * to stay generic across every parent_id table, not just 'meta'.
+     */
+    public const PARENT_ID_CHILD_FKS = [
+        'fk_meta_tr_parent'      => 'meta',
+        'fk_term_meta_tr_parent' => 'term_meta',
     ];
 
     public static function maybeUpgrade(): void
@@ -42,8 +47,8 @@ class TranslationMemorySchema
     }
 
     /**
-     * Full install: verify parent engines → create five parents → create five
-     * children → verify every FK → bump version.
+     * Full install: verify parent engines → create seven parents → create
+     * seven children → verify every FK → bump version.
      *
      * @throws SchemaFailure if a WordPress parent table is not InnoDB, or if any
      *                       FK constraint is absent after creation. Created
@@ -58,13 +63,14 @@ class TranslationMemorySchema
         $cc = $wpdb->get_charset_collate();
         $p  = self::parentTables();
 
-        // 1. Create the six parent tables first — they are the child FK targets.
+        // 1. Create the seven parent tables first — they are the child FK targets.
         $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::html($p['html'], $cc));                                       // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::user($p['user'], $wpdb->users, $cc));                         // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::termMeta($p['term_meta'], $wpdb->terms, $cc));                // phpcs:ignore WordPress.DB
 
         // 2a. Hash-link children (post/term/html/option/user): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
@@ -73,7 +79,7 @@ class TranslationMemorySchema
             );
         }
 
-        // 2b. parent_id children (meta): FK'd back to their parent id.
+        // 2b. parent_id children (meta, term_meta): FK'd back to their parent id.
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::parentIdTranslation(
@@ -114,11 +120,12 @@ class TranslationMemorySchema
     {
         $p        = self::parentTables();
         $expected = [
-            'fk_post_owner'   => $p['post'],
-            'fk_meta_owner'   => $p['meta'],
-            'fk_term_owner'   => $p['term'],
-            'fk_option_owner' => $p['option'],
-            'fk_user_owner'   => $p['user'],
+            'fk_post_owner'      => $p['post'],
+            'fk_meta_owner'      => $p['meta'],
+            'fk_term_owner'      => $p['term'],
+            'fk_option_owner'    => $p['option'],
+            'fk_user_owner'      => $p['user'],
+            'fk_term_meta_owner' => $p['term_meta'],
         ];
 
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
@@ -129,16 +136,16 @@ class TranslationMemorySchema
     }
 
     /**
-     * Abort before creating tables if wp_posts, wp_term_taxonomy, wp_options or
-     * wp_users is not InnoDB — the FK chain that makes translation orphans
-     * impossible cannot be built otherwise (§10). Throws a human-readable
-     * SchemaFailure.
+     * Abort before creating tables if wp_posts, wp_term_taxonomy, wp_options,
+     * wp_users or wp_terms is not InnoDB — the FK chain that makes translation
+     * orphans impossible cannot be built otherwise (§10). Throws a
+     * human-readable SchemaFailure.
      */
     private static function assertParentTablesAreInnoDB(): void
     {
         global $wpdb;
 
-        foreach ([$wpdb->posts, $wpdb->term_taxonomy, $wpdb->options, $wpdb->users] as $table) {
+        foreach ([$wpdb->posts, $wpdb->term_taxonomy, $wpdb->options, $wpdb->users, $wpdb->terms] as $table) {
             $engine = self::engineOf($table);
 
             if ($engine !== null && strtoupper($engine) !== 'INNODB') {
@@ -197,23 +204,24 @@ class TranslationMemorySchema
 
     // ── Table name helpers ────────────────────────────────────────────────────
 
-    /** The six prefixed parent table names, keyed by their unprefixed suffix. */
+    /** The seven prefixed parent table names, keyed by their unprefixed suffix. */
     public static function parentTables(): array
     {
         global $wpdb;
 
         return [
-            'post'   => $wpdb->prefix . 'lingowp_post',
-            'meta'   => $wpdb->prefix . 'lingowp_meta',
-            'term'   => $wpdb->prefix . 'lingowp_term',
-            'html'   => $wpdb->prefix . 'lingowp_html',
-            'option' => $wpdb->prefix . 'lingowp_option',
-            'user'   => $wpdb->prefix . 'lingowp_user',
+            'post'      => $wpdb->prefix . 'lingowp_post',
+            'meta'      => $wpdb->prefix . 'lingowp_meta',
+            'term'      => $wpdb->prefix . 'lingowp_term',
+            'html'      => $wpdb->prefix . 'lingowp_html',
+            'option'    => $wpdb->prefix . 'lingowp_option',
+            'user'      => $wpdb->prefix . 'lingowp_user',
+            'term_meta' => $wpdb->prefix . 'lingowp_term_meta',
         ];
     }
 
 
-    /** The six prefixed child (translation) table names, keyed by parent suffix. */
+    /** The seven prefixed child (translation) table names, keyed by parent suffix. */
     public static function childTables(): array
     {
         $children = [];

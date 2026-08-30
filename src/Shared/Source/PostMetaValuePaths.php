@@ -7,6 +7,9 @@ namespace LingoWP\Shared\Source;
  * path (data pipeline §1 row 8). One meta row can hold many translatable strings
  * (ACF repeaters, serialized arrays, JSON blobs); each leaf becomes its own
  * source, distinguished by the dot-path context (e.g. "slides.0.title").
+ * patch() is the inverse, used at render time: given the same raw value and a
+ * context => translated-text map, it rebuilds the value with each translated
+ * leaf swapped in place.
  *
  * Pure and deterministic — no WordPress, fully unit-testable.
  */
@@ -77,5 +80,57 @@ final class PostMetaValuePaths
     private static function isTranslatable(string $text): bool
     {
         return trim($text) !== '' && preg_match('/\p{L}/u', $text) === 1;
+    }
+
+    /**
+     * Inverse of extract(): a copy of $value with every leaf that has a
+     * translation replaced, using the exact same dot-path walk as walk() so
+     * paths always round-trip. Untranslated leaves keep their original text.
+     *
+     * @param mixed                $value        the raw value, as extract() would have seen it
+     * @param array<string,string> $translations context ('' for extract()'s null/whole-value
+     *                                            case) => translated text
+     * @return mixed same shape as $value
+     */
+    public static function patch($value, array $translations)
+    {
+        if ($translations === []) {
+            return $value;
+        }
+
+        // Exactly one entry keyed '': extract() returned a single whole-value
+        // leaf (a plain scalar), so the translation replaces $value directly —
+        // no walk needed.
+        if (count($translations) === 1 && array_key_exists('', $translations)) {
+            return $translations[''];
+        }
+
+        if (is_string($value)) {
+            $decoded = self::decodeJson($value);
+
+            return $decoded !== null ? json_encode(self::patchArray($decoded, $translations, '')) : $value;
+        }
+
+        return is_array($value) ? self::patchArray($value, $translations, '') : $value;
+    }
+
+    /**
+     * @param array<array-key, mixed> $value
+     * @param array<string, string>   $translations
+     * @return array<array-key, mixed>
+     */
+    private static function patchArray(array $value, array $translations, string $prefix): array
+    {
+        foreach ($value as $key => $item) {
+            $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
+
+            if (is_array($item)) {
+                $value[$key] = self::patchArray($item, $translations, $path);
+            } elseif (isset($translations[$path])) {
+                $value[$key] = $translations[$path];
+            }
+        }
+
+        return $value;
     }
 }

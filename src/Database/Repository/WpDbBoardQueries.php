@@ -395,6 +395,86 @@ final class WpDbBoardQueries
         }, (array) $rows);
     }
 
+    /**
+     * Per-taxonomy term-meta counts (an ACF field on a category, etc.) — merges
+     * straight into the taxonomy card's totals in CollectionBoard::buildCollections(),
+     * the same way postMetaCounts() merges into a post's card. A term shared across
+     * taxonomies (legacy pre-4.2 content) would count under each — not worth
+     * guarding against on a fresh site.
+     */
+    public function termMetaCounts(string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('term_meta');
+        $child  = $parent . '_translation';
+        $tt     = $this->wpdb->term_taxonomy;
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        // term_meta is a parent_id child: join on parent_id, not original_hash.
+        $sql = "SELECT tx.taxonomy AS taxonomy,
+                       COUNT(*)              AS total,
+                       SUM(t.status > 0)     AS translated,
+                       SUM(t.status = %d)    AS needs_review,
+                       SUM(t.id IS NULL)     AS missing
+                FROM {$parent} p
+                JOIN {$tt} tx ON tx.term_id = p.term_id
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                WHERE p.status = %d{$match}
+                GROUP BY tx.taxonomy";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            TranslationStatus::NEEDS_REVIEW,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(static fn (array $r): array => [
+            'taxonomy'     => (string) $r['taxonomy'],
+            'total'        => (int) $r['total'],
+            'translated'   => (int) $r['translated'],
+            'needs_review' => (int) $r['needs_review'],
+            'missing'      => (int) $r['missing'],
+        ], (array) $rows);
+    }
+
+    /** The discovered term-meta text units for one taxonomy. For expanding the taxonomy group. */
+    public function listTermMetaTexts(string $taxonomy, string $langCode, string $search = '', array $filters = []): array
+    {
+        $parent = $this->parent('term_meta');
+        $child  = $parent . '_translation';
+        $tt     = $this->wpdb->term_taxonomy;
+
+        [$match, $matchArgs] = $this->textFilterPredicate($search, $filters);
+
+        $sql = "SELECT p.id AS id, p.term_id AS term_id, p.meta_key AS meta_key, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
+                FROM {$parent} p
+                JOIN {$tt} tx ON tx.term_id = p.term_id
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                WHERE tx.taxonomy = %s AND p.status = %d{$match}
+                ORDER BY p.meta_key, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            $taxonomy,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$matchArgs
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit            = $this->textUnitRow($r);
+            $unit['field']   = (string) $r['meta_key'];
+            $unit['term_id'] = (int) $r['term_id'];
+            return $unit;
+        }, (array) $rows);
+    }
+
     /** @inheritDoc */
     public function listMediaPostTexts(string $langCode, string $search = '', array $filters = []): array
     {
@@ -539,15 +619,17 @@ final class WpDbBoardQueries
         $total = 0;
         $done  = 0;
 
-        // hash-link tables join on original_hash; meta joins on parent_id.
-        foreach (['post', 'term', 'html', 'option', 'user'] as $key) {
+        // hash-link tables join on original_hash; parent_id tables (meta, term_meta) join on parent_id.
+        foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $key) {
             [$t, $d] = $this->countTable($key, false, $langCode);
             $total  += $t;
             $done   += $d;
         }
-        [$t, $d] = $this->countTable('meta', true, $langCode);
-        $total  += $t;
-        $done   += $d;
+        foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $key) {
+            [$t, $d] = $this->countTable($key, true, $langCode);
+            $total  += $t;
+            $done   += $d;
+        }
 
         return ['total' => $total, 'translated' => $done];
     }

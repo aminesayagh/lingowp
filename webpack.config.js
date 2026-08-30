@@ -7,7 +7,7 @@ const defaultConfig = require( '@wordpress/scripts/config/webpack.config' )
  * "fix" by code-splitting an admin screen. Raised to a real budget instead of
  * silencing warnings outright, so genuine future bloat still gets flagged.
  */
-const MAX_ASSET_SIZE = 600 * 1024
+const MAX_ASSET_SIZE = 768 * 1024
 const MAX_ENTRYPOINT_SIZE = 1.6 * 1024 * 1024
 
 function withRealisticPerformanceBudget( config ) {

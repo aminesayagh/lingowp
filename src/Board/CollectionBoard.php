@@ -170,6 +170,17 @@ final class CollectionBoard
                 $byTax[$tax][$k] += $t[$k];
             }
         }
+        // Term meta (an ACF field on a term, etc.) merges into the same taxonomy
+        // card, same as post meta merging into a post's card above.
+        foreach ($this->repo->termMetaCounts($lang, $search, $filters) as $m) {
+            $tax = $m['taxonomy'];
+            if (! isset($byTax[$tax])) {
+                $byTax[$tax] = ['total' => 0, 'translated' => 0, 'needs_review' => 0, 'missing' => 0];
+            }
+            foreach (['total', 'translated', 'needs_review', 'missing'] as $k) {
+                $byTax[$tax][$k] += $m[$k];
+            }
+        }
         foreach ($byTax as $tax => $c) {
             $collections[] = [
                 'id'             => 'taxonomy:' . $tax,
@@ -289,18 +300,32 @@ final class CollectionBoard
         }
 
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
-            $taxonomy  = $m[1];
+            $taxonomy = $m[1];
+            $preview  = fn (int $termId): array => [
+                'preview_url'    => admin_url('term.php?taxonomy=' . urlencode($taxonomy) . '&tag_ID=' . $termId),
+                'preview_target' => 'admin',
+            ];
+
             $rows      = $this->repo->listTaxonomyTexts($taxonomy, $lang, $search, $filters);
             $fallbacks = $withFallback ? $this->fallbacksByHash('term', $rows, $lang) : [];
-            return array_map(
-                fn (array $r): array => $this->presentText('term', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null) + [
-                    'preview_url'    => admin_url(
-                        'term.php?taxonomy=' . urlencode($taxonomy) . '&tag_ID=' . (int) $r['term_id']
-                    ),
-                    'preview_target' => 'admin',
-                ],
+            $terms     = array_map(
+                fn (array $r): array => $this->presentText('term', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null)
+                    + $preview((int) $r['term_id']),
                 $rows
             );
+
+            // Term meta (an ACF field on a term, etc.) merges into the same
+            // taxonomy card's expanded list, same as post meta merging into a
+            // post's content:(\d+) list above.
+            $metaRows      = $this->repo->listTermMetaTexts($taxonomy, $lang, $search, $filters);
+            $metaFallbacks = $withFallback ? $this->fallbacksByParentId($metaRows, $lang, 'term_meta') : [];
+            $metas         = array_map(
+                fn (array $r): array => $this->presentText('term_meta', $r, (string) $r['field'], $metaFallbacks[(int) $r['id']] ?? null)
+                    + $preview((int) $r['term_id']),
+                $metaRows
+            );
+
+            return array_merge($terms, $metas);
         }
 
         return null;
@@ -436,10 +461,15 @@ final class CollectionBoard
             return array_merge($posts, $alts);
         }
         if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
-            return array_map(
+            $terms = array_map(
                 static fn (array $u): SourceRef => SourceRef::make('term', (int) $u['id']),
                 $this->repo->listTaxonomyTexts($m[1], $lang)
             );
+            $metas = array_map(
+                static fn (array $u): SourceRef => SourceRef::make('term_meta', (int) $u['id']),
+                $this->repo->listTermMetaTexts($m[1], $lang)
+            );
+            return array_merge($terms, $metas);
         }
         return null;
     }
@@ -528,15 +558,15 @@ final class CollectionBoard
     }
 
     /**
-     * Fallback lookup for the meta kind: meta_translation has no
-     * original_hash (meta is never hash-shared), so this walks the chain by
-     * parent id instead — same narrowing/stop-once-resolved shape as
-     * fallbacksByHash().
+     * Fallback lookup for parent_id kinds (meta, term_meta): a parent_id
+     * translation table has no original_hash (never hash-shared), so this
+     * walks the chain by parent id instead — same narrowing/stop-once-resolved
+     * shape as fallbacksByHash().
      *
      * @param array<int,array<string,mixed>> $rows
      * @return array<int,string> row id => translated_text
      */
-    private function fallbacksByParentId(array $rows, string $lang): array
+    private function fallbacksByParentId(array $rows, string $lang, string $tableKey = 'meta'): array
     {
         $pending = [];
         foreach ($rows as $r) {
@@ -550,7 +580,7 @@ final class CollectionBoard
             if ($pending === []) {
                 break;
             }
-            foreach ($this->repo->fetchTranslationsByParentIds(array_keys($pending), $fallbackLang) as $id => $text) {
+            foreach ($this->repo->fetchTranslationsByParentIds(array_keys($pending), $fallbackLang, $tableKey) as $id => $text) {
                 if ($text !== null && isset($pending[$id])) {
                     $resolved[$id] = $text;
                     unset($pending[$id]);

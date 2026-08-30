@@ -105,6 +105,10 @@ class Plugin
 
         // Per-type repository over the parent/child tables.
         $sourceRepository = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
+        // Primed for lingowp_source_repository() — the one stable entry point an
+        // add-on plugin (lingowp-acf, …) uses to reach it, same pattern as
+        // LanguageLinks::prime() below.
+        WpDbSourceRepository::prime($sourceRepository);
 
         [$initialScan, $seoRescan, $htmlCrawl, $htmlDiscovery, $htmlRenderer, $unitExtractor, $pageOwnedHashes] =
             $this->bootExtraction($wpdb, $sourceRepository);

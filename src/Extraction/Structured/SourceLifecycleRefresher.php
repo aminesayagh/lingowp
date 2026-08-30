@@ -2,6 +2,8 @@
 
 namespace LingoWP\Extraction\Structured;
 
+use LingoWP\Shared\Source\TranslatableTermMetaKeys;
+
 /**
  * Wires save-time structured discovery to WordPress lifecycle hooks (data
  * pipeline §2, Path A).
@@ -14,6 +16,9 @@ namespace LingoWP\Extraction\Structured;
  * - Author bio (type 4): added_user_meta / updated_user_meta / deleted_user_meta,
  *   filtered to the 'description' key — wp_insert_user()/wp_update_user() write
  *   it through update_user_meta(), so these already cover profile saves.
+ * - Term meta (type 5): added_term_meta / updated_term_meta / deleted_term_meta,
+ *   filtered to TranslatableTermMetaKeys::keys() — a site opts a key in via the
+ *   `lingowp_translatable_term_meta_keys` filter.
  *
  * A re-entrancy guard ensures a discovery write can never trigger discovery
  * again within the same request.
@@ -40,6 +45,9 @@ final class SourceLifecycleRefresher
         add_action('added_user_meta', [$this, 'refreshUserMeta'], 10, 4);
         add_action('updated_user_meta', [$this, 'refreshUserMeta'], 10, 4);
         add_action('deleted_user_meta', [$this, 'refreshUserMeta'], 10, 4);
+        add_action('added_term_meta', [$this, 'refreshTermMetaKey'], 10, 4);
+        add_action('updated_term_meta', [$this, 'refreshTermMetaKey'], 10, 4);
+        add_action('deleted_term_meta', [$this, 'refreshTermMetaKey'], 10, 4);
     }
 
     public function refreshPost(int $postId, $post = null, bool $update = false, $postBefore = null): void
@@ -118,6 +126,23 @@ final class SourceLifecycleRefresher
         }
 
         $this->guard(fn() => $this->scanner->refreshUser($objectId));
+    }
+
+    /**
+     * added_term_meta / updated_term_meta / deleted_term_meta share the same
+     * ($meta_id, $object_id, $meta_key, $meta_value) shape as the post-meta
+     * hooks above. $object_id here is the term_id, matching get_term_meta()'s
+     * own relationship (not term_taxonomy_id, which wp_lingowp_term uses).
+     */
+    public function refreshTermMetaKey($metaId, int $objectId, string $metaKey, $metaValue): void
+    {
+        unset($metaId, $metaValue);
+
+        if ($objectId <= 0 || !in_array($metaKey, TranslatableTermMetaKeys::keys(), true)) {
+            return;
+        }
+
+        $this->guard(fn() => $this->scanner->refreshTermMeta($objectId));
     }
 
     /** Run discovery work once, never re-entering it within the same request. */

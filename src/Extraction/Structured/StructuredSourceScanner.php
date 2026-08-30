@@ -10,7 +10,9 @@ use LingoWP\Shared\Source\SourceRecord;
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Shared\Source\Type\SplitPostSource;
 use LingoWP\Shared\Source\Type\TermSource;
+use LingoWP\Shared\Source\Type\TermMetaSource;
 use LingoWP\Shared\Source\Type\UserSource;
+use LingoWP\Shared\Source\TranslatableTermMetaKeys;
 use LingoWP\Shared\Parsing\SeoTemplateVariables;
 use LingoWP\Shared\Text\TranslationKey;
 use LingoWP\Shared\Source\TranslatableMetaKeys;
@@ -121,6 +123,30 @@ final class StructuredSourceScanner
         $records = TranslationKey::normalize($bio) === '' ? [] : [new UserSource($userId, 'description', $bio)];
 
         $this->repository->reconcileUser($userId, $records);
+    }
+
+    /**
+     * Save-time discovery for one taxonomy term's meta (type 5: an ACF field on a
+     * category, or any other plugin's per-term custom field). Allow-listed via
+     * TranslatableTermMetaKeys — empty by default, opted into per key via the
+     * `lingowp_translatable_term_meta_keys` filter, since (unlike post meta)
+     * there's no known-upfront set of term-meta keys to default to.
+     */
+    public function refreshTermMeta(int $termId): void
+    {
+        if ($termId <= 0 || !function_exists('get_term_meta')) {
+            return;
+        }
+
+        $records = [];
+        foreach (TranslatableTermMetaKeys::keys() as $metaKey) {
+            $value = get_term_meta($termId, $metaKey, true);
+            foreach (PostMetaValuePaths::extract($value) as $leaf) {
+                $records[] = new TermMetaSource($termId, $metaKey, $leaf['context'], $leaf['text']);
+            }
+        }
+
+        $this->repository->reconcileTermMeta($termId, $this->dedupeByIdentity($records));
     }
 
     /**

@@ -40,6 +40,8 @@ final class WpDbSourceRepository
     private const INSERT_CHUNK = 100;
     private const SELECT_CHUNK = 200;
 
+    private static ?self $primed = null;
+
     private \wpdb $wpdb;
     private WpDbBoardQueries $board;
 
@@ -47,6 +49,30 @@ final class WpDbSourceRepository
     {
         $this->wpdb  = $wpdb;
         $this->board = $board;
+    }
+
+    /**
+     * The instance Plugin::boot() primed — the one stable way an add-on plugin
+     * (lingowp-acf, lingowp-elementor, …) reaches the repository, via the public
+     * lingowp_source_repository() wrapper in functions.php, without constructing
+     * its own copy. Falls back to a self-built default (same shape as
+     * LanguageLinks::instance()) so code calling this before boot finishes still
+     * works, backed by the same $wpdb connection.
+     */
+    public static function instance(): self
+    {
+        if (self::$primed instanceof self) {
+            return self::$primed;
+        }
+
+        global $wpdb;
+
+        return new self($wpdb, new WpDbBoardQueries($wpdb));
+    }
+
+    public static function prime(self $instance): void
+    {
+        self::$primed = $instance;
     }
 
     // ── discovery write ────────────────────────────────────────────────────────
@@ -286,21 +312,110 @@ final class WpDbSourceRepository
     }
 
     /**
-     * Fallback-chain lookup for parent_id types (meta): unlike hash-link
-     * children, meta_translation has no original_hash column (meta
-     * translations are never hash-shared), so a fallback probe needs the
-     * parent row ids directly rather than a hash set.
+     * Render read for parent_id types, widened past a single leaf: unlike
+     * fetchParentTranslations(), $lookups omit context_hash (just the owner
+     * column + meta_key_hash), so this returns EVERY context row under that
+     * location — a render lookup doesn't know in advance whether a value
+     * holds one leaf (a plain scalar, context '') or many (a repeater, a JSON
+     * blob), so it has to ask for all of them and let the caller decide.
+     *
+     * @param string                           $parentTableKey e.g. 'meta' or 'term_meta'
+     * @param array<int, array<string,scalar>> $lookups        list of {owner col => id, meta_key_hash => raw hash}
+     * @return array<string, array<string, string>> IdentityKey(lookup) => [context ('' for none) => translated_text]
+     */
+    public function fetchMetaLeafTranslations(string $parentTableKey, array $lookups, string $langCode): array
+    {
+        if ($lookups === [] || $langCode === '') {
+            return [];
+        }
+
+        $parent  = $this->parent($parentTableKey);
+        $child   = $parent . '_translation';
+        $columns = array_keys($lookups[0]);
+        $select  = $this->selectIdentity($columns);
+        $out     = [];
+
+        foreach (array_chunk($lookups, self::SELECT_CHUNK) as $chunk) {
+            $tuples = [];
+            $args   = [$langCode];
+            foreach ($chunk as $lookup) {
+                $cells = [];
+                foreach ($columns as $column) {
+                    $cells[] = $this->cell($column, $lookup[$column], $args);
+                }
+                $tuples[] = '(' . implode(', ', $cells) . ')';
+            }
+            $tupleList = '(' . implode(', ', $columns) . ') IN (' . implode(', ', $tuples) . ')';
+
+            $sql = "SELECT {$select}, p.context AS context, tr.translated_text AS translated_text
+                    FROM {$parent} p
+                    INNER JOIN {$child} tr ON tr.parent_id = p.id AND tr.lang_code = %s
+                        AND tr.translated_text IS NOT NULL
+                    WHERE p.status = 0 AND {$tupleList}";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+            foreach ((array) $rows as $row) {
+                $identityKey = $this->rowIdentityKey($columns, $row);
+                $context     = (string) ($row['context'] ?? '');
+                $out[$identityKey][$context] = (string) $row['translated_text'];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Raw stored post-meta value, unserialized exactly as get_post_meta()
+     * would return it, bypassing get_post_meta() itself on purpose: calling it
+     * from inside StructuredRenderResolver::metadata() — the very filter that
+     * intercepts get_post_meta() — would recurse. Only needed for the
+     * multi-leaf case (a repeater, a JSON blob); the common single-leaf case
+     * never reads the raw value at all.
+     *
+     * @return mixed null if the key has no stored value.
+     */
+    public function rawPostMetaValue(int $postId, string $metaKey)
+    {
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $raw = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT meta_value FROM {$this->wpdb->postmeta} WHERE post_id = %d AND meta_key = %s LIMIT 1",
+            $postId,
+            $metaKey
+        ));
+
+        return $raw === null ? null : maybe_unserialize($raw);
+    }
+
+    /** The term-meta counterpart of rawPostMetaValue() — same reasoning, same caveat. */
+    public function rawTermMetaValue(int $termId, string $metaKey)
+    {
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $raw = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT meta_value FROM {$this->wpdb->termmeta} WHERE term_id = %d AND meta_key = %s LIMIT 1",
+            $termId,
+            $metaKey
+        ));
+
+        return $raw === null ? null : maybe_unserialize($raw);
+    }
+
+    /**
+     * Fallback-chain lookup for parent_id types (meta, term_meta): unlike
+     * hash-link children, a parent_id translation table has no original_hash
+     * column (its translations are never hash-shared), so a fallback probe
+     * needs the parent row ids directly rather than a hash set.
      *
      * @param int[] $parentIds
      * @return array<int, string> parent_id => translated_text
      */
-    public function fetchTranslationsByParentIds(array $parentIds, string $langCode): array
+    public function fetchTranslationsByParentIds(array $parentIds, string $langCode, string $tableKey = 'meta'): array
     {
         if ($parentIds === [] || $langCode === '') {
             return [];
         }
 
-        $child = $this->parent('meta') . '_translation';
+        $child = $this->parent($tableKey) . '_translation';
         $out   = [];
 
         foreach (array_chunk(array_values($parentIds), self::SELECT_CHUNK) as $chunk) {
@@ -472,6 +587,28 @@ final class WpDbSourceRepository
     public function listMetaTexts(int $postId, string $langCode, string $search = '', array $filters = []): array
     {
         return $this->board->listMetaTexts($postId, $langCode, $search, $filters);
+    }
+
+    /**
+     * Term-meta per-status counts grouped by taxonomy for one language. Merged
+     * into each taxonomy's collection alongside term name/description.
+     *
+     * @return array<int, array{taxonomy:string, total:int, translated:int, needs_review:int, missing:int}>
+     */
+    public function termMetaCounts(string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->termMetaCounts($langCode, $search, $filters);
+    }
+
+    /**
+     * The discovered term-meta text units of one taxonomy for one language.
+     *
+     * @return array<int, array{id:int, term_id:int, meta_key:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listTermMetaTexts(string $taxonomy, string $langCode, string $search = '', array $filters = []): array
+    {
+        return $this->board->listTermMetaTexts($taxonomy, $langCode, $search, $filters);
     }
 
     /**
@@ -666,10 +803,12 @@ final class WpDbSourceRepository
     public function loadSourceValidationContext(SourceRef $ref): ?array
     {
         $parent = $this->parent($ref->parentTableKey());
-        $isMeta = $ref->kind === 'meta';
+        // Every parent_id table (meta, term_meta) has a meta_key column, used by
+        // TranslationSubmissionGuard's per-key grammar; 'field'/'post_id' only
+        // exist on post, used to tell a post_content paragraph apart from
+        // post_title/post_excerpt.
+        $isMeta = in_array($ref->parentTableKey(), TranslationMemorySchema::PARENT_ID_CHILD_FKS, true);
         $isPost = $ref->kind === 'post';
-        // 'field'/'post_id' are only needed (and only exist as columns) on post —
-        // used to tell a post_content paragraph apart from post_title/post_excerpt.
         $selected = $isMeta ? 'original_text, meta_key' : ($isPost ? 'original_text, field, post_id' : 'original_text');
 
         $row = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
@@ -878,8 +1017,8 @@ final class WpDbSourceRepository
     // a result never parses a ref at all.
 
     /**
-     * Whether ANY child row, across all 5 tables, is still waiting on the
-     * queue (ai_pending_since set — regardless of freshness: even a
+     * Whether ANY child row, across every content table, is still waiting on
+     * the queue (ai_pending_since set — regardless of freshness: even a
      * TTL-stale stamp means the row was never collected/acked, so it's
      * still worth asking the backend). Local-only, no HTTP — the point is
      * to let a caller skip the pull round trip entirely when there is
@@ -896,9 +1035,15 @@ final class WpDbSourceRepository
             }
         }
 
-        $metaChild = $this->parent('meta') . '_translation';
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        return (bool) $this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$metaChild} WHERE ai_pending_since IS NOT NULL)");
+        foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
+            $child = $this->parent($tableKey) . '_translation';
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -968,18 +1113,17 @@ final class WpDbSourceRepository
 
     /**
      * Apply one pulled queue result, source-agnostic: the same hash may
-     * independently exist in more than one of the 5 parent tables (e.g. an
-     * option value and an unrelated post fragment sharing text), and every
-     * match gets it. For "meta" specifically, several distinct positions can
-     * share a hash (never hash-shared for MANUAL translation, by design —
-     * see the class doc) but the async queue dedupes site-wide by text, so
-     * one AI translation is deliberately fanned out to every meta position
+     * independently exist in more than one parent table (e.g. an option value
+     * and an unrelated post fragment sharing text), and every match gets it.
+     * For the parent_id tables (meta, term_meta) specifically, several distinct
+     * positions can share a hash (never hash-shared for MANUAL translation, by
+     * design — see the class doc) but the async queue dedupes site-wide by
+     * text, so one AI translation is deliberately fanned out to every position
      * sharing it too.
      *
-     * ponytail: one lookup per parent table per call (up to 6 queries per
-     * result: 5 parents + N meta rows), not batched across a whole pulled
-     * page. Revisit if a pull page's typical result count ever makes this a
-     * measurable hot path.
+     * ponytail: one lookup per parent table per call, not batched across a
+     * whole pulled page. Revisit if a pull page's typical result count ever
+     * makes this a measurable hot path.
      *
      * $hashHex is original_hash, exactly as stored on the parent -- the
      * backend hashes on the same normalized form (see
@@ -1000,17 +1144,19 @@ final class WpDbSourceRepository
             $this->applyResultToPosition($tableKey, $hashHex, null, $langCode, (string) $row['original_text'], null, $translatedText, $errorMessage);
         }
 
-        $metaParent = $this->parent('meta');
-        $metaRows   = $this->wpdb->get_results( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare("SELECT id, meta_key, original_text FROM {$metaParent} WHERE original_hash = UNHEX(%s)", $hashHex),
-            ARRAY_A
-        );
-        foreach ((array) $metaRows as $metaRow) {
-            $this->applyResultToPosition(
-                'meta', null, (int) $metaRow['id'], $langCode,
-                (string) $metaRow['original_text'], (string) $metaRow['meta_key'],
-                $translatedText, $errorMessage
+        foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
+            $parent = $this->parent($tableKey);
+            $rows   = $this->wpdb->get_results( // phpcs:ignore WordPress.DB
+                $this->wpdb->prepare("SELECT id, meta_key, original_text FROM {$parent} WHERE original_hash = UNHEX(%s)", $hashHex),
+                ARRAY_A
             );
+            foreach ((array) $rows as $row) {
+                $this->applyResultToPosition(
+                    $tableKey, null, (int) $row['id'], $langCode,
+                    (string) $row['original_text'], (string) $row['meta_key'],
+                    $translatedText, $errorMessage
+                );
+            }
         }
     }
 
@@ -1207,22 +1353,24 @@ final class WpDbSourceRepository
             $count += max(0, (int) $result);
         }
 
-        $metaChild = $this->parent('meta') . '_translation';
-        $sql       = "INSERT IGNORE INTO {$metaChild}
-                    (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
-                SELECT parent_id, %s, translated_text, %d, provider, %s, %s
-                FROM {$metaChild} WHERE lang_code = %s AND translated_text IS NOT NULL";
+        foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
+            $child = $this->parent($tableKey) . '_translation';
+            $sql   = "INSERT IGNORE INTO {$child}
+                        (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
+                    SELECT parent_id, %s, translated_text, %d, provider, %s, %s
+                    FROM {$child} WHERE lang_code = %s AND translated_text IS NOT NULL";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $result = $this->wpdb->query($this->wpdb->prepare(
-            $sql,
-            $toLang,
-            TranslationStatus::NEEDS_REVIEW,
-            $now,
-            $now,
-            $fromLang
-        ));
-        $count += max(0, (int) $result);
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $result = $this->wpdb->query($this->wpdb->prepare(
+                $sql,
+                $toLang,
+                TranslationStatus::NEEDS_REVIEW,
+                $now,
+                $now,
+                $fromLang
+            ));
+            $count += max(0, (int) $result);
+        }
 
         return $count;
     }
@@ -1253,15 +1401,21 @@ final class WpDbSourceRepository
             }
         }
 
-        $metaChild = $this->parent('meta') . '_translation';
-        $sql       = "SELECT 1 FROM {$metaChild} t1
-                LEFT JOIN {$metaChild} t2 ON t2.parent_id = t1.parent_id AND t2.lang_code = %s
-                    AND t2.translated_text IS NOT NULL
-                WHERE t1.lang_code = %s AND t1.translated_text IS NOT NULL AND t2.id IS NULL
-                LIMIT 1";
+        foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
+            $child = $this->parent($tableKey) . '_translation';
+            $sql   = "SELECT 1 FROM {$child} t1
+                    LEFT JOIN {$child} t2 ON t2.parent_id = t1.parent_id AND t2.lang_code = %s
+                        AND t2.translated_text IS NOT NULL
+                    WHERE t1.lang_code = %s AND t1.translated_text IS NOT NULL AND t2.id IS NULL
+                    LIMIT 1";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        return $this->wpdb->get_var($this->wpdb->prepare($sql, $toLang, $fromLang)) !== null;
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            if ($this->wpdb->get_var($this->wpdb->prepare($sql, $toLang, $fromLang)) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1407,6 +1561,18 @@ final class WpDbSourceRepository
     public function reconcileTerm(int $termTaxonomyId, array $records): void
     {
         $this->reconcileScope('term', 'term_taxonomy_id = %d', [$termTaxonomyId], $records);
+    }
+
+    /**
+     * Reconcile one term's meta parents. Same delete-stale rule as post meta,
+     * scoped by term_id (not term_taxonomy_id — matches get_term_meta()'s own
+     * relationship).
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcileTermMeta(int $termId, array $records): void
+    {
+        $this->reconcileScope('term_meta', 'term_id = %d', [$termId], $records);
     }
 
     /**

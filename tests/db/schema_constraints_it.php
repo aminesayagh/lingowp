@@ -49,12 +49,15 @@ foreach ((array) $rows as $r) {
 
 $expectedFks = [
     // parent -> WordPress
-    'fk_post_owner'     => $parents['post'],
-    'fk_meta_owner'     => $parents['meta'],
-    'fk_term_owner'     => $parents['term'],
-    'fk_option_owner'   => $parents['option'],
+    'fk_post_owner'      => $parents['post'],
+    'fk_meta_owner'      => $parents['meta'],
+    'fk_term_owner'      => $parents['term'],
+    'fk_option_owner'    => $parents['option'],
+    'fk_user_owner'      => $parents['user'],
+    'fk_term_meta_owner' => $parents['term_meta'],
     // child -> parent
-    'fk_meta_tr_parent' => $parents['meta'] . '_translation',
+    'fk_meta_tr_parent'      => $parents['meta'] . '_translation',
+    'fk_term_meta_tr_parent' => $parents['term_meta'] . '_translation',
 ];
 
 foreach ($expectedFks as $name => $table) {
@@ -71,9 +74,9 @@ $verifier = new ConstraintVerifier($wpdb);
 $missing  = $verifier->findMissing(TranslationMemorySchema::expectedForeignKeys());
 test_ok('ConstraintVerifier reports nothing missing', $missing === [], 'missing: ' . json_encode($missing));
 
-test_ok('expectedForeignKeys() covers all five',
-    count(TranslationMemorySchema::expectedForeignKeys()) === 5,
-    'got ' . count(TranslationMemorySchema::expectedForeignKeys()));
+test_ok('expectedForeignKeys() covers every enumerated FK above',
+    count(TranslationMemorySchema::expectedForeignKeys()) === count($expectedFks),
+    'expected ' . count($expectedFks) . ', got ' . count(TranslationMemorySchema::expectedForeignKeys()));
 
 // ── B. Hash-link children have NO foreign key, by design ─────────────────────
 
@@ -110,11 +113,13 @@ function test_index_cols(string $schema, string $table, string $index): array
 }
 
 $expectedUniq = [
-    'post'   => ['post_id', 'field', 'original_hash'],
-    'meta'   => ['post_id', 'meta_key_hash', 'context_hash', 'original_hash'],
-    'term'   => ['term_taxonomy_id', 'field', 'original_hash'],
-    'html'   => ['original_hash'],
-    'option' => ['option_id', 'option_path_hash', 'original_hash'],
+    'post'      => ['post_id', 'field', 'original_hash'],
+    'meta'      => ['post_id', 'meta_key_hash', 'context_hash', 'original_hash'],
+    'term'      => ['term_taxonomy_id', 'field', 'original_hash'],
+    'html'      => ['original_hash'],
+    'option'    => ['option_id', 'option_path_hash', 'original_hash'],
+    'user'      => ['user_id', 'field', 'original_hash'],
+    'term_meta' => ['term_id', 'meta_key_hash', 'context_hash', 'original_hash'],
 ];
 
 foreach ($expectedUniq as $key => $cols) {
@@ -130,9 +135,11 @@ foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $key) {
         'got ' . json_encode($got));
 }
 
-$metaTr = test_index_cols($schema, $parents['meta'] . '_translation', 'uniq_translation');
-test_ok('  meta_translation keyed (parent_id, lang_code)', $metaTr === ['parent_id', 'lang_code'],
-    'got ' . json_encode($metaTr));
+foreach (array_unique(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $key) {
+    $tr = test_index_cols($schema, $parents[$key] . '_translation', 'uniq_translation');
+    test_ok("  {$key}_translation keyed (parent_id, lang_code)", $tr === ['parent_id', 'lang_code'],
+        'got ' . json_encode($tr));
+}
 
 // idx_hash is what makes the orphan sweep's NOT EXISTS join cheap, needed
 // wherever original_hash isn't the leftmost column of uniq_source. html is

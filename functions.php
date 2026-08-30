@@ -3,12 +3,15 @@
 /**
  * Public template functions for themes and plugins.
  *
- * The supported entry points for rendering a language switcher or reading its
- * data. Everything else in LingoWP is an implementation detail and may change.
+ * The supported entry points for rendering a language switcher, reading its
+ * data, or (for an add-on plugin like lingowp-acf) reaching the source
+ * repository to register discovered content. Everything else in LingoWP is an
+ * implementation detail and may change.
  *
  * @package LingoWP
  */
 
+use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\LocalizationRouting\LanguageLinks;
 use LingoWP\LocalizationRouting\SwitcherRenderer;
 
@@ -63,6 +66,21 @@ if (!function_exists('lingowp_get_switcher')) {
     function lingowp_get_switcher(array $args = []): string
     {
         return SwitcherRenderer::instance()->render($args);
+    }
+}
+
+if (!function_exists('lingowp_source_repository')) {
+    /**
+     * The booted source repository — the one stable entry point an add-on
+     * plugin (lingowp-acf, lingowp-elementor, …) uses to register content it
+     * discovers, via whichever reconcile*() method matches its source type
+     * (e.g. reconcileTermMeta() for a taxonomy term's meta). Everything else
+     * on WpDbSourceRepository is available too, but reconcile*() is the
+     * supported add-on surface — the rest may change without notice.
+     */
+    function lingowp_source_repository(): WpDbSourceRepository
+    {
+        return WpDbSourceRepository::instance();
     }
 }
 

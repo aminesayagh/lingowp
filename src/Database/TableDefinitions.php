@@ -5,13 +5,14 @@ namespace LingoWP\Database;
 /**
  * Pure DDL definitions for the LingoWP content tables.
  *
- * Twelve content tables: six readable PARENT source tables (post, meta, term,
- * html, option, user), each with its own CHILD translation table, in TWO key variants:
+ * Fourteen content tables: seven readable PARENT source tables (post, meta, term,
+ * html, option, user, term_meta), each with its own CHILD translation table, in TWO key
+ * variants:
  *   - hash-link children (post, term, html, option, user): keyed (original_hash, lang_code),
  *     no parent_id. original_hash is the SHA-256 of the normalized original text
  *     (the same value stored on the parent), so identical text shares one
  *     translation across every position that has it.
- *   - parent_id children (meta): keyed (parent_id, lang_code) —
+ *   - parent_id children (meta, term_meta): keyed (parent_id, lang_code) —
  *     context can make identical text translate differently, so the translation
  *     is owned by the specific position.
  *
@@ -79,6 +80,34 @@ final class TableDefinitions
     KEY idx_queue (status, id),
     CONSTRAINT fk_meta_owner FOREIGN KEY (post_id)
         REFERENCES {$postsTable} (ID) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /**
+     * wp_lingowp_term_meta — identity (term_id, meta_key_hash, context_hash, original_hash).
+     * Owner FK to wp_terms(term_id) — matches get_term_meta()/update_term_meta()'s own
+     * relationship, distinct from wp_lingowp_term's FK to wp_term_taxonomy.
+     */
+    public static function termMeta(string $table, string $termsTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    term_id                bigint unsigned  NOT NULL,
+    meta_key               varchar(191)     NOT NULL,
+    meta_key_hash          binary(32)       NOT NULL,
+    context                text             NULL,
+    context_hash           binary(32)       NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (term_id, meta_key_hash, context_hash, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_term_meta_owner FOREIGN KEY (term_id)
+        REFERENCES {$termsTable} (term_id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 

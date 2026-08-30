@@ -323,6 +323,11 @@ export default function Dashboard( {
 	// gated on having a stored BYOK key: POST /translations doesn't consume
 	// one yet (platform-only for now), so a stored key can't unblock this.
 	const [ billingBlocked, setBillingBlocked ] = useState( false )
+	// Guards the header's sitewide "Translate All" against overlapping
+	// double-clicks while its own submit-loop (see translateAllInLanguage) is
+	// still in flight -- otherwise a second click starts a second loop
+	// racing the first, wastefully re-resolving the same scope.
+	const [ translatingAll, setTranslatingAll ] = useState( false )
 	// Narrower reason within billingBlocked: this site specifically is past
 	// its plan's site-slot count (a *subscribed* plan, unlike the generic
 	// billingBlocked case) — only read for messaging (handleAiBlocked,
@@ -562,6 +567,25 @@ export default function Dashboard( {
 		refetchEntitlements()
 		refreshLanguages() // rail percentages changed
 		return res
+	}
+
+	// Header's sitewide "Translate All": one click queues every still-missing
+	// text (never needs-review -- pending() on the server already excludes
+	// it, same as the per-collection action) across the whole selected
+	// language. No confirm dialog, same reasoning as the per-collection
+	// action: this never removes anything. Auto-continues on `more` --
+	// language-wide is exactly the scope most likely to exceed
+	// AiQueueConfig::MAX_TEXTS_PER_SUBMIT in one request.
+	async function translateAllInLanguage() {
+		setTranslatingAll( true )
+		try {
+			let res = await translateScope( 'language', { source: board } )
+			while ( res?.more ) {
+				res = await translateScope( 'language', { source: board } )
+			}
+		} finally {
+			setTranslatingAll( false )
+		}
 	}
 
 	function patchLangStatus( code, status ) {
@@ -1799,22 +1823,16 @@ export default function Dashboard( {
 												/>
 											) }
 											variant="secondary"
-											disabled
+											disabled={
+												! ai.available ||
+												translatingAll
+											}
+											loading={ translatingAll }
 											size="large"
-											onClick={ () =>
-												setConfirm( {
-													title: 'AI translate all missing text?',
-													body: 'This sends every untranslated text in the selected language to AI translation and may use a large number of words.',
-													actionLabel:
-														'Translate all',
-													onConfirm: () =>
-														translateScope(
-															'language',
-															{
-																source: board,
-															}
-														),
-												} )
+											onClick={
+												billingBlocked
+													? handleAiBlocked
+													: translateAllInLanguage
 											}
 										>
 											Translate All

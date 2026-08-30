@@ -11,16 +11,22 @@ use LingoWP\Shared\Parsing\HtmlUnitExtractor;
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Shared\Text\TranslationKey;
 use LingoWP\Shared\Source\TranslatableMetaKeys;
+use LingoWP\Shared\Source\TranslatableTermMetaKeys;
+use LingoWP\Shared\Source\PostMetaValuePaths;
 
 /**
- * Structured render resolution (post, term, meta).
+ * Structured render resolution (post, term, meta, user, term_meta).
  *
  * Two lookup models, matching the child-key split:
- *   - post + term are HASH-LINK: the original text is on the filter, so the
- *     resolver hashes it and reads a hash → translation map (no parent join).
- *   - meta is PARENT_ID: get_post_metadata short-circuits without the original
- *     value, so it is matched by location (post_id, meta_key_hash, context_hash)
- *     against the single discovered parent, joined to its child.
+ *   - post + term + user are HASH-LINK: the original text is on the filter, so
+ *     the resolver hashes it and reads a hash → translation map (no parent join).
+ *   - meta + term_meta are PARENT_ID: get_post_metadata/get_term_metadata
+ *     short-circuit without the original value, so each is matched by location
+ *     (post_id or term_id, meta_key_hash) against every discovered leaf under
+ *     it, joined to its child. A location with exactly one leaf and no context
+ *     (a plain scalar — the common case) returns it directly; a location with
+ *     more than one leaf (a repeater, a JSON blob) reads the raw stored value
+ *     and patches each translated leaf into a copy of it (PostMetaValuePaths::patch()).
  *
  * Maps are preloaded in batches per WP_Query — never a query per string. A
  * missing entry means untranslated or ignored (ignore deletes the child), so the
@@ -39,14 +45,17 @@ final class StructuredRenderResolver
     /** @var array<string, true> "tableKey|hex(original_hash)" => already-queried */
     private array $hashLoaded = [];
 
-    /** @var array<string, string> IdentityKey(meta lookup) => translated_text */
-    private array $metaMap = [];
+    /** @var array<string, array<string, string>> IdentityKey(meta location) => [context ('' for none) => translated_text] */
+    private array $metaLeafMap = [];
 
-    /** @var array<string, true> IdentityKey(meta lookup) => already-queried */
-    private array $metaLoaded = [];
+    /** @var array<string, true> IdentityKey(meta location) => already-queried */
+    private array $metaLeafLoaded = [];
 
     /** @var string[]|null memoized allow-listed meta keys */
     private ?array $metaKeys = null;
+
+    /** @var string[]|null memoized allow-listed term-meta keys */
+    private ?array $termMetaKeys = null;
 
     private ResolveRequestLanguage $language;
     private RequestContext $context;
@@ -85,19 +94,28 @@ final class StructuredRenderResolver
         // plug-compatible with this filter's (string $caption, int $post_id) shape.
         add_filter('wp_get_attachment_caption', [$this, 'excerpt'], 10, 2);
         add_filter('get_post_metadata', [$this, 'metadata'], 10, 4);
+        add_filter('get_term_metadata', [$this, 'termMetadata'], 10, 4);
         add_filter('get_term', [$this, 'term'], 10, 2);
         add_filter('get_terms', [$this, 'terms'], 10, 1);
         add_filter('get_the_terms', [$this, 'theTerms'], 10, 1);
         add_filter('get_the_author_description', [$this, 'authorDescription'], 10, 1);
     }
 
-    /** Scalar meta render lookup — matched by location (no original text here). @return array<string, scalar> */
+    /** Meta render lookup — identifies a LOCATION (owner + meta key), not one leaf. @return array<string, scalar> */
     private function metaLookup(int $postId, string $metaKey): array
     {
         return [
             'post_id'       => $postId,
             'meta_key_hash' => hash('sha256', $metaKey, true),
-            'context_hash'  => hash('sha256', '', true),
+        ];
+    }
+
+    /** Term-meta render lookup — the term-meta counterpart of metaLookup(). @return array<string, scalar> */
+    private function termMetaLookup(int $termId, string $metaKey): array
+    {
+        return [
+            'term_id'       => $termId,
+            'meta_key_hash' => hash('sha256', $metaKey, true),
         ];
     }
 
@@ -132,7 +150,7 @@ final class StructuredRenderResolver
         }
 
         $this->ensureHashLoaded('post', $postHashes);
-        $this->ensureMetaLoaded($metaLookups);
+        $this->ensureMetaLeavesLoaded($metaLookups);
 
         return $posts;
     }
@@ -199,7 +217,8 @@ final class StructuredRenderResolver
     /**
      * get_post_metadata short-circuit. Returns a translation only for an
      * allow-listed key that has one; otherwise returns $value. Never calls
-     * get_post_meta() — no recursion.
+     * get_post_meta() — no recursion (rawPostMetaValue() reads the DB directly
+     * when a raw value is needed).
      *
      * @param mixed $value
      * @return mixed
@@ -218,11 +237,67 @@ final class StructuredRenderResolver
         }
 
         $lookup = $this->metaLookup($objectId, $metaKey);
-        $this->ensureMetaLoaded([$lookup]);
-        $key = IdentityKey::of($lookup);
+        $this->ensureMetaLeavesLoaded([$lookup]);
+        $leaves = $this->metaLeafMap[IdentityKey::of($lookup)] ?? [];
 
-        // Wrap in an array; core unwraps to a scalar when $single is true.
-        return isset($this->metaMap[$key]) ? [$this->metaMap[$key]] : $value;
+        if ($leaves === []) {
+            return $value;
+        }
+        if (count($leaves) === 1 && array_key_exists('', $leaves)) {
+            // The common case: a plain scalar value, one whole-value translation.
+            return [$leaves['']];
+        }
+
+        // A repeater or JSON blob: patch each translated leaf into a copy of
+        // the raw stored value — get_post_meta() would recurse into this same
+        // filter, so read it directly.
+        $raw = $this->repository->rawPostMetaValue($objectId, $metaKey);
+
+        return [PostMetaValuePaths::patch($raw, $leaves)];
+    }
+
+    // ── scalar term meta (parent_id) ──────────────────────────────────────────
+
+    /**
+     * get_term_metadata short-circuit — the term-meta counterpart of metadata().
+     * Returns a translation only for an allow-listed key that has one; otherwise
+     * returns $value. Never calls get_term_meta() — no recursion (rawTermMetaValue()
+     * reads the DB directly when a raw value is needed).
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    public function termMetadata($value, $objectId, $metaKey, $single)
+    {
+        unset($single);
+
+        if (!$this->isActive()) {
+            return $value;
+        }
+        $objectId = (int) $objectId;
+        $metaKey  = (string) $metaKey;
+        if ($objectId <= 0 || $metaKey === '' || !$this->isResolvableTermMetaKey($metaKey)) {
+            return $value;
+        }
+
+        $lookup = $this->termMetaLookup($objectId, $metaKey);
+        $this->ensureMetaLeavesLoaded([$lookup], 'term_meta');
+        $leaves = $this->metaLeafMap[IdentityKey::of($lookup)] ?? [];
+
+        if ($leaves === []) {
+            return $value;
+        }
+        if (count($leaves) === 1 && array_key_exists('', $leaves)) {
+            // The common case: a plain scalar value, one whole-value translation.
+            return [$leaves['']];
+        }
+
+        // A repeater or JSON blob: patch each translated leaf into a copy of
+        // the raw stored value — get_term_meta() would recurse into this same
+        // filter, so read it directly.
+        $raw = $this->repository->rawTermMetaValue($objectId, $metaKey);
+
+        return [PostMetaValuePaths::patch($raw, $leaves)];
     }
 
     // ── terms (hash-link) ─────────────────────────────────────────────────────
@@ -374,16 +449,19 @@ final class StructuredRenderResolver
     }
 
     /**
-     * Batch-load meta (parent_id) translations for the lookups not yet seen.
+     * Batch-load every leaf translation for the meta locations not yet seen —
+     * same batching shape and cost as before (one query per language hop per
+     * not-yet-resolved location, memoized per request), just storing a
+     * [context => text] map per location instead of one string.
      *
      * @param array<int, array<string, scalar>> $lookups
      */
-    private function ensureMetaLoaded(array $lookups): void
+    private function ensureMetaLeavesLoaded(array $lookups, string $tableKey = 'meta'): void
     {
         $todo = [];
         foreach ($lookups as $lookup) {
             $key = IdentityKey::of($lookup);
-            if (!isset($this->metaLoaded[$key])) {
+            if (!isset($this->metaLeafLoaded[$key])) {
                 $todo[$key] = $lookup;
             }
         }
@@ -396,17 +474,17 @@ final class StructuredRenderResolver
             if ($remaining === []) {
                 break;
             }
-            $fetched = $this->repository->fetchParentTranslations('meta', array_values($remaining), $lang);
+            $fetched = $this->repository->fetchMetaLeafTranslations($tableKey, array_values($remaining), $lang);
             foreach ($remaining as $key => $lookup) {
                 if (isset($fetched[$key])) {
-                    $this->metaMap[$key] = $fetched[$key];
+                    $this->metaLeafMap[$key] = $fetched[$key];
                     unset($remaining[$key]);
                 }
             }
         }
 
         foreach ($todo as $key => $lookup) {
-            $this->metaLoaded[$key] = true;
+            $this->metaLeafLoaded[$key] = true;
         }
     }
 
@@ -433,5 +511,18 @@ final class StructuredRenderResolver
     private function metaKeys(): array
     {
         return $this->metaKeys ??= TranslatableMetaKeys::keys();
+    }
+
+    private function isResolvableTermMetaKey(string $metaKey): bool
+    {
+        return in_array($metaKey, $this->termMetaKeys(), true);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function termMetaKeys(): array
+    {
+        return $this->termMetaKeys ??= TranslatableTermMetaKeys::keys();
     }
 }

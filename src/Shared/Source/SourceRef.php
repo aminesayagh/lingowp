@@ -16,12 +16,13 @@ final class SourceRef
 {
     /** kind token => parent table key (TranslationMemorySchema::parentTables() index). */
     private const TABLES = [
-        'post'   => 'post',
-        'meta'   => 'meta',
-        'term'   => 'term',
-        'html'   => 'html',
-        'option' => 'option',
-        'user'   => 'user',
+        'post'      => 'post',
+        'meta'      => 'meta',
+        'term'      => 'term',
+        'html'      => 'html',
+        'option'    => 'option',
+        'user'      => 'user',
+        'term_meta' => 'term_meta',
     ];
 
     public string $kind;
@@ -61,7 +62,7 @@ final class SourceRef
     /** Parse `{kind}:{id}`, or null if malformed (lets callers 400 cleanly). */
     public static function parse(string $ref): ?self
     {
-        if (!preg_match('/^([a-zA-Z]+):([0-9]+)$/', $ref, $m)) {
+        if (!preg_match('/^([a-zA-Z_]+):([0-9]+)$/', $ref, $m)) {
             return null;
         }
         if (!isset(self::TABLES[$m[1]])) {
