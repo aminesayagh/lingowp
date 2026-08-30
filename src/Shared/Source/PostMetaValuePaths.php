@@ -11,6 +11,11 @@ namespace LingoWP\Shared\Source;
  * context => translated-text map, it rebuilds the value with each translated
  * leaf swapped in place.
  *
+ * An object (stdClass, from maybe_unserialize()) is walked the same way as an
+ * array — extract() only needs array-casting to iterate, but patch() preserves
+ * object vs. array shape at every nested level, since its result IS the value
+ * handed back to whatever called get_post_meta()/get_term_meta().
+ *
  * Pure and deterministic — no WordPress, fully unit-testable.
  */
 final class PostMetaValuePaths
@@ -34,11 +39,11 @@ final class PostMetaValuePaths
             return self::isTranslatable($value) ? [['context' => null, 'text' => $value]] : [];
         }
 
-        if (is_array($value)) {
-            return self::walk($value, '');
+        if (is_array($value) || is_object($value)) {
+            return self::walk((array) $value, '');
         }
 
-        // Numbers, booleans, null, objects: nothing translatable.
+        // Numbers, booleans, null: nothing translatable.
         return [];
     }
 
@@ -66,8 +71,8 @@ final class PostMetaValuePaths
         foreach ($value as $key => $item) {
             $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
 
-            if (is_array($item)) {
-                array_push($leaves, ...self::walk($item, $path));
+            if (is_array($item) || is_object($item)) {
+                array_push($leaves, ...self::walk((array) $item, $path));
             } elseif (is_string($item) && self::isTranslatable($item)) {
                 $leaves[] = ['context' => $path, 'text' => $item];
             }
@@ -111,7 +116,19 @@ final class PostMetaValuePaths
             return $decoded !== null ? json_encode(self::patchArray($decoded, $translations, '')) : $value;
         }
 
-        return is_array($value) ? self::patchArray($value, $translations, '') : $value;
+        if (is_array($value)) {
+            return self::patchArray($value, $translations, '');
+        }
+
+        // Preserve object shape (not just array) so a caller expecting an
+        // object back from get_post_meta()/get_term_meta() still gets one —
+        // extract()/walk() only need array-casting to iterate, but patch()'s
+        // result IS the value handed back to that caller, so its shape matters.
+        if (is_object($value)) {
+            return (object) self::patchArray((array) $value, $translations, '');
+        }
+
+        return $value;
     }
 
     /**
@@ -126,6 +143,8 @@ final class PostMetaValuePaths
 
             if (is_array($item)) {
                 $value[$key] = self::patchArray($item, $translations, $path);
+            } elseif (is_object($item)) {
+                $value[$key] = (object) self::patchArray((array) $item, $translations, $path);
             } elseif (isset($translations[$path])) {
                 $value[$key] = $translations[$path];
             }

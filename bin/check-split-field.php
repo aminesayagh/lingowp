@@ -68,6 +68,45 @@ $identity = $ex->render($html, static fn(string $u): ?string => null);
 ok('no-op render preserves both units', $ex->units($identity) === $units,
     'got ' . json_encode($ex->units($identity)));
 
+// 5. Checklist §3 (media edge cases): SVG with <title>/<text> inside — pruned
+// outright (PRUNE_TAGS), same as <script>/<canvas>. Only the two surrounding
+// paragraphs are real units; nothing from the svg subtree leaks out.
+$svgHtml = '<p>Before the svg</p>'
+    . '<svg><title>svg title text</title><text>svg text content</text></svg>'
+    . '<p>After the svg</p>';
+$svgUnits = $ex->units($svgHtml);
+ok('svg subtree contributes no units',
+    $svgUnits === ['Before the svg', 'After the svg'],
+    'got ' . json_encode($svgUnits));
+
+// 6. Checklist §3: a gallery block's per-image captions are distinct units,
+// not merged or deduped — each <figcaption> is its own block-level leaf,
+// independent of how many <figure> wrappers it's nested inside.
+$galleryHtml = '<figure class="wp-block-gallery">'
+    . '<figure class="wp-block-image"><img src="a.jpg" alt=""/><figcaption>First gallery caption</figcaption></figure>'
+    . '<figure class="wp-block-image"><img src="b.jpg" alt=""/><figcaption>Second gallery caption</figcaption></figure>'
+    . '</figure>';
+$galleryUnits = $ex->units($galleryHtml);
+ok('gallery produces one unit per caption, not merged',
+    $galleryUnits === ['First gallery caption', 'Second gallery caption'],
+    'got ' . json_encode($galleryUnits));
+
+// 7. Checklist §3: an inline <img>'s alt/title attributes never become their
+// own unit and never leak into the surrounding block's unit text — that text
+// belongs to the attachment's own fields, not to every place the image is
+// embedded. <img> is a VOID element (TranslationUnitCodec::VOID): it becomes
+// a bare {n/} marker, carrying no text into the unit string.
+$imgHtml = '<p>Intro text <img src="a.jpg" alt="inline alt text" title="inline title text"/> more text</p>';
+$imgUnits = $ex->units($imgHtml);
+ok('inline img alt/title text never appears in the unit',
+    count($imgUnits) === 1
+        && !str_contains($imgUnits[0], 'inline alt text')
+        && !str_contains($imgUnits[0], 'inline title text'),
+    'got ' . json_encode($imgUnits));
+ok('the img becomes a bare void marker, not a text-bearing tag pair',
+    $imgUnits[0] === 'Intro text {1/} more text',
+    'got ' . json_encode($imgUnits));
+
 echo $failed === 0
     ? "\nAll $total assertions passed.\n"
     : "\n$failed of $total assertion(s) failed.\n";

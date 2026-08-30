@@ -9,7 +9,14 @@ use LingoWP\Shared\Source\TranslatableTermMetaKeys;
  * pipeline §2, Path A).
  *
  * - Posts (types 1-2): wp_after_insert_post (fires once after post, meta AND
- *   terms are persisted; covers attachments).
+ *   terms are persisted). Does NOT cover attachments — WordPress core
+ *   deliberately returns before firing it for post_type=attachment (see
+ *   wp_insert_post()'s dedicated add_attachment/edit_attachment branch), so
+ *   those are separately hooked below with the same handler.
+ * - Attachments (also types 1-2, since an attachment's title/caption/
+ *   description are the same POST_FIELDS as any other post): add_attachment /
+ *   edit_attachment, WordPress's own attachment-specific equivalents of the
+ *   hook above — reuses refreshPost() as-is.
  * - Meta written outside a post save (importers, frontend forms, cron):
  *   added_post_meta / updated_post_meta, single-key re-scan.
  * - Terms (type 3): created_term / edited_term (both pass term_taxonomy_id).
@@ -37,6 +44,8 @@ final class SourceLifecycleRefresher
     public function register(): void
     {
         add_action('wp_after_insert_post', [$this, 'refreshPost'], 10, 4);
+        add_action('add_attachment', [$this, 'refreshPost'], 10, 1);
+        add_action('edit_attachment', [$this, 'refreshPost'], 10, 1);
         add_action('added_post_meta', [$this, 'refreshMeta'], 10, 4);
         add_action('updated_post_meta', [$this, 'refreshMeta'], 10, 4);
         add_action('deleted_post_meta', [$this, 'refreshMeta'], 10, 4);

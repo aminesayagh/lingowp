@@ -81,6 +81,20 @@ final class OptionSourceScanner
         }
     }
 
+    /**
+     * Cheap check for the dynamically-discovered half of the allow-list (theme
+     * mods + classic widgets) — the half with no single fixed option name to
+     * hook directly, unlike blogname/blogdescription. Used by the live
+     * added_option/updated_option listener to skip the vast majority of
+     * irrelevant option writes (transients, cron locks, …) without paying for
+     * scan()'s full allowlist() assembly (a DB query) on every single one.
+     */
+    public function isDynamicallyAllowlisted(string $optionName): bool
+    {
+        return $optionName === 'theme_mods_' . get_stylesheet()
+            || str_starts_with($optionName, 'widget_');
+    }
+
     /** @return array<string, string[]> */
     private function allowlist(): array
     {

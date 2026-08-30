@@ -18,6 +18,8 @@ use LingoWP\Shared\Source\Type\PostMetaSource;
 use LingoWP\Shared\Source\Type\PostSource;
 use LingoWP\Shared\Source\Type\SplitPostSource;
 use LingoWP\Shared\Source\Type\TermSource;
+use LingoWP\Shared\Source\Type\TermMetaSource;
+use LingoWP\Shared\Source\Type\UserSource;
 use LingoWP\Shared\Source\SourceRef;
 use LingoWP\Shared\Text\IdentityKey;
 use LingoWP\Language\Domain\LocaleNormalizer;
@@ -74,7 +76,7 @@ ok('locale exposes base language', LocaleNormalizer::language('pt_BR') === 'pt')
 ok('locale exposes region', LocaleNormalizer::region('pt_BR') === 'BR');
 ok('locale accepts a regionless WordPress locale', LocaleNormalizer::normalize('ar') === 'ar');
 
-// ── B. Six classes over five kinds ───────────────────────────────────────────
+// ── B. Eight classes over seven kinds ────────────────────────────────────────
 // SplitPostSource shares PostSource's kind AND its identity columns — that
 // sharing is the structural root of the post_content carry-forward gap
 // (finding A in the plan), so it is asserted here as a fact.
@@ -84,11 +86,12 @@ echo "\nclass / kind counts:\n";
 $classes = [
     PostSource::class, SplitPostSource::class, PostMetaSource::class,
     TermSource::class, HtmlSource::class, OptionSource::class,
+    UserSource::class, TermMetaSource::class,
 ];
-ok('six source classes', count($classes) === 6);
+ok('eight source classes', count($classes) === 8);
 
-$kinds = ['post', 'meta', 'term', 'html', 'option'];
-ok('five SourceRef kinds', count($kinds) === 5);
+$kinds = ['post', 'meta', 'term', 'html', 'option', 'user', 'term_meta'];
+ok('seven SourceRef kinds', count($kinds) === 7);
 foreach ($kinds as $kind) {
     ok("  kind '$kind' parses", SourceRef::parse($kind . ':1') !== null);
 }
@@ -99,20 +102,24 @@ ok('malformed ref rejected', SourceRef::parse('post:abc') === null);
 
 echo "\nidentity() columns:\n";
 
-$post  = new PostSource(7, 'post_title', 'Hello');
-$split = new SplitPostSource(7, 'post_content', 'Hello');
-$meta  = new PostMetaSource(7, '_yoast_wpseo_title', 'slides.0.title', 'Hello');
-$term  = new TermSource(3, 'name', 'Hello');
-$html  = new HtmlSource('body>main>h1', 'https://x.test/', 'Hello');
-$opt   = new OptionSource(11, 'blogname', '', 'Hello');
+$post     = new PostSource(7, 'post_title', 'Hello');
+$split    = new SplitPostSource(7, 'post_content', 'Hello');
+$meta     = new PostMetaSource(7, '_yoast_wpseo_title', 'slides.0.title', 'Hello');
+$term     = new TermSource(3, 'name', 'Hello');
+$html     = new HtmlSource('body>main>h1', 'https://x.test/', 'Hello');
+$opt      = new OptionSource(11, 'blogname', '', 'Hello');
+$user     = new UserSource(9, 'description', 'Hello');
+$termMeta = new TermMetaSource(3, 'zqtermmeta_field', 'slides.0.title', 'Hello');
 
 $expected = [
-    'PostSource'       => [$post,  ['post_id', 'field', 'original_hash']],
-    'SplitPostSource'  => [$split, ['post_id', 'field', 'original_hash']],
-    'PostMetaSource'   => [$meta,  ['post_id', 'meta_key_hash', 'context_hash', 'original_hash']],
-    'TermSource'       => [$term,  ['term_taxonomy_id', 'field', 'original_hash']],
-    'HtmlSource'       => [$html,  ['original_hash']],
-    'OptionSource'     => [$opt,   ['option_id', 'option_path_hash', 'original_hash']],
+    'PostSource'       => [$post,     ['post_id', 'field', 'original_hash']],
+    'SplitPostSource'  => [$split,    ['post_id', 'field', 'original_hash']],
+    'PostMetaSource'   => [$meta,     ['post_id', 'meta_key_hash', 'context_hash', 'original_hash']],
+    'TermSource'       => [$term,     ['term_taxonomy_id', 'field', 'original_hash']],
+    'HtmlSource'       => [$html,     ['original_hash']],
+    'OptionSource'     => [$opt,      ['option_id', 'option_path_hash', 'original_hash']],
+    'UserSource'       => [$user,     ['user_id', 'field', 'original_hash']],
+    'TermMetaSource'   => [$termMeta, ['term_id', 'meta_key_hash', 'context_hash', 'original_hash']],
 ];
 
 foreach ($expected as $name => [$obj, $cols]) {
@@ -162,10 +169,21 @@ ok('OptionSource rejects empty name', throws(fn() => new OptionSource(1, '', '',
 
 // Post / Term field allow-lists and id guards
 ok('PostSource rejects unsupported field', throws(fn() => new PostSource(1, 'post_status', 'x')));
+// Checklist §1: "post slug is never translated" — structural, not observational.
+ok('PostSource rejects post_name (slug is never translatable)', throws(fn() => new PostSource(1, 'post_name', 'x')));
 ok('PostSource rejects id <= 0', throws(fn() => new PostSource(0, 'post_title', 'x')));
 ok('TermSource rejects unsupported field', throws(fn() => new TermSource(1, 'slug', 'x')));
 ok('TermSource rejects id <= 0', throws(fn() => new TermSource(0, 'name', 'x')));
 ok('PostMetaSource rejects id <= 0', throws(fn() => new PostMetaSource(0, 'k', null, 'x')));
+
+// Checklist §2: "author display name is never translated" — structural, not
+// just "nothing scans it today".
+ok('UserSource rejects unsupported field', throws(fn() => new UserSource(1, 'display_name', 'x')));
+ok('UserSource rejects id <= 0', throws(fn() => new UserSource(0, 'description', 'x')));
+ok('TermMetaSource accepts an arbitrary meta key (allow-listing is a separate layer, TranslatableTermMetaKeys)',
+    !throws(fn() => new TermMetaSource(1, 'any_key_at_all', null, 'x')));
+ok('TermMetaSource rejects id <= 0', throws(fn() => new TermMetaSource(0, 'k', null, 'x')));
+ok('TermMetaSource rejects empty meta key', throws(fn() => new TermMetaSource(1, '', null, 'x')));
 
 // meta context: null and '' must hash identically (both mean "scalar, no context")
 $metaNull   = new PostMetaSource(7, 'k', null, 'x');

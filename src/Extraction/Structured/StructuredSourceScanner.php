@@ -158,6 +158,16 @@ final class StructuredSourceScanner
 
         foreach (self::POST_FIELDS as $field) {
             $text = (string) $post->{$field};
+            // post_title (not post_excerpt) is texturized by WordPress before a
+            // visitor ever sees it (the_title runs core's own wptexturize BEFORE
+            // this plugin's render filter), so a straight quote or "--" in the
+            // stored title would otherwise hash differently at discovery than at
+            // render — a translation that shows done but never actually renders.
+            // post_excerpt's render hook (get_the_excerpt) runs BEFORE that same
+            // texturize layer, so it already matches the raw text as-is.
+            if ($field === 'post_title') {
+                $text = wptexturize($text);
+            }
             if (TranslationKey::normalize($text) === '') {
                 continue;
             }
@@ -167,7 +177,27 @@ final class StructuredSourceScanner
         // post_content is split HTML (split-field spec): one source row per
         // block-level piece, text-tailed. Extracts the stored markup ($post->
         // post_content) — block comments/wrappers are scaffolding and ignored.
-        foreach ($this->unitExtractor->units((string) $post->post_content) as $unit) {
+        //
+        // Normalized the same way WordPress transforms it before a visitor sees
+        // it: wptexturize() always (the_content runs core's own wptexturize
+        // before this plugin's render filter, same reasoning as post_title
+        // above), then wpautop() ONLY when the content isn't already block
+        // markup — a classic-editor/imported/programmatic post stores plain
+        // text with blank-line paragraphs and no HTML at all, which WordPress
+        // only wraps into <p> tags at display time; without this, such a post's
+        // entire body was invisible to discovery even though a visitor reads it
+        // fine. Real block content already has real <p> tags and must not be
+        // re-wrapped — has_blocks() is the exact, cheap guard for that (running
+        // do_blocks() itself would execute dynamic block render callbacks,
+        // which is unnecessary: a static block's raw markup already contains
+        // its final text, and any texturize applied to a block comment's own
+        // JSON is harmless since comment nodes are discarded during extraction
+        // either way).
+        $content = wptexturize((string) $post->post_content);
+        if (!has_blocks($content)) {
+            $content = wpautop($content);
+        }
+        foreach ($this->unitExtractor->units($content) as $unit) {
             if (TranslationKey::normalize($unit) === '') {
                 continue;
             }

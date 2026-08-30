@@ -227,6 +227,21 @@ class Plugin
         add_action('update_option_blogname', static fn() => $optionScanner->scan('blogname'));
         add_action('update_option_blogdescription', static fn() => $optionScanner->scan('blogdescription'));
 
+        // Widgets and theme mods have no single fixed option name to hook by
+        // name — the allow-list assembles them dynamically (every widget_*
+        // option, plus the current theme's theme_mods_* option), so this reacts
+        // to any option write and cheaply checks whether it matches that same
+        // dynamic pattern before paying for a full re-scan. added_option covers
+        // a widget saved for the first time (WordPress calls add_option()
+        // internally then); updated_option covers every edit after that.
+        $rescanIfWidgetOrThemeMod = static function (string $option) use ($optionScanner): void {
+            if ($optionScanner->isDynamicallyAllowlisted($option)) {
+                $optionScanner->scan($option);
+            }
+        };
+        add_action('added_option', $rescanIfWidgetOrThemeMod);
+        add_action('updated_option', $rescanIfWidgetOrThemeMod);
+
         (new SourceLifecycleRefresher($structuredScanner))->register();
 
         // Kept as a named instance (not built inline) so the backend-context block

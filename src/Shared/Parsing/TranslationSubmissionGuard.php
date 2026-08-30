@@ -19,12 +19,15 @@ final class TranslationSubmissionGuard
      * @param  string|null $metaKey source meta key when the row is post meta;
      *                              null for post/term/option/html sources.
      * @return string[] error codes, empty array means valid. Inline-tag shapes
-     *                  come from UnitStructureGuard; SEO shapes are
+     *                  come from UnitStructureGuard; shortcode shapes come from
+     *                  ShortcodeGuard (missing_shortcode:{tag} /
+     *                  extra_shortcode:{tag}); SEO shapes are
      *                  missing_variable:{token} / extra_variable:{token}.
      */
     public static function validate(string $source, string $submission, ?string $metaKey = null): array
     {
         $errors = UnitStructureGuard::validate($source, $submission);
+        $errors = array_merge($errors, ShortcodeGuard::validate($source, $submission));
 
         if ($metaKey !== null && SeoTemplateVariables::supports($metaKey)) {
             $errors = array_merge($errors, self::variables($metaKey, $source, $submission));
