@@ -29,7 +29,6 @@ function ok(string $label, bool $cond, string $detail = ''): void
 
 ok('MAX_TEXTS_PER_SUBMIT is positive', AiQueueConfig::MAX_TEXTS_PER_SUBMIT > 0);
 ok('PENDING_TTL_HOURS is positive', AiQueueConfig::PENDING_TTL_HOURS > 0);
-ok('PULL_RATE_LIMIT_SECONDS is positive', AiQueueConfig::PULL_RATE_LIMIT_SECONDS > 0);
 
 echo $failed === 0
     ? "\nAll $total assertions passed.\n"

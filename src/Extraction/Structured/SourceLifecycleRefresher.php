@@ -11,6 +11,9 @@ namespace LingoWP\Extraction\Structured;
  * - Meta written outside a post save (importers, frontend forms, cron):
  *   added_post_meta / updated_post_meta, single-key re-scan.
  * - Terms (type 3): created_term / edited_term (both pass term_taxonomy_id).
+ * - Author bio (type 4): added_user_meta / updated_user_meta / deleted_user_meta,
+ *   filtered to the 'description' key — wp_insert_user()/wp_update_user() write
+ *   it through update_user_meta(), so these already cover profile saves.
  *
  * A re-entrancy guard ensures a discovery write can never trigger discovery
  * again within the same request.
@@ -34,6 +37,9 @@ final class SourceLifecycleRefresher
         add_action('deleted_post_meta', [$this, 'refreshMeta'], 10, 4);
         add_action('created_term', [$this, 'refreshTerm'], 10, 3);
         add_action('edited_term', [$this, 'refreshTerm'], 10, 3);
+        add_action('added_user_meta', [$this, 'refreshUserMeta'], 10, 4);
+        add_action('updated_user_meta', [$this, 'refreshUserMeta'], 10, 4);
+        add_action('deleted_user_meta', [$this, 'refreshUserMeta'], 10, 4);
     }
 
     public function refreshPost(int $postId, $post = null, bool $update = false, $postBefore = null): void
@@ -96,6 +102,22 @@ final class SourceLifecycleRefresher
             (string) $term->name,
             (string) $term->description
         ));
+    }
+
+    /**
+     * added_user_meta / updated_user_meta / deleted_user_meta share the same
+     * ($meta_id, $object_id, $meta_key, $meta_value) shape as the post-meta
+     * hooks above. Only 'description' (the author bio) is scannable today.
+     */
+    public function refreshUserMeta($metaId, int $objectId, string $metaKey, $metaValue): void
+    {
+        unset($metaId, $metaValue);
+
+        if ($objectId <= 0 || $metaKey !== 'description') {
+            return;
+        }
+
+        $this->guard(fn() => $this->scanner->refreshUser($objectId));
     }
 
     /** Run discovery work once, never re-entering it within the same request. */

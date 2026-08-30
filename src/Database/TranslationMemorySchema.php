@@ -9,7 +9,7 @@ use LingoWP\Database\TableDefinitions;
 /**
  * Schema orchestrator — install, verify, and version-gate the LingoWP tables.
  *
- * Ten content tables: five readable PARENT source tables and five CHILD
+ * Twelve content tables: six readable PARENT source tables and six CHILD
  * per-language translation tables. Created with raw DDL — never dbDelta().
  * Parent engines are checked first, and every FK is verified after creation;
  * version is bumped only once verification passes. There is no data migration
@@ -18,11 +18,11 @@ use LingoWP\Database\TableDefinitions;
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '2';
+    public const DB_VERSION        = '3';
     public const OPTION_DB_VERSION = 'lingowp_db_version';
 
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
-    public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option'];
+    public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option', 'user'];
 
     /** parent_id children (meta): FK constraint name => parent table key. */
     private const PARENT_ID_CHILD_FKS = [
@@ -58,14 +58,15 @@ class TranslationMemorySchema
         $cc = $wpdb->get_charset_collate();
         $p  = self::parentTables();
 
-        // 1. Create the five parent tables first — they are the child FK targets.
+        // 1. Create the six parent tables first — they are the child FK targets.
         $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::html($p['html'], $cc));                                       // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::user($p['user'], $wpdb->users, $cc));                         // phpcs:ignore WordPress.DB
 
-        // 2a. Hash-link children (post/term/html): keyed by original_hash, no FK.
+        // 2a. Hash-link children (post/term/html/option/user): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::hashLinkTranslation($p[$parentKey] . '_translation', $cc)
@@ -117,6 +118,7 @@ class TranslationMemorySchema
             'fk_meta_owner'   => $p['meta'],
             'fk_term_owner'   => $p['term'],
             'fk_option_owner' => $p['option'],
+            'fk_user_owner'   => $p['user'],
         ];
 
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
@@ -127,15 +129,16 @@ class TranslationMemorySchema
     }
 
     /**
-     * Abort before creating tables if wp_posts, wp_term_taxonomy or wp_options
-     * is not InnoDB — the FK chain that makes translation orphans impossible
-     * cannot be built otherwise (§10). Throws a human-readable SchemaFailure.
+     * Abort before creating tables if wp_posts, wp_term_taxonomy, wp_options or
+     * wp_users is not InnoDB — the FK chain that makes translation orphans
+     * impossible cannot be built otherwise (§10). Throws a human-readable
+     * SchemaFailure.
      */
     private static function assertParentTablesAreInnoDB(): void
     {
         global $wpdb;
 
-        foreach ([$wpdb->posts, $wpdb->term_taxonomy, $wpdb->options] as $table) {
+        foreach ([$wpdb->posts, $wpdb->term_taxonomy, $wpdb->options, $wpdb->users] as $table) {
             $engine = self::engineOf($table);
 
             if ($engine !== null && strtoupper($engine) !== 'INNODB') {
@@ -194,7 +197,7 @@ class TranslationMemorySchema
 
     // ── Table name helpers ────────────────────────────────────────────────────
 
-    /** The five prefixed parent table names, keyed by their unprefixed suffix. */
+    /** The six prefixed parent table names, keyed by their unprefixed suffix. */
     public static function parentTables(): array
     {
         global $wpdb;
@@ -205,11 +208,12 @@ class TranslationMemorySchema
             'term'   => $wpdb->prefix . 'lingowp_term',
             'html'   => $wpdb->prefix . 'lingowp_html',
             'option' => $wpdb->prefix . 'lingowp_option',
+            'user'   => $wpdb->prefix . 'lingowp_user',
         ];
     }
 
 
-    /** The five prefixed child (translation) table names, keyed by parent suffix. */
+    /** The six prefixed child (translation) table names, keyed by parent suffix. */
     public static function childTables(): array
     {
         $children = [];

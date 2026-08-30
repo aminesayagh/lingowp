@@ -9,7 +9,6 @@ use LingoWP\Backend\BillingEntitlementsService;
 use LingoWP\Backend\ConnectionStatus;
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Shared\Source\SourceRef;
-use LingoWP\Shared\Source\TranslationStatus;
 use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -222,10 +221,13 @@ final class AiTranslationController
     }
 
     /**
-     * Keep only untranslated + needs_review units (skip already-done), minus
-     * anything already queued (a fresh ai_pending_since) -- without this, a
-     * resubmit of the same collection/language scope before the worker
-     * finishes would keep re-resolving the exact same units, and a
+     * Keep only untranslated units -- needs_review already has a translation
+     * (a human may have started reviewing/editing it), so a bulk collection/
+     * language translate must never silently overwrite it; that stays a
+     * per-unit decision via the row's own AI button. Also drops anything
+     * already queued (a fresh ai_pending_since) -- without this, a resubmit
+     * of the same collection/language scope before the worker finishes
+     * would keep re-resolving the exact same units, and a
      * >MAX_TEXTS_PER_SUBMIT collection's `more`-driven resubmit loop would
      * never converge (the same first slice forever, since none of them
      * transition out of "missing" until the async worker actually finishes).
@@ -236,7 +238,7 @@ final class AiTranslationController
         return array_values(array_filter(
             $units,
             static fn (array $u): bool =>
-                (($u['translated'] ?? null) === null || ($u['status'] ?? null) === TranslationStatus::NEEDS_REVIEW)
+                ($u['translated'] ?? null) === null
                 && ! AiQueueConfig::isFreshPending($u['ai_pending_since'] ?? null, $now)
         ));
     }
@@ -246,7 +248,7 @@ final class AiTranslationController
      * CollectionBoard — acceptable for two call sites; centralize if a
      * third appears.
      *
-     * @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int}>|null
+     * @return array<int, array{ref:SourceRef, original:string, translated:?string, ai_pending_since:?string}>|null
      */
     private function collectionUnits(string $id, string $lang): ?array
     {
@@ -313,7 +315,7 @@ final class AiTranslationController
      * @param string|callable(array $r):string $groupId constant string, or a
      *        per-row callable when the group varies per row (html: by source_url;
      *        term via taxonomy scope: by term_id)
-     * @return array<int, array{ref:SourceRef, original:string, translated:?string, status:?int, meta_key:?string, group_id:string}>
+     * @return array<int, array{ref:SourceRef, original:string, translated:?string, ai_pending_since:?string, meta_key:?string, group_id:string}>
      */
     private function unitsFromRows(string $kind, array $rows, $groupId): array
     {
@@ -325,7 +327,6 @@ final class AiTranslationController
                 'ref'              => SourceRef::make($kind, (int) $r['id']),
                 'original'         => (string) $r['original_text'],
                 'translated'       => $r['translated_text'],
-                'status'           => $r['status'],
                 'ai_pending_since' => $r['ai_pending_since'] ?? null,
                 'meta_key'         => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
                 'group_id'         => is_string($groupId) ? $groupId : $groupId($r),

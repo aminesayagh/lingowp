@@ -855,6 +855,51 @@ final class WpDbSourceRepository
     // a result never parses a ref at all.
 
     /**
+     * Whether ANY child row, across all 5 tables, is still waiting on the
+     * queue (ai_pending_since set — regardless of freshness: even a
+     * TTL-stale stamp means the row was never collected/acked, so it's
+     * still worth asking the backend). Local-only, no HTTP — the point is
+     * to let a caller skip the pull round trip entirely when there is
+     * nothing to collect, which is the common case on most page loads.
+     * idx_ai_pending makes each check an index lookup, not a scan.
+     */
+    public function hasAnyPending(): bool
+    {
+        foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
+            $child = $this->parent($tableKey) . '_translation';
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) {
+                return true;
+            }
+        }
+
+        $metaChild = $this->parent('meta') . '_translation';
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        return (bool) $this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$metaChild} WHERE ai_pending_since IS NOT NULL)");
+    }
+
+    /**
+     * True mutex via MySQL's own named lock, timeout 0 (never wait -- a
+     * losing caller just skips its pull this time, the next poll tries
+     * again). Replaces an earlier transient-based throttle: get_transient()
+     * + set_transient() is a read-then-write against wp_options, not
+     * atomic, so two genuinely concurrent requests (index() and texts()
+     * firing together) could both pass the check before either set the
+     * lock -- this can't happen with a real DB-level lock.
+     */
+    public function tryAcquireAiPullLock(): bool
+    {
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        return (int) $this->wpdb->get_var("SELECT GET_LOCK('lingowp_ai_pull', 0)") === 1;
+    }
+
+    public function releaseAiPullLock(): void
+    {
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $this->wpdb->query("SELECT RELEASE_LOCK('lingowp_ai_pull')");
+    }
+
+    /**
      * Stamp ai_pending_since (and clear any stale ai_error) on every
      * (ref, lang) pair about to be submitted. Batched per table per
      * language — one statement per (table, lang), not per unit.

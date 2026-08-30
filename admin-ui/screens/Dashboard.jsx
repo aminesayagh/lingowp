@@ -2403,7 +2403,10 @@ function CollectionGroup( {
 		}
 	}
 
-	// One click queues every missing/needs-review text in this collection.
+	// One click queues every still-missing text in this collection (never
+	// needs-review -- that already has a translation, possibly mid-review,
+	// so a bulk action must not silently overwrite it). No confirm dialog --
+	// unlike Ignore all/Clear all, this never removes anything.
 	// AiTranslationController::submit() caps one request at
 	// AiQueueConfig::MAX_TEXTS_PER_SUBMIT and reports `more` when the
 	// collection has more than that -- keep resubmitting until it doesn't,
@@ -2414,15 +2417,6 @@ function CollectionGroup( {
 		while ( res?.more ) {
 			res = await onAiTranslate( 'collection', { id: c.id, language } )
 		}
-	}
-
-	function confirmTranslateAll() {
-		onConfirm( {
-			title: 'Translate all texts in this collection?',
-			body: 'Every missing or needs-review text in this collection will be sent to AI translation for the selected language.',
-			actionLabel: 'Translate all',
-			onConfirm: translateAllInCollection,
-		} )
 	}
 
 	function confirmIgnoreAll() {
@@ -2499,14 +2493,13 @@ function CollectionGroup( {
 		...( searching
 			? []
 			: [
-					...( aiAvailable &&
-					( c.missing > 0 || c.needs_review > 0 )
+					...( aiAvailable && c.missing > 0
 						? [
 								{
 									content: 'Translate all',
 									onAction: billingBlocked
 										? onAiBlocked
-										: confirmTranslateAll,
+										: translateAllInCollection,
 								},
 						  ]
 						: [] ),

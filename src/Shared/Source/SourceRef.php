@@ -21,6 +21,7 @@ final class SourceRef
         'term'   => 'term',
         'html'   => 'html',
         'option' => 'option',
+        'user'   => 'user',
     ];
 
     public string $kind;

@@ -5,9 +5,9 @@ namespace LingoWP\Database;
 /**
  * Pure DDL definitions for the LingoWP content tables.
  *
- * Ten content tables: five readable PARENT source tables (post, meta, term,
- * html, option), each with its own CHILD translation table, in TWO key variants:
- *   - hash-link children (post, term, html, option): keyed (original_hash, lang_code),
+ * Twelve content tables: six readable PARENT source tables (post, meta, term,
+ * html, option, user), each with its own CHILD translation table, in TWO key variants:
+ *   - hash-link children (post, term, html, option, user): keyed (original_hash, lang_code),
  *     no parent_id. original_hash is the SHA-256 of the normalized original text
  *     (the same value stored on the parent), so identical text shares one
  *     translation across every position that has it.
@@ -123,6 +123,27 @@ final class TableDefinitions
     KEY idx_queue (status, id),
     CONSTRAINT fk_term_owner FOREIGN KEY (term_taxonomy_id)
         REFERENCES {$termTaxonomyTable} (term_taxonomy_id) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /** wp_lingowp_user — identity (user_id, field, original_hash). Owner FK to wp_users. */
+    public static function user(string $table, string $usersTable, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    user_id                bigint unsigned  NOT NULL,
+    field                  varchar(32)      NOT NULL,
+    original_hash          binary(32)       NOT NULL,
+    original_text          longtext         NOT NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_source (user_id, field, original_hash),
+    KEY idx_hash (original_hash),
+    KEY idx_queue (status, id),
+    CONSTRAINT fk_user_owner FOREIGN KEY (user_id)
+        REFERENCES {$usersTable} (ID) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 

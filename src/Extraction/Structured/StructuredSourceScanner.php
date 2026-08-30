@@ -10,6 +10,7 @@ use LingoWP\Shared\Source\SourceRecord;
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Shared\Source\Type\SplitPostSource;
 use LingoWP\Shared\Source\Type\TermSource;
+use LingoWP\Shared\Source\Type\UserSource;
 use LingoWP\Shared\Parsing\SeoTemplateVariables;
 use LingoWP\Shared\Text\TranslationKey;
 use LingoWP\Shared\Source\TranslatableMetaKeys;
@@ -104,6 +105,22 @@ final class StructuredSourceScanner
         $records = $this->dedupeByIdentity($this->candidatesForTerm($termTaxonomyId, $name, $description));
 
         $this->repository->reconcileTerm($termTaxonomyId, $records);
+    }
+
+    /**
+     * Save-time discovery for one user's author bio (type 4). A single scannable
+     * field ('description') — no allow-list needed, unlike post meta or options.
+     */
+    public function refreshUser(int $userId): void
+    {
+        if ($userId <= 0 || !function_exists('get_user_meta')) {
+            return;
+        }
+
+        $bio     = (string) get_user_meta($userId, 'description', true);
+        $records = TranslationKey::normalize($bio) === '' ? [] : [new UserSource($userId, 'description', $bio)];
+
+        $this->repository->reconcileUser($userId, $records);
     }
 
     /**

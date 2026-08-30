@@ -4,7 +4,6 @@ namespace LingoWP\Board;
 
 use LingoWP\Language\Domain\LocaleNormalizer;
 
-use LingoWP\AiTranslation\AiQueueConfig;
 use LingoWP\AiTranslation\AiResultCollector;
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
@@ -46,10 +45,6 @@ final class CollectionsRestController
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT     = 100;
 
-    /** Throttle key for the inline AI-result pull below -- shared across
-     * every site (not per-language/scope; one pull collects everything). */
-    private const AI_PULL_LOCK = 'lingowp_ai_pull_lock';
-
     private WpDbSourceRepository $repo;
     private OptionLanguageRegistry $registry;
     private CollectionBoard $board;
@@ -69,19 +64,24 @@ final class CollectionsRestController
 
     /**
      * Inline pull for the async translate-all queue: whenever the board is
-     * polled, collect whatever the backend has finished. Rate-limited via a
-     * transient (matching ConnectionStatus/BillingEntitlementsService's own
-     * throttle pattern) so a burst of polls in one window only pulls once.
-     * The lock is set BEFORE calling out so a slow pull can't let a second
-     * concurrent request re-enter within the same window.
+     * polled, collect whatever the backend has finished. Two cheap local
+     * gates before any HTTP call: nothing to do if no row is waiting on the
+     * queue (the common case), and a real DB-level mutex (not a throttle
+     * window) so index() and texts() firing together can't both pull.
      */
     private function maybeCollectAiResults(): void
     {
-        if (get_transient(self::AI_PULL_LOCK) !== false) {
+        if (! $this->repo->hasAnyPending()) {
             return;
         }
-        set_transient(self::AI_PULL_LOCK, 1, AiQueueConfig::PULL_RATE_LIMIT_SECONDS);
-        $this->aiResults->collectOnce();
+        if (! $this->repo->tryAcquireAiPullLock()) {
+            return;
+        }
+        try {
+            $this->aiResults->collectOnce();
+        } finally {
+            $this->repo->releaseAiPullLock();
+        }
     }
 
     public function register(): void

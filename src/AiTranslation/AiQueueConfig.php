@@ -16,9 +16,6 @@ final class AiQueueConfig
      * silently reverts to its prior status in presentText(). */
     public const PENDING_TTL_HOURS = 6;
 
-    /** Inline-pull throttle on the board's poll endpoints (CollectionsRestController). */
-    public const PULL_RATE_LIMIT_SECONDS = 10;
-
     /** True when $pendingSince (MySQL datetime, site-local per current_time('mysql')) is set and newer than PENDING_TTL_HOURS. */
     public static function isFreshPending(?string $pendingSince, int $nowTimestamp): bool
     {
