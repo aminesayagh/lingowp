@@ -221,13 +221,23 @@ final class AiTranslationController
         return null;
     }
 
-    /** Keep only untranslated + needs_review units (skip already-done). */
+    /**
+     * Keep only untranslated + needs_review units (skip already-done), minus
+     * anything already queued (a fresh ai_pending_since) -- without this, a
+     * resubmit of the same collection/language scope before the worker
+     * finishes would keep re-resolving the exact same units, and a
+     * >MAX_TEXTS_PER_SUBMIT collection's `more`-driven resubmit loop would
+     * never converge (the same first slice forever, since none of them
+     * transition out of "missing" until the async worker actually finishes).
+     */
     private function pending(array $units): array
     {
+        $now = time();
         return array_values(array_filter(
             $units,
             static fn (array $u): bool =>
-                ($u['translated'] ?? null) === null || ($u['status'] ?? null) === TranslationStatus::NEEDS_REVIEW
+                (($u['translated'] ?? null) === null || ($u['status'] ?? null) === TranslationStatus::NEEDS_REVIEW)
+                && ! AiQueueConfig::isFreshPending($u['ai_pending_since'] ?? null, $now)
         ));
     }
 
@@ -312,12 +322,13 @@ final class AiTranslationController
         // a per-item query inside the result loop.
         return array_map(function (array $r) use ($kind, $groupId): array {
             return [
-                'ref'        => SourceRef::make($kind, (int) $r['id']),
-                'original'   => (string) $r['original_text'],
-                'translated' => $r['translated_text'],
-                'status'     => $r['status'],
-                'meta_key'   => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
-                'group_id'   => is_string($groupId) ? $groupId : $groupId($r),
+                'ref'              => SourceRef::make($kind, (int) $r['id']),
+                'original'         => (string) $r['original_text'],
+                'translated'       => $r['translated_text'],
+                'status'           => $r['status'],
+                'ai_pending_since' => $r['ai_pending_since'] ?? null,
+                'meta_key'         => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
+                'group_id'         => is_string($groupId) ? $groupId : $groupId($r),
             ];
         }, $rows);
     }
