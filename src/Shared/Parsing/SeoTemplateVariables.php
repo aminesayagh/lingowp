@@ -17,50 +17,48 @@ namespace LingoWP\Shared\Parsing;
  *
  * The same descriptor drives three jobs: skipping pure-template values at
  * discovery, validating writes, and (later) building output-matching patterns.
+ *
+ * This class is the generic engine only — empty of any third-party SEO
+ * plugin's own data by design. Yoast/Rank Math/SEOPress's descriptors and
+ * grammars come from the lingowp-seo add-on via the
+ * `lingowp_seo_template_descriptors` / `lingowp_seo_template_grammars`
+ * filters (see descriptors()/grammars()), the same delegation
+ * TranslatableMetaKeys already uses for its own allow-list.
  */
 final class SeoTemplateVariables
 {
     /**
-     * Which SEO field a key holds, and whose variable syntax it uses.
-     *
-     * SEOPress's OG/Twitter override fields (_seopress_social_fb_title etc.)
-     * are deliberately absent — confirmed plain strings against the plugin's
-     * own source, no %%..%% template syntax at all, unlike its title/
-     * description fields. They don't need an entry here: Layer 1's
-     * get_post_metadata short-circuit already handles them end to end, and
-     * they don't need SeoHeadTranslator candidacy either.
+     * Which SEO field a key holds, and whose variable syntax it uses. Empty in
+     * core — see the class doc.
      */
-    private const DESCRIPTORS = [
-        '_yoast_wpseo_title'                => ['field' => 'title',               'grammar' => 'yoast'],
-        '_yoast_wpseo_metadesc'              => ['field' => 'description',         'grammar' => 'yoast'],
-        '_yoast_wpseo_opengraph-title'       => ['field' => 'og_title',            'grammar' => 'yoast'],
-        '_yoast_wpseo_opengraph-description' => ['field' => 'og_description',      'grammar' => 'yoast'],
-        '_yoast_wpseo_twitter-title'         => ['field' => 'twitter_title',       'grammar' => 'yoast'],
-        '_yoast_wpseo_twitter-description'   => ['field' => 'twitter_description', 'grammar' => 'yoast'],
-        'rank_math_title'                   => ['field' => 'title',               'grammar' => 'rankmath'],
-        'rank_math_description'             => ['field' => 'description',         'grammar' => 'rankmath'],
-        'rank_math_facebook_title'          => ['field' => 'og_title',            'grammar' => 'rankmath'],
-        'rank_math_facebook_description'    => ['field' => 'og_description',      'grammar' => 'rankmath'],
-        'rank_math_twitter_title'           => ['field' => 'twitter_title',       'grammar' => 'rankmath'],
-        'rank_math_twitter_description'     => ['field' => 'twitter_description', 'grammar' => 'rankmath'],
-        '_seopress_titles_title'            => ['field' => 'title',               'grammar' => 'yoast'],
-        '_seopress_titles_desc'              => ['field' => 'description',         'grammar' => 'yoast'],
-    ];
+    private const DESCRIPTORS = [];
 
     /**
      * Argument lists are matched as one opaque token — %customfield( my_key )%
-     * is a single unit and must never be split on the parentheses.
-     *
-     * The rankmath pattern is copied VERBATIM from Rank Math's own replacer
-     * (includes/replace-variables/class-replacer.php:172). Tokenizing differently
-     * from the engine that expands these would make our output matching drift:
-     * note its plain-variable branch is `[^\s]+`, not `[a-z0-9_-]+`, so it accepts
-     * far more than a naive pattern would.
+     * is a single unit and must never be split on the parentheses. Empty in
+     * core — see the class doc.
      */
-    private const GRAMMARS = [
-        'yoast'    => '/%%[a-z0-9_-]+%%/i',
-        'rankmath' => '/%(([a-z0-9_-]+)\(([^)]*)\)|[^\s]+)%/iu',
-    ];
+    private const GRAMMARS = [];
+
+    /** @return array<string, array{field:string, grammar:string}> */
+    private static function descriptors(): array
+    {
+        $descriptors = function_exists('apply_filters')
+            ? apply_filters('lingowp_seo_template_descriptors', self::DESCRIPTORS)
+            : self::DESCRIPTORS;
+
+        return is_array($descriptors) ? $descriptors : self::DESCRIPTORS;
+    }
+
+    /** @return array<string, string> */
+    private static function grammars(): array
+    {
+        $grammars = function_exists('apply_filters')
+            ? apply_filters('lingowp_seo_template_grammars', self::GRAMMARS)
+            : self::GRAMMARS;
+
+        return is_array($grammars) ? $grammars : self::GRAMMARS;
+    }
 
     /** Templates are plugin- and user-controlled input; keep the regex bounded. */
     private const MAX_TEMPLATE_LENGTH = 1000;
@@ -95,8 +93,8 @@ final class SeoTemplateVariables
             return null;
         }
 
-        $grammar = self::DESCRIPTORS[$metaKey]['grammar'];
-        if (preg_match_all(self::GRAMMARS[$grammar], $template, $matches, PREG_OFFSET_CAPTURE) === false) {
+        $grammar = self::descriptors()[$metaKey]['grammar'];
+        if (preg_match_all(self::grammars()[$grammar], $template, $matches, PREG_OFFSET_CAPTURE) === false) {
             return null;
         }
 
@@ -153,7 +151,7 @@ final class SeoTemplateVariables
     /** True when this key stores an SEO template whose variables we understand. */
     public static function supports(string $metaKey): bool
     {
-        return isset(self::DESCRIPTORS[$metaKey]);
+        return isset(self::descriptors()[$metaKey]);
     }
 
     /**
@@ -163,7 +161,7 @@ final class SeoTemplateVariables
      */
     public static function fieldFor(string $metaKey): ?string
     {
-        return self::DESCRIPTORS[$metaKey]['field'] ?? null;
+        return self::descriptors()[$metaKey]['field'] ?? null;
     }
 
     /**
@@ -174,12 +172,12 @@ final class SeoTemplateVariables
      */
     public static function extract(string $metaKey, string $text): array
     {
-        $grammar = self::DESCRIPTORS[$metaKey]['grammar'] ?? null;
+        $grammar = self::descriptors()[$metaKey]['grammar'] ?? null;
         if ($grammar === null) {
             return [];
         }
 
-        preg_match_all(self::GRAMMARS[$grammar], $text, $matches);
+        preg_match_all(self::grammars()[$grammar], $text, $matches);
 
         return $matches[0];
     }
@@ -199,8 +197,8 @@ final class SeoTemplateVariables
             return true;
         }
 
-        $grammar = self::DESCRIPTORS[$metaKey]['grammar'];
-        $bare    = preg_replace(self::GRAMMARS[$grammar], '', $text) ?? $text;
+        $grammar = self::descriptors()[$metaKey]['grammar'];
+        $bare    = preg_replace(self::grammars()[$grammar], '', $text) ?? $text;
 
         return trim($bare) !== '' && preg_match('/\p{L}/u', $bare) === 1;
     }

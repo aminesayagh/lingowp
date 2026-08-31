@@ -5,15 +5,39 @@
  * Run: php tests/seo_var_guard_check.php
  * Exits non-zero if any case fails. Mirrors the §2 test table of
  * plan-seo-integration-layer.md.
+ *
+ * SeoTemplateVariables is now an empty generic engine in core — Yoast/Rank
+ * Math's own grammar/descriptor data lives in the lingowp-seo add-on and is
+ * normally supplied via apply_filters(). There's no WordPress bootstrap here,
+ * so this defines a minimal local apply_filters() shim (only if not already
+ * defined) that hands back the add-on's data for those two filter tags —
+ * exercising the exact same filter-based extension point end to end, without
+ * pulling in a WordPress bootstrap.
  */
 
 require __DIR__ . '/../src/Shared/Parsing/UnitStructureGuard.php';
 require __DIR__ . '/../src/Shared/Parsing/ShortcodeGuard.php';
 require __DIR__ . '/../src/Shared/Parsing/SeoTemplateVariables.php';
 require __DIR__ . '/../src/Shared/Parsing/TranslationSubmissionGuard.php';
+require __DIR__ . '/../../lingowp-seo/src/SeoTemplateData.php';
 
 use LingoWP\Shared\Parsing\SeoTemplateVariables;
 use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
+use LingoWPSeo\SeoTemplateData;
+
+if (!function_exists('apply_filters')) {
+    function apply_filters(string $tag, $value)
+    {
+        if ($tag === 'lingowp_seo_template_descriptors') {
+            return SeoTemplateData::DESCRIPTORS;
+        }
+        if ($tag === 'lingowp_seo_template_grammars') {
+            return SeoTemplateData::GRAMMARS;
+        }
+
+        return $value;
+    }
+}
 
 $YT = '_yoast_wpseo_title';
 $RT = 'rank_math_title';

@@ -85,6 +85,23 @@
 }
 
 /*
+ * The amber "Review" badge (TextUnitRow) is click-to-confirm. A bare Polaris
+ * Badge reads as static, so give it an interactive affordance on hover and on
+ * keyboard focus: a ring in the warning tone plus a small lift. inline-flex is
+ * needed for the transform to take (the span is otherwise a raw inline box);
+ * transform is composited, so the lift costs no layout.
+ */
+#lingowp-app .lingowp-review-toggle {
+	display: inline-flex;
+	transition: box-shadow 120ms ease, transform 120ms ease;
+}
+#lingowp-app .lingowp-review-toggle:hover,
+#lingowp-app .lingowp-review-toggle:focus-visible {
+	outline: none;
+	transform: translateY(-1px);
+}
+
+/*
  * Widen the language-manager (Configuration) modal beyond Polaris "large".
  * Scoped via :has() to the dialog that contains our .lingowp-wide-modal marker, so
  * other large modals keep their default width.

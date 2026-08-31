@@ -71,34 +71,6 @@ final class CollectionBoard
             ] + $userBios;
         }
 
-        // Two WooCommerce-owned tables (see TranslationMemorySchema::
-        // maybeInstallWooCommerceTables()) — guarded by class_exists() BEFORE
-        // querying, unlike every card above: a missing table errors, an empty
-        // result set doesn't, so "query then check total > 0" isn't safe here.
-        if (class_exists('WooCommerce')) {
-            $attributeLabels = $this->repo->wooAttributeLabelCollectionSummary($lang, $search, $filters);
-            if ($attributeLabels['total'] > 0) {
-                $collections[] = [
-                    'id'             => 'woo:attribute_labels',
-                    'label'          => __('Product attribute labels', 'lingowp'),
-                    'type'           => 'plugin',
-                    'preview_url'    => admin_url('edit.php?post_type=product&page=product_attributes'),
-                    'preview_target' => 'admin',
-                ] + $attributeLabels;
-            }
-
-            $taxRates = $this->repo->wooTaxRateCollectionSummary($lang, $search, $filters);
-            if ($taxRates['total'] > 0) {
-                $collections[] = [
-                    'id'             => 'woo:tax_rates',
-                    'label'          => __('Tax rate names', 'lingowp'),
-                    'type'           => 'plugin',
-                    'preview_url'    => admin_url('admin.php?page=wc-settings&tab=tax'),
-                    'preview_target' => 'admin',
-                ] + $taxRates;
-            }
-        }
-
         // A content collection is one WP post's post fields + its meta,
         // merged by post_id (preserving the post-type/title ordering of post).
         $byPost = [];
@@ -261,26 +233,6 @@ final class CollectionBoard
             $fallbacks   = $withFallback ? $this->fallbacksByHash('user', $rows, $lang) : [];
             return array_map(
                 fn (array $r): array => $this->presentText('user', $r, (string) $r['display_name'], $fallbacks[$r['original_hash']] ?? null) + $userPreview,
-                $rows
-            );
-        }
-
-        if ($id === 'woo:attribute_labels' && class_exists('WooCommerce')) {
-            $preview = ['preview_url' => admin_url('edit.php?post_type=product&page=product_attributes'), 'preview_target' => 'admin'];
-            $rows      = $this->repo->listWooAttributeLabelTexts($lang, $search, $filters);
-            $fallbacks = $withFallback ? $this->fallbacksByHash('woo_attribute_label', $rows, $lang) : [];
-            return array_map(
-                fn (array $r): array => $this->presentText('woo_attribute_label', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null) + $preview,
-                $rows
-            );
-        }
-
-        if ($id === 'woo:tax_rates' && class_exists('WooCommerce')) {
-            $preview = ['preview_url' => admin_url('admin.php?page=wc-settings&tab=tax'), 'preview_target' => 'admin'];
-            $rows      = $this->repo->listWooTaxRateTexts($lang, $search, $filters);
-            $fallbacks = $withFallback ? $this->fallbacksByHash('woo_tax_rate', $rows, $lang) : [];
-            return array_map(
-                fn (array $r): array => $this->presentText('woo_tax_rate', $r, (string) $r['field'], $fallbacks[$r['original_hash']] ?? null) + $preview,
                 $rows
             );
         }
@@ -478,18 +430,6 @@ final class CollectionBoard
             return array_map(
                 static fn (array $u): SourceRef => SourceRef::make('user', (int) $u['id']),
                 $this->repo->listUserTexts($lang)
-            );
-        }
-        if ($id === 'woo:attribute_labels' && class_exists('WooCommerce')) {
-            return array_map(
-                static fn (array $u): SourceRef => SourceRef::make('woo_attribute_label', (int) $u['id']),
-                $this->repo->listWooAttributeLabelTexts($lang)
-            );
-        }
-        if ($id === 'woo:tax_rates' && class_exists('WooCommerce')) {
-            return array_map(
-                static fn (array $u): SourceRef => SourceRef::make('woo_tax_rate', (int) $u['id']),
-                $this->repo->listWooTaxRateTexts($lang)
             );
         }
         if ($id === 'html:all') {

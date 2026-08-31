@@ -42,7 +42,6 @@ use LingoWP\Admin\DatabaseHealthReport;
 use LingoWP\Database\DatabaseHealthCheck;
 use LingoWP\Onboarding\OnboardingPageController;
 use LingoWP\Admin\ResetPageController;
-use LingoWP\Extraction\Structured\SeoDiscoveryRescan;
 use LingoWP\Extraction\Structured\SourceLifecycleRefresher;
 use LingoWP\Extraction\Structured\StructuredSourceScanner;
 use LingoWP\Database\OrphanTranslationSweep;
@@ -110,7 +109,7 @@ class Plugin
         // LanguageLinks::prime() below.
         WpDbSourceRepository::prime($sourceRepository);
 
-        [$initialScan, $seoRescan, $htmlCrawl, $htmlDiscovery, $htmlRenderer, $unitExtractor, $pageOwnedHashes] =
+        [$initialScan, $htmlCrawl, $htmlDiscovery, $htmlRenderer, $unitExtractor, $pageOwnedHashes] =
             $this->bootExtraction($wpdb, $sourceRepository);
 
         $this->bootResolution(
@@ -130,7 +129,7 @@ class Plugin
         // API the SPA calls, and the cron/loopback request that runs the sync job.
         // (A bare is_admin() check would be wrong: REST and cron are not is_admin().)
         $backend = $this->isBackendContext()
-            ? $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $seoRescan, $htmlCrawl)
+            ? $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $htmlCrawl)
             : null;
 
         // is_admin() implies isBackendContext() (see that method), so $backend is
@@ -151,20 +150,13 @@ class Plugin
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
 
-        // Separate, conditional install for the two WooCommerce-owned tables —
-        // cheap no-op on every boot once installed, or on any site without
-        // WooCommerce; see TranslationMemorySchema's own doc for why this is
-        // kept apart from the unconditional install above.
-        TranslationMemorySchema::maybeInstallWooCommerceTables();
-
         $languageRegistry = new OptionLanguageRegistry();
 
         // Reacts to WordPress's own Site Language changing after setup. Not
         // gated to isBackendContext()/is_admin(): WPLANG can change via
         // wp-admin, but also WP-CLI or an importer, neither of which is
         // is_admin(), REST_REQUEST, or wp_doing_cron() — same reasoning as
-        // SeoDiscoveryRescan/HtmlDiscoveryCrawl below being registered
-        // unconditionally.
+        // HtmlDiscoveryCrawl below being registered unconditionally.
         (new SourceLanguageTransition(
             $languageRegistry,
             new LanguageMetadataStore(),
@@ -206,8 +198,8 @@ class Plugin
     /**
      * Phase 1: everything that discovers and writes sources, never translations.
      *
-     * @return array{0: InitialDiscoveryScan, 1: SeoDiscoveryRescan, 2: HtmlDiscoveryCrawl,
-     *   3: HtmlDiscovery, 4: HtmlRenderer, 5: HtmlUnitExtractor, 6: PageOwnedHashes}
+     * @return array{0: InitialDiscoveryScan, 1: HtmlDiscoveryCrawl,
+     *   2: HtmlDiscovery, 3: HtmlRenderer, 4: HtmlUnitExtractor, 5: PageOwnedHashes}
      */
     private function bootExtraction(\wpdb $wpdb, WpDbSourceRepository $sourceRepository): array
     {
@@ -253,24 +245,17 @@ class Plugin
         // Kept as a named instance (not built inline) so the backend-context block
         // below can reuse it for the manual "refresh" REST action.
         $initialScan = new InitialDiscoveryScan($wpdb, $structuredScanner, $optionScanner);
-
-        // Narrow SEO-only rescan: catches meta written by direct SQL (importers)
-        // or predating the plugin, which fire no save hook. Registered on the
-        // public side too — `activated_plugin` fires outside admin contexts.
-        $seoRescan = new SeoDiscoveryRescan($wpdb, $structuredScanner);
-        $seoRescan->register();
         $initialScan->register();
 
         // Background HTML crawl: sweeps every known public URL so hardcoded
         // markup is discovered even on pages nobody with edit rights has
         // opened — marking mode alone only covers pages an editor visits.
-        // Registered unconditionally (not gated to backend context), same
-        // reasoning as SeoDiscoveryRescan above: `activated_plugin` fires
-        // outside admin contexts on some update flows.
+        // Registered unconditionally (not gated to backend context) —
+        // `activated_plugin` fires outside admin contexts on some update flows.
         $htmlCrawl = new HtmlDiscoveryCrawl($wpdb, $htmlDiscovery);
         $htmlCrawl->register();
 
-        return [$initialScan, $seoRescan, $htmlCrawl, $htmlDiscovery, $htmlRenderer, $unitExtractor, $pageOwnedHashes];
+        return [$initialScan, $htmlCrawl, $htmlDiscovery, $htmlRenderer, $unitExtractor, $pageOwnedHashes];
     }
 
     /** Phase 2: reads translations back onto the page at render time. */
@@ -341,7 +326,6 @@ class Plugin
         OptionLanguageRegistry $languageRegistry,
         WpDbSourceRepository $sourceRepository,
         InitialDiscoveryScan $initialScan,
-        SeoDiscoveryRescan $seoRescan,
         HtmlDiscoveryCrawl $htmlCrawl
     ): array {
         // Hash-link children have no FK to their parents (many parents share one
@@ -381,7 +365,7 @@ class Plugin
         $aiTaskSubmitter = new AiTaskSubmitter($backendClient, $sourceRepository, $languageRegistry, $languageMetadata);
         (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $billingEntitlements, $aiTaskSubmitter, $connectionStatus))->register();
 
-        (new ScanRestController($initialScan, $seoRescan, $htmlCrawl))->register();
+        (new ScanRestController($initialScan, $htmlCrawl))->register();
 
         (new InsightsRestController($backendClient, $connection))->register();
 

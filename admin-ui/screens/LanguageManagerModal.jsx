@@ -215,7 +215,13 @@ export default function LanguageManagerModal( {
 						gap: isFirstLanguage ? 0 : 16,
 						minHeight: 420,
 						maxWidth: '100%',
-						overflowX: 'hidden',
+						// `clip`, not `hidden`: `overflow-x: hidden` with a
+						// `visible` y-axis computes y to `auto`, making this div a
+						// stray vertical scroll container whose bar flickers on
+						// and off against the submit button's spinner animation.
+						// `clip` still contains horizontal bleed but leaves y
+						// alone, so scrolling stays with the Polaris modal body.
+						overflowX: 'clip',
 					} }
 				>
 					{ ! isFirstLanguage && (

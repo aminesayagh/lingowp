@@ -19,6 +19,7 @@ use LingoWPWoo\AttributeLabelResolver;
 use LingoWPWoo\AttributeLabelSync;
 use LingoWPWoo\LocalAttributeResolver;
 use LingoWPWoo\LocalAttributeSync;
+use LingoWPWoo\LocalAttributeVariationOptionResolver;
 use LingoWPWoo\NonPublicTaxonomyFilter;
 use LingoWPWoo\ProductMetaKeyFilter;
 use LingoWPWoo\RequestActivation;
@@ -342,31 +343,29 @@ $data = VariationDescriptionResolver::translate(['variation_description' => wc_f
 test_ok('render swaps in the translated description', strpos($data['variation_description'], $translated) !== false);
 test_ok('render output goes through wc_format_content, matching an untranslated description', $data['variation_description'] === wc_format_content($translated));
 
-// ── 5. WooCommerce attribute label — the core-owned table, real FK ──────────
+// ── 5. WooCommerce attribute label — option-backed, via the existing option pipeline ──
 
-test_section('WooCommerce attribute label (core table, real foreign key):');
+test_section('WooCommerce attribute label (option-backed, existing option:site pipeline):');
 
 $attrId2 = wc_create_attribute(['name' => 'ZQWOOIT Attr ' . wp_generate_password(4, false), 'slug' => 'zqwooit' . wp_generate_password(4, false)]);
 test_ok('wc_create_attribute() succeeded', !is_wp_error($attrId2), is_wp_error($attrId2) ? $attrId2->get_error_message() : '');
 
-$WAL = TranslationMemorySchema::wooAttributeLabelTable();
-$WAL_T = $WAL . '_translation';
-
-$labelRow = test_var("SELECT id FROM {$WAL} WHERE attribute_id = %d", $attrId2);
+$labels = get_option(AttributeLabelSync::OPTION_NAME);
 test_ok(
-    'attribute label discovered automatically via the real woocommerce_attribute_added hook (no manual refresh() call)',
-    $labelRow !== null
+    'attribute label option updated automatically via the real woocommerce_attribute_added hook (no manual sync() call)',
+    is_array($labels) && ($labels[$attrId2] ?? null) !== null
 );
+
+$attrOptionId = test_var("SELECT option_id FROM {$wpdb->options} WHERE option_name = %s", AttributeLabelSync::OPTION_NAME);
+$labelRow = test_var("SELECT id FROM {$OP} WHERE option_id = %d AND original_text = %s", $attrOptionId, $labels[$attrId2]);
+test_ok('discovered as an ordinary option row, same table every other option-sourced string uses', $labelRow !== null);
 
 wc_update_attribute($attrId2, ['name' => 'ZQWOOIT Attr Updated', 'slug' => wc_attribute_taxonomy_slug(wc_attribute_taxonomy_name_by_id($attrId2))]);
-$updatedFound = test_var(
-    "SELECT id FROM {$WAL} WHERE attribute_id = %d AND original_text = %s",
-    $attrId2, 'ZQWOOIT Attr Updated'
-);
-test_ok('label update discovered via the real woocommerce_attribute_updated hook', $updatedFound !== null);
+$updatedLabels = get_option(AttributeLabelSync::OPTION_NAME);
+test_ok('label update discovered via the real woocommerce_attribute_updated hook', ($updatedLabels[$attrId2] ?? null) === 'ZQWOOIT Attr Updated');
 
 $attrTranslated = 'LINGOWP_TEST ZQWOOIT Attr Traduit';
-test_insert($WAL_T, [
+test_insert($OP . '_translation', [
     'original_hash'   => hash('sha256', \LingoWP\Shared\Text\StringNormalizer::normalize('ZQWOOIT Attr Updated'), true),
     'lang_code'       => $lang,
     'translated_text' => $attrTranslated,
@@ -377,39 +376,36 @@ test_insert($WAL_T, [
 
 $attrTaxonomy = wc_attribute_taxonomy_name_by_id($attrId2);
 $attrRenderResult = AttributeLabelResolver::translate('ZQWOOIT Attr Updated', $attrTaxonomy);
-test_ok('render swaps in the translated attribute label', $attrRenderResult === $attrTranslated);
+test_ok('render swaps in the translated attribute label (fetchHashTranslations against the "option" table)', $attrRenderResult === $attrTranslated);
 
 $localAttrResult = AttributeLabelResolver::translate('Some Local Attribute Label', 'not_a_real_taxonomy_name');
 test_ok('a LOCAL (non-taxonomy) product attribute label is left untouched', $localAttrResult === 'Some Local Attribute Label');
 
-// Through WpDbSourceRepository, the same object CollectionBoard actually holds
-// — NOT a bare WpDbBoardQueries instance. A first version of this test called
-// WpDbBoardQueries directly and passed even though WpDbSourceRepository was
-// missing the delegating wrapper CollectionBoard actually calls (caught only
-// by a separate live CollectionBoard::buildCollections() check, not this
-// test) — real production code path, not a shortcut, from here on.
+// Through WpDbSourceRepository, the same object CollectionBoard actually holds.
 $repo = \LingoWP\Database\Repository\WpDbSourceRepository::instance();
-$attrSummary = $repo->wooAttributeLabelCollectionSummary($lang);
-test_ok('board summary (via WpDbSourceRepository, CollectionBoard\'s own path) sees the translated attribute label', $attrSummary['total'] >= 1 && $attrSummary['translated'] >= 1);
+$attrSummary = $repo->optionCollectionSummary($lang);
+test_ok('board summary (option:site, the SAME card blogname/settings already use) sees the translated attribute label', $attrSummary['total'] >= 1 && $attrSummary['translated'] >= 1);
 
 $reg = new \LingoWP\Language\Infrastructure\OptionLanguageRegistry();
 $collectionBoard = new \LingoWP\Board\CollectionBoard($repo, $reg);
 $collections = $collectionBoard->buildCollections($lang, '');
-$attrCollection = null;
+$optionCollection = null;
 foreach ($collections as $c) {
-    if ($c['id'] === 'woo:attribute_labels') {
-        $attrCollection = $c;
+    if ($c['id'] === 'option:site') {
+        $optionCollection = $c;
     }
 }
-test_ok('CollectionBoard::buildCollections() includes the attribute-labels card', $attrCollection !== null && $attrCollection['total'] >= 1);
+test_ok('CollectionBoard::buildCollections() includes it under the existing "Site settings" card — no dedicated card needed', $optionCollection !== null && $optionCollection['total'] >= 1);
 
 wc_delete_attribute($attrId2);
-$afterAttrDelete = test_var("SELECT id FROM {$WAL} WHERE attribute_id = %d", $attrId2);
-test_ok('deleting the attribute prunes its source row', $afterAttrDelete === null);
+$afterAttrDelete = get_option(AttributeLabelSync::OPTION_NAME);
+test_ok('deleting the attribute prunes it from the option value', !isset($afterAttrDelete[$attrId2]));
+$afterAttrRowDelete = test_var("SELECT id FROM {$OP} WHERE option_id = %d AND original_text = %s", $attrOptionId, 'ZQWOOIT Attr Updated');
+test_ok('...and prunes the source row too (reconcileOption()\'s delete-stale rule, not a DB-level FK)', $afterAttrRowDelete === null);
 
-// ── 6. WooCommerce tax rate name — same shape, same real FK ─────────────────
+// ── 6. WooCommerce tax rate name — same shape, same option pipeline ─────────
 
-test_section('WooCommerce tax rate name (core table, real foreign key):');
+test_section('WooCommerce tax rate name (option-backed, existing option:site pipeline):');
 
 $rateId2 = WC_Tax::_insert_tax_rate([
     'tax_rate_country' => '',
@@ -419,21 +415,19 @@ $rateId2 = WC_Tax::_insert_tax_rate([
     'tax_rate_class'   => '',
 ]);
 
-$WTR = TranslationMemorySchema::wooTaxRateTable();
-$WTR_T = $WTR . '_translation';
+$names = get_option(TaxRateSync::OPTION_NAME);
+test_ok('tax rate name option updated automatically via the real woocommerce_tax_rate_added hook', is_array($names) && ($names[$rateId2] ?? null) === 'ZQWOOIT VAT');
 
-$rateRow = test_var("SELECT id FROM {$WTR} WHERE tax_rate_id = %d", $rateId2);
-test_ok('tax rate name discovered automatically via the real woocommerce_tax_rate_added hook', $rateRow !== null);
+$rateOptionId = test_var("SELECT option_id FROM {$wpdb->options} WHERE option_name = %s", TaxRateSync::OPTION_NAME);
+$rateRow = test_var("SELECT id FROM {$OP} WHERE option_id = %d AND original_text = %s", $rateOptionId, 'ZQWOOIT VAT');
+test_ok('discovered as an ordinary option row', $rateRow !== null);
 
 WC_Tax::_update_tax_rate($rateId2, ['tax_rate_name' => 'ZQWOOIT VAT Updated', 'tax_rate' => '20.0000', 'tax_rate_country' => '', 'tax_rate_state' => '', 'tax_rate_class' => '']);
-$rateUpdatedFound = test_var(
-    "SELECT id FROM {$WTR} WHERE tax_rate_id = %d AND original_text = %s",
-    $rateId2, 'ZQWOOIT VAT Updated'
-);
-test_ok('name update discovered via the real woocommerce_tax_rate_updated hook', $rateUpdatedFound !== null);
+$updatedNames = get_option(TaxRateSync::OPTION_NAME);
+test_ok('name update discovered via the real woocommerce_tax_rate_updated hook', ($updatedNames[$rateId2] ?? null) === 'ZQWOOIT VAT Updated');
 
 $rateTranslated = 'LINGOWP_TEST ZQWOOIT TVA Traduit';
-test_insert($WTR_T, [
+test_insert($OP . '_translation', [
     'original_hash'   => hash('sha256', \LingoWP\Shared\Text\StringNormalizer::normalize('ZQWOOIT VAT Updated'), true),
     'lang_code'       => $lang,
     'translated_text' => $rateTranslated,
@@ -443,29 +437,19 @@ test_insert($WTR_T, [
 ]);
 
 $rateRenderResult = TaxRateLabelResolver::translate('ZQWOOIT VAT Updated', (string) $rateId2);
-test_ok('render swaps in the translated tax rate name', $rateRenderResult === $rateTranslated);
+test_ok('render swaps in the translated tax rate name (fetchHashTranslations against the "option" table)', $rateRenderResult === $rateTranslated);
 
 $zeroRatedResult = TaxRateLabelResolver::translate('ZQWOOIT VAT Updated', 'zero-rated');
 test_ok('a non-numeric sentinel key (e.g. "zero-rated") is left untouched', $zeroRatedResult === 'ZQWOOIT VAT Updated');
 
-$rateSummary = $repo->wooTaxRateCollectionSummary($lang);
-test_ok('board summary (via WpDbSourceRepository) sees the translated tax rate name', $rateSummary['total'] >= 1 && $rateSummary['translated'] >= 1);
-
-$collections2 = $collectionBoard->buildCollections($lang, '');
-$rateCollection = null;
-foreach ($collections2 as $c) {
-    if ($c['id'] === 'woo:tax_rates') {
-        $rateCollection = $c;
-    }
-}
-test_ok('CollectionBoard::buildCollections() includes the tax-rates card', $rateCollection !== null && $rateCollection['total'] >= 1);
-
-$rateRefs = $collectionBoard->collectionRefs('woo:tax_rates', $lang);
-test_ok('CollectionBoard::collectionRefs() returns woo_tax_rate SourceRefs', count($rateRefs) >= 1 && $rateRefs[0]->kind === 'woo_tax_rate');
+$rateSummary = $repo->optionCollectionSummary($lang);
+test_ok('board summary (option:site) sees the translated tax rate name too', $rateSummary['total'] >= 2 && $rateSummary['translated'] >= 2);
 
 WC_Tax::_delete_tax_rate($rateId2);
-$afterRateDelete = test_var("SELECT id FROM {$WTR} WHERE tax_rate_id = %d", $rateId2);
-test_ok('deleting the tax rate prunes its source row', $afterRateDelete === null);
+$afterRateDelete = get_option(TaxRateSync::OPTION_NAME);
+test_ok('deleting the tax rate prunes it from the option value', !isset($afterRateDelete[$rateId2]));
+$afterRateRowDelete = test_var("SELECT id FROM {$OP} WHERE option_id = %d AND original_text = %s", $rateOptionId, 'ZQWOOIT VAT Updated');
+test_ok('...and prunes the source row too', $afterRateRowDelete === null);
 
 // ── 7. local (non-taxonomy) product attribute — name + split values ─────────
 
@@ -551,6 +535,99 @@ test_ok('tab shows the translated values', strpos($tabHtml, 'LINGOWP_TEST tradui
 // the cart/order attribute summary line: wc_attribute_label($name, $product)
 $cartLineLabel = wc_attribute_label('size', $freshLocalProduct);
 test_ok('cart/order attribute summary label is translated too (a second call site than the tab)', $cartLineLabel === 'LINGOWP_TEST traduit size.name');
+
+// ── 8. local VARIATION attribute — the regression this section exists to catch ──
+
+test_section('local variation attribute (dropdown + regression check):');
+
+// A first version of LocalAttributeResolver translated get_options() for
+// EVERY local attribute, including one flagged is_variation. WooCommerce's
+// own read_variation_attributes() matches each variation's stored selection
+// (saved as the exact original text — confirmed from html-variation-admin.php's
+// own dropdown value attribute) against that SAME options list with strict
+// equality; once translated, nothing matched and the frontend dropdown
+// silently showed zero options. This section is the regression test for
+// that fix, not just new-feature coverage.
+$swatchProduct = new WC_Product_Variable();
+$swatchProduct->set_name('LINGOWP_TEST swatch product');
+$swatchProduct->save();
+$swatchProductId = $swatchProduct->get_id();
+
+$swatchAttr = new WC_Product_Attribute();
+$swatchAttr->set_id(0);
+$swatchAttr->set_name('ZQWOOIT Size');
+$swatchAttr->set_options(['ZQWOOIT Small', 'ZQWOOIT Medium', 'ZQWOOIT Large']);
+$swatchAttr->set_variation(true);
+$swatchAttr->set_visible(true);
+$swatchProduct->set_attributes([$swatchAttr]);
+$swatchProduct->save();
+
+$swatchSlug = sanitize_title_with_dashes('ZQWOOIT Size'); // "zqwooit-size"
+
+$swatchVariation = new WC_Product_Variation();
+$swatchVariation->set_parent_id($swatchProductId);
+// stored as the EXACT original text, not a slug — confirmed against WooCommerce's own admin template
+$swatchVariation->set_attributes([$swatchSlug => 'ZQWOOIT Small']);
+$swatchVariation->set_regular_price('10');
+$swatchVariation->set_status('publish');
+$swatchVariation->save();
+
+LocalAttributeSync::refresh($swatchProductId);
+$swatchMetaKeyHash = bin2hex(hash('sha256', LocalAttributeSync::META_KEY, true));
+foreach (['name', 'value.0', 'value.1', 'value.2'] as $suffix) {
+    $context = $swatchSlug . '.' . $suffix;
+    $text    = $wpdb->get_var($wpdb->prepare(
+        "SELECT original_text FROM {$MP} WHERE post_id = %d AND meta_key_hash = UNHEX(%s) AND context = %s",
+        $swatchProductId, $swatchMetaKeyHash, $context
+    ));
+    $rowId = $wpdb->get_var($wpdb->prepare(
+        "SELECT id FROM {$MP} WHERE post_id = %d AND meta_key_hash = UNHEX(%s) AND context = %s",
+        $swatchProductId, $swatchMetaKeyHash, $context
+    ));
+    test_ok("discovered $context", $rowId !== null);
+    test_insert($MP . '_translation', [
+        'parent_id' => $rowId, 'lang_code' => $lang, 'translated_text' => 'LINGOWP_TEST traduit ' . $context,
+        'status' => 2, 'created_at' => $now, 'updated_at' => $now,
+    ]);
+}
+
+wp_cache_flush();
+$translatedSwatchProduct = wc_get_product($swatchProductId);
+$possibleValues = $translatedSwatchProduct->get_variation_attributes();
+
+test_ok(
+    'REGRESSION: dropdown possible-values list stays non-empty under translation (was silently emptied before the fix)',
+    ($possibleValues['ZQWOOIT Size'] ?? []) === ['ZQWOOIT Small']
+);
+
+ob_start();
+wc_dropdown_variation_attribute_options([
+    'options'   => $possibleValues['ZQWOOIT Size'] ?? [],
+    'attribute' => 'ZQWOOIT Size',
+    'product'   => $translatedSwatchProduct,
+]);
+$dropdownHtml = (string) ob_get_clean();
+test_ok(
+    'dropdown <option value=""> stays the ORIGINAL text (still matches the variation JSON)',
+    strpos($dropdownHtml, 'value="ZQWOOIT Small"') !== false
+);
+test_ok(
+    'dropdown DISPLAYED text is translated',
+    strpos($dropdownHtml, '>LINGOWP_TEST traduit ' . $swatchSlug . '.value.0<') !== false
+);
+
+$available = $translatedSwatchProduct->get_available_variations();
+$jsAttributes = $available[0]['attributes'] ?? [];
+test_ok(
+    'the JS-matching JSON (data-product_variations) keeps the ORIGINAL raw value untouched',
+    in_array('ZQWOOIT Small', $jsAttributes, true)
+);
+
+ob_start();
+wc_display_product_attributes($translatedSwatchProduct);
+$swatchTabHtml = (string) ob_get_clean();
+test_ok('tab shows the translated label for a variation-flagged local attribute', strpos($swatchTabHtml, 'LINGOWP_TEST traduit ' . $swatchSlug . '.name') !== false);
+test_ok('tab shows the translated values for a variation-flagged local attribute', strpos($swatchTabHtml, 'LINGOWP_TEST traduit ' . $swatchSlug . '.value.0') !== false);
 
 // reset the memoized statics so a re-run of this file in the same process is clean
 $ctxProp->setValue(null, null);

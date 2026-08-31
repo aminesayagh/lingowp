@@ -4,7 +4,6 @@ namespace LingoWP\Extraction;
 
 use LingoWP\Extraction\Html\HtmlDiscoveryCrawl;
 use LingoWP\Extraction\Structured\InitialDiscoveryScan;
-use LingoWP\Extraction\Structured\SeoDiscoveryRescan;
 use WP_REST_Response;
 
 /**
@@ -23,16 +22,13 @@ final class ScanRestController
     private const NS = 'lingowp/v1';
 
     private InitialDiscoveryScan $scan;
-    private SeoDiscoveryRescan $seoRescan;
     private HtmlDiscoveryCrawl $htmlCrawl;
 
     public function __construct(
         InitialDiscoveryScan $scan,
-        SeoDiscoveryRescan $seoRescan,
         HtmlDiscoveryCrawl $htmlCrawl
     ) {
         $this->scan      = $scan;
-        $this->seoRescan = $seoRescan;
         $this->htmlCrawl = $htmlCrawl;
     }
 
@@ -51,11 +47,6 @@ final class ScanRestController
         register_rest_route(self::NS, '/scan/refresh', [
             'methods'             => 'POST',
             'callback'            => [$this, 'refresh'],
-            'permission_callback' => [$this, 'canManage'],
-        ]);
-        register_rest_route(self::NS, '/scan/seo', [
-            'methods'             => 'POST',
-            'callback'            => [$this, 'rescanSeo'],
             'permission_callback' => [$this, 'canManage'],
         ]);
         register_rest_route(self::NS, '/scan/html', [
@@ -103,20 +94,6 @@ final class ScanRestController
             'status'      => $this->deriveStatus(),
             'html_status' => $htmlQueued ? 'running' : 'unavailable',
         ]);
-    }
-
-    /**
-     * Rescan SEO meta only — for data that arrived without firing a save hook
-     * (direct-SQL importers, or SEO fields that predate LingoWP).
-     *
-     * Separate from /scan/refresh on purpose: this is proportional to the SEO data
-     * present rather than to the whole site, and it must stay available even when
-     * `activated_plugin` never fires — WordPress skips that hook on silent
-     * activation, so the automatic trigger alone would leave gaps.
-     */
-    public function rescanSeo(): WP_REST_Response
-    {
-        return $this->queuedResponse($this->seoRescan->start());
     }
 
     /**

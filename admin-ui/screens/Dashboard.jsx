@@ -78,8 +78,8 @@ const LanguageManagerModal = lazy( () =>
 const STATUS_BADGE = {
 	missing: null,
 	needs_review: { tone: 'warning', label: 'Review' },
-	reviewed: { tone: 'success', label: 'Done' },
-	translated: { tone: 'success', label: 'Done' },
+	reviewed: { tone: 'success', label: 'Ready' },
+	translated: { tone: 'success', label: 'Ready' },
 }
 
 // Toast tone → icon. Polaris' Toast has no native warning/success color, only
@@ -364,6 +364,9 @@ export default function Dashboard( {
 	// TextUnitRow's inline edit and CompareOverlay's autosave both report length
 	// warnings up through this same prop.
 	const showLengthWarning = ( message ) => showToast( 'warning', message )
+	// A row action that was applied optimistically (e.g. a review toggle) failed
+	// server-side and has been rolled back — tell the user why the badge snapped.
+	const showActionError = ( message ) => showToast( 'critical', message )
 
 	const defaultCode = defaultLanguage?.code || defaultLanguage
 	// `quota` is the /billing/entitlements payload; `active` means a paid
@@ -1033,18 +1036,6 @@ export default function Dashboard( {
 		setCollapsedIds( new Set() )
 	}, [ selectedLang ] )
 
-	const toggleCollapsed = useCallback( ( id ) => {
-		setCollapsedIds( ( prev ) => {
-			const next = new Set( prev )
-			if ( next.has( id ) ) {
-				next.delete( id )
-			} else {
-				next.add( id )
-			}
-			return next
-		} )
-	}, [] )
-
 	// While in collapse-to-target mode, collapse every non-target group as its
 	// page arrives — once each, so a manual re-expand afterwards is not undone.
 	useEffect( () => {
@@ -1095,6 +1086,28 @@ export default function Dashboard( {
 		window.addEventListener( 'resize', update )
 		return () => window.removeEventListener( 'resize', update )
 	}, [] )
+
+	// Height of the sticky search/filter/column-headers bar, measured live so
+	// each collection's own header can pin itself directly beneath it (the
+	// `stickyTop` prop on CollectionGroup) and so scrollToIndex lands targets
+	// below it rather than behind it (scrollPaddingStart). A ResizeObserver
+	// keeps it right as the filter row wraps or the column headers show/hide.
+	const stickyRef = useRef( null )
+	const [ stickyBarH, setStickyBarH ] = useState( 0 )
+	useLayoutEffect( () => {
+		const el = stickyRef.current
+		if ( ! el ) {
+			return undefined
+		}
+		const update = () => setStickyBarH( el.offsetHeight )
+		update()
+		const ro = new ResizeObserver( update )
+		ro.observe( el )
+		return () => ro.disconnect()
+	}, [] )
+	// 32 mirrors the bar's own `top`; group headers stick flush under it.
+	const groupStickyTop = 32 + stickyBarH
+
 	const getItemKey = useCallback(
 		( i ) => ( i < groups.length ? groups[ i ].id : '__sentinel__' ),
 		[ groups ]
@@ -1110,8 +1123,63 @@ export default function Dashboard( {
 		overscan: 3,
 		getItemKey,
 		scrollMargin,
+		// scrollToIndex (deep links, collapse-to-top below) targets the offset
+		// just below the sticky bar, not the document top hidden behind it.
+		scrollPaddingStart: groupStickyTop,
 	} )
 	const virtualItems = v.getVirtualItems()
+	// Flow (non-absolute) layout: the rendered window sits between two spacer
+	// divs instead of each row being absolutely positioned. This keeps every
+	// group's header in normal document flow, which is what lets it use native
+	// `position: sticky` and get pushed out by the next group's header for free.
+	const listPadTop = virtualItems[ 0 ]
+		? virtualItems[ 0 ].start - scrollMargin
+		: 0
+	const listPadBottom = virtualItems.length
+		? Math.max(
+				0,
+				v.getTotalSize() -
+					( virtualItems[ virtualItems.length - 1 ].end -
+						scrollMargin )
+		  )
+		: 0
+
+	const toggleCollapsed = useCallback(
+		( id ) => {
+			const collapsing = ! collapsedIds.has( id )
+			setCollapsedIds( ( prev ) => {
+				const next = new Set( prev )
+				if ( next.has( id ) ) {
+					next.delete( id )
+				} else {
+					next.add( id )
+				}
+				return next
+			} )
+			if ( ! collapsing ) {
+				return
+			}
+			// Collapsing a section whose header is pinned (you'd scrolled into
+			// it) would shrink it away above the fold and leave the *next*
+			// section at the top. Re-pin the collapsed section at the top
+			// instead. Only when its header is actually at/above the bar —
+			// collapsing one that's sitting lower on screen shouldn't yank the
+			// page. scrollToIndex re-applies itself as the collapse animates.
+			const index = groups.findIndex( ( g ) => g.id === id )
+			const row =
+				index >= 0 &&
+				listRef.current?.querySelector( `[data-index="${ index }"]` )
+			if (
+				row &&
+				row.getBoundingClientRect().top <= groupStickyTop + 1
+			) {
+				requestAnimationFrame( () =>
+					v.scrollToIndex( index, { align: 'start' } )
+				)
+			}
+		},
+		[ collapsedIds, groups, groupStickyTop, v ]
+	)
 
 	// Fetch the next page once the sentinel/last row nears the viewport.
 	const fetchNextGroupsPage = groupsQ.fetchNextPage
@@ -1357,6 +1425,7 @@ export default function Dashboard( {
 		! groupsQ.isPending &&
 		! showGroupsError &&
 		groups.length > 0
+
 	let emptyGroupsMessage =
 		'No translatable content found for this language yet.'
 	if ( searching ) {
@@ -1775,6 +1844,7 @@ export default function Dashboard( {
 						} }
 					>
 						<div
+							ref={ stickyRef }
 							style={ {
 								position: 'sticky',
 								top: 32,
@@ -1889,6 +1959,48 @@ export default function Dashboard( {
 									) }
 								</BlockStack>
 							</Box>
+							{ /* Column headers ride inside the sticky bar so they
+							stay pinned above the list while scrolling, same as the
+							search/filter row. Content board only — GettextBoard
+							draws its own. */ }
+							{ showGroups && (
+								<>
+									<Box paddingInlineStart="1000">
+										<Box
+											paddingInline="300"
+											paddingBlock="200"
+										>
+											<InlineStack
+												gap="300"
+												align="space-between"
+												blockAlign="center"
+												wrap={ false }
+											>
+												<Box width="45%" minWidth="0">
+													<Text
+														as="span"
+														variant="bodySm"
+														tone="subdued"
+													>
+														{ originalLabel }
+													</Text>
+												</Box>
+												<Box width="45%" minWidth="0">
+													<Text
+														as="span"
+														variant="bodySm"
+														tone="subdued"
+													>
+														{ translationLabel }
+													</Text>
+												</Box>
+												<Box width="16%" />
+											</InlineStack>
+										</Box>
+									</Box>
+									<Divider />
+								</>
+							) }
 						</div>
 						{ showNeedsOnboarding && (
 							<Box padding="500">
@@ -2018,46 +2130,11 @@ export default function Dashboard( {
 										</Text>
 									</Box>
 								) }
-								<Box paddingInlineStart="1000">
-									<Box paddingInline="300" paddingBlock="200">
-										<InlineStack
-											gap="300"
-											align="space-between"
-											blockAlign="center"
-											wrap={ false }
-										>
-											<Box width="45%" minWidth="0">
-												<Text
-													as="span"
-													variant="bodySm"
-													tone="subdued"
-													// fontWeight="medium"
-												>
-													{ originalLabel }
-												</Text>
-											</Box>
-											<Box width="45%" minWidth="0">
-												<Text
-													as="span"
-													variant="bodySm"
-													tone="subdued"
-													// fontWeight="medium"
-												>
-													{ translationLabel }
-												</Text>
-											</Box>
-											<Box width="16%" />
-										</InlineStack>
-									</Box>
-								</Box>
-								<Divider />
-								<div
-									ref={ listRef }
-									style={ {
-										position: 'relative',
-										height: v.getTotalSize(),
-									} }
-								>
+								<div ref={ listRef }>
+									<div
+										aria-hidden="true"
+										style={ { height: listPadTop } }
+									/>
 									{ virtualItems.map( ( row ) => {
 										const isLoaderRow =
 											row.index >= groups.length
@@ -2095,15 +2172,6 @@ export default function Dashboard( {
 												key={ row.key }
 												data-index={ row.index }
 												ref={ v.measureElement }
-												style={ {
-													position: 'absolute',
-													top: 0,
-													left: 0,
-													width: '100%',
-													transform: `translateY(${
-														row.start - scrollMargin
-													}px)`,
-												} }
 											>
 												{ isLoaderRow ? (
 													<Box padding="300">
@@ -2114,6 +2182,9 @@ export default function Dashboard( {
 												) : (
 													<CollectionGroup
 														collection={ c }
+														stickyTop={
+															groupStickyTop
+														}
 														language={
 															selectedLang
 														}
@@ -2172,6 +2243,9 @@ export default function Dashboard( {
 														onLengthWarning={
 															showLengthWarning
 														}
+														onActionError={
+															showActionError
+														}
 														onShare={
 															shareCollection
 														}
@@ -2180,6 +2254,10 @@ export default function Dashboard( {
 											</div>
 										)
 									} ) }
+									<div
+										aria-hidden="true"
+										style={ { height: listPadBottom } }
+									/>
 								</div>
 							</BlockStack>
 						) }
@@ -2329,6 +2407,7 @@ function ConfirmDialog( { confirm, onClose } ) {
 
 function CollectionGroup( {
 	collection,
+	stickyTop = 0,
 	language,
 	targetDir,
 	search,
@@ -2345,6 +2424,7 @@ function CollectionGroup( {
 	billingBlocked,
 	onAiBlocked,
 	onLengthWarning,
+	onActionError,
 	onShare,
 } ) {
 	const c = collection
@@ -2548,6 +2628,15 @@ function CollectionGroup( {
 			<div
 				onMouseEnter={ () => setHovered( true ) }
 				onMouseLeave={ () => setHovered( false ) }
+				style={ {
+					position: 'sticky',
+					top: stickyTop,
+					zIndex: 1,
+					// Opaque: a pinned collapsed header's inner Box has no
+					// background, so without this the rows of the group below
+					// show through it as it's pushed up.
+					background: 'var(--p-color-bg-surface, #fff)',
+				} }
 			>
 				<Box
 					padding="300"
@@ -2701,6 +2790,7 @@ function CollectionGroup( {
 										onOpenOverlay( unit, c.id )
 									}
 									onLengthWarning={ onLengthWarning }
+									onActionError={ onActionError }
 								/>
 							) ) }
 							{ allTexts.length > shown && (
@@ -2746,12 +2836,26 @@ function TextUnitRow( {
 	billingBlocked,
 	onAiBlocked,
 	onLengthWarning,
+	onActionError,
 } ) {
 	const [ draft, setDraft ] = useState( unit.translated ?? '' )
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ hovered, setHovered ] = useState( false )
 	const [ translating, setTranslating ] = useState( false )
 	const moreActionsRef = useRef( null )
+
+	// A review toggle (needs_review <-> reviewed) flips one flag server-side, so
+	// show the new badge the instant it's clicked and reconcile — or revert —
+	// once the request settles, rather than freezing the row for the round-trip.
+	// { from, to }: `to` is what to show now; the override drops as soon as the
+	// refetched row moves off `from` (whatever it lands on is then the truth).
+	const [ optimistic, setOptimistic ] = useState( null )
+	const status = optimistic ? optimistic.to : unit.status
+	useEffect( () => {
+		if ( optimistic && unit.status !== optimistic.from ) {
+			setOptimistic( null )
+		}
+	}, [ unit.status, optimistic ] )
 
 	const shown = unit.translated ?? unit.fallback
 	const hasTranslation =
@@ -2763,11 +2867,12 @@ function TextUnitRow( {
 	// translation itself (see AiTranslationController::submit).
 	const showShimmer = translating || unit.status === 'pending'
 	let badge = null
-	if ( unit.status === 'needs_review' ) {
+	if ( status === 'needs_review' ) {
 		badge = STATUS_BADGE.needs_review
 	} else if ( hasTranslation ) {
 		badge = STATUS_BADGE.translated
 	}
+	const isReview = status === 'needs_review'
 
 	// "Long" = the original doesn't fit on one line in its cell at the current
 	// width. Measured, so it adapts to screen/column size instead of a fixed
@@ -2825,6 +2930,15 @@ function TextUnitRow( {
 
 	async function doStatus( action ) {
 		setMenuOpen( false )
+		const optimisticTo =
+			action === 'reviewed'
+				? 'reviewed'
+				: action === 'review'
+				? 'needs_review'
+				: null
+		if ( optimisticTo ) {
+			setOptimistic( { from: unit.status, to: optimisticTo } )
+		}
 		const res = await api.post( `/texts/${ enc( unit.id ) }/status`, {
 			action,
 			language,
@@ -2832,6 +2946,10 @@ function TextUnitRow( {
 		} )
 		if ( res.ok ) {
 			onMutate( res )
+		} else if ( optimisticTo ) {
+			// unit.status was never touched — dropping the override reverts it.
+			setOptimistic( null )
+			onActionError( 'Could not update the review status. Try again.' )
 		}
 	}
 
@@ -2898,13 +3016,13 @@ function TextUnitRow( {
 		{
 			items: [
 				hasTranslation &&
-					( unit.status === 'needs_review'
+					( isReview
 						? {
-								content: 'Reviewed',
+								content: 'Mark as ready',
 								onAction: () => doStatus( 'reviewed' ),
 						  }
 						: {
-								content: 'To review',
+								content: 'Flag for review',
 								onAction: () => doStatus( 'review' ),
 						  } ),
 				hasTranslation && {
@@ -3124,34 +3242,31 @@ function TextUnitRow( {
 							wrap={ false }
 						>
 							{ SEO_FIELD_BADGE[ unit.seo_field ] && (
-								<Badge tone="info" size="small">
+								<Badge tone="info" size="small" className="text-nowrap">
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
 							) }
 							{ badge && (
 								<span
-									role={
-										unit.status === 'needs_review'
-											? 'button'
-											: undefined
-									}
-									tabIndex={
-										unit.status === 'needs_review'
-											? 0
+									role={ isReview ? 'button' : undefined }
+									tabIndex={ isReview ? 0 : undefined }
+									className={
+										isReview
+											? 'lingowp-review-toggle'
 											: undefined
 									}
 									aria-label={
-										unit.status === 'needs_review'
-											? 'Review. Double-click to mark as done.'
+										isReview
+											? 'Marked for review. Activate to mark as ready.'
 											: undefined
 									}
-									onDoubleClick={
-										unit.status === 'needs_review'
+									onClick={
+										isReview
 											? () => doStatus( 'reviewed' )
 											: undefined
 									}
 									onKeyDown={
-										unit.status === 'needs_review'
+										isReview
 											? ( event ) => {
 													if (
 														event.key === 'Enter' ||
@@ -3165,18 +3280,16 @@ function TextUnitRow( {
 									}
 									style={ {
 										whiteSpace: 'nowrap',
-										cursor:
-											unit.status === 'needs_review'
-												? 'pointer'
-												: 'default',
+										cursor: isReview ? 'pointer' : 'default',
 										userSelect: 'none',
 									} }
 								>
 									<Badge
 										tone={ badge.tone }
 										size="small"
+										className="text-nowrap"
 										icon={
-											unit.is_ai && badge.label === 'Done'
+											unit.is_ai && badge.label === 'Ready'
 												? ( props ) => (
 														<AiIcon
 															{ ...props }

@@ -17,24 +17,46 @@ final class BillingEntitlementsService
     private const TTL    = 60;
 
     private BackendClient $backend;
+    /** @var array{ok:bool, status:int, data:mixed, error:string}|null */
+    private ?array $memo = null;
 
     public function __construct(BackendClient $backend)
     {
         $this->backend = $backend;
     }
 
-    /** @return array{ok:bool, status:int, data:mixed, error:string} */
+    /**
+     * @return array{ok:bool, status:int, data:mixed, error:string}
+     *
+     * Only a successful read is persisted across requests. A failure (backend
+     * down / timeout) is never written to the transient: ConnectionStatus'
+     * connection probe reads through here and must stay live, so a cached
+     * failure would keep the whole SPA showing "backend out of service" for the
+     * full TTL after the backend has already recovered, with no request going
+     * out to notice. A failed probe is cheap to repeat. The per-request memo
+     * still dedupes the several reads that happen in one page load either way.
+     */
     public function rawEntitlements(bool $bypassCache = false): array
     {
         if (!$bypassCache) {
+            if (is_array($this->memo)) {
+                return $this->memo;
+            }
             $cached = get_transient(self::CACHE);
-            if (is_array($cached)) {
-                return $cached;
+            if (is_array($cached) && $cached['ok']) {
+                return $this->memo = $cached;
             }
         }
 
-        $res = $this->backend->getEntitlements();
-        set_transient(self::CACHE, $res, self::TTL);
+        $res        = $this->backend->getEntitlements();
+        $this->memo = $res;
+
+        if ($res['ok']) {
+            set_transient(self::CACHE, $res, self::TTL);
+        } else {
+            // Drop any now-stale cached success so the next reader re-probes.
+            delete_transient(self::CACHE);
+        }
 
         return $res;
     }
@@ -99,6 +121,7 @@ final class BillingEntitlementsService
     /** Call after subscribe/change/capture so the next normal (cached) read is fresh. */
     public function invalidate(): void
     {
+        $this->memo = null;
         delete_transient(self::CACHE);
     }
 }

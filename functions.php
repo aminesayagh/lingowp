@@ -75,8 +75,8 @@ if (!function_exists('lingowp_source_repository')) {
      * plugin (lingowp-acf, lingowp-woocommerce, …) uses to register content it
      * discovers, via whichever reconcile*() method matches its source type
      * (e.g. reconcileTermMeta() for a taxonomy term's meta,
-     * reconcileWooAttributeLabel()/reconcileWooTaxRate() for the two
-     * WooCommerce-owned tables lingowp-woocommerce maintains). Everything else
+     * reconcileOption() for a plugin's own option-backed strings — see
+     * lingowp-woocommerce's AttributeLabelSync/TaxRateSync). Everything else
      * on WpDbSourceRepository is available too, but reconcile*() is the
      * supported add-on surface — the rest may change without notice.
      */

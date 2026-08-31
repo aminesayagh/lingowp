@@ -17,34 +17,18 @@ final class TranslatableMetaKeys
     public const ATTACHMENT_ALT = '_wp_attachment_image_alt';
 
     /**
-     * A STATIC UNION across SEO plugins — never narrowed to whichever one is
-     * active. reconcilePost() reconciles the whole post meta scope, so a key
-     * dropping out of this list on a save deletes its rows and cascades to their
-     * translations. Deactivating a plugin does not delete its post meta, so
-     * keeping the key here costs nothing and preserves the translations.
+     * A STATIC UNION across every plugin that extends this list — never
+     * narrowed to whichever one is active. reconcilePost() reconciles the
+     * whole post meta scope, so a key dropping out of this list on a save
+     * deletes its rows and cascades to their translations. Deactivating a
+     * plugin does not delete its post meta, so keeping the key here costs
+     * nothing and preserves the translations.
+     *
+     * Yoast/Rank Math/SEOPress's own keys used to live here directly; they now
+     * come from the lingowp-seo add-on via this same filter (see keys()) —
+     * core no longer hardcodes any third-party SEO plugin's key names.
      */
     private const DEFAULTS = [
-        '_yoast_wpseo_title',
-        '_yoast_wpseo_metadesc',
-        '_yoast_wpseo_focuskw',
-        '_yoast_wpseo_opengraph-title',
-        '_yoast_wpseo_opengraph-description',
-        '_yoast_wpseo_twitter-title',
-        '_yoast_wpseo_twitter-description',
-        'rank_math_title',
-        'rank_math_description',
-        'rank_math_focus_keyword',
-        'rank_math_facebook_title',
-        'rank_math_facebook_description',
-        'rank_math_twitter_title',
-        'rank_math_twitter_description',
-        '_seopress_titles_title',
-        '_seopress_titles_desc',
-        '_seopress_analysis_target_kw',
-        '_seopress_social_fb_title',
-        '_seopress_social_fb_desc',
-        '_seopress_social_twitter_title',
-        '_seopress_social_twitter_desc',
         '_wc_product_short_description',
     ];
 
@@ -55,30 +39,12 @@ final class TranslatableMetaKeys
      * (does this key have replacement-variable syntax to guard); folding
      * keyword keys in there would wrongly turn on that guard for a plain
      * phrase with no template variables at all.
+     *
+     * Empty in core by design — Yoast/Rank Math/SEOPress's own mapping now
+     * comes from the lingowp-seo add-on via the lingowp_seo_field_types
+     * filter (see seoFieldType()).
      */
-    private const SEO_FIELD_TYPES = [
-        '_yoast_wpseo_title'                => 'title',
-        '_yoast_wpseo_metadesc'              => 'description',
-        '_yoast_wpseo_focuskw'               => 'keyword',
-        '_yoast_wpseo_opengraph-title'       => 'og_title',
-        '_yoast_wpseo_opengraph-description' => 'og_description',
-        '_yoast_wpseo_twitter-title'         => 'twitter_title',
-        '_yoast_wpseo_twitter-description'   => 'twitter_description',
-        'rank_math_title'                   => 'title',
-        'rank_math_description'             => 'description',
-        'rank_math_focus_keyword'           => 'keyword',
-        'rank_math_facebook_title'          => 'og_title',
-        'rank_math_facebook_description'    => 'og_description',
-        'rank_math_twitter_title'           => 'twitter_title',
-        'rank_math_twitter_description'     => 'twitter_description',
-        '_seopress_titles_title'            => 'title',
-        '_seopress_titles_desc'             => 'description',
-        '_seopress_analysis_target_kw'      => 'keyword',
-        '_seopress_social_fb_title'         => 'og_title',
-        '_seopress_social_fb_desc'          => 'og_description',
-        '_seopress_social_twitter_title'    => 'twitter_title',
-        '_seopress_social_twitter_desc'     => 'twitter_description',
-    ];
+    private const SEO_FIELD_TYPES = [];
 
     private function __construct() {}
 
@@ -89,7 +55,11 @@ final class TranslatableMetaKeys
      */
     public static function seoFieldType(string $key): ?string
     {
-        return self::SEO_FIELD_TYPES[$key] ?? null;
+        $types = function_exists('apply_filters')
+            ? apply_filters('lingowp_seo_field_types', self::SEO_FIELD_TYPES)
+            : self::SEO_FIELD_TYPES;
+
+        return (is_array($types) ? $types : self::SEO_FIELD_TYPES)[$key] ?? null;
     }
 
     /**

@@ -39,12 +39,30 @@ class HreflangPresenter
         add_action('wp_head', [$this, 'renderHreflangTags'], 1);
 
         // Make every translated page self-canonical instead of pointing back at
-        // the default-language original. We filter core's canonical and the two
-        // most common SEO plugins; whichever is active wins, and they never
-        // double-emit because each replaces the same single canonical value.
+        // the default-language original. Core's own canonical filter is always
+        // hooked; a third-party SEO plugin's own canonical filter (Yoast's
+        // wpseo_canonical, Rank Math's rank_math/frontend/canonical, …) is
+        // added via lingowp_seo_canonical_filters instead of hardcoded here —
+        // see the lingowp-seo add-on. Whichever filter actually fires wins,
+        // and they never double-emit because each replaces the same single
+        // canonical value.
         add_filter('get_canonical_url', [$this, 'filterCanonical'], 20);
-        add_filter('wpseo_canonical', [$this, 'filterCanonical'], 20);      // Yoast
-        add_filter('rank_math/frontend/canonical', [$this, 'filterCanonical'], 20); // Rank Math
+        foreach (self::extraCanonicalFilters() as $hook) {
+            add_filter($hook, [$this, 'filterCanonical'], 20);
+        }
+    }
+
+    /** @return string[] */
+    private static function extraCanonicalFilters(): array
+    {
+        $hooks = function_exists('apply_filters')
+            ? apply_filters('lingowp_seo_canonical_filters', [])
+            : [];
+
+        return array_values(array_filter(
+            array_map('strval', is_array($hooks) ? $hooks : []),
+            static fn(string $hook): bool => $hook !== ''
+        ));
     }
 
     /**
