@@ -139,13 +139,20 @@ final class SeoTemplateVariables
     }
 
     /**
-     * The semantic name behind a variable token, so a recovered capture can be
-     * mapped to something we actually know how to translate. `%%title%%` and
-     * `%title%` both mean 'title'.
+     * The RAW semantic name behind a variable token — still in whatever
+     * vocabulary the grammar that produced it uses (Yoast/Rank Math's
+     * `%%title%%`/`%title%` both mean 'title'; AIOSEO's own `#post_title`
+     * means the same thing but under its own name). Delimiters stripped:
+     * `%`/`#` (every grammar's own token-boundary character) and spaces.
+     * Mapping a grammar-specific name to the shared canonical vocabulary
+     * `SeoHeadTranslator::translateCapture()` actually knows how to translate
+     * is a separate step (`lingowp_seo_template_token_aliases`) — this method
+     * only does the syntactic part, the same way `pattern()`/`extract()`
+     * don't know what a token MEANS either.
      */
     public static function tokenName(string $token): string
     {
-        return strtolower(trim($token, '% '));
+        return strtolower(trim($token, '#% '));
     }
 
     /** True when this key stores an SEO template whose variables we understand. */

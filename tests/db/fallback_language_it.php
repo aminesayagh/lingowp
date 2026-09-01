@@ -311,4 +311,52 @@ test_ok(
     json_encode($crossLangRes->get_data())
 );
 
+// ── 7. Bulk AI model: LanguageRestController::updateAiModelForAll() ─────────
+// The settings-popover "Use LingoWP AI model" action. One POST must rewrite
+// every language's ai_model in a single option write (a PATCH-per-language
+// loop races itself on lingowp_languages and drops some changes).
+
+test_section('updateAiModelForAll() bulk write:');
+
+$store->save(['code' => 'zz_AA', 'ai_model' => 'openai']);
+$store->save(['code' => 'zz_BB', 'ai_model' => 'auto']);
+
+$badReq = new WP_REST_Request('POST', '/lingowp/v1/languages/ai-model');
+$badReq->set_param('ai_model', 'not-a-real-model');
+$badRes = $controller->updateAiModelForAll($badReq);
+test_ok(
+    'an unknown ai_model is rejected',
+    ($badRes->get_data()['error'] ?? null) === 'ERR_INVALID_INPUT',
+    json_encode($badRes->get_data())
+);
+
+$bulkReq = new WP_REST_Request('POST', '/lingowp/v1/languages/ai-model');
+$bulkReq->set_param('ai_model', 'internal');
+$bulkRes = $controller->updateAiModelForAll($bulkReq)->get_data();
+test_ok(
+    'bulk write reports at least the two just-changed languages',
+    ($bulkRes['ok'] ?? false) === true && ($bulkRes['changed'] ?? 0) >= 2,
+    json_encode($bulkRes)
+);
+
+$afterModels = array_map(
+    static fn ($e) => $e['ai_model'] ?? null,
+    $store->all()
+);
+test_ok(
+    'every configured language is now on the requested model',
+    $afterModels !== [] && !in_array(false, array_map(
+        static fn ($m) => $m === 'internal',
+        $afterModels
+    ), true),
+    json_encode($afterModels)
+);
+
+$bulkAgain = $controller->updateAiModelForAll($bulkReq)->get_data();
+test_ok(
+    're-running is a no-op (changed = 0)',
+    ($bulkAgain['ok'] ?? false) === true && ($bulkAgain['changed'] ?? -1) === 0,
+    json_encode($bulkAgain)
+);
+
 test_done();

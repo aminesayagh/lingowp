@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
 import { PENDING_WORDS_KEY } from '../billingKeys'
+import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
 
 function formatDate( iso ) {
@@ -210,30 +211,20 @@ export default function BillingUsage() {
 
 		if ( initialLoadError ) {
 			return (
-				<Card>
-					<BlockStack gap="200">
-						<Text as="p" tone="critical">
-							{ errorMessage( initialLoadError ) }
-						</Text>
-						<InlineStack>
-							<Button
-								onClick={ () => {
-									if ( entitlements === null ) {
-										fetchEntitlements()
-									}
-									if ( usage === null ) {
-										fetchUsage()
-									}
-									if ( packs === null ) {
-										fetchPacks()
-									}
-								} }
-							>
-								Retry
-							</Button>
-						</InlineStack>
-					</BlockStack>
-				</Card>
+				<ConnectionErrorCard
+					error={ initialLoadError }
+					onRetry={ () => {
+						if ( entitlements === null ) {
+							fetchEntitlements()
+						}
+						if ( usage === null ) {
+							fetchUsage()
+						}
+						if ( packs === null ) {
+							fetchPacks()
+						}
+					} }
+				/>
 			)
 		}
 

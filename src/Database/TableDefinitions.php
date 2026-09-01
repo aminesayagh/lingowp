@@ -33,6 +33,12 @@ namespace LingoWP\Database;
  * Languages stay option-backed (no languages table), so lang_code is a plain
  * column with no FK. Methods return CREATE TABLE SQL with FK clauses inlined —
  * never dbDelta() (it mangles FOREIGN KEY clauses).
+ *
+ * An eighth table, gettextUnit(), sits outside this parent/child model
+ * entirely: it tracks original strings + ignore status for the Plugins &
+ * Themes (gettext) board, which has no per-language child table at all —
+ * translated text stays in `.mo` files, never in the database. See its own
+ * doc for why.
  */
 final class TableDefinitions
 {
@@ -266,6 +272,66 @@ final class TableDefinitions
     KEY idx_ai_pending (ai_pending_since),
     CONSTRAINT {$fkName} FOREIGN KEY (parent_id)
         REFERENCES {$parentTable} (id) ON DELETE CASCADE
+) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /**
+     * wp_lingowp_gettext_unit — original strings + ignore status for the
+     * Plugins & Themes board, one row per (type, domain, unit_hash). No FK
+     * (a plugin/theme isn't a row in any WP table), no per-language child —
+     * translated text is never stored here, it stays in the domain's `.mo`
+     * file on disk; this table only replaces the full-source AST re-scan
+     * that used to run on every read.
+     *
+     * unit_hash is deliberately NOT original_hash's SHA-256-of-normalized-text
+     * contract (see StringNormalizer's doc): gettext msgid lookups everywhere
+     * else in this codebase (.mo Translation_Entry::key(), the old
+     * GettextIgnoredUnitsStore) are byte-exact and case-sensitive. Normalizing
+     * here would silently collide distinct strings like "Save" and "save"
+     * into one row. Formula instead matches WP core's own key shape exactly:
+     * SHA256(context !== '' ? context."\x04".msgid : msgid).
+     *
+     * status is global per string, not per locale (0 = active, -1 = ignored)
+     * — ignoring a string hides it from every target locale of that domain at
+     * once, matching how every other table's parent status already treats
+     * "ignored" as a source-level property independent of target language.
+     *
+     * last_seen_at is bumped by every scan/refresh that re-encounters a row's
+     * hash, same purpose as html()'s own last_seen_at — distinguishes "still
+     * in source" from "gone", without touching status (an ignored row that's
+     * still in source stays ignored across rescans).
+     *
+     * The ai_* columns drive the board's async "Translate All" queue
+     * (GettextAiQueue). Still one row per source string, still locale-blind:
+     * ai_pending_locales is a pipe-list ("fr_FR|en_GB") of targets with an AI
+     * request in flight; ai_pending_since anchors the 6h freshness TTL;
+     * ai_error is the last failure code (single value, no per-locale key).
+     * norm_hash is SHA-256 of StringNormalizer::normalize(msgid) — the hash
+     * the backend echoes as source_hash, distinct from the byte-exact
+     * unit_hash; NULL until this string's first AI submit.
+     */
+    public static function gettextUnit(string $table, string $charsetCollate): string
+    {
+        return "CREATE TABLE IF NOT EXISTS {$table} (
+    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
+    type                   varchar(10)      NOT NULL,
+    domain                 varchar(191)     NOT NULL,
+    unit_hash              binary(32)       NOT NULL,
+    norm_hash              binary(32)       NULL,
+    msgid                  longtext         NOT NULL,
+    context                text             NULL,
+    status                 tinyint          NOT NULL DEFAULT 0,
+    ai_pending_locales     varchar(255)     NOT NULL DEFAULT '',
+    ai_pending_since       datetime         NULL,
+    ai_error               varchar(190)     NULL,
+    last_seen_at           datetime         NULL,
+    created_at             datetime         NOT NULL,
+    updated_at             datetime         NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_unit (type, domain, unit_hash),
+    KEY idx_domain_status (type, domain, status, id),
+    KEY idx_ai_pending (ai_pending_since),
+    KEY idx_ai_norm (norm_hash)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 }

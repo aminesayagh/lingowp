@@ -14,6 +14,7 @@ import {
 } from '@shopify/polaris'
 import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
+import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
 
 function AddSiteModal( { open, onClose, slotsLeft, loading, error, onAdd } ) {
@@ -224,16 +225,10 @@ export default function BillingSites() {
 	if ( websites === null ) {
 		if ( websitesError ) {
 			return (
-				<Card>
-					<BlockStack gap="200">
-						<Text as="p" tone="critical">
-							{ errorMessage( websitesError ) }
-						</Text>
-						<InlineStack>
-							<Button onClick={ fetchWebsites }>Retry</Button>
-						</InlineStack>
-					</BlockStack>
-				</Card>
+				<ConnectionErrorCard
+					error={ websitesError }
+					onRetry={ fetchWebsites }
+				/>
 			)
 		}
 		return (

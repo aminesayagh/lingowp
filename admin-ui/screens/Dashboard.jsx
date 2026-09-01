@@ -6,7 +6,6 @@ import {
 	Button,
 	Card,
 	ChoiceList,
-	Collapsible,
 	Divider,
 	EmptyState,
 	Filters,
@@ -46,24 +45,32 @@ import {
 	SettingsIcon,
 } from '@shopify/polaris-icons'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
-import { AnimatePresence, motion } from 'motion/react'
+import {
+	AnimatePresence,
+	motion,
+	useMotionValueEvent,
+	useReducedMotion,
+	useScroll,
+} from 'motion/react'
 import { api } from '../api'
 import { ensureConnected } from '../connection'
 import { errorMessage } from '../errors'
 import { AiIcon } from './AiIcon'
-import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList'
-import { flagIconUrl } from './FlagIcon'
-import CompareOverlay from './CompareOverlay'
+import LanguageList, {
+	PUBLISH_MIN_PERCENT,
+	sortLanguages,
+} from './LanguageList'
+import { flagIconUrl, FlagIcon } from './FlagIcon'
 import QuotaCard from './QuotaCard'
 import { hasMarkers, stripMarkers } from './TranslationUnitEditor'
 import { lengthWarningMessage } from './lengthWarning.mjs'
 
 // Split out of the main bundle: each is a modal/screen opened only by an
 // explicit action, never needed for first paint — GettextBoard behind the
-// Plugins & Themes tab (Content is the default), the other behind its own
-// "open" state (see managerEverOpened below, which keeps it mounted after
-// its first open so Polaris' Modal still gets to run its own close
-// transition instead of being yanked out mid-exit).
+// Plugins & Themes tab (Content is the default), the other two behind their
+// own "open" state (see managerEverOpened / overlayEverOpened below, which
+// keep them mounted after their first open so Polaris' Modal still gets to
+// run its own close transition instead of being yanked out mid-exit).
 const GettextBoard = lazy( () =>
 	import( /* webpackChunkName: "gettext-board" */ './GettextBoard' )
 )
@@ -71,6 +78,9 @@ const LanguageManagerModal = lazy( () =>
 	import(
 		/* webpackChunkName: "language-manager-modal" */ './LanguageManagerModal'
 	)
+)
+const CompareOverlay = lazy( () =>
+	import( /* webpackChunkName: "compare-overlay" */ './CompareOverlay' )
 )
 
 // Schema status → workspace pill. Completed rows keep a visible marker so table
@@ -103,7 +113,8 @@ const PENDING_POLL_MS = 3000
 // migration notes -- fine here since these queries have no `select`.
 function pollWhilePending( query ) {
 	const texts = query.state.data?.texts
-	return Array.isArray( texts ) && texts.some( ( t ) => t.status === 'pending' )
+	return Array.isArray( texts ) &&
+		texts.some( ( t ) => t.status === 'pending' )
 		? PENDING_POLL_MS
 		: false
 }
@@ -116,6 +127,10 @@ const QUOTA_ERROR_CODES = [
 	'ERR_HOSTED_AI_UNAVAILABLE',
 	'ERR_INSUFFICIENT_AI_WORDS',
 ]
+
+// BYOK providers the backend accepts, and their labels in the settings popover.
+// Mirrors LanguageManagerModal's aiModelOptions vocabulary.
+const PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic' }
 
 // Which SEO field a meta row represents — shown as a small badge alongside the
 // status pill so title/description/keyword rows for the same post are
@@ -232,6 +247,15 @@ const PAGE_SIZE = 20
 // Rows revealed per "Show more" click in a group — an auto-opened 1,000-text
 // group never dumps every row at once.
 const TEXT_BATCH = 50
+// Adaptive sticky header (the filter row auto-hides while scrolling down
+// through a long list, see the scroll tracking below): a scroll delta under
+// this many px is trackpad/wheel jitter, not an intentional direction.
+const FILTER_ROW_SCROLL_NOISE_PX = 4
+// Never hide the filter row this close to the top — nothing to reclaim space
+// from yet, and it'd flicker in/out on a barely-scrolled page.
+const FILTER_ROW_MIN_SCROLL_PX = 40
+// How long the page has to sit still before the filter row comes back on its own.
+const FILTER_ROW_IDLE_MS = 1500
 const boardParser = parseAsStringLiteral( [ 'content', 'plugins' ] )
 	.withDefault( 'content' )
 	.withOptions( { history: 'replace' } )
@@ -282,6 +306,15 @@ export default function Dashboard( {
 	const [ query, setQuery ] = useState( '' )
 	// { id, cid } of the text unit open in the compare overlay, or null.
 	const [ overlay, setOverlay ] = useState( null )
+	// Latches true on first open and never resets — lets CompareOverlay's lazy
+	// chunk load only when actually needed, while staying mounted after that
+	// (same reasoning as managerEverOpened below).
+	const [ overlayEverOpened, setOverlayEverOpened ] = useState( false )
+	useEffect( () => {
+		if ( overlay ) {
+			setOverlayEverOpened( true )
+		}
+	}, [ overlay ] )
 	// ?collection=<id> — set only by "Share collection". On load it deep-links to
 	// that collection (scroll into view) and opens the board in collapse-to-target
 	// mode (see collapseToTarget below).
@@ -302,6 +335,9 @@ export default function Dashboard( {
 	// gets to run, instead of the component being unmounted mid-exit).
 	const [ managerEverOpened, setManagerEverOpened ] = useState( false )
 	const [ pageMenuOpen, setPageMenuOpen ] = useState( false )
+	// The target-language column header is a switcher: click it for a popover
+	// list of the configured languages.
+	const [ langSwitcherOpen, setLangSwitcherOpen ] = useState( false )
 	const [ refreshing, setRefreshing ] = useState( false )
 	// True right after the first language is created, until the initial
 	// content scan (running since plugin activation, independent of
@@ -311,6 +347,13 @@ export default function Dashboard( {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
+	// Stored BYOK keys (GET /provider-keys), fetched once when the connection
+	// checks out. Drives the "Use your <provider> key" items in the settings
+	// popover; empty until loaded or when the user has none.
+	const [ providerKeys, setProviderKeys ] = useState( [] )
+	// Non-null while a "set every language to provider X" run from the settings
+	// popover is in flight — disables those items against a double-click.
+	const [ applyingProvider, setApplyingProvider ] = useState( null )
 	// A fresh connect also found a matching older licence and emailed its
 	// verified owner a reclaim link — this site already works either way,
 	// it's a non-blocking bonus notice, not a gate.
@@ -369,9 +412,63 @@ export default function Dashboard( {
 	const showActionError = ( message ) => showToast( 'critical', message )
 
 	const defaultCode = defaultLanguage?.code || defaultLanguage
+	// Same order as the sidebar's language list (LanguageList.jsx), so the
+	// header's language-switcher popover matches it rather than the raw
+	// /languages response order.
+	const sortedLanguages = useMemo(
+		() => sortLanguages( languages ),
+		[ languages ]
+	)
 	// `quota` is the /billing/entitlements payload; `active` means a paid
 	// subscription is in force (same check refetchEntitlements uses).
 	const hasSubscription = !! quota?.active
+
+	// Extra settings-popover items, gated on billing state:
+	//  - paid + valid billing: one "Use ..." item per AI provider available
+	//    (LingoWP model + each stored BYOK key), each bulk-setting every
+	//    language and disabled once they're all already on it.
+	//  - free / no subscription: the two links that unlock AI.
+	const ownKeyProviders = providerKeys
+		.map( ( k ) => k.provider )
+		.filter( ( p ) => PROVIDER_LABELS[ p ] )
+	const langsReady = languagesLoaded && languages.length > 0
+	const allLangsOn = ( p ) =>
+		langsReady && languages.every( ( l ) => l.ai_model === p )
+	const providerMenuItems = []
+	if ( hasSubscription && ! billingBlocked ) {
+		providerMenuItems.push( {
+			content: 'Use LingoWP AI model',
+			disabled:
+				! langsReady || allLangsOn( 'internal' ) || !! applyingProvider,
+			onAction: () => {
+				setPageMenuOpen( false )
+				applyProviderToAllLanguages( 'internal' )
+			},
+		} )
+		for ( const p of ownKeyProviders ) {
+			providerMenuItems.push( {
+				content: `Use your ${ PROVIDER_LABELS[ p ] } key`,
+				disabled:
+					! langsReady || allLangsOn( p ) || !! applyingProvider,
+				onAction: () => {
+					setPageMenuOpen( false )
+					applyProviderToAllLanguages( p )
+				},
+			} )
+		}
+	} else if ( quota && ! quota.active ) {
+		providerMenuItems.push(
+			{
+				content: 'Add your API key',
+				onAction: () =>
+					window.location.assign( `${ cfg.billing_url }&tab=token` ),
+			},
+			{
+				content: 'Subscribe to LingoWP',
+				onAction: () => window.location.assign( cfg.billing_url ),
+			}
+		)
+	}
 	const advancedFilters = {
 		origin: originFilter,
 		content_type: contentTypeFilter,
@@ -417,6 +514,9 @@ export default function Dashboard( {
 				showToast( 'warning', errorMessage( status.error ) )
 			}
 			if ( status.connected ) {
+				api.get( '/provider-keys' ).then( ( r ) =>
+					setProviderKeys( Array.isArray( r.keys ) ? r.keys : [] )
+				)
 				return refetchEntitlements()
 			}
 			setQuota( null )
@@ -565,7 +665,8 @@ export default function Dashboard( {
 		}
 		await queryClient.invalidateQueries( {
 			predicate: ( q ) =>
-				q.queryKey[ 0 ] === 'texts' && langs.includes( q.queryKey[ 2 ] ),
+				q.queryKey[ 0 ] === 'texts' &&
+				langs.includes( q.queryKey[ 2 ] ),
 		} )
 		refetchEntitlements()
 		refreshLanguages() // rail percentages changed
@@ -586,6 +687,49 @@ export default function Dashboard( {
 			while ( res?.more ) {
 				res = await translateScope( 'language', { source: board } )
 			}
+		} finally {
+			setTranslatingAll( false )
+		}
+	}
+
+	// Plugins & Themes board equivalent of the above -- a distinct endpoint
+	// (gettext strings live in .mo files, not the Content board's tables), so
+	// this can't reuse translateScope(). Same auto-continue-on-`more` shape;
+	// the server scans a few never-opened components per call and the rest
+	// wait for this loop's next POST (see BOARD_TRANSLATE_SCAN_BUDGET).
+	async function translateAllGettext() {
+		if ( ! ai.available ) {
+			showToast(
+				'warning',
+				ai.error || 'AI unavailable — connect LingoWP to enable it.'
+			)
+			return
+		}
+		setTranslatingAll( true )
+		try {
+			let res = await api.post( '/gettext-domains/translate', {
+				scope: 'board',
+				locale: selectedLang,
+			} )
+			while ( res?.ok && res.more ) {
+				res = await api.post( '/gettext-domains/translate', {
+					scope: 'board',
+					locale: selectedLang,
+				} )
+			}
+			if ( ! res?.ok ) {
+				handleAiFailure( res?.error )
+				return
+			}
+			await queryClient.invalidateQueries( {
+				queryKey: [ 'gettext-domains', selectedLang ],
+			} )
+			await queryClient.invalidateQueries( {
+				predicate: ( q ) =>
+					q.queryKey[ 0 ] === 'gettext-units' &&
+					q.queryKey[ 3 ] === selectedLang,
+			} )
+			refetchEntitlements()
 		} finally {
 			setTranslatingAll( false )
 		}
@@ -614,6 +758,26 @@ export default function Dashboard( {
 				showToast( 'success', 'Now using the LingoWP model.' )
 			}
 		} )
+	}
+
+	// Settings-popover bulk action: point every configured language at one AI
+	// provider ('internal' for the LingoWP model, or a BYOK provider key). One
+	// POST that rewrites the whole lingowp_languages map in a single option
+	// write — a PATCH-per-language loop races itself (each PATCH is a
+	// read-modify-write of that shared option) and silently drops some changes.
+	async function applyProviderToAllLanguages( target ) {
+		setApplyingProvider( target )
+		const res = await api
+			.post( '/languages/ai-model', { ai_model: target } )
+			.catch( () => ( { ok: false } ) )
+		refreshLanguages()
+		setApplyingProvider( null )
+		showToast(
+			res.ok ? 'success' : 'critical',
+			res.ok
+				? 'All languages updated.'
+				: 'Could not update the languages.'
+		)
 	}
 
 	function deleteLang( code ) {
@@ -1088,25 +1252,82 @@ export default function Dashboard( {
 	}, [] )
 
 	// Height of the sticky search/filter/column-headers bar, measured live so
-	// each collection's own header can pin itself directly beneath it (the
-	// `stickyTop` prop on CollectionGroup) and so scrollToIndex lands targets
-	// below it rather than behind it (scrollPaddingStart). A ResizeObserver
-	// keeps it right as the filter row wraps or the column headers show/hide.
+	// each collection's own header can pin itself directly beneath it, and so
+	// the collapse anchor and deep-link scroll land below it, not behind it.
+	// A ResizeObserver keeps it right as the filter row animates open/closed
+	// or the column headers show/hide.
+	//
+	// Split in two on purpose: the CSS variable (set imperatively, no React
+	// render) is what each CollectionGroup header's `top` actually reads, so
+	// it tracks every frame of the filter row's height animation for free.
+	// `stickyBarH` React state is only for scrollPaddingStart/the collapse
+	// anchor below — neither needs frame-perfect freshness, only "correct once
+	// settled" — so it's debounced. Without that split, the filter-row
+	// animation forced a full Dashboard re-render (every row's sticky offset,
+	// the whole virtualized list) on every one of its ~60fps ticks, which is
+	// what made the animation itself look stuttery.
 	const stickyRef = useRef( null )
+	const cardRef = useRef( null )
 	const [ stickyBarH, setStickyBarH ] = useState( 0 )
 	useLayoutEffect( () => {
 		const el = stickyRef.current
 		if ( ! el ) {
 			return undefined
 		}
-		const update = () => setStickyBarH( el.offsetHeight )
+		let settleTimer = null
+		const update = () => {
+			const h = el.offsetHeight
+			cardRef.current?.style.setProperty(
+				'--lingowp-group-sticky-top',
+				`${ 32 + h }px`
+			)
+			clearTimeout( settleTimer )
+			settleTimer = setTimeout( () => setStickyBarH( h ), 120 )
+		}
 		update()
 		const ro = new ResizeObserver( update )
 		ro.observe( el )
-		return () => ro.disconnect()
+		return () => {
+			clearTimeout( settleTimer )
+			ro.disconnect()
+		}
 	}, [] )
-	// 32 mirrors the bar's own `top`; group headers stick flush under it.
+	// 32 mirrors the bar's own `top`. Only feeds scrollPaddingStart and the
+	// collapse anchor's scroll math below — the live per-render value groups
+	// actually stick to is the CSS variable set above.
 	const groupStickyTop = 32 + stickyBarH
+
+	// Adaptive filter row: yields its space while the user is actively reading
+	// down the list, comes back the moment they might want it (scroll up, stop
+	// scrolling, hover/focus the header, or have it configured already).
+	// `showFilters` is derived below, not stored — nothing here to desync.
+	const [ scrollDirection, setScrollDirection ] = useState( 'idle' )
+	const [ nearScrollTop, setNearScrollTop ] = useState( true )
+	const [ headerHovered, setHeaderHovered ] = useState( false )
+	const [ headerFocused, setHeaderFocused ] = useState( false )
+	const { scrollY } = useScroll()
+	const lastScrollYRef = useRef( 0 )
+	const filterIdleTimerRef = useRef( null )
+	useMotionValueEvent( scrollY, 'change', ( latest ) => {
+		const delta = latest - lastScrollYRef.current
+		lastScrollYRef.current = latest
+		setNearScrollTop( latest < FILTER_ROW_MIN_SCROLL_PX )
+		if ( Math.abs( delta ) >= FILTER_ROW_SCROLL_NOISE_PX ) {
+			setScrollDirection( delta > 0 ? 'down' : 'up' )
+		}
+		clearTimeout( filterIdleTimerRef.current )
+		filterIdleTimerRef.current = setTimeout( () => {
+			setScrollDirection( 'idle' )
+		}, FILTER_ROW_IDLE_MS )
+	} )
+	useEffect( () => () => clearTimeout( filterIdleTimerRef.current ), [] )
+	const reduceMotion = useReducedMotion()
+	const showFilterRow =
+		scrollDirection !== 'down' ||
+		headerHovered ||
+		headerFocused ||
+		hasAnyFilter ||
+		nearScrollTop
 
 	const getItemKey = useCallback(
 		( i ) => ( i < groups.length ? groups[ i ].id : '__sentinel__' ),
@@ -1123,8 +1344,8 @@ export default function Dashboard( {
 		overscan: 3,
 		getItemKey,
 		scrollMargin,
-		// scrollToIndex (deep links, collapse-to-top below) targets the offset
-		// just below the sticky bar, not the document top hidden behind it.
+		// So a deep-linked collection (pendingScrollId) lands just below the
+		// sticky bar instead of behind it.
 		scrollPaddingStart: groupStickyTop,
 	} )
 	const virtualItems = v.getVirtualItems()
@@ -1147,6 +1368,31 @@ export default function Dashboard( {
 	const toggleCollapsed = useCallback(
 		( id ) => {
 			const collapsing = ! collapsedIds.has( id )
+
+			// Keep the clicked header exactly where it is on screen. When it's
+			// pinned to the sticky bar you've scrolled into the section;
+			// collapsing pulls the content out from under it and the shrunk
+			// section slides up, carrying the header away and surfacing the
+			// next one. The section's *top* doesn't move when it collapses, so
+			// anchoring the scroll to it (top flush under the bar) leaves the
+			// header sitting at the same spot. `row` is the non-sticky wrapper,
+			// so its rect is the section's true position, not the pinned one.
+			let anchorY = null
+			if ( collapsing ) {
+				const index = groups.findIndex( ( g ) => g.id === id )
+				const row =
+					index >= 0 &&
+					listRef.current?.querySelector(
+						`[data-index="${ index }"]`
+					)
+				if ( row ) {
+					const top = row.getBoundingClientRect().top + window.scrollY
+					if ( window.scrollY > top - groupStickyTop ) {
+						anchorY = Math.max( 0, top - groupStickyTop )
+					}
+				}
+			}
+
 			setCollapsedIds( ( prev ) => {
 				const next = new Set( prev )
 				if ( next.has( id ) ) {
@@ -1156,29 +1402,14 @@ export default function Dashboard( {
 				}
 				return next
 			} )
-			if ( ! collapsing ) {
-				return
-			}
-			// Collapsing a section whose header is pinned (you'd scrolled into
-			// it) would shrink it away above the fold and leave the *next*
-			// section at the top. Re-pin the collapsed section at the top
-			// instead. Only when its header is actually at/above the bar —
-			// collapsing one that's sitting lower on screen shouldn't yank the
-			// page. scrollToIndex re-applies itself as the collapse animates.
-			const index = groups.findIndex( ( g ) => g.id === id )
-			const row =
-				index >= 0 &&
-				listRef.current?.querySelector( `[data-index="${ index }"]` )
-			if (
-				row &&
-				row.getBoundingClientRect().top <= groupStickyTop + 1
-			) {
-				requestAnimationFrame( () =>
-					v.scrollToIndex( index, { align: 'start' } )
+
+			if ( anchorY !== null ) {
+				window.requestAnimationFrame( () =>
+					window.scrollTo( 0, anchorY )
 				)
 			}
 		},
-		[ collapsedIds, groups, groupStickyTop, v ]
+		[ collapsedIds, groups, groupStickyTop ]
 	)
 
 	// Fetch the next page once the sentinel/last row nears the viewport.
@@ -1386,6 +1617,20 @@ export default function Dashboard( {
 
 	const searching = query !== ''
 	const showGettextBoard = board === 'plugins'
+
+	// The Plugins & Themes board only understands "Untranslated only" — any
+	// other statusFilter value carried over from the Content board would sit
+	// in the URL doing nothing visible (the button reads "not pressed"). Drop
+	// it to 'all' on switch so the state matches what's shown.
+	useEffect( () => {
+		if (
+			showGettextBoard &&
+			statusFilter !== 'all' &&
+			statusFilter !== 'untranslated'
+		) {
+			setStatusFilter( 'all' )
+		}
+	}, [ showGettextBoard, statusFilter, setStatusFilter ] )
 	// Unfinished onboarding takes priority over every other board-body state —
 	// a fresh install always finishes setup before it can add a language.
 	const showNeedsOnboarding = ! onboardingCompleted
@@ -1425,6 +1670,15 @@ export default function Dashboard( {
 		! groupsQ.isPending &&
 		! showGroupsError &&
 		groups.length > 0
+	// The content board is up (in any of its states: loading, error, empty, or
+	// populated). The column-headers row — which carries the language switcher —
+	// rides with the board, not just the row list, so the switcher stays usable
+	// while content loads and the header doesn't pop in when rows arrive.
+	const showContentBoard =
+		! showGettextBoard &&
+		! showNeedsOnboarding &&
+		! showNoLanguages &&
+		! extractionPending
 
 	let emptyGroupsMessage =
 		'No translatable content found for this language yet.'
@@ -1721,6 +1975,7 @@ export default function Dashboard( {
 															refreshScan()
 														},
 													},
+													...providerMenuItems,
 												] }
 											/>
 										</div>
@@ -1835,6 +2090,7 @@ export default function Dashboard( {
 					} }
 				>
 					<div
+						ref={ cardRef }
 						style={ {
 							minHeight: 'calc(100vh - 100px)',
 							background: 'var(--p-color-bg-surface, #fff)',
@@ -1845,6 +2101,35 @@ export default function Dashboard( {
 					>
 						<div
 							ref={ stickyRef }
+							onMouseEnter={ () => setHeaderHovered( true ) }
+							onMouseLeave={ () => setHeaderHovered( false ) }
+							onFocusCapture={ () => setHeaderFocused( true ) }
+							onBlurCapture={ () => {
+								// Filters/Popover render into the body-level
+								// #lingowp-portals root, not as real DOM children
+								// of this header, so a plain relatedTarget check
+								// would read "Add filter" opening as focus leaving.
+								// Re-check where focus actually landed once the
+								// DOM has settled, against both the header itself
+								// and that portal root.
+								window.requestAnimationFrame( () => {
+									const doc = stickyRef.current?.ownerDocument
+									const active = doc?.activeElement
+									const inHeader =
+										!! active &&
+										stickyRef.current?.contains( active )
+									const inPortal =
+										!! active &&
+										doc
+											?.getElementById(
+												'lingowp-portals'
+											)
+											?.contains( active )
+									setHeaderFocused(
+										!! ( inHeader || inPortal )
+									)
+								} )
+							} }
 							style={ {
 								position: 'sticky',
 								top: 32,
@@ -1857,7 +2142,11 @@ export default function Dashboard( {
 							} }
 						>
 							<Box padding="200">
-								<BlockStack gap="200">
+								{ /* gap="0": the filter row below supplies its own
+								paddingBlockStart, inside the height-animated
+								element, so that padding collapses away with it
+								too instead of leaving a stray gap when hidden. */ }
+								<BlockStack gap="0">
 									{ /* Line 1: search (left) + AI translate all (right) */ }
 									<div
 										style={ {
@@ -1894,30 +2183,34 @@ export default function Dashboard( {
 											) }
 											variant="secondary"
 											disabled={
-												! ai.available ||
-												translatingAll
+												! ai.available || translatingAll
 											}
 											loading={ translatingAll }
 											size="large"
 											onClick={
 												billingBlocked
 													? handleAiBlocked
+													: showGettextBoard
+													? translateAllGettext
 													: translateAllInLanguage
 											}
 										>
 											Translate All
 										</Button>
 									</div>
-									{ /* Line 2: standard Polaris Filters (status) — these all
-									filter the Content board's collections/texts query, which
-									the Plugins & Themes board doesn't use. */ }
-									{ ! showGettextBoard && (
+									{ /* Plugins & Themes board: the only filter that
+									carries over is "Untranslated only" (same
+									statusFilter state, so it stays URL-shareable). The
+									full Polaris <Filters> row below is Content-board
+									only. */ }
+									{ showGettextBoard && (
 										<div
 											className="lingowp-filters"
 											style={ {
 												display: 'flex',
 												alignItems: 'center',
 												gap: 8,
+												paddingBlockStart: 8,
 											} }
 										>
 											<Button
@@ -1936,34 +2229,94 @@ export default function Dashboard( {
 											>
 												Untranslated only
 											</Button>
-											<Filters
-												hideQueryField
-												filters={ filters }
-												appliedFilters={
-													appliedFilters
-												}
-												onQueryChange={ () => {} }
-												onQueryClear={ () => {} }
-												onClearAll={ clearAllFilters }
-											/>
-											{ collapseToTarget && (
+										</div>
+									) }
+									{ /* Line 2: standard Polaris Filters (status) — these all
+									filter the Content board's collections/texts query, which
+									the Plugins & Themes board doesn't use. Adaptive: yields
+									its height while the user scrolls down through a long
+									list (showFilterRow), and comes right back on scroll-up,
+									idle, hover, focus, or an already-configured filter — see
+									the scroll tracking above. */ }
+									{ ! showGettextBoard && (
+										<motion.div
+											initial={ false }
+											animate={ {
+												height: showFilterRow
+													? 'auto'
+													: 0,
+												opacity: showFilterRow ? 1 : 0,
+											} }
+											transition={
+												reduceMotion
+													? { duration: 0.01 }
+													: {
+															type: 'spring',
+															stiffness: 430,
+															damping: 38,
+															mass: 0.8,
+													  }
+											}
+											style={ { overflow: 'hidden' } }
+										>
+											<div
+												className="lingowp-filters"
+												style={ {
+													display: 'flex',
+													alignItems: 'center',
+													gap: 8,
+													paddingBlockStart: 8,
+												} }
+											>
 												<Button
-													onClick={
-														openAllCollections
+													pressed={
+														statusFilter ===
+														'untranslated'
+													}
+													onClick={ () =>
+														setStatusFilter(
+															statusFilter ===
+																'untranslated'
+																? 'all'
+																: 'untranslated'
+														)
 													}
 												>
-													Open all collections
+													Untranslated only
 												</Button>
-											) }
-										</div>
+												<Filters
+													hideQueryField
+													filters={ filters }
+													appliedFilters={
+														appliedFilters
+													}
+													onQueryChange={ () => {} }
+													onQueryClear={ () => {} }
+													onClearAll={
+														clearAllFilters
+													}
+												/>
+												{ collapseToTarget && (
+													<Button
+														onClick={
+															openAllCollections
+														}
+													>
+														Open all collections
+													</Button>
+												) }
+											</div>
+										</motion.div>
 									) }
 								</BlockStack>
 							</Box>
 							{ /* Column headers ride inside the sticky bar so they
 							stay pinned above the list while scrolling, same as the
-							search/filter row. Content board only — GettextBoard
-							draws its own. */ }
-							{ showGroups && (
+							search/filter row. Shown for the whole content board
+							(incl. loading/empty) so the language switcher stays
+							available and the row doesn't pop in with the list.
+							GettextBoard draws its own. */ }
+							{ showContentBoard && (
 								<>
 									<Box paddingInlineStart="1000">
 										<Box
@@ -1986,13 +2339,109 @@ export default function Dashboard( {
 													</Text>
 												</Box>
 												<Box width="45%" minWidth="0">
-													<Text
-														as="span"
-														variant="bodySm"
-														tone="subdued"
+													<Popover
+														active={
+															langSwitcherOpen
+														}
+														preferredAlignment="left"
+														onClose={ () =>
+															setLangSwitcherOpen(
+																false
+															)
+														}
+														activator={
+															<button
+																type="button"
+																onClick={ () =>
+																	setLangSwitcherOpen(
+																		( o ) =>
+																			! o
+																	)
+																}
+																style={ {
+																	all: 'unset',
+																	cursor: 'pointer',
+																	display:
+																		'flex',
+																	alignItems:
+																		'center',
+																	gap: 4,
+																	maxWidth:
+																		'100%',
+																} }
+															>
+																<span
+																	style={ {
+																		minWidth: 0,
+																		overflow:
+																			'hidden',
+																		textOverflow:
+																			'ellipsis',
+																		whiteSpace:
+																			'nowrap',
+																		marginTop: 1,
+																	} }
+																>
+																	<Text
+																		as="span"
+																		variant="bodySm"
+																		tone="subdued"
+																	>
+																		{
+																			translationLabel
+																		}
+																	</Text>
+																</span>
+																<Text
+																	as="span"
+																	variant="bodySm"
+																	tone="subdued"
+																>
+																	▾
+																</Text>
+															</button>
+														}
 													>
-														{ translationLabel }
-													</Text>
+														<ActionList
+															items={ sortedLanguages.map(
+																( l ) => ( {
+																	content:
+																		langLabel(
+																			l
+																		),
+																	prefix: (
+																		<FlagIcon
+																			src={ flagIconUrl(
+																				l
+																			) }
+																			size={
+																				16
+																			}
+																			// Lighter than the sidebar's 0.8 — full desaturation read as too
+																			// heavy against this popover's surface.
+																			grayscale={
+																				l.enabled
+																					? false
+																					: 0.35
+																			}
+																		/>
+																	),
+																	active:
+																		l.code ===
+																		selectedLang,
+																	onAction:
+																		() => {
+																			setSelectedLang(
+																				l.code
+																			)
+																			setLangSwitcherOpen(
+																				false
+																			)
+																		},
+																} )
+															) }
+														/>
+													</Popover>
 												</Box>
 												<Box width="16%" />
 											</InlineStack>
@@ -2067,6 +2516,9 @@ export default function Dashboard( {
 									<GettextBoard
 										language={ selectedLang }
 										search={ query }
+										untranslatedOnly={
+											statusFilter === 'untranslated'
+										}
 										originalLabel={ originalLabel }
 										translationLabel={ translationLabel }
 										sourceLabel={ originalLabel }
@@ -2182,9 +2634,6 @@ export default function Dashboard( {
 												) : (
 													<CollectionGroup
 														collection={ c }
-														stickyTop={
-															groupStickyTop
-														}
 														language={
 															selectedLang
 														}
@@ -2323,40 +2772,45 @@ export default function Dashboard( {
 					/>
 				</Suspense>
 			) }
-			<CompareOverlay
-				open={ !! overlayUnit }
-				unit={ overlayUnit }
-				language={ selectedLang }
-				collectionId={ overlay?.cid }
-				languages={ languages }
-				sourceLabel={ originalLabel }
-				sourceFlag={ sourceFlag }
-				targetDir={
-					languages.find( ( l ) => l.code === selectedLang )
-						?.direction || 'ltr'
-				}
-				aiAvailable={ ai.available }
-				onAiTranslate={ translateScope }
-				onPickLanguage={ setSelectedLang }
-				onOpenPreview={ openCanvas }
-				onClose={ () => setOverlay( null ) }
-				onSaved={ ( patch ) =>
-					overlay && afterMutate( overlay.cid, patch )
-				}
-				onLengthWarning={ showLengthWarning }
-				hasPrev={ globalIndex > 0 }
-				hasNext={
-					globalIndex >= 0 && globalIndex < orderFlat.length - 1
-				}
-				onPrev={ () => {
-					const prev = orderFlat[ globalIndex - 1 ]
-					setOverlay( { id: prev.id, cid: prev.cid } )
-				} }
-				onNext={ () => {
-					const next = orderFlat[ globalIndex + 1 ]
-					setOverlay( { id: next.id, cid: next.cid } )
-				} }
-			/>
+			{ overlayEverOpened && (
+				<Suspense fallback={ null }>
+					<CompareOverlay
+						open={ !! overlayUnit }
+						unit={ overlayUnit }
+						language={ selectedLang }
+						collectionId={ overlay?.cid }
+						languages={ languages }
+						sourceLabel={ originalLabel }
+						sourceFlag={ sourceFlag }
+						targetDir={
+							languages.find( ( l ) => l.code === selectedLang )
+								?.direction || 'ltr'
+						}
+						aiAvailable={ ai.available }
+						onAiTranslate={ translateScope }
+						onPickLanguage={ setSelectedLang }
+						onOpenPreview={ openCanvas }
+						onClose={ () => setOverlay( null ) }
+						onSaved={ ( patch ) =>
+							overlay && afterMutate( overlay.cid, patch )
+						}
+						onLengthWarning={ showLengthWarning }
+						hasPrev={ globalIndex > 0 }
+						hasNext={
+							globalIndex >= 0 &&
+							globalIndex < orderFlat.length - 1
+						}
+						onPrev={ () => {
+							const prev = orderFlat[ globalIndex - 1 ]
+							setOverlay( { id: prev.id, cid: prev.cid } )
+						} }
+						onNext={ () => {
+							const next = orderFlat[ globalIndex + 1 ]
+							setOverlay( { id: next.id, cid: next.cid } )
+						} }
+					/>
+				</Suspense>
+			) }
 			<ConfirmDialog
 				confirm={ confirm }
 				onClose={ () => setConfirm( null ) }
@@ -2407,7 +2861,6 @@ function ConfirmDialog( { confirm, onClose } ) {
 
 function CollectionGroup( {
 	collection,
-	stickyTop = 0,
 	language,
 	targetDir,
 	search,
@@ -2630,7 +3083,10 @@ function CollectionGroup( {
 				onMouseLeave={ () => setHovered( false ) }
 				style={ {
 					position: 'sticky',
-					top: stickyTop,
+					// Set imperatively by Dashboard (a CSS var, not a prop) so
+					// it tracks the sticky bar's height every animation frame
+					// without forcing this whole tree to re-render for it.
+					top: 'var(--lingowp-group-sticky-top, 32px)',
 					zIndex: 1,
 					// Opaque: a pinned collapsed header's inner Box has no
 					// background, so without this the rows of the group below
@@ -2650,6 +3106,8 @@ function CollectionGroup( {
 						<button
 							type="button"
 							onClick={ onToggleCollapsed }
+							aria-expanded={ open }
+							aria-controls={ `col-${ c.id }` }
 							style={ {
 								all: 'unset',
 								cursor: 'pointer',
@@ -2754,70 +3212,94 @@ function CollectionGroup( {
 					</InlineStack>
 				</Box>
 			</div>
-			<Collapsible open={ open } id={ `col-${ c.id }` }>
-				<Box paddingBlockEnd="200" paddingInlineStart="1000">
-					{ textsQ.isPending && (
-						<Box padding="300">
-							<Spinner
-								accessibilityLabel="Loading texts"
-								size="small"
-							/>
-						</Box>
-					) }
-					{ ! textsQ.isPending && textsQ.isError && (
-						<Box padding="300">
-							<Text as="p" tone="critical" variant="bodySm">
-								Could not load texts for this group.
-							</Text>
-						</Box>
-					) }
-					{ ! textsQ.isPending && ! textsQ.isError && (
-						<>
-							{ rows.map( ( t ) => (
-								<TextUnitRow
-									key={ t.id }
-									unit={ t }
-									language={ language }
-									targetDir={ targetDir }
-									collectionId={ c.id }
-									onMutate={ onMutate }
-									onConfirm={ onConfirm }
-									aiAvailable={ aiAvailable }
-									onAiTranslate={ onAiTranslate }
-									billingBlocked={ billingBlocked }
-									onAiBlocked={ onAiBlocked }
-									onOpenOverlay={ ( unit ) =>
-										onOpenOverlay( unit, c.id )
-									}
-									onLengthWarning={ onLengthWarning }
-									onActionError={ onActionError }
-								/>
-							) ) }
-							{ allTexts.length > shown && (
+			{ /* Height-eased open/close. `initial={false}` so groups already
+			open on first paint don't all animate in. The row wrapper still
+			re-measures each frame of the tween, but with the scroll anchor in
+			toggleCollapsed doing the pinning there's no scrollToIndex reconcile
+			fighting it, so it stays smooth. */ }
+			<AnimatePresence initial={ false }>
+				{ open && (
+					<motion.div
+						key="body"
+						id={ `col-${ c.id }` }
+						initial={ { height: 0, opacity: 0 } }
+						animate={ { height: 'auto', opacity: 1 } }
+						exit={ { height: 0, opacity: 0 } }
+						transition={ {
+							duration: 0.26,
+							ease: [ 0.4, 0, 0.2, 1 ],
+						} }
+						style={ { overflow: 'hidden' } }
+					>
+						<Box paddingBlockEnd="200" paddingInlineStart="1000">
+							{ textsQ.isPending && (
 								<Box padding="300">
-									<Button
-										onClick={ () =>
-											setShown( ( n ) =>
-												Math.min(
-													n + TEXT_BATCH,
-													allTexts.length
-												)
-											)
-										}
-									>
-										Show{ ' ' }
-										{ Math.min(
-											TEXT_BATCH,
-											allTexts.length - shown
-										) }{ ' ' }
-										more
-									</Button>
+									<Spinner
+										accessibilityLabel="Loading texts"
+										size="small"
+									/>
 								</Box>
 							) }
-						</>
-					) }
-				</Box>
-			</Collapsible>
+							{ ! textsQ.isPending && textsQ.isError && (
+								<Box padding="300">
+									<Text
+										as="p"
+										tone="critical"
+										variant="bodySm"
+									>
+										Could not load texts for this group.
+									</Text>
+								</Box>
+							) }
+							{ ! textsQ.isPending && ! textsQ.isError && (
+								<>
+									{ rows.map( ( t ) => (
+										<TextUnitRow
+											key={ t.id }
+											unit={ t }
+											language={ language }
+											targetDir={ targetDir }
+											collectionId={ c.id }
+											onMutate={ onMutate }
+											onConfirm={ onConfirm }
+											aiAvailable={ aiAvailable }
+											onAiTranslate={ onAiTranslate }
+											billingBlocked={ billingBlocked }
+											onAiBlocked={ onAiBlocked }
+											onOpenOverlay={ ( unit ) =>
+												onOpenOverlay( unit, c.id )
+											}
+											onLengthWarning={ onLengthWarning }
+											onActionError={ onActionError }
+										/>
+									) ) }
+									{ allTexts.length > shown && (
+										<Box padding="300">
+											<Button
+												onClick={ () =>
+													setShown( ( n ) =>
+														Math.min(
+															n + TEXT_BATCH,
+															allTexts.length
+														)
+													)
+												}
+											>
+												Show{ ' ' }
+												{ Math.min(
+													TEXT_BATCH,
+													allTexts.length - shown
+												) }{ ' ' }
+												more
+											</Button>
+										</Box>
+									) }
+								</>
+							) }
+						</Box>
+					</motion.div>
+				) }
+			</AnimatePresence>
 			<Divider />
 		</Box>
 	)
@@ -3242,7 +3724,11 @@ function TextUnitRow( {
 							wrap={ false }
 						>
 							{ SEO_FIELD_BADGE[ unit.seo_field ] && (
-								<Badge tone="info" size="small" className="text-nowrap">
+								<Badge
+									tone="info"
+									size="small"
+									className="text-nowrap"
+								>
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
 							) }
@@ -3280,7 +3766,9 @@ function TextUnitRow( {
 									}
 									style={ {
 										whiteSpace: 'nowrap',
-										cursor: isReview ? 'pointer' : 'default',
+										cursor: isReview
+											? 'pointer'
+											: 'default',
 										userSelect: 'none',
 									} }
 								>
@@ -3289,7 +3777,8 @@ function TextUnitRow( {
 										size="small"
 										className="text-nowrap"
 										icon={
-											unit.is_ai && badge.label === 'Ready'
+											unit.is_ai &&
+											badge.label === 'Ready'
 												? ( props ) => (
 														<AiIcon
 															{ ...props }

@@ -49,6 +49,7 @@ final class LanguageRestController
         register_rest_route(self::NS, '/languages', ['methods' => 'POST', 'callback' => [$this, 'create']] + $guard);
         register_rest_route(self::NS, '/languages/catalog', ['methods' => 'GET', 'callback' => [$this, 'catalog']] + $guard);
         register_rest_route(self::NS, '/languages/targets', ['methods' => 'GET', 'callback' => [$this, 'targets']] + $guard);
+        register_rest_route(self::NS, '/languages/ai-model', ['methods' => 'POST', 'callback' => [$this, 'updateAiModelForAll']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
         register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)/use-fallback', ['methods' => 'POST', 'callback' => [$this, 'useFallback']] + $guard);
@@ -248,6 +249,26 @@ final class LanguageRestController
             'ok'       => true,
             'language' => $this->store->get($code),
             'enabled'  => in_array($code, $this->registry->getTargetLanguages(), true),
+        ]);
+    }
+
+    /**
+     * Set every configured language's AI model in one option write. Backs the
+     * settings-popover "Use LingoWP AI model" / "Use your <provider> key" bulk
+     * action — a client PATCH-per-language loop races itself on the shared
+     * lingowp_languages option, so this does it atomically.
+     */
+    public function updateAiModelForAll(WP_REST_Request $request): WP_REST_Response
+    {
+        $model   = (string) $request->get_param('ai_model');
+        $allowed = ['internal', 'auto', 'openai', 'anthropic'];
+        if (!in_array($model, $allowed, true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        return rest_ensure_response([
+            'ok'      => true,
+            'changed' => $this->store->setAiModelForAll($model),
         ]);
     }
 

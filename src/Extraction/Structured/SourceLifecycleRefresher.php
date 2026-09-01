@@ -3,6 +3,7 @@
 namespace LingoWP\Extraction\Structured;
 
 use LingoWP\Shared\Source\TranslatableTermMetaKeys;
+use LingoWP\Shared\Source\Type\UserSource;
 
 /**
  * Wires save-time structured discovery to WordPress lifecycle hooks (data
@@ -20,9 +21,11 @@ use LingoWP\Shared\Source\TranslatableTermMetaKeys;
  * - Meta written outside a post save (importers, frontend forms, cron):
  *   added_post_meta / updated_post_meta, single-key re-scan.
  * - Terms (type 3): created_term / edited_term (both pass term_taxonomy_id).
- * - Author bio (type 4): added_user_meta / updated_user_meta / deleted_user_meta,
- *   filtered to the 'description' key — wp_insert_user()/wp_update_user() write
- *   it through update_user_meta(), so these already cover profile saves.
+ * - User fields (type 4): added_user_meta / updated_user_meta / deleted_user_meta,
+ *   filtered to UserSource::allowedFields() — 'description' (the author bio) by
+ *   default; a site/add-on opts a key in via the `lingowp_user_source_fields`
+ *   filter. wp_insert_user()/wp_update_user() write bio through
+ *   update_user_meta(), so these already cover profile saves.
  * - Term meta (type 5): added_term_meta / updated_term_meta / deleted_term_meta,
  *   filtered to TranslatableTermMetaKeys::keys() — a site opts a key in via the
  *   `lingowp_translatable_term_meta_keys` filter.
@@ -130,7 +133,7 @@ final class SourceLifecycleRefresher
     {
         unset($metaId, $metaValue);
 
-        if ($objectId <= 0 || $metaKey !== 'description') {
+        if ($objectId <= 0 || !in_array($metaKey, UserSource::allowedFields(), true)) {
             return;
         }
 

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from '@wordpress/element'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from '../api'
 import { PENDING_WORDS_KEY } from '../billingKeys'
+import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
 
@@ -1031,16 +1032,10 @@ export default function BillingSubscription() {
 
 		if ( initialLoadError ) {
 			return (
-				<Card>
-					<BlockStack gap="200">
-						<Text as="p" tone="critical">
-							{ errorMessage( initialLoadError ) }
-						</Text>
-						<InlineStack>
-							<Button onClick={ retryInitialLoad }>Retry</Button>
-						</InlineStack>
-					</BlockStack>
-				</Card>
+				<ConnectionErrorCard
+					error={ initialLoadError }
+					onRetry={ retryInitialLoad }
+				/>
 			)
 		}
 

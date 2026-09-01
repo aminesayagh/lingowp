@@ -18,7 +18,7 @@ const languageLabel = ( item ) => {
 	return native && native !== english ? `${ english } — ${ native }` : english
 }
 
-export default function GeneralConfiguration( { defaultLanguage } ) {
+export default function GeneralConfiguration( { defaultLanguage, onSaved } ) {
 	const [ prefix, setPrefix ] = useState( false )
 	const [ cookie, setCookie ] = useState( true )
 	const [ browser, setBrowser ] = useState( false )
@@ -137,9 +137,12 @@ export default function GeneralConfiguration( { defaultLanguage } ) {
 			return
 		}
 		if ( res.ok ) {
+			// The modal closes right after a successful save (see onSaved),
+			// so there's no one left to show a "Configuration saved." banner
+			// to — the close itself is the confirmation.
 			setInitialPrefix( prefix )
 			setPrefixToast( null )
-			setNotice( { tone: 'success', content: 'Configuration saved.' } )
+			onSaved?.()
 			return
 		}
 		const errors = {

@@ -38,6 +38,8 @@
 			"@php tests/ai_queue_config_check.php",
 			"@php tests/ai_queue_logic_check.php",
 			"@php tests/fallback_chain_check.php",
+			"@php tests/gettext_hash_check.php",
+			"@php tests/gettext_ai_hash_check.php",
 			"@php bin/check-split-field.php"
 		],
 		"test:db": [
@@ -49,6 +51,7 @@
 			"./wp eval-file tests/db/block_attribute_content_it.php",
 			"./wp eval-file tests/db/woocommerce_it.php",
 			"./wp eval-file tests/db/acf_it.php",
+			"./wp eval-file tests/db/elementor_it.php",
 			"./wp eval-file tests/db/option_pipeline_it.php",
 			"./wp eval-file tests/db/reconcile_it.php",
 			"./wp eval-file tests/db/board_search_it.php",
@@ -58,7 +61,10 @@
 			"./wp eval-file tests/db/multilingual_redirects_it.php",
 			"./wp eval-file tests/db/language_url_it.php",
 			"./wp eval-file tests/db/ai_pending_it.php",
-			"./wp eval-file tests/db/ai_result_applier_it.php"
+			"./wp eval-file tests/db/ai_result_applier_it.php",
+			"./wp eval-file tests/db/gettext_unit_it.php",
+			"./wp eval-file tests/db/gettext_merge_it.php",
+			"./wp eval-file tests/db/gettext_ai_it.php"
 		],
 		"security": "sh -c 'rc=0; for t in phpcs deps secrets semgrep; do echo \"--- $t ---\"; composer run --no-interaction security:$t || rc=1; done; exit $rc'",
 		"security:phpcs": "phpcs --report-summary --report-full=security-reports/phpcs-full.log --report-source=security-reports/phpcs-sniffs.log --report-json=security-reports/phpcs.json --no-colors",

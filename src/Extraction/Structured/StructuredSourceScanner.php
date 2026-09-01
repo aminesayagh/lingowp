@@ -111,8 +111,14 @@ final class StructuredSourceScanner
     }
 
     /**
-     * Save-time discovery for one user's author bio (type 4). A single scannable
-     * field ('description') — no allow-list needed, unlike post meta or options.
+     * Save-time discovery for one user's translatable fields (type 4) — the
+     * author bio ('description') by default, plus whatever an add-on extends
+     * via UserSource::allowedFields(). Every allow-listed field is read and
+     * reconciled together in ONE call: reconcileUser() scopes by user_id
+     * alone (not per field), so reconciling just one field independently
+     * would silently delete every other field's translation — same reasoning
+     * as refreshTermMeta() below reconciling all of TranslatableTermMetaKeys
+     * together.
      */
     public function refreshUser(int $userId): void
     {
@@ -120,8 +126,13 @@ final class StructuredSourceScanner
             return;
         }
 
-        $bio     = (string) get_user_meta($userId, 'description', true);
-        $records = TranslationKey::normalize($bio) === '' ? [] : [new UserSource($userId, 'description', $bio)];
+        $records = [];
+        foreach (UserSource::allowedFields() as $field) {
+            $value = (string) get_user_meta($userId, $field, true);
+            if (TranslationKey::normalize($value) !== '') {
+                $records[] = new UserSource($userId, $field, $value);
+            }
+        }
 
         $this->repository->reconcileUser($userId, $records);
     }
@@ -225,6 +236,18 @@ final class StructuredSourceScanner
                 $value = get_post_meta($post->ID, $metaKey, true);
                 array_push($records, ...$this->metaCandidates($post->ID, $metaKey, $value));
             }
+        }
+
+        // Lets an add-on (lingowp-elementor, a future lingowp-bricks, …) contribute
+        // additional records into this SAME atomic reconcile, for content a
+        // page-builder plugin stores outside real post_content/postmeta entirely.
+        // Must be additive, never a separate reconcile call of the add-on's own:
+        // reconcilePost() deletes anything in scope not present in $records, so a
+        // partial-scope call would wipe out the post's title/body on the very next
+        // save — the exact bug class already caught once this session elsewhere.
+        if (function_exists('apply_filters')) {
+            $filtered = apply_filters('lingowp_post_source_records', $records, $post);
+            $records  = is_array($filtered) ? $filtered : $records;
         }
 
         return $records;

@@ -71,8 +71,11 @@ class ResetPageController
 
     public function addMenu(): void
     {
+        // ponytail: null parent = page stays reachable at
+        // admin.php?page=lingowp-reset but no sidebar link. Pass self::PARENT
+        // again to bring the "Reset Data" nav item back.
         add_submenu_page(
-            self::PARENT,
+            null,
             __('Reset Translation Data', 'lingowp'),
             __('Reset Data', 'lingowp'),
             self::CAPABILITY,

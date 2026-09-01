@@ -396,6 +396,15 @@ final class SeoHeadTranslator
      * know. A capture from `%customfield(company_code)%` could coincidentally
      * equal some unrelated translated string, so a blind hash lookup across the
      * whole memory would corrupt it. Anything unrecognised is returned verbatim.
+     *
+     * $name is in whatever vocabulary the grammar that produced it uses —
+     * Yoast/Rank Math already happen to spell these the same way `$known`
+     * does ('title', 'sitename', ...), but a third grammar (AIOSEO's own
+     * `#post_title`/`#site_title`/...) doesn't, so it's mapped to the shared
+     * canonical name here via `lingowp_seo_template_token_aliases` before the
+     * lookup. Empty by default in core — an add-on registers its own
+     * grammar's aliases, same delegation as the grammars/descriptors
+     * themselves.
      */
     private function translateCapture(string $name, string $captured, int $postId, string $lang): string
     {
@@ -408,6 +417,8 @@ final class SeoHeadTranslator
             'sitedesc' => [(string) get_option('blogdescription'), 'option'],
         ];
 
+        $name = self::canonicalTokenName($name);
+
         if (!isset($known[$name])) {
             return $captured;
         }
@@ -418,6 +429,16 @@ final class SeoHeadTranslator
         }
 
         return $this->translatedHash($table, $source, $lang) ?? $captured;
+    }
+
+    /** @return string A canonical $known key ('title', 'sitename', ...), or $name unchanged. */
+    private static function canonicalTokenName(string $name): string
+    {
+        $aliases = function_exists('apply_filters')
+            ? apply_filters('lingowp_seo_template_token_aliases', [])
+            : [];
+
+        return is_array($aliases) ? (string) ($aliases[$name] ?? $name) : $name;
     }
 
     /**

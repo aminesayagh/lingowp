@@ -44,6 +44,23 @@ final class BillingRestController
 
         register_rest_route(self::NS, '/billing/plans', ['methods' => 'GET', 'callback' => [$this, 'plans']] + $guard);
         register_rest_route(self::NS, '/billing/packs', ['methods' => 'GET', 'callback' => [$this, 'packs']] + $guard);
+        register_rest_route(self::NS, '/billing/addons', ['methods' => 'GET', 'callback' => [$this, 'addons']] + $guard);
+        register_rest_route(self::NS, '/billing/addons/order', ['methods' => 'POST', 'callback' => [$this, 'orderAddon']] + $guard);
+        register_rest_route(
+            self::NS,
+            '/billing/addons/orders/(?P<order_id>[^/]+)/capture',
+            ['methods' => 'POST', 'callback' => [$this, 'captureAddonOrder']] + $guard
+        );
+        register_rest_route(
+            self::NS,
+            '/billing/addons/(?P<addon_id>[^/]+)/install',
+            ['methods' => 'POST', 'callback' => [$this, 'installAddon']] + $guard
+        );
+        register_rest_route(
+            self::NS,
+            '/billing/addons/coming-soon/(?P<slug>[^/]+)/notify',
+            ['methods' => 'POST', 'callback' => [$this, 'notifyComingSoon']] + $guard
+        );
         register_rest_route(self::NS, '/billing/entitlements', ['methods' => 'GET', 'callback' => [$this, 'entitlements']] + $guard);
         register_rest_route(self::NS, '/billing/transactions', ['methods' => 'GET', 'callback' => [$this, 'transactions']] + $guard);
         register_rest_route(self::NS, '/billing/usage', ['methods' => 'GET', 'callback' => [$this, 'usage']] + $guard);
@@ -83,6 +100,101 @@ final class BillingRestController
         $result = $this->backendClient->getPacks();
 
         return rest_ensure_response(['ok' => $result['ok'], 'packs' => $result['data']['packs'] ?? [], 'error' => $result['error']]);
+    }
+
+    /** ?lang= falls back to this site's admin locale (base language, e.g. 'fr-CA' -> 'fr'). */
+    public function addons(WP_REST_Request $request): WP_REST_Response
+    {
+        $lang = sanitize_text_field((string) $request->get_param('lang'));
+        if ($lang === '') {
+            $lang = substr(get_locale(), 0, 2);
+        }
+
+        $result = $this->backendClient->getAddons($lang);
+
+        return rest_ensure_response([
+            'ok'          => $result['ok'],
+            'categories'  => $result['data']['categories'] ?? [],
+            'addons'      => $result['data']['addons'] ?? [],
+            'coming_soon' => $result['data']['coming_soon'] ?? [],
+            'error'       => $result['error'],
+        ]);
+    }
+
+    /** Payload: { addon_id }. Success data: { order_id, approve_url } — redirect the browser, nothing charged yet. */
+    public function orderAddon(WP_REST_Request $request): WP_REST_Response
+    {
+        $addonId = sanitize_text_field((string) $request->get_param('addon_id'));
+        if ($addonId === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
+        }
+
+        $result = $this->backendClient->orderAddon($addonId);
+
+        return rest_ensure_response([
+            'ok'          => $result['ok'],
+            'order_id'    => $result['data']['order_id'] ?? null,
+            'approve_url' => $result['data']['approve_url'] ?? null,
+            'error'       => $result['error'],
+        ]);
+    }
+
+    /** Called after the PayPal approval redirect returns. `status` is NOT proof of ownership — the caller must keep polling GET /billing/addons. */
+    public function captureAddonOrder(WP_REST_Request $request): WP_REST_Response
+    {
+        $orderId = sanitize_text_field((string) $request->get_param('order_id'));
+        $result  = $this->backendClient->captureAddonOrder($orderId);
+
+        return rest_ensure_response(['ok' => $result['ok'], 'status' => $result['data']['status'] ?? null, 'error' => $result['error']]);
+    }
+
+    /**
+     * Downloads the add-on zip and installs+activates it directly on this
+     * site — used both for a not-yet-owned free add-on ("Add now", which
+     * also claims ownership server-side on first download) and an owned
+     * add-on that isn't installed here yet ("Install now", e.g. ownership
+     * came from another site under the same license). `product` comes from
+     * the request body rather than re-resolving the catalog server-side —
+     * the frontend already has the full addon object from GET /billing/addons.
+     */
+    public function installAddon(WP_REST_Request $request): WP_REST_Response
+    {
+        $addonId = sanitize_text_field((string) $request->get_param('addon_id'));
+        $product = sanitize_text_field((string) $request->get_param('product'));
+        if ($addonId === '' || $product === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
+        }
+
+        $download = $this->backendClient->downloadAddonZip($addonId);
+        if (! $download['ok']) {
+            return rest_ensure_response(['ok' => false, 'error' => $download['error']]);
+        }
+
+        $result = (new AddonInstaller())->install((string) $download['data'], $product);
+
+        return rest_ensure_response(['ok' => $result['ok'], 'error' => $result['error']]);
+    }
+
+    /**
+     * A coming-soon card's "Notify me" — mirrors InsightsRestController::notify()'s
+     * pattern exactly: no dedicated notify endpoint, just the existing
+     * support-suggestion route with a fixed machine-readable message per slug.
+     * No local persistence; a page reload always shows the button's default state.
+     */
+    public function notifyComingSoon(WP_REST_Request $request): WP_REST_Response
+    {
+        if (! $this->connection->isConnected()) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_NOT_CONNECTED'], 200);
+        }
+
+        $slug = sanitize_text_field((string) $request->get_param('slug'));
+        if ($slug === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
+        }
+
+        $result = $this->backendClient->submitSupportSuggestion("feature_interest:addon_{$slug}");
+
+        return rest_ensure_response(['ok' => $result['ok'], 'error' => $result['error']]);
     }
 
     public function entitlements(WP_REST_Request $request): WP_REST_Response

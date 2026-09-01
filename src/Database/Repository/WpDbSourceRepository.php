@@ -1576,6 +1576,26 @@ final class WpDbSourceRepository
     }
 
     /**
+     * Reconcile one term + meta key's parents. Same delete-stale rule as
+     * reconcilePostMetaKey(), scoped to just this key: for a value that isn't
+     * real term meta at all (a plugin's own external representation, synced
+     * in under a synthetic key — e.g. lingowp-seo's Yoast term-breadcrumb
+     * sync), reconcileTermMeta()'s term_id-only scope would wrongly delete
+     * every OTHER key's rows for that same term on every sync.
+     *
+     * @param SourceRecord[] $records
+     */
+    public function reconcileTermMetaKey(int $termId, string $metaKey, array $records): void
+    {
+        $this->reconcileScope(
+            'term_meta',
+            'term_id = %d AND meta_key_hash = UNHEX(%s)',
+            [$termId, bin2hex(hash('sha256', $metaKey, true))],
+            $records
+        );
+    }
+
+    /**
      * Reconcile one wp_options row's parents. Same delete-stale + carry-forward
      * rule as posts/terms, scoped to a single option_id: an edited tagline keeps
      * its translation, re-attached to the new text as needs_review.

@@ -2,9 +2,13 @@ import { Icon } from '@shopify/polaris'
 import { GlobeIcon } from '@shopify/polaris-icons'
 import { useState } from '@wordpress/element'
 
-// Country code fallback per language code, for locales whose region can't be
-// resolved any other way (LocaleNormalizer::region() returns '' for a locale
-// with no region segment — real for some catalog entries, not hypothetical).
+// Flag fallback per language code, for WordPress locales that carry no region
+// segment (LocaleNormalizer::region() returns '' — real for ~56 catalog
+// entries: Greek `el`, Japanese `ja`, Finnish `fi`, Esperanto `eo`, …). Values
+// are a flag-icons filename stem: a 2-letter country code, a subdivision slug
+// (`gb-wls`, `es-ct`, `es-pv`, `gb-sct`), or `eo` for the bundled Esperanto
+// flag. Only used when the locale itself has no region — a regioned locale
+// like fr_CA still resolves to `ca`, not the `fr` fallback.
 const REGION_FALLBACK = {
 	fr: 'FR',
 	es: 'ES',
@@ -14,11 +18,65 @@ const REGION_FALLBACK = {
 	nl: 'NL',
 	ar: 'MA',
 	en: 'US',
+	af: 'ZA',
+	am: 'ET',
+	arg: 'ES',
+	ary: 'MA',
+	as: 'IN',
+	az: 'AZ',
+	azb: 'IR',
+	bel: 'BY',
+	ca: 'es-ct',
+	ceb: 'PH',
+	ckb: 'IQ',
+	cy: 'gb-wls',
+	dsb: 'DE',
+	dzo: 'BT',
+	el: 'GR',
+	eo: 'EO',
+	et: 'EE',
+	eu: 'es-pv',
+	fi: 'FI',
+	fur: 'IT',
+	fy: 'NL',
+	gd: 'gb-sct',
+	gu: 'IN',
+	haz: 'AF',
+	hr: 'HR',
+	hsb: 'DE',
+	hy: 'AM',
+	ja: 'JP',
+	kab: 'DZ',
+	kir: 'KG',
+	kk: 'KZ',
+	km: 'KH',
+	kn: 'IN',
+	lo: 'LA',
+	lv: 'LV',
+	mn: 'MN',
+	mr: 'IN',
+	oci: 'FR',
+	pcm: 'NG',
+	ps: 'AF',
+	sah: 'RU',
+	skr: 'PK',
+	snd: 'PK',
+	sq: 'AL',
+	sw: 'TZ',
+	szl: 'PL',
+	tah: 'PF',
+	te: 'IN',
+	th: 'TH',
+	tl: 'PH',
+	uk: 'UA',
+	ur: 'PK',
+	vi: 'VN',
+	yor: 'NG',
 }
 
 /**
- * Resolve a language to its flag image URL, or null when no 2-letter region
- * can be determined at all (globe fallback territory).
+ * Resolve a language to its flag image URL, or null when nothing maps (globe
+ * fallback territory — e.g. Tibetan `bo`, Rohingya `rhg`).
  * @param {Object} lang Language metadata.
  */
 export function flagIconUrl( lang ) {
@@ -27,9 +85,11 @@ export function flagIconUrl( lang ) {
 		cc = ( lang.locale.split( /[_-]/ )[ 1 ] || '' ).trim()
 	}
 	if ( cc.length !== 2 ) {
+		// Curated fallback — its values may be a subdivision slug, not just a
+		// 2-letter code, so this branch isn't length-checked.
 		cc = REGION_FALLBACK[ lang.code ] || ''
 	}
-	if ( cc.length !== 2 ) {
+	if ( ! cc ) {
 		return null
 	}
 
@@ -39,8 +99,13 @@ export function flagIconUrl( lang ) {
 // Flags are 4:3, not square — a fixed height with width derived from it avoids
 // squashing them into a square box.
 // `grayscale`: draft languages show a desaturated flag so their unpublished
-// state is visible at a glance, without a separate badge.
+// state is visible at a glance, without a separate badge. Accepts `true`
+// (the usual 0.8, sidebar/manager rows) or a 0-1 amount for a lighter touch
+// (e.g. the header switcher's popover, where full desaturation read as too
+// heavy against that surface).
 export function FlagIcon( { src, size = 16, grayscale = false } ) {
+	const grayscaleAmount =
+		typeof grayscale === 'number' ? grayscale : grayscale ? 0.8 : 0
 	const [ broken, setBroken ] = useState( false )
 
 	if ( ! src || broken ) {
@@ -64,7 +129,9 @@ export function FlagIcon( { src, size = 16, grayscale = false } ) {
 				borderRadius: 2,
 				objectFit: 'cover',
 				flexShrink: 0,
-				filter: grayscale ? 'grayscale(0.8)' : undefined,
+				filter: grayscaleAmount
+					? `grayscale(${ grayscaleAmount })`
+					: undefined,
 			} }
 		/>
 	)

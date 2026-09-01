@@ -75,6 +75,10 @@ ok('locale preserves WordPress variant', LocaleNormalizer::normalize('de_DE_form
 ok('locale exposes base language', LocaleNormalizer::language('pt_BR') === 'pt');
 ok('locale exposes region', LocaleNormalizer::region('pt_BR') === 'BR');
 ok('locale accepts a regionless WordPress locale', LocaleNormalizer::normalize('ar') === 'ar');
+// Relied on by GettextOnlineTranslationFetcher::pickPackages() for same-base
+// grouping — a hyphenated code still splits, garbage normalizes to ''.
+ok('locale base language splits a hyphenated code', LocaleNormalizer::language('en-NZ') === 'en');
+ok('locale base language of garbage is empty', LocaleNormalizer::language('') === '');
 
 // ── B. Eight classes over seven kinds ────────────────────────────────────────
 // SplitPostSource shares PostSource's kind AND its identity columns — that

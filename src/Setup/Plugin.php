@@ -3,6 +3,7 @@
 namespace LingoWP\Setup;
 
 use LingoWP\Admin\AdminAssets;
+use LingoWP\Admin\ForeignNoticeSuppressor;
 use LingoWP\GettextDomains\InstalledGettextComponentDiscovery;
 use LingoWP\Language\Application\ResolveRequestLanguage;
 use LingoWP\Language\Application\SourceLanguageTransition;
@@ -67,9 +68,10 @@ use LingoWP\AiTranslation\AiTranslationController;
 use LingoWP\AiTranslation\AiTaskSubmitter;
 use LingoWP\AiTranslation\AiResultCollector;
 use LingoWP\Extraction\ScanRestController;
+use LingoWP\GettextDomains\GettextAiQueue;
 use LingoWP\GettextDomains\GettextDomainRestController;
 use LingoWP\GettextDomains\GettextDomainRegistry;
-use LingoWP\GettextDomains\GettextIgnoredUnitsStore;
+use LingoWP\GettextDomains\GettextUnitRepository;
 use LingoWP\GettextDomains\GettextOnlineTranslationFetcher;
 use LingoWP\GettextDomains\GettextPoImporter;
 use LingoWP\GettextDomains\GettextTemplateGenerator;
@@ -369,18 +371,22 @@ class Plugin
 
         (new InsightsRestController($backendClient, $connection))->register();
 
-        $gettextImporter = new GettextPoImporter();
+        $gettextImporter          = new GettextPoImporter();
+        $gettextRegistry          = new GettextDomainRegistry();
+        $gettextTranslationUnits  = new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextUnitRepository($wpdb));
+        $gettextPercentCache      = new GettextTranslatedPercentCache();
+        $gettextAiQueue           = new GettextAiQueue($wpdb, $backendClient, $gettextTranslationUnits, $gettextRegistry, $gettextPercentCache, $languageRegistry, $languageMetadata);
         (new GettextDomainRestController(
             $gettextComponents,
-            new GettextDomainRegistry(),
+            $gettextRegistry,
             $languageRegistry,
             new GettextOnlineTranslationFetcher($gettextImporter),
             $gettextImporter,
-            new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextIgnoredUnitsStore()),
-            $backendClient,
+            $gettextTranslationUnits,
             $billingEntitlements,
             $connectionStatus,
-            new GettextTranslatedPercentCache()
+            $gettextPercentCache,
+            $gettextAiQueue
         ))->register();
 
         return [
@@ -402,6 +408,7 @@ class Plugin
     {
         (new DatabaseHealthReport(new DatabaseHealthCheck($wpdb)))->register();
         (new AdminAssets())->register();
+        (new ForeignNoticeSuppressor())->register();
         (new OnboardingPageController(new NotifyEmailResolver()))->register();
         (new PermalinkNotice($languageRegistry))->register();
 

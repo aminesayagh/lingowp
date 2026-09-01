@@ -1,4 +1,20 @@
 /*
+ * Disable native scroll anchoring for the page. The sticky header's filter
+ * row height-animates open/closed while scrolling (Dashboard.jsx) — that's a
+ * layout shift above whatever the browser picked as the scroll anchor (a
+ * visible row further down the virtualized list). Left enabled, the browser
+ * silently adjusts window.scrollY to keep that anchor visually still; our own
+ * scroll-direction tracking (useScroll/useMotionValueEvent) can't tell that
+ * synthetic adjustment apart from a real scroll, reads it as the opposite
+ * direction, and re-triggers the other animation — a self-sustaining loop the
+ * instant the user reverses direction mid-animation. This stylesheet loads
+ * only on the LingoWP screen, so the page-level selector is scoped by that.
+ */
+html {
+	overflow-anchor: none;
+}
+
+/*
  * Neutralize WordPress admin's global form styles where they bleed into Polaris.
  *
  * wp-admin's forms.css styles every input/select/textarea with its own border,
@@ -62,6 +78,16 @@
 	margin: 0 !important;
 }
 #lingowp-insights-app .Polaris-Page {
+	padding-inline-start: 0 !important;
+	padding-inline-end: 12px !important;
+	max-width: none !important;
+}
+
+/* Same full-width treatment for the Integrations screen's own mount root. */
+.wrap:has(> #lingowp-integrations-app) {
+	margin: 0 !important;
+}
+#lingowp-integrations-app .Polaris-Page {
 	padding-inline-start: 0 !important;
 	padding-inline-end: 12px !important;
 	max-width: none !important;
@@ -151,5 +177,11 @@
 	min-height: 0;
 }
 #lingowp-insights-app .Polaris-Frame__Main {
+	border-inline-end: none;
+}
+#lingowp-integrations-app .Polaris-Frame {
+	min-height: 0;
+}
+#lingowp-integrations-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }

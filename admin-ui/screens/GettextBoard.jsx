@@ -12,24 +12,38 @@ import {
 	Text,
 	Tooltip,
 } from '@shopify/polaris'
-import {
-	CheckIcon,
-	DuplicateIcon,
-	MenuHorizontalIcon,
-	PageIcon,
-} from '@shopify/polaris-icons'
+import { MenuHorizontalIcon, PageIcon } from '@shopify/polaris-icons'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import {
 	useCallback,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from '@wordpress/element'
 import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api'
 import { AiIcon } from './AiIcon'
+import { FlagIcon, flagIconUrl } from './FlagIcon'
 import GettextOverlay from './GettextOverlay'
+import { sortLanguages } from './LanguageList'
+
+// Same readable-name resolution as the Content board's own column header.
+function codeName( code ) {
+	if ( ! code ) {
+		return null
+	}
+	try {
+		return new Intl.DisplayNames( undefined, { type: 'language' } ).of(
+			code
+		)
+	} catch {
+		return code
+	}
+}
+const langLabel = ( l ) =>
+	l && ( l.display_name || l.name || codeName( l.code || l ) )
 
 const oneLineStyle = {
 	all: 'unset',
@@ -62,9 +76,90 @@ function rowKey( row ) {
 	return `${ row.type }:${ row.domain }:${ row.locale }`
 }
 
+// Same idea as the Content board's pollWhilePending: while any row has an
+// AI "Translate All" batch in flight for it, keep refetching every 3s so the
+// board picks up results as GettextAiQueue::collectOnce() drains them
+// server-side on each read.
+const AI_POLL_MS = 3000
+
+function pollWhileGettextRowsPending( query ) {
+	const pages = query.state.data?.pages
+	return Array.isArray( pages ) &&
+		pages.some( ( p ) => p.rows.some( ( r ) => r.ai_pending > 0 ) )
+		? AI_POLL_MS
+		: false
+}
+
+function pollWhileGettextUnitsPending( query ) {
+	const pages = query.state.data?.pages
+	return Array.isArray( pages ) &&
+		pages.some( ( p ) => p.units.some( ( u ) => u.ai_pending ) )
+		? AI_POLL_MS
+		: false
+}
+
+// While the progressive search-scan is running, list() is re-fetched
+// mid-flight and a newly-matching component can cross the page-size boundary
+// between two sequential page refetches — briefly yielding the same row on
+// two pages. Dedupe so React never sees a duplicate key.
+function dedupeByKey( items, keyOf ) {
+	const seen = new Set()
+	return items.filter( ( item ) => {
+		const k = keyOf( item )
+		if ( seen.has( k ) ) {
+			return false
+		}
+		seen.add( k )
+		return true
+	} )
+}
+
+// Which plugin/theme rows are expanded, remembered per browser so a refresh
+// doesn't collapse everything back. rowKey already bakes in the locale, so
+// one flat list covers every language pair.
+const OPEN_ROWS_STORAGE_KEY = 'lingowp_gettext_open_rows'
+
+function loadOpenKeys() {
+	try {
+		const raw = window.localStorage.getItem( OPEN_ROWS_STORAGE_KEY )
+		return raw ? new Set( JSON.parse( raw ) ) : new Set()
+	} catch {
+		return new Set()
+	}
+}
+
+// One status chip per domain row — never a badge *and* a raw percent, since
+// they'd carry the same information. 0% (or no `.mo` at all) reads as "Not
+// found"; 100% is just "Ready" with no number; anything between shows how
+// much is still untranslated, e.g. "34% left". Returns null while the
+// percent is still being backfilled so the row doesn't flash a chip in.
+function domainProgressChip( row ) {
+	const p = row.translated_percent
+	let chip = null
+	if ( row.status === null || p === 0 ) {
+		chip = <Badge>Not found</Badge>
+	} else if ( p === null || p === undefined ) {
+		return null
+	} else if ( p >= 100 ) {
+		chip = (
+			<Badge tone="success" size="small">
+				Ready
+			</Badge>
+		)
+	} else {
+		chip = (
+			<Badge tone="info" size="small">
+				{ `${ 100 - p }% left` }
+			</Badge>
+		)
+	}
+	return <Box paddingInlineStart="200">{ chip }</Box>
+}
+
 export default function GettextBoard( {
 	language,
 	search,
+	untranslatedOnly = false,
 	originalLabel,
 	translationLabel,
 	sourceLabel,
@@ -78,17 +173,104 @@ export default function GettextBoard( {
 	onAiUnavailable,
 } ) {
 	const queryClient = useQueryClient()
-	const [ openKeys, setOpenKeys ] = useState( () => new Set() )
+	const [ openKeys, setOpenKeys ] = useState( loadOpenKeys )
+	// Sticky row headers, keyed by rowKey — toggle() reads these to anchor
+	// scroll on collapse (see below), same idea as the Content board's own
+	// CollectionGroup rows.
+	const headerRefs = useRef( new Map() )
+	// This board's own column-header bar (original/target labels) is pinned
+	// separately from the shared search bar above it (Dashboard only measures
+	// itself for the Content board's header — see the comment where this is
+	// rendered below). Row headers need to stick right beneath it, not under
+	// (i.e. behind, at the same offset as) it.
+	//
+	// Same split as Dashboard's own stickyBarH/CSS-var pair, and for the same
+	// reason: this is set imperatively (a CSS var, not React state) so a
+	// resize never forces every row to re-render just to pick up a new
+	// offset, and — unlike a value computed once into React state — it
+	// self-corrects immediately if the *outer* var Dashboard maintains
+	// changes size without this board's own header changing size too (a
+	// window resize that re-wraps the shared search bar's text, say).
+	const boardRef = useRef( null )
+	const ownHeaderElRef = useRef( null )
+	const ownHeaderCleanupRef = useRef( null )
+	const measureOwnHeader = useCallback( () => {
+		const el = ownHeaderElRef.current
+		if ( ! el || ! boardRef.current ) {
+			return
+		}
+		// el's own `top` is already the resolved outer var (see its style
+		// below) — read it back rather than re-deriving it, so this and that
+		// stay in lockstep even if the outer var's own fallback or formula
+		// ever changes.
+		const outerTop = parseFloat( getComputedStyle( el ).top ) || 32
+		boardRef.current.style.setProperty(
+			'--lingowp-gettext-row-sticky-top',
+			`${ outerTop + el.offsetHeight }px`
+		)
+	}, [] )
+	// A callback ref, not a plain useRef + useLayoutEffect([]): the header
+	// this measures doesn't exist on the board's first render (it's still
+	// showing the loading spinner then), and an effect with an empty
+	// dependency array only ever runs once, right after that first render —
+	// it would find nothing to observe and never get a second chance once
+	// the real header mounts. A callback ref fires exactly when the node
+	// actually mounts (and again on unmount, for cleanup), whenever that is.
+	const setOwnHeaderRef = useCallback(
+		( el ) => {
+			ownHeaderCleanupRef.current?.()
+			ownHeaderCleanupRef.current = null
+			ownHeaderElRef.current = el
+			if ( ! el ) {
+				return
+			}
+			measureOwnHeader()
+			const ro = new ResizeObserver( measureOwnHeader )
+			ro.observe( el )
+			window.addEventListener( 'resize', measureOwnHeader )
+			ownHeaderCleanupRef.current = () => {
+				ro.disconnect()
+				window.removeEventListener( 'resize', measureOwnHeader )
+			}
+		},
+		[ measureOwnHeader ]
+	)
 	const [ manualKeys, setManualKeys ] = useState( () => new Set() )
+	const [ langSwitcherOpen, setLangSwitcherOpen ] = useState( false )
+	// Row-level "⋯" menu (Translate all) — same hover/open-reveal idea as the
+	// Content board's own CollectionGroup menu. Only one row can be
+	// hovered/have its menu open at a time, so a single key is enough (no
+	// per-row component/state needed).
+	const [ hoveredRowKey, setHoveredRowKey ] = useState( null )
+	const [ menuOpenRowKey, setMenuOpenRowKey ] = useState( null )
+	// Rows with a per-component "Translate all" batch currently being
+	// submitted (the loading spinner on that row's own button) — separate
+	// from ai_pending, which covers the wait for results once submitted.
+	const [ translatingComponents, setTranslatingComponents ] = useState(
+		() => new Set()
+	)
 	const checkedRef = useRef( new Set() )
 	const runningRef = useRef( false )
 	const percentCheckedRef = useRef( new Set() )
 	const percentRunningRef = useRef( false )
+	// Progressive "scan every plugin/theme so the header search can match its
+	// original text" pass — same shape as the auto-check loop below.
+	const scanRunningRef = useRef( false )
+	const scannedRef = useRef( new Set() ) // attempted this session (don't retry)
+	const scanFailedRef = useRef( new Set() ) // attempted but the scan errored
+	const searchRef = useRef( search )
+	searchRef.current = search
 	const targetDir =
 		languages.find( ( item ) => item.code === language )?.direction || 'ltr'
+	// Same sidebar order (group by base language, "General" first) as the
+	// Content board's own target-language column switcher.
+	const sortedLanguages = useMemo(
+		() => sortLanguages( languages ),
+		[ languages ]
+	)
 
 	const rowsQ = useInfiniteQuery( {
-		queryKey: [ 'gettext-domains', language, search ],
+		queryKey: [ 'gettext-domains', language, search, untranslatedOnly ],
 		initialPageParam: 0,
 		queryFn: async ( { pageParam, signal } ) => {
 			const params = new URLSearchParams( {
@@ -96,6 +278,7 @@ export default function GettextBoard( {
 				offset: String( pageParam ),
 				limit: String( PAGE_SIZE ),
 				...( search ? { search } : {} ),
+				...( untranslatedOnly ? { status: 'untranslated' } : {} ),
 			} )
 			const res = await api.get(
 				`/gettext-domains?${ params.toString() }`,
@@ -109,9 +292,57 @@ export default function GettextBoard( {
 		getNextPageParam: ( last ) =>
 			last.has_more ? last.next_offset : undefined,
 		enabled: !! language,
+		refetchInterval: pollWhileGettextRowsPending,
 	} )
 
-	const rows = ( rowsQ.data?.pages ?? [] ).flatMap( ( p ) => p.rows )
+	const serverRows = dedupeByKey(
+		( rowsQ.data?.pages ?? [] ).flatMap( ( p ) => p.rows ),
+		rowKey
+	)
+	// Server filters by the CACHED percent; a row whose percent was uncached
+	// at request time comes through, then backfills. Drop it here once it's
+	// known to be fully done so the list settles.
+	const rows = serverRows.filter(
+		( r ) => ! untranslatedOnly || r.translated_percent !== 100
+	)
+	// If "Untranslated only" client-filtered a whole fetched page to nothing
+	// but the server has more pages, keep pulling — otherwise the board would
+	// wrongly show the "all translated" empty state while unfetched pages
+	// still hold untranslated components.
+	useEffect( () => {
+		if (
+			untranslatedOnly &&
+			serverRows.length > 0 &&
+			rows.length === 0 &&
+			rowsQ.hasNextPage &&
+			! rowsQ.isFetchingNextPage
+		) {
+			rowsQ.fetchNextPage()
+		}
+	}, [
+		untranslatedOnly,
+		serverRows.length,
+		rows.length,
+		rowsQ.hasNextPage,
+		rowsQ.isFetchingNextPage,
+	] )
+
+	// Header search matches only a component's original text, and only for
+	// components already scanned into the DB. list() returns which installed
+	// components still need a first scan; scan them one at a time in the
+	// background while a search is active, then reload() so their matches
+	// surface. Progress is client-side (scannedRef) so a scan that fails
+	// server-side still advances the count instead of pinning it.
+	const lastPage = rowsQ.data?.pages?.at( -1 )
+	const scanTotal = lastPage?.scan_total ?? 0
+	const scanPending = search
+		? ( lastPage?.unscanned ?? [] ).filter(
+				( c ) => ! scannedRef.current.has( `${ c.type }:${ c.domain }` )
+		  )
+		: []
+	const scanning = !! search && scanPending.length > 0
+	const scanDone = scanTotal - scanPending.length
+	const scanFailed = search ? scanFailedRef.current.size : 0
 
 	const reload = useCallback( () => {
 		queryClient.invalidateQueries( {
@@ -138,6 +369,12 @@ export default function GettextBoard( {
 		;( async () => {
 			for ( const row of pending ) {
 				checkedRef.current.add( rowKey( row ) )
+				// find-online installs a file and drops the server's percent
+				// cache for this row, so the reload() below brings it back with
+				// translated_percent: null. The backfill effect only visits a
+				// row key once, so clear it here or the chip stays blank until
+				// a full page reload.
+				percentCheckedRef.current.delete( rowKey( row ) )
 				try {
 					await api.post( '/gettext-domains/find-online', {
 						type: row.type,
@@ -152,6 +389,65 @@ export default function GettextBoard( {
 			reload()
 		} )()
 	}, [ reload, rows, rowsQ.isPending ] )
+
+	// Progressive search-scan: while a search is active, scan every
+	// not-yet-scanned component one at a time so its original text becomes
+	// matchable. Batches reload() so an N-page list doesn't refetch N times
+	// per scan; bails if the search term changes or the board unmounts mid-run.
+	useEffect( () => {
+		if ( ! search || rowsQ.isPending || scanRunningRef.current ) {
+			return undefined
+		}
+		const pending = ( rowsQ.data?.pages?.at( -1 )?.unscanned ?? [] ).filter(
+			( c ) => ! scannedRef.current.has( `${ c.type }:${ c.domain }` )
+		)
+		if ( pending.length === 0 ) {
+			return undefined
+		}
+
+		scanRunningRef.current = true
+		const term = search
+		let cancelled = false
+		;( async () => {
+			try {
+				let sinceReload = 0
+				for ( const c of pending ) {
+					if ( cancelled || searchRef.current !== term ) {
+						break
+					}
+					const compKey = `${ c.type }:${ c.domain }`
+					// Marked attempted before the await so the loop always
+					// terminates — a component that keeps failing is not retried
+					// until the page is reloaded (scannedRef is per-mount).
+					scannedRef.current.add( compKey )
+					try {
+						const res = await api.post( '/gettext-domains/scan', {
+							type: c.type,
+							domain: c.domain,
+						} )
+						if ( ! res?.ok ) {
+							scanFailedRef.current.add( compKey )
+						}
+					} catch {
+						scanFailedRef.current.add( compKey )
+					}
+					if ( ++sinceReload >= 5 && ! cancelled ) {
+						sinceReload = 0
+						reload()
+					}
+				}
+			} finally {
+				scanRunningRef.current = false
+				if ( ! cancelled ) {
+					reload()
+				}
+			}
+		} )()
+
+		return () => {
+			cancelled = true
+		}
+	}, [ search, rowsQ.data, rowsQ.isPending, reload ] )
 
 	// translated_percent is never computed by GET /gettext-domains itself
 	// (a full source scan per row would be as slow as the old all-in-one
@@ -227,6 +523,29 @@ export default function GettextBoard( {
 	}
 
 	function toggle( key ) {
+		// Keep the clicked header exactly where it is on screen. When it's
+		// pinned to the sticky bar you've scrolled into this row; collapsing
+		// pulls the content out from under it and the shrunk row slides up,
+		// carrying the header away and surfacing the next one. Anchoring the
+		// scroll to the header's own top (flush under the sticky bar) leaves
+		// it sitting at the same spot. Same trick as the Content board's own
+		// toggleCollapsed, minus the virtualizer plumbing this board doesn't
+		// have — a plain ref to the header div stands in for its data-index
+		// lookup, and the header's own resolved `top` (the sticky offset)
+		// stands in for its groupStickyTop state.
+		const collapsing = openKeys.has( key )
+		let anchorY = null
+		if ( collapsing ) {
+			const el = headerRefs.current.get( key )
+			if ( el ) {
+				const stickyTop = parseFloat( getComputedStyle( el ).top ) || 32
+				const top = el.getBoundingClientRect().top + window.scrollY
+				if ( window.scrollY > top - stickyTop ) {
+					anchorY = Math.max( 0, top - stickyTop )
+				}
+			}
+		}
+
 		setOpenKeys( ( prev ) => {
 			const next = new Set( prev )
 			if ( next.has( key ) ) {
@@ -234,12 +553,71 @@ export default function GettextBoard( {
 			} else {
 				next.add( key )
 			}
+			try {
+				window.localStorage.setItem(
+					OPEN_ROWS_STORAGE_KEY,
+					JSON.stringify( [ ...next ] )
+				)
+			} catch {
+				// private mode / storage full — in-memory state still works
+			}
 			return next
 		} )
+
+		if ( anchorY !== null ) {
+			window.requestAnimationFrame( () => window.scrollTo( 0, anchorY ) )
+		}
 	}
 
 	function startManual( key ) {
 		setManualKeys( ( prev ) => new Set( prev ).add( key ) )
+	}
+
+	// Per-component "Translate all" — the async queue counterpart to the
+	// header's board-wide button. Same auto-continue-on-`more` loop; polling
+	// (pollWhileGettextRowsPending/pollWhileGettextUnitsPending above) is what
+	// actually surfaces the results, this only drives the submit side.
+	async function translateAllInComponent( row ) {
+		const key = rowKey( row )
+		setTranslatingComponents( ( prev ) => new Set( prev ).add( key ) )
+		try {
+			let res = await api.post( '/gettext-domains/translate', {
+				scope: 'component',
+				type: row.type,
+				domain: row.domain,
+				locale: row.locale,
+			} )
+			while ( res?.ok && res.more ) {
+				res = await api.post( '/gettext-domains/translate', {
+					scope: 'component',
+					type: row.type,
+					domain: row.domain,
+					locale: row.locale,
+				} )
+			}
+			if ( ! res?.ok ) {
+				if ( res?.error !== 'ERR_INVALID_INPUT' ) {
+					onAiUnavailable?.( res?.error )
+				}
+				return
+			}
+			reload()
+			queryClient.invalidateQueries( {
+				predicate: ( q ) =>
+					q.queryKey[ 0 ] === 'gettext-units' &&
+					q.queryKey[ 1 ] === row.type &&
+					q.queryKey[ 2 ] === row.domain &&
+					q.queryKey[ 3 ] === row.locale,
+			} )
+		} catch {
+			onAiUnavailable?.( 'ERR_UNREACHABLE' )
+		} finally {
+			setTranslatingComponents( ( prev ) => {
+				const next = new Set( prev )
+				next.delete( key )
+				return next
+			} )
+		}
 	}
 
 	let paginationAction = null
@@ -287,53 +665,173 @@ export default function GettextBoard( {
 		)
 	}
 
+	const scanIndicator = scanning ? (
+		<Box paddingInlineStart="1000">
+			<Box paddingInline="300" paddingBlock="200">
+				<InlineStack gap="200" blockAlign="center">
+					<Spinner
+						accessibilityLabel="Searching plugins & themes"
+						size="small"
+					/>
+					<Text as="span" variant="bodySm" tone="subdued">
+						{ `Searching all plugins & themes… ${ scanDone }/${ scanTotal }` }
+					</Text>
+				</InlineStack>
+			</Box>
+		</Box>
+	) : null
+
 	if ( rows.length === 0 ) {
+		// More server pages exist (the auto-fetch effect above is walking
+		// them) — show progress, not a "nothing here" verdict.
+		const stillPaging =
+			untranslatedOnly &&
+			serverRows.length > 0 &&
+			( rowsQ.hasNextPage || rowsQ.isFetchingNextPage )
 		return (
 			<Box padding="500">
-				<Text as="p" tone="subdued">
-					{ search
-						? `No plugin or theme matches “${ search }”.`
-						: 'No plugin/theme domains found.' }
-				</Text>
+				{ scanning || stillPaging ? (
+					<InlineStack gap="200" blockAlign="center">
+						<Spinner
+							accessibilityLabel="Loading plugins & themes"
+							size="small"
+						/>
+						<Text as="span" tone="subdued">
+							{ scanning
+								? `Searching all plugins & themes… ${ scanDone }/${ scanTotal }`
+								: 'Loading more…' }
+						</Text>
+					</InlineStack>
+				) : (
+					<Text as="p" tone="subdued">
+						{ search && scanFailed > 0
+							? `No matches yet — ${ scanFailed } plugin/theme couldn’t be scanned. Reload the page to retry.`
+							: search
+							? `No plugin or theme matches “${ search }”.`
+							: untranslatedOnly
+							? 'Every plugin and theme is fully translated for this language.'
+							: 'No plugin/theme domains found.' }
+					</Text>
+				) }
 			</Box>
 		)
 	}
 
 	return (
+		<div ref={ boardRef }>
 		<BlockStack gap="0">
-			<Box paddingInlineStart="1000">
-				<Box paddingInline="300" paddingBlock="200">
-					<InlineStack
-						gap="300"
-						align="space-between"
-						blockAlign="center"
-						wrap={ false }
-					>
-						<Box width="45%" minWidth="0">
-							<Text
-								as="span"
-								variant="bodySm"
-								tone="subdued"
-								fontWeight="medium"
-							>
-								{ originalLabel }
-							</Text>
-						</Box>
-						<Box width="45%" minWidth="0">
-							<Text
-								as="span"
-								variant="bodySm"
-								tone="subdued"
-								fontWeight="medium"
-							>
-								{ translationLabel }
-							</Text>
-						</Box>
-						<Box width="16%" />
-					</InlineStack>
+			{ /* GettextBoard draws its own column-header bar (the shared
+			search bar above only measures itself for GettextBoard — see
+			Dashboard's stickyRef), so it measures and pins itself the same
+			way: sticky right under the search bar, and (see setOwnHeaderRef
+			above) feeds its own height into --lingowp-gettext-row-sticky-top
+			so the row headers below can stick just beneath it instead of
+			underneath/overlapping it. */ }
+			<div
+				ref={ setOwnHeaderRef }
+				style={ {
+					position: 'sticky',
+					top: 'var(--lingowp-group-sticky-top, 32px)',
+					zIndex: 2,
+					background: 'var(--p-color-bg-surface, #fff)',
+				} }
+			>
+				<Box paddingInlineStart="1000">
+					<Box paddingInline="300" paddingBlock="200">
+						<InlineStack
+							gap="300"
+							align="space-between"
+							blockAlign="center"
+							wrap={ false }
+						>
+							<Box width="45%" minWidth="0">
+								<Text
+									as="span"
+									variant="bodySm"
+									tone="subdued"
+									fontWeight="medium"
+								>
+									{ originalLabel }
+								</Text>
+							</Box>
+							<Box width="45%" minWidth="0">
+								<Popover
+									active={ langSwitcherOpen }
+									preferredAlignment="left"
+									onClose={ () => setLangSwitcherOpen( false ) }
+									activator={
+										<button
+											type="button"
+											onClick={ () =>
+												setLangSwitcherOpen( ( o ) => ! o )
+											}
+											style={ {
+												all: 'unset',
+												cursor: 'pointer',
+												display: 'flex',
+												alignItems: 'center',
+												gap: 4,
+												maxWidth: '100%',
+											} }
+										>
+											<span
+												style={ {
+													minWidth: 0,
+													overflow: 'hidden',
+													textOverflow: 'ellipsis',
+													whiteSpace: 'nowrap',
+													marginTop: 1,
+												} }
+											>
+												<Text
+													as="span"
+													variant="bodySm"
+													tone="subdued"
+													fontWeight="medium"
+												>
+													{ translationLabel }
+												</Text>
+											</span>
+											<Text
+												as="span"
+												variant="bodySm"
+												tone="subdued"
+											>
+												▾
+											</Text>
+										</button>
+									}
+								>
+									<ActionList
+										items={ sortedLanguages.map( ( l ) => ( {
+											content: langLabel( l ),
+											prefix: (
+												<FlagIcon
+													src={ flagIconUrl( l ) }
+													size={ 16 }
+													// Matches the Content board switcher: lighter than
+													// the sidebar's full desaturation.
+													grayscale={
+														l.enabled ? false : 0.35
+													}
+												/>
+											),
+											active: l.code === language,
+											onAction: () => {
+												onPickLanguage( l.code )
+												setLangSwitcherOpen( false )
+											},
+										} ) ) }
+									/>
+								</Popover>
+							</Box>
+							<Box width="16%" />
+						</InlineStack>
+					</Box>
 				</Box>
-			</Box>
-			<Divider />
+				<Divider />
+			</div>
+			{ scanIndicator }
 			{ rows.map( ( row, i ) => {
 				const key = rowKey( row )
 				const open = openKeys.has( key )
@@ -342,93 +840,199 @@ export default function GettextBoard( {
 				return (
 					<Box key={ key }>
 						{ i > 0 && <Divider /> }
-						<Box
-							padding="300"
-							background={
-								open ? 'bg-surface-secondary' : undefined
-							}
+						{ /* Same pinned-header treatment as the Content board's own
+						CollectionGroup: sticky under the shared search bar (reads
+						its live height off the --lingowp-group-sticky-top CSS var
+						Dashboard sets on the common card ancestor), opaque so rows
+						scrolling up behind it don't show through. */ }
+						<div
+							ref={ ( el ) => {
+								if ( el ) {
+									headerRefs.current.set( key, el )
+								} else {
+									headerRefs.current.delete( key )
+								}
+							} }
+							onMouseEnter={ () => setHoveredRowKey( key ) }
+							onMouseLeave={ () => setHoveredRowKey( null ) }
+							style={ {
+								position: 'sticky',
+								// Stacks under this board's own column-header
+								// bar (see setOwnHeaderRef above).
+								top: 'var(--lingowp-gettext-row-sticky-top, 64px)',
+								zIndex: 1,
+								background: 'var(--p-color-bg-surface, #fff)',
+							} }
 						>
-							<button
-								type="button"
-								onClick={ () => toggle( key ) }
-								style={ {
-									all: 'unset',
-									cursor: 'pointer',
-									display: 'flex',
-									width: '100%',
-									alignItems: 'center',
-									gap: '8px',
-								} }
+							<Box
+								padding="300"
+								background={
+									open ? 'bg-surface-secondary' : undefined
+								}
 							>
-								<Text
-									as="span"
-									variant="bodyMd"
-									fontWeight="medium"
+								<InlineStack
+									align="space-between"
+									blockAlign="center"
+									gap="200"
+									wrap={ false }
 								>
-									{ open ? '▾' : '▸' }
-								</Text>
-								<span
-									style={ {
-										display: 'inline-flex',
-										flexShrink: 0,
-										width: 16,
-										height: 16,
-										color: 'var(--p-color-icon-subdued)',
-									} }
-								>
-									<PageIcon
-										fill="currentColor"
-										width={ 16 }
-										height={ 16 }
-									/>
-								</span>
-								<Text
-									as="span"
-									variant="bodyMd"
-									fontWeight="medium"
-								>
-									{ row.label }{ ' ' }
-									<Text as="span" tone="subdued">
-										({ row.type })
-									</Text>
-								</Text>
-								{ row.status === null && (
-									<Box paddingInlineStart="200">
-										<Badge>Not found</Badge>
-									</Box>
-								) }
-								{ row.translated_percent !== null &&
-									row.translated_percent !== undefined && (
+									<button
+										type="button"
+										onClick={ () => toggle( key ) }
+										style={ {
+											all: 'unset',
+											cursor: 'pointer',
+											display: 'flex',
+											flex: 1,
+											minWidth: 0,
+											alignItems: 'center',
+											gap: '8px',
+										} }
+									>
+										<Text
+											as="span"
+											variant="bodyMd"
+											fontWeight="medium"
+										>
+											{ open ? '▾' : '▸' }
+										</Text>
 										<span
 											style={ {
-												marginLeft: 'auto',
+												display: 'inline-flex',
 												flexShrink: 0,
+												width: 16,
+												height: 16,
+												color: 'var(--p-color-icon-subdued)',
 											} }
 										>
-											<Text
-												as="span"
-												variant="bodySm"
-												tone={
-													row.translated_percent ===
-													100
-														? 'success'
-														: 'subdued'
-												}
-											>
-												{ `${ row.translated_percent }%` }
-											</Text>
+											<PageIcon
+												fill="currentColor"
+												width={ 16 }
+												height={ 16 }
+											/>
 										</span>
-									) }
-							</button>
-						</Box>
+										<Text
+											as="span"
+											variant="bodyMd"
+											fontWeight="medium"
+										>
+											{ row.label }{ ' ' }
+											<Text as="span" tone="subdued">
+												({ row.type })
+											</Text>
+										</Text>
+										{ domainProgressChip( row ) }
+									</button>
+									<InlineStack
+										gap="200"
+										blockAlign="center"
+										wrap={ false }
+									>
+										{ row.ai_pending > 0 && (
+											<Badge tone="info" size="small">
+												{ `Translating ${ row.ai_pending }…` }
+											</Badge>
+										) }
+										{ aiAvailable &&
+											row.translated_percent !== 100 && (
+												<motion.div
+													animate={ {
+														opacity:
+															hoveredRowKey ===
+																key ||
+															menuOpenRowKey ===
+																key
+																? 1
+																: 0,
+													} }
+													transition={ {
+														duration: 0.12,
+													} }
+													style={ {
+														visibility:
+															hoveredRowKey ===
+																key ||
+															menuOpenRowKey ===
+																key
+																? 'visible'
+																: 'hidden',
+													} }
+												>
+													<Popover
+														active={
+															menuOpenRowKey ===
+															key
+														}
+														onClose={ () =>
+															setMenuOpenRowKey(
+																null
+															)
+														}
+														activator={
+															<Button
+																size="micro"
+																variant="tertiary"
+																icon={
+																	MenuHorizontalIcon
+																}
+																accessibilityLabel="More actions"
+																loading={ translatingComponents.has(
+																	key
+																) }
+																onClick={ () =>
+																	setMenuOpenRowKey(
+																		( k ) =>
+																			k ===
+																			key
+																				? null
+																				: key
+																	)
+																}
+															/>
+														}
+													>
+														<ActionList
+															items={ [
+																{
+																	content:
+																		'Translate all',
+																	onAction: () => {
+																		setMenuOpenRowKey(
+																			null
+																		)
+																		if (
+																			billingBlocked
+																		) {
+																			onAiBlocked?.()
+																		} else {
+																			translateAllInComponent(
+																				row
+																			)
+																		}
+																	},
+																},
+															] }
+														/>
+													</Popover>
+												</motion.div>
+											) }
+									</InlineStack>
+								</InlineStack>
+							</Box>
+						</div>
 						<Collapsible open={ open }>
 							<Box
 								paddingInlineStart="1000"
+								paddingBlockStart={
+									showEditor ? undefined : '300'
+								}
 								paddingBlockEnd="300"
 							>
 								{ showEditor ? (
 									<GettextUnitList
 										row={ row }
+										search={ search }
+										untranslatedOnly={ untranslatedOnly }
 										targetDir={ targetDir }
 										onConfirm={ onConfirm }
 										sourceLabel={ sourceLabel }
@@ -463,6 +1067,7 @@ export default function GettextBoard( {
 				</>
 			) }
 		</BlockStack>
+		</div>
 	)
 }
 
@@ -555,6 +1160,8 @@ function unitKey( u ) {
 
 function GettextUnitList( {
 	row,
+	search,
+	untranslatedOnly = false,
 	targetDir,
 	onConfirm,
 	sourceLabel,
@@ -567,7 +1174,17 @@ function GettextUnitList( {
 	onAiUnavailable,
 } ) {
 	const queryClient = useQueryClient()
-	const queryKey = [ 'gettext-units', row.type, row.domain, row.locale ]
+	// search + untranslatedOnly are baked into the key so an expanded row's
+	// string list narrows to the matching / still-untranslated strings while
+	// the header filter is active, same as the Content board.
+	const queryKey = [
+		'gettext-units',
+		row.type,
+		row.domain,
+		row.locale,
+		search || '',
+		untranslatedOnly,
+	]
 	const [ overlayIndex, setOverlayIndex ] = useState( null )
 
 	const unitsQ = useInfiniteQuery( {
@@ -580,6 +1197,8 @@ function GettextUnitList( {
 				locale: row.locale,
 				offset: String( pageParam ),
 				limit: String( TEXT_PAGE_SIZE ),
+				...( search ? { search } : {} ),
+				...( untranslatedOnly ? { status: 'untranslated' } : {} ),
 			} )
 			const res = await api.get(
 				`/gettext-domains/units?${ params.toString() }`,
@@ -592,24 +1211,43 @@ function GettextUnitList( {
 		},
 		getNextPageParam: ( last ) =>
 			last.has_more ? last.next_offset : undefined,
+		refetchInterval: pollWhileGettextUnitsPending,
 	} )
 
 	const units = ( unitsQ.data?.pages ?? [] ).flatMap( ( p ) => p.units )
 	const total = unitsQ.data?.pages?.at( -1 )?.total ?? units.length
 
-	function updateUnit( i, msgstr ) {
+	// Patch one cached unit, matched by its stable unitKey (context\x04msgid)
+	// rather than a flattened array index — a poll refetch or the
+	// untranslatedOnly filter can drop an earlier row between render and the
+	// callback firing, which would make an index point at the wrong unit.
+	function patchUnit( key, changes ) {
 		queryClient.setQueryData( queryKey, ( old ) => {
-			let idx = 0
+			if ( ! old ) {
+				return old
+			}
 			return {
 				...old,
 				pages: old.pages.map( ( p ) => ( {
 					...p,
 					units: p.units.map( ( u ) =>
-						idx++ === i ? { ...u, msgstr } : u
+						unitKey( u ) === key ? { ...u, ...changes } : u
 					),
 				} ) ),
 			}
 		} )
+	}
+
+	function updateUnit( key, msgstr ) {
+		patchUnit( key, { msgstr } )
+	}
+
+	// A single-string AI translate was just queued — patch this row's
+	// ai_pending optimistically so the shimmer + 3s polling start now,
+	// without waiting on a refetch. The poll (pollWhileGettextUnitsPending)
+	// takes over from here and clears it when the result lands.
+	function markUnitPending( key ) {
+		patchUnit( key, { ai_pending: true, ai_error: null } )
 	}
 
 	async function ignoreUnit( i ) {
@@ -655,7 +1293,13 @@ function GettextUnitList( {
 	if ( units.length === 0 ) {
 		return (
 			<Text as="p" tone="subdued" variant="bodySm">
-				No translatable strings found in this component’s source.
+				{ untranslatedOnly && ! search
+					? 'Every string in this component is translated for this language.'
+					: untranslatedOnly && search
+					? `No untranslated string matches “${ search }” here.`
+					: search
+					? `No string matches “${ search }” here.`
+					: 'No translatable strings found in this component’s source.' }
 			</Text>
 		)
 	}
@@ -691,7 +1335,10 @@ function GettextUnitList( {
 					aiAvailable={ aiAvailable }
 					billingBlocked={ billingBlocked }
 					onAiBlocked={ onAiBlocked }
-					onSaved={ ( msgstr ) => updateUnit( i, msgstr ) }
+					onSaved={ ( msgstr ) =>
+						updateUnit( unitKey( unit ), msgstr )
+					}
+					onQueued={ () => markUnitPending( unitKey( unit ) ) }
 					onOpenOverlay={ () => setOverlayIndex( i ) }
 					onIgnore={ () => confirmIgnore( i ) }
 					onAiUnavailable={ onAiUnavailable }
@@ -715,10 +1362,19 @@ function GettextUnitList( {
 				sourceFlag={ sourceFlag }
 				languages={ languages }
 				aiAvailable={ aiAvailable }
+				billingBlocked={ billingBlocked }
+				onAiBlocked={ onAiBlocked }
 				onPickLanguage={ onPickLanguage }
 				onAiUnavailable={ onAiUnavailable }
 				onClose={ () => setOverlayIndex( null ) }
-				onSaved={ ( msgstr ) => updateUnit( overlayIndex, msgstr ) }
+				onQueued={ () =>
+					overlayUnit &&
+					markUnitPending( unitKey( overlayUnit ) )
+				}
+				onSaved={ ( msgstr ) =>
+					overlayUnit &&
+					updateUnit( unitKey( overlayUnit ), msgstr )
+				}
 				onPrev={ () =>
 					setOverlayIndex( ( i ) => Math.max( 0, i - 1 ) )
 				}
@@ -742,6 +1398,7 @@ function GettextUnitRow( {
 	billingBlocked,
 	onAiBlocked,
 	onSaved,
+	onQueued,
 	onOpenOverlay,
 	onIgnore,
 	onAiUnavailable,
@@ -749,13 +1406,33 @@ function GettextUnitRow( {
 	const [ draft, setDraft ] = useState( unit.msgstr )
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ hovered, setHovered ] = useState( false )
-	const [ originalHovered, setOriginalHovered ] = useState( false )
-	const [ copiedOriginal, setCopiedOriginal ] = useState( false )
 	const [ translating, setTranslating ] = useState( false )
 	const moreActionsRef = useRef( null )
 
 	const hasTranslation = unit.msgstr !== ''
 	const shownText = draft || unit.msgid
+	// Every AI translate on this board is async now — the button submits to
+	// the queue, this row's `ai_pending` (from GET /units, kept current by
+	// the 3s poll) drives the shimmer, and the result lands in the .mo on a
+	// later poll. `translating` only covers the instant between click and the
+	// optimistic markUnitPending() patch.
+	const showShimmer = translating || unit.ai_pending
+	// An AI failure shows a plain "AI failed" chip (no error code) that
+	// auto-clears after 10s. The failure stays in the DB; this is just a
+	// transient nudge, dismissed per-unit for the session once shown.
+	const [ errorDismissed, setErrorDismissed ] = useState( false )
+	useEffect( () => {
+		if ( unit.ai_pending || ! unit.ai_error ) {
+			setErrorDismissed( false )
+			return undefined
+		}
+		if ( errorDismissed ) {
+			return undefined
+		}
+		const t = setTimeout( () => setErrorDismissed( true ), 10000 )
+		return () => clearTimeout( t )
+	}, [ unit.ai_pending, unit.ai_error, errorDismissed ] )
+	const showAiFailed = ! unit.ai_pending && !! unit.ai_error && ! errorDismissed
 
 	const originalRef = useRef( null )
 	const [ isLong, setIsLong ] = useState( false )
@@ -792,25 +1469,26 @@ function GettextUnitRow( {
 		}
 	}
 
-	async function copyOriginal() {
-		await navigator.clipboard.writeText( unit.msgid )
-		setCopiedOriginal( true )
-		setTimeout( () => setCopiedOriginal( false ), 1500 )
-	}
-
 	async function translateUnit() {
 		setTranslating( true )
-		const res = await api.post( '/gettext-domains/translate-unit', {
-			type: row.type,
-			domain: row.domain,
-			locale: row.locale,
-			msgid: unit.msgid,
-			context: unit.context,
-		} )
+		let res
+		try {
+			res = await api.post( '/gettext-domains/translate', {
+				scope: 'unit',
+				type: row.type,
+				domain: row.domain,
+				locale: row.locale,
+				msgid: unit.msgid,
+				context: unit.context,
+			} )
+		} catch {
+			res = { ok: false, error: 'ERR_UNREACHABLE' }
+		}
 		setTranslating( false )
 		if ( res.ok ) {
-			setDraft( res.msgstr )
-			onSaved( res.msgstr )
+			// Queued — flip this row to pending so the shimmer + poll take
+			// over; the translated .mo entry arrives on a later poll.
+			onQueued?.()
 		} else if ( res.error !== 'ERR_INVALID_INPUT' ) {
 			onAiUnavailable?.( res.error )
 		}
@@ -856,8 +1534,6 @@ function GettextUnitRow( {
 				>
 					<Box width="45%" minWidth="0">
 						<div
-							onMouseEnter={ () => setOriginalHovered( true ) }
-							onMouseLeave={ () => setOriginalHovered( false ) }
 							style={ {
 								display: 'flex',
 								alignItems: 'center',
@@ -865,51 +1541,41 @@ function GettextUnitRow( {
 								minWidth: 0,
 							} }
 						>
-							<button
+							{ /* div, not button — buttons block native text
+							selection, and the original text must stay
+							copyable by drag/selection (same fix as the
+							Content board's own original-text cell). */ }
+							<div
 								ref={ originalRef }
-								type="button"
-								onClick={ isLong ? onOpenOverlay : undefined }
-								disabled={ ! isLong }
+								role={ isLong ? 'button' : undefined }
+								tabIndex={ isLong ? 0 : undefined }
+								onClick={
+									isLong ? onOpenOverlay : undefined
+								}
+								onKeyDown={
+									isLong
+										? ( e ) => {
+												if (
+													e.key === 'Enter' ||
+													e.key === ' '
+												) {
+													e.preventDefault()
+													onOpenOverlay()
+												}
+										  }
+										: undefined
+								}
 								style={ {
 									...oneLineStyle,
 									flex: 1,
 									minWidth: 0,
 									cursor: isLong ? 'pointer' : 'default',
+									userSelect: 'text',
 								} }
 							>
 								<Text as="span" variant="bodySm">
 									{ unit.msgid }
 								</Text>
-							</button>
-							<div
-								style={ {
-									opacity: originalHovered ? 1 : 0,
-									visibility: originalHovered
-										? 'visible'
-										: 'hidden',
-									transition: 'opacity 120ms ease',
-									flexShrink: 0,
-								} }
-							>
-								<Tooltip
-									content={
-										copiedOriginal
-											? 'Copied!'
-											: 'Copy to clipboard'
-									}
-								>
-									<Button
-										size="micro"
-										variant="tertiary"
-										icon={
-											copiedOriginal
-												? CheckIcon
-												: DuplicateIcon
-										}
-										accessibilityLabel="Copy original to clipboard"
-										onClick={ copyOriginal }
-									/>
-								</Tooltip>
 							</div>
 						</div>
 					</Box>
@@ -924,7 +1590,7 @@ function GettextUnitRow( {
 									type="button"
 									onClick={ onOpenOverlay }
 									animate={ {
-										opacity: translating ? 0 : 1,
+										opacity: showShimmer ? 0 : 1,
 									} }
 									transition={ { duration: 0.15 } }
 									style={ oneLineStyle }
@@ -952,7 +1618,7 @@ function GettextUnitRow( {
 									onBlur={ save }
 									placeholder={ unit.msgid }
 									animate={ {
-										opacity: translating ? 0 : 1,
+										opacity: showShimmer ? 0 : 1,
 									} }
 									transition={ { duration: 0.15 } }
 									style={ {
@@ -975,7 +1641,7 @@ function GettextUnitRow( {
 							transition would keep this mounted over the just-
 							arrived real text and read as a stall. It gets an
 							enter fade only; completion removes it instantly. */ }
-							{ translating && (
+							{ showShimmer && (
 								<motion.span
 									aria-hidden="true"
 									className="lingowp-shimmer"
@@ -1010,6 +1676,11 @@ function GettextUnitRow( {
 							{ hasTranslation && (
 								<Badge tone="success" size="small">
 									Translated
+								</Badge>
+							) }
+							{ showAiFailed && (
+								<Badge tone="critical" size="small">
+									AI failed
 								</Badge>
 							) }
 							<motion.div

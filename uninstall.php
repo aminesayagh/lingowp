@@ -45,6 +45,8 @@ $tables = [
     $wpdb->prefix . 'lingowp_option',
     $wpdb->prefix . 'lingowp_user',
     $wpdb->prefix . 'lingowp_term_meta',
+    // gettext (no FK, no per-language child — order relative to the rest doesn't matter)
+    $wpdb->prefix . 'lingowp_gettext_unit',
 ];
 
 foreach ($tables as $table) {
@@ -85,6 +87,8 @@ $options = [
     // Gettext workspace state.
     'lingowp_gettext_domains',
     'lingowp_gettext_ignored_units',
+    'lingowp_gettext_scanned_domains',
+    'lingowp_gettext_translated_counts',
 ];
 
 foreach ($options as $option) {

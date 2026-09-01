@@ -4,11 +4,50 @@ import {
 	createPortal,
 	useCallback,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from '@wordpress/element'
 import { AnimatePresence, motion } from 'motion/react'
 import { flagIconUrl, FlagIcon } from './FlagIcon'
+
+const baseLanguage = ( code ) =>
+	( code || '' ).split( /[_-]/ )[ 0 ]?.toLowerCase() || ''
+
+// Group by base language (fr, es, pt, …); within a group the region-less
+// "General" variant (fr vs fr_CA) always leads, then oldest-added first.
+// Groups themselves are ordered by their earliest-created member — a group
+// whose first language was added before another group's first language
+// sorts first, regardless of which is the site's original language.
+// Exported so every other place a language list is shown (e.g. the header's
+// language-switcher popover) can match this same order.
+export function sortLanguages( languages ) {
+	const groupFirstSeen = new Map()
+	for ( const lang of languages ) {
+		const base = lang.language || baseLanguage( lang.code )
+		const createdAt = lang.created_at || ''
+		const seen = groupFirstSeen.get( base )
+		if ( seen === undefined || createdAt < seen ) {
+			groupFirstSeen.set( base, createdAt )
+		}
+	}
+
+	return [ ...languages ].sort( ( a, b ) => {
+		const aBase = a.language || baseLanguage( a.code )
+		const bBase = b.language || baseLanguage( b.code )
+		if ( aBase !== bBase ) {
+			return groupFirstSeen
+				.get( aBase )
+				.localeCompare( groupFirstSeen.get( bBase ) )
+		}
+		const aGeneral = ! a.region
+		const bGeneral = ! b.region
+		if ( aGeneral !== bGeneral ) {
+			return aGeneral ? -1 : 1
+		}
+		return ( a.created_at || '' ).localeCompare( b.created_at || '' )
+	} )
+}
 
 // Below this translated percentage, publishing a language asks for confirmation
 // first (Dashboard.jsx / LanguageManagerModal.jsx).
@@ -214,6 +253,15 @@ export function LanguageRow( {
 			{ ( showProgress || showMenu ) && (
 				<div
 					data-language-actions
+					// The ActionList's items render into a portal — physically
+					// elsewhere in the DOM, so the row's own `.closest(
+					// '[data-language-actions]')` guard above never matches a
+					// click on one of them. React still bubbles the click
+					// through the *React* tree though (portals are transparent
+					// to React's own event bubbling), so without this the row's
+					// onClick fired anyway — e.g. clicking "Settings" also
+					// switched the working language to the one being edited.
+					onClick={ ( event ) => event.stopPropagation() }
 					style={ {
 						width: 36,
 						height: 24,
@@ -266,10 +314,12 @@ export default function LanguageList( {
 	addLabel = '+ Add language',
 	showProgress = true,
 } ) {
+	const sorted = useMemo( () => sortLanguages( languages ), [ languages ] )
+
 	return (
 		<BlockStack gap="300">
 			<div>
-				{ languages.map( ( lang ) => (
+				{ sorted.map( ( lang ) => (
 					<LanguageRow
 						key={ lang.code }
 						lang={ lang }

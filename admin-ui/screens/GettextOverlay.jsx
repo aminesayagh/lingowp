@@ -84,9 +84,12 @@ export default function GettextOverlay( {
 	sourceFlag = '',
 	languages = [],
 	aiAvailable,
+	billingBlocked = false,
+	onAiBlocked,
 	onPickLanguage,
 	onAiUnavailable,
 	onClose,
+	onQueued,
 	onSaved,
 	onPrev,
 	onNext,
@@ -143,23 +146,35 @@ export default function GettextOverlay( {
 		fn()
 	}
 
-	// Translates this one string into EVERY configured language (matches
-	// Content board's CompareOverlay), one request at a time — only the
-	// response for the currently-viewed `locale` updates what's shown here;
-	// the rest just save server-side (each locale's own gettext-units query
-	// is fetched fresh whenever that locale is later viewed, so there's
-	// nothing else to invalidate). Stops on the first failure instead of
-	// firing more doomed requests for the remaining languages.
+	// Queues this one string for AI translation into EVERY configured
+	// language (matches CompareOverlay), one submit per language — the async
+	// queue, same as the rest of the board. Results are never in these
+	// responses; they land in each locale's `.mo` on a later board poll.
+	// onQueued() flips the currently-viewed unit to pending so this overlay
+	// and the row list behind it both shimmer + start polling immediately;
+	// other locales' gettext-units queries refetch when next viewed. Stops on
+	// the first failure.
 	async function translate() {
+		if ( billingBlocked ) {
+			onAiBlocked?.()
+			return
+		}
 		setTranslating( true )
+		let queuedViewedLocale = false
 		for ( const lang of languages ) {
-			const res = await api.post( '/gettext-domains/translate-unit', {
-				type: row.type,
-				domain: row.domain,
-				locale: lang.code,
-				msgid: unit.msgid,
-				context: unit.context,
-			} )
+			let res
+			try {
+				res = await api.post( '/gettext-domains/translate', {
+					scope: 'unit',
+					type: row.type,
+					domain: row.domain,
+					locale: lang.code,
+					msgid: unit.msgid,
+					context: unit.context,
+				} )
+			} catch {
+				res = { ok: false, error: 'ERR_UNREACHABLE' }
+			}
 			if ( ! res.ok ) {
 				if ( res.error !== 'ERR_INVALID_INPUT' ) {
 					onAiUnavailable?.( res.error )
@@ -167,13 +182,13 @@ export default function GettextOverlay( {
 				break
 			}
 			if ( lang.code === locale ) {
-				setText( res.msgstr )
-				savedRef.current = res.msgstr
-				setSavedTick( ( t ) => t + 1 )
-				onSaved( res.msgstr )
+				queuedViewedLocale = true
 			}
 		}
 		setTranslating( false )
+		if ( queuedViewedLocale ) {
+			onQueued?.()
+		}
 	}
 
 	async function copyOriginal() {
@@ -194,8 +209,12 @@ export default function GettextOverlay( {
 		copyTooltipContent = 'Copied!'
 	}
 
+	const aiPending = translating || !! unit?.ai_pending
+
 	let saveStatus = ''
-	if ( saving ) {
+	if ( aiPending ) {
+		saveStatus = 'AI translating…'
+	} else if ( saving ) {
 		saveStatus = 'Saving…'
 	} else if ( savedTick > 0 ) {
 		saveStatus = 'Saved'
@@ -280,8 +299,14 @@ export default function GettextOverlay( {
 										icon={ ( props ) => (
 											<AiIcon { ...props } size={ 12 } />
 										) }
-										disabled={ ! aiAvailable }
-										loading={ translating }
+										disabled={
+											! aiAvailable ||
+											translating ||
+											!! unit?.ai_pending
+										}
+										loading={
+											translating || !! unit?.ai_pending
+										}
 										onClick={ translate }
 									>
 										Translate
@@ -373,8 +398,13 @@ export default function GettextOverlay( {
 						value={ text }
 						onChange={ ( e ) => setText( e.target.value ) }
 						onBlur={ flush }
-						placeholder={ unit.msgid }
+						placeholder={
+							aiPending
+								? 'Translating…'
+								: unit.msgid
+						}
 						aria-label="Translation"
+						disabled={ aiPending }
 						style={ { ...textareaStyle( false ), resize: 'none' } }
 					/>
 				</div>

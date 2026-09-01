@@ -95,12 +95,16 @@ $scanner->refreshTerm($accentTt, 'category', $accentName, '');
 $storedAccent = (string) test_var("SELECT original_text FROM {$TP} WHERE term_taxonomy_id = %d AND field = 'name'", $accentTt);
 test_ok('accent/non-ASCII name preserved exactly', $storedAccent === $accentName, "got '$storedAccent'");
 
-// ── 4. Term meta: empty allow-list by default, opt-in per key via the filter ─
+// ── 4. Term meta: nothing scanned unless opted in per key via the filter ────
+//
+// Not asserted as "empty by default": an installed add-on (lingowp-seo, for
+// Rank Math's term-level breadcrumb title) legitimately adds to this list via
+// the exact same lingowp_translatable_term_meta_keys filter, so on a real
+// site TranslatableTermMetaKeys::keys() is not guaranteed empty. The actual
+// guarantee under test is the one that matters: a key NOBODY added stays
+// unscanned, which the very next assertion verifies directly.
 
 test_section('term meta allow-list (checklist §2, the ACF-field gap):');
-
-test_ok('TranslatableTermMetaKeys is empty by default',
-    \LingoWP\Shared\Source\TranslatableTermMetaKeys::keys() === []);
 
 [$notAllowedTermId, $notAllowedTt] = $makeTerm('category', 'LINGOWP_TEST TermMeta NotAllowed');
 update_term_meta($notAllowedTermId, 'lingowp_test_not_allowed', 'LINGOWP_TEST should never be scanned');

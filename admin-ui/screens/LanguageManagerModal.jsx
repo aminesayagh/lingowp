@@ -278,6 +278,7 @@ export default function LanguageManagerModal( {
 						{ isConfiguration ? (
 							<GeneralConfiguration
 								defaultLanguage={ defaultCode }
+								onSaved={ onClose }
 							/>
 						) : (
 							<LanguageForm
@@ -305,12 +306,12 @@ export default function LanguageManagerModal( {
 								existing={ languages.map( ( l ) => l.code ) }
 								firstLanguage={ isFirstLanguage }
 								onDone={ ( code ) => {
-									// Creating a language is done once it's saved — close
-									// the modal and let the caller jump the workspace to
-									// its tab so translating can start right away. Saving
-									// an edit to an existing language stays in place.
+									// Saving is done either way — close the modal.
+									// Creating a language also jumps the workspace
+									// to its new tab so translating can start right
+									// away; saving an edit just refreshes in place.
+									onClose()
 									if ( mode === 'new' && code ) {
-										onClose()
 										onChanged( code )
 										return
 									}

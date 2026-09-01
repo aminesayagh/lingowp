@@ -82,6 +82,36 @@ final class LanguageMetadataStore
     }
 
 
+    /**
+     * Point every configured language at one AI model in a single option write,
+     * refreshing updated_at on the ones that change. A per-language PATCH loop
+     * from the client races itself — each PATCH is a read-modify-write of this
+     * same option, so concurrent requests clobber each other's change. This is
+     * the atomic bulk path. Returns how many entries actually changed.
+     */
+    public function setAiModelForAll(string $model): int
+    {
+        $map = $this->all();
+        $now     = current_time('mysql', true);
+        $changed = 0;
+
+        foreach ($map as $code => $entry) {
+            if (! is_array($entry) || (string) ($entry['ai_model'] ?? '') === $model) {
+                continue;
+            }
+            $entry['ai_model']   = $model;
+            $entry['updated_at'] = $now;
+            $map[$code]          = $entry;
+            $changed++;
+        }
+
+        if ($changed > 0) {
+            update_option(self::OPTION, $map);
+        }
+
+        return $changed;
+    }
+
     /** Remove one language's metadata entry. No-op if absent. */
     public function remove(string $code): void
     {
@@ -98,5 +128,35 @@ final class LanguageMetadataStore
     public function reset(): void
     {
         delete_option(self::OPTION);
+    }
+
+    /**
+     * The backend's per-target-language config block — a REQUIRED field on
+     * both /translations and /translations/tasks (Pydantic "field required"
+     * 422 if omitted; every AI-translate call site must send it). Provider
+     * resolves from ai_model (openai/anthropic pass through, anything else —
+     * including the default 'auto' — becomes 'platform'); writing_style is
+     * included only when set, matching the backend's optional field.
+     *
+     * @param string[] $langs
+     * @return array<string, array{provider: string, writing_style?: string}>
+     */
+    public function providerConfig(array $langs): array
+    {
+        $map = [];
+        foreach ($langs as $lang) {
+            $meta     = $this->get($lang) ?? [];
+            $model    = (string) ($meta['ai_model'] ?? '');
+            $provider = in_array($model, ['openai', 'anthropic'], true) ? $model : 'platform';
+
+            $entry = ['provider' => $provider];
+            $style = trim((string) ($meta['ai_style'] ?? ''));
+            if ($style !== '') {
+                $entry['writing_style'] = $style;
+            }
+            $map[$lang] = $entry;
+        }
+
+        return $map;
     }
 }

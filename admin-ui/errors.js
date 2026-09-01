@@ -61,6 +61,17 @@ const MESSAGES = {
 	ERR_HOSTED_AI_UNAVAILABLE: 'Subscribe to a plan to use AI translation.',
 	ERR_INSUFFICIENT_AI_WORDS:
 		"You're out of AI words for this period. Buy a word pack to keep translating.",
+	ERR_UNKNOWN_ADDON:
+		"This add-on isn't available anymore. Refresh and try again.",
+	ERR_FREE_ADDON: 'This add-on is free — no checkout needed.',
+	ERR_ADDON_ALREADY_OWNED: 'You already have this add-on.',
+	ERR_ADDON_NOT_OWNED: 'Buy this add-on first, then install it.',
+	ERR_ADDON_REVOKED: "This add-on's access was revoked. Contact support.",
+	ERR_ADDON_ARTIFACT_MISSING:
+		"This add-on isn't available for download right now. Try again later.",
+	ERR_ADDON_INSTALL_FAILED: "Couldn't install this add-on. Try again in a moment.",
+	ERR_ADDON_ACTIVATE_FAILED:
+		"Installed, but couldn't activate it. Activate it from the Plugins page.",
 }
 
 export function errorMessage( code ) {

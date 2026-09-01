@@ -634,7 +634,18 @@ final class WpDbBoardQueries
         return ['total' => $total, 'translated' => $done];
     }
 
-    /** @return array{0:int, 1:int} [total sources, done translations] for one table + language. */
+    /**
+     * @return array{0:int, 1:int} [total sources, done translations] for one table + language.
+     *
+     * "done" here counts anything other than untouched (child status default
+     * 0 -- includes a still-pending AI job, which never writes status) or no
+     * row at all: machine (1), reviewed (2), AND needs_review (-1) all count.
+     * The sidebar's per-language percentage is meant to read "how much of
+     * this language has *some* translation", not "how much is fully signed
+     * off" -- needs_review already has translated text, it's just flagged
+     * for a human look, so `status > 0` alone was undercounting it as if it
+     * were untranslated.
+     */
     private function countTable(string $tableKey, bool $parentId, string $langCode): array
     {
         $parent = $this->parent($tableKey);
@@ -652,7 +663,7 @@ final class WpDbBoardQueries
             $posts = $this->wpdb->posts;
             [$statusIn, $statusArgs] = $this->postStatusClause();
 
-            $sql = "SELECT COUNT(*) AS total, SUM(t.status > 0) AS done
+            $sql = "SELECT COUNT(*) AS total, SUM(t.status <> 0) AS done
                     FROM {$parent} p
                     JOIN {$posts} wp ON wp.ID = p.post_id
                     LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
@@ -660,7 +671,7 @@ final class WpDbBoardQueries
             $args[] = TranslationStatus::SOURCE_DISCOVERED;
             array_push($args, ...$statusArgs);
         } else {
-            $sql = "SELECT COUNT(*) AS total, SUM(t.status > 0) AS done
+            $sql = "SELECT COUNT(*) AS total, SUM(t.status <> 0) AS done
                     FROM {$parent} p
                     LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
                     WHERE p.status = %d";
