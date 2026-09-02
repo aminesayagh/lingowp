@@ -45,7 +45,12 @@ export default function App() {
 	// Bumped once a language is actually created via the 'add-language' step,
 	// so Dashboard knows to refetch and jump to it (see languageAddedSignal
 	// there) — it owns the languages list, this modal doesn't fetch one.
+	// createdLanguageCode rides along so Dashboard's handleLanguagesAdded()
+	// can select it and, since this is always the very first language, check
+	// on and report back the content-extraction scan the same way its own
+	// add-language flows already do.
 	const [ languageAddedSignal, setLanguageAddedSignal ] = useState( 0 )
+	const [ createdLanguageCode, setCreatedLanguageCode ] = useState( null )
 
 	// Polaris renders popovers/tooltips/modals into a portal container that, by
 	// default, lives inside the React tree — which in wp-admin sits under the
@@ -110,6 +115,7 @@ export default function App() {
 							onboardingCompleted={ onboardingCompleted }
 							onStartOnboarding={ () => setStep( 'onboarding' ) }
 							languageAddedSignal={ languageAddedSignal }
+							createdLanguageCode={ createdLanguageCode }
 						/>
 						<Modal
 							open={ !! step }
@@ -124,7 +130,6 @@ export default function App() {
 									? 'Add languages'
 									: 'Finish setting up LingoWP'
 							}
-							// size="large"
 						>
 							{ step === 'onboarding' && state && (
 								<Modal.Section>
@@ -157,12 +162,18 @@ export default function App() {
 										defaultCode={
 											state?.default_language?.code
 										}
-										onDone={ () => {
-											setStep( null )
+										// onCreated fires whenever anything was
+										// created (partial or full success) and
+										// carries the actual "refetch and check
+										// extraction" signal; onDone (full
+										// success only) just closes the dialog.
+										onCreated={ ( code ) => {
+											setCreatedLanguageCode( code )
 											setLanguageAddedSignal(
 												( n ) => n + 1
 											)
 										} }
+										onDone={ () => setStep( null ) }
 									/>
 								</Modal.Section>
 							) }

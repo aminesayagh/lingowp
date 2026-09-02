@@ -3,7 +3,6 @@ import {
 	BlockStack,
 	Button,
 	Divider,
-	InlineGrid,
 	InlineStack,
 	Select,
 	Spinner,
@@ -22,6 +21,46 @@ import {
 } from './LanguageManagerModal'
 
 const SEARCH_INPUT_ID = 'lingowp-add-languages-search'
+const STORAGE_KEY = 'lingowp-add-languages-selection'
+
+// The in-progress pick survives both closing/reopening this dialog and a full
+// page refresh — persisted to localStorage (per-site, since it's scoped to
+// this origin), not just lifted to a parent component's state, which only
+// covers the first case. Cleared once a batch is actually submitted.
+function loadSelection() {
+	try {
+		const raw = window.localStorage.getItem( STORAGE_KEY )
+		const obj = raw ? JSON.parse( raw ) : null
+		if ( ! obj ) {
+			return new Map()
+		}
+		return new Map(
+			Object.entries( obj ).map( ( [ language, locales ] ) => [
+				language,
+				new Set( locales ),
+			] )
+		)
+	} catch {
+		return new Map()
+	}
+}
+
+function saveSelection( selection ) {
+	try {
+		if ( selection.size === 0 ) {
+			window.localStorage.removeItem( STORAGE_KEY )
+			return
+		}
+		const obj = {}
+		for ( const [ language, locales ] of selection ) {
+			obj[ language ] = Array.from( locales )
+		}
+		window.localStorage.setItem( STORAGE_KEY, JSON.stringify( obj ) )
+	} catch {
+		// Private browsing / storage disabled — the pick just won't survive
+		// a refresh, which is an acceptable degrade, not worth surfacing.
+	}
+}
 
 // Same region-label shape as LanguageManagerModal.jsx's own regionLabel() —
 // duplicated rather than exported, since this is the only other caller and
@@ -160,12 +199,18 @@ function RightRow( { group, item, onRemove } ) {
 	)
 }
 
-export default function AddLanguagesPicker( {
-	defaultCode,
-	selection,
-	onSelectionChange,
-	onDone,
-} ) {
+// Short, user-facing reason for a locale the backend didn't create — mirrors
+// the reason codes bulkCreate() (LanguageRestController.php) attaches to
+// each skipped entry.
+const SKIP_REASON_LABELS = {
+	already_exists: 'already added',
+	unknown_locale: 'not recognized',
+	language_mismatch: 'not recognized',
+	slug_taken: 'its web address is already used',
+	invalid_locale: 'not recognized',
+}
+
+export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } ) {
 	const [ catalog, setCatalog ] = useState( [] )
 	const [ catalogStatus, setCatalogStatus ] = useState( 'loading' )
 	const [ catalogReload, setCatalogReload ] = useState( 0 )
@@ -174,15 +219,23 @@ export default function AddLanguagesPicker( {
 		providerKeys: [],
 	} )
 	// The whole pick, client-side only until "Add languages" is submitted —
-	// owned by the caller (not local state) so closing and reopening this
-	// dialog (which unmounts this component in between) picks up right where
-	// the user left off instead of starting over.
-	const setSelection = onSelectionChange
+	// hydrated from and mirrored to localStorage (see loadSelection/
+	// saveSelection above), so closing and reopening this dialog, or
+	// refreshing the page entirely, picks up right where the user left off.
+	const [ selection, setSelection ] = useState( loadSelection )
+	useEffect( () => {
+		saveSelection( selection )
+	}, [ selection ] )
 	const [ search, setSearch ] = useState( '' )
 	const [ aiModelOverride, setAiModelOverride ] = useState( null )
 	const [ style, setStyle ] = useState( '' )
 	const [ creating, setCreating ] = useState( false )
 	const [ error, setError ] = useState( '' )
+	// Set only when a submit partially succeeded — some locales were created,
+	// others skipped server-side (already added elsewhere, slug taken, …).
+	// The modal stays open in that case instead of closing as if everything
+	// went through, so the user actually sees what happened.
+	const [ partialNotice, setPartialNotice ] = useState( '' )
 
 	// A row is keyboard-focusable on its own (Enter/Space adds it) but isn't
 	// a text input, and when the picker first opens nothing inside it has
@@ -237,6 +290,41 @@ export default function AddLanguagesPicker( {
 			stillMounted = false
 		}
 	}, [ catalogReload ] )
+
+	// A selection restored from localStorage can reference a language/locale
+	// the catalog no longer has (stale data, or it changed) — prune it once
+	// the catalog is actually loaded, so the counter and submit payload never
+	// include something the right column can't even show.
+	useEffect( () => {
+		if ( catalogStatus !== 'ready' ) {
+			return
+		}
+		const validGroups = groupCatalog( catalog, defaultCode )
+		setSelection( ( prev ) => {
+			let changed = false
+			const next = new Map()
+			for ( const [ language, locales ] of prev ) {
+				const group = validGroups.find(
+					( g ) => g.language === language
+				)
+				const validLocales = new Set(
+					( group?.items || [] ).map( ( item ) => item.locale )
+				)
+				const kept = new Set(
+					Array.from( locales ).filter( ( locale ) =>
+						validLocales.has( locale )
+					)
+				)
+				if ( kept.size !== locales.size ) {
+					changed = true
+				}
+				if ( kept.size > 0 ) {
+					next.set( language, kept )
+				}
+			}
+			return changed ? next : prev
+		} )
+	}, [ catalogStatus, catalog, defaultCode ] )
 
 	useEffect( () => {
 		Promise.all( [
@@ -303,10 +391,11 @@ export default function AddLanguagesPicker( {
 	function addLanguage( group ) {
 		setSelection( ( prev ) => {
 			const next = new Map( prev )
-			// Union with whatever's already added, not a fresh Set — a
-			// partially-added language (some regions removed, still showing
-			// on the left for its remaining ones) must only pick up what's
-			// missing, not re-add regions the user deliberately removed.
+			// Union with whatever's already added, not a fresh Set — and
+			// deliberately re-adds every region, including ones the user
+			// previously removed on the right: clicking the language on the
+			// left is a "give me all of it" action, confirmed as the wanted
+			// behavior even for a language already partially added.
 			const merged = new Set( next.get( group.language ) )
 			for ( const item of group.items ) {
 				merged.add( item.locale )
@@ -353,6 +442,7 @@ export default function AddLanguagesPicker( {
 	async function submit() {
 		setCreating( true )
 		setError( '' )
+		setPartialNotice( '' )
 		const res = await api.post( '/languages/bulk', {
 			selections: Array.from( selection.entries() ).map(
 				( [ language, set ] ) => ( {
@@ -365,7 +455,60 @@ export default function AddLanguagesPicker( {
 		} )
 		setCreating( false )
 		if ( res.ok ) {
-			onDone()
+			const createdCodes = ( res.languages || [] ).map(
+				( lang ) => lang.code
+			)
+			const createdLocales = new Set( createdCodes )
+			const skipped = Array.isArray( res.skipped ) ? res.skipped : []
+			// Only the first created code rides along — callers use it just to
+			// pick a language to land on / check content-extraction status
+			// for, not to enumerate the whole batch.
+			if ( createdCodes.length > 0 ) {
+				onCreated?.( createdCodes[ 0 ] )
+			}
+			if ( skipped.length === 0 ) {
+				// Clear localStorage directly, not just via the `selection`
+				// state + its mirroring effect — onDone() below closes the
+				// modal in the very same update batch, unmounting this
+				// component before that effect ever gets a chance to run
+				// with the new (emptied) value, leaving the just-added
+				// languages sitting in storage forever.
+				saveSelection( new Map() )
+				setSelection( new Map() )
+				onDone( createdCodes[ 0 ] )
+				return
+			}
+			// Partial success: drop only what was actually created, leave the
+			// skipped locales selected so the user can see and retry them,
+			// and say why instead of closing as if the whole batch went
+			// through.
+			setSelection( ( prev ) => {
+				const next = new Map()
+				for ( const [ language, locales ] of prev ) {
+					const kept = new Set(
+						Array.from( locales ).filter(
+							( locale ) => ! createdLocales.has( locale )
+						)
+					)
+					if ( kept.size > 0 ) {
+						next.set( language, kept )
+					}
+				}
+				return next
+			} )
+			const reasons = Array.from(
+				new Set(
+					skipped.map(
+						( item ) =>
+							SKIP_REASON_LABELS[ item.reason ] || 'skipped'
+					)
+				)
+			).join( ', ' )
+			setPartialNotice(
+				`Added ${ createdLocales.size } language${
+					createdLocales.size === 1 ? '' : 's'
+				}. ${ skipped.length } skipped — ${ reasons }.`
+			)
 		} else {
 			setError( res.error || 'ERR_BACKEND' )
 		}
@@ -416,7 +559,13 @@ export default function AddLanguagesPicker( {
 				<Text as="p" tone="subdued">
 					Select a language to add it, with all its regions.
 				</Text>
-				<InlineGrid columns={ 2 } gap="400">
+				<div
+					style={ {
+						display: 'grid',
+						gridTemplateColumns: '1fr auto 1fr',
+						gap: 'var(--p-space-400)',
+					} }
+				>
 					<BlockStack gap="200">
 						<TextField
 							id={ SEARCH_INPUT_ID }
@@ -456,6 +605,14 @@ export default function AddLanguagesPicker( {
 						</div>
 					</BlockStack>
 
+					<div
+						style={ {
+							alignSelf: 'stretch',
+							width: 1,
+							background: 'var(--p-color-border)',
+						} }
+					/>
+
 					<BlockStack gap="200">
 						<Text as="h3" variant="headingSm">
 							Added languages
@@ -485,7 +642,7 @@ export default function AddLanguagesPicker( {
 							</BlockStack>
 						</div>
 					</BlockStack>
-				</InlineGrid>
+				</div>
 
 				{ hasAiChoice && (
 					<>
@@ -523,6 +680,12 @@ export default function AddLanguagesPicker( {
 					</Text>
 				) }
 
+				{ partialNotice && (
+					<Text as="p" tone="caution">
+						{ partialNotice }
+					</Text>
+				) }
+
 				<InlineStack align="end" blockAlign="center">
 					<Button
 						variant="primary"
@@ -530,9 +693,11 @@ export default function AddLanguagesPicker( {
 						disabled={ languageCount === 0 }
 						onClick={ submit }
 					>
-						{ `Add ${ languageCount } language${
-							languageCount === 1 ? '' : 's'
-						}` }
+						{ languageCount === 0
+							? 'Add languages'
+							: `Add ${ languageCount } language${
+									languageCount === 1 ? '' : 's'
+							  }` }
 					</Button>
 				</InlineStack>
 			</BlockStack>

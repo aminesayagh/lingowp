@@ -91,8 +91,25 @@ export function LanguagesManagerBody( {
 	onChanged,
 	onConfirm,
 	onSwitchToInternal,
+	onWideChange,
 } ) {
-	const [ sel, setSel ] = useState( 'new' )
+	const [ sel, setSel ] = useState(
+		() => initialCode || languages[ 0 ]?.code || 'new'
+	)
+	// Re-point `sel` at whatever the caller asked for (openManager()'s code
+	// argument) the instant the modal opens — synchronously during render,
+	// not in an effect, so the very first painted frame already has the
+	// right mode/width instead of showing 'new' for a frame and correcting
+	// itself a moment later (this body stays mounted permanently once opened
+	// once, see managerEverOpened in Dashboard.jsx, so a plain mount-time
+	// initializer alone wouldn't catch later re-opens).
+	const [ prevOpen, setPrevOpen ] = useState( open )
+	if ( open !== prevOpen ) {
+		setPrevOpen( open )
+		if ( open ) {
+			setSel( initialCode || languages[ 0 ]?.code || 'new' )
+		}
+	}
 	const [ resolvedCatalog, setResolvedCatalog ] = useState( catalog )
 	const [ catalogStatus, setCatalogStatus ] = useState( 'idle' )
 	const [ catalogReload, setCatalogReload ] = useState( 0 )
@@ -105,12 +122,6 @@ export function LanguagesManagerBody( {
 		providerKeys: [],
 	} )
 	const isFirstLanguage = languages.length === 0
-
-	useEffect( () => {
-		if ( open ) {
-			setSel( initialCode || languages[ 0 ]?.code || 'new' )
-		}
-	}, [ initialCode, languages, open ] )
 
 	const refreshAiEngines = useCallback( () => {
 		return Promise.all( [
@@ -232,9 +243,25 @@ export function LanguagesManagerBody( {
 		} )
 	}
 
+	// The wide (850px) treatment is for the Settings modal as a whole, once
+	// there's a sidebar worth browsing — i.e. as soon as at least one
+	// language exists, whichever of its views (a language's own edit form,
+	// "+ Add" another, Configuration, AI settings) happens to be selected.
+	// Before that (isFirstLanguage), there's no sidebar at all, just a single
+	// form, so the plain default width is enough.
+	const isWide = ! isFirstLanguage
+
+	// The Modal itself lives in the parent wrapper (LanguageManagerModal
+	// below) — it needs to know isWide too, to size itself, since Polaris's
+	// own `size` prop (not just this marker class + CSS) is what puts the
+	// dialog into the sizeLarge bucket the CSS override keys off.
+	useEffect( () => {
+		onWideChange?.( isWide )
+	}, [ isWide, onWideChange ] )
+
 	return (
 		<div
-			className="lingowp-wide-modal"
+			className={ isWide ? 'lingowp-wide-modal' : undefined }
 			style={ {
 				display: 'flex',
 				gap: isFirstLanguage ? 0 : 16,
@@ -370,15 +397,31 @@ export function LanguagesManagerBody( {
 // mounts for every purpose except the onboarding hand-off (edit a language,
 // open Settings, "+ Add" a later language).
 export default function LanguageManagerModal( props ) {
+	// undefined (Polaris's own default width) only before any language
+	// exists — LanguagesManagerBody reports that back live via onWideChange,
+	// since it alone knows whether a sidebar exists at all. But that's one
+	// effect-cycle behind on the frame the modal actually opens on, which
+	// flashed the wrong width for a frame — so mirror the same check here,
+	// synchronously, against the props this wrapper already has, the instant
+	// `open` flips true.
+	const isWideFor = () => props.languages.length > 0
+	const [ isWide, setIsWide ] = useState( isWideFor )
+	const [ prevOpen, setPrevOpen ] = useState( props.open )
+	if ( props.open !== prevOpen ) {
+		setPrevOpen( props.open )
+		if ( props.open ) {
+			setIsWide( isWideFor() )
+		}
+	}
 	return (
 		<Modal
 			open={ props.open }
 			onClose={ props.onClose }
 			title="Settings"
-			size="large"
+			size={ isWide ? 'large' : undefined }
 		>
 			<Modal.Section>
-				<LanguagesManagerBody { ...props } />
+				<LanguagesManagerBody { ...props } onWideChange={ setIsWide } />
 			</Modal.Section>
 		</Modal>
 	)

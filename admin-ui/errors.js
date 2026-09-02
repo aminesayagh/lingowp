@@ -14,6 +14,8 @@ const MESSAGES = {
 	ERR_INVALID_INPUT: 'Select at least one category to continue.',
 	ERR_SLUG_TAKEN:
 		'This URL slug is already used by another language. Choose a different one.',
+	ERR_NO_LANGUAGES_ADDED:
+		"None of the selected languages could be added — they may already exist or their web address is taken.",
 	ERR_NOT_CONNECTED: 'Not connected. Finish setup to continue.',
 	ERR_INVALID_STATUS: 'Unknown status filter. Refresh and try again.',
 	ERR_LICENSE_DETACHED:

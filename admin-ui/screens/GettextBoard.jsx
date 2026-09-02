@@ -129,17 +129,22 @@ function loadOpenKeys() {
 }
 
 // One status chip per domain row — never a badge *and* a raw percent, since
-// they'd carry the same information. 0% (or no `.mo` at all) reads as "Not
-// found"; 100% is just "Ready" with no number; anything between shows how
-// much is still untranslated, e.g. "34% left". Returns null while the
-// percent is still being backfilled so the row doesn't flash a chip in.
+// they'd carry the same information. The cached percentage is the single
+// source of truth: while it's still being backfilled the row shows no chip
+// (rather than flashing a wrong one), 0% reads as "Not found", 100% is just
+// "Ready" with no number, and anything between shows how much is still
+// untranslated, e.g. "34% left". `row.status` is deliberately NOT consulted
+// here — it starts null for every not-yet-installed row and stays stale until
+// the list reloads, so a row that already has translations (auto find-online
+// just installed a file, percent backfilled) would otherwise be mislabelled
+// "Not found".
 function domainProgressChip( row ) {
 	const p = row.translated_percent
 	let chip = null
-	if ( row.status === null || p === 0 ) {
-		chip = <Badge>Not found</Badge>
-	} else if ( p === null || p === undefined ) {
+	if ( p === null || p === undefined ) {
 		return null
+	} else if ( p <= 0 ) {
+		chip = <Badge>Not found</Badge>
 	} else if ( p >= 100 ) {
 		chip = (
 			<Badge tone="success" size="small">

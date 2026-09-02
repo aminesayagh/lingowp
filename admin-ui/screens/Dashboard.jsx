@@ -291,10 +291,13 @@ export default function Dashboard( {
 	onboardingCompleted,
 	onStartOnboarding,
 	// Bumped by App.jsx after its own "add your first language" step (the
-	// onboarding hand-off modal) creates a language — refreshLanguages()
-	// already auto-selects a language when the current selection is invalid,
-	// so this is enough to jump the workspace onto it, no code needed here.
+	// onboarding hand-off modal) creates a language — paired with
+	// createdLanguageCode below and run through the same handleLanguagesAdded()
+	// as every other "language(s) created" flow, so onboarding also gets
+	// extraction-scan polling and the "found N texts" toast, not just a
+	// bare refetch.
 	languageAddedSignal,
+	createdLanguageCode,
 } ) {
 	const queryClient = useQueryClient()
 	const [ languages, setLanguages ] = useState( [] )
@@ -514,11 +517,11 @@ export default function Dashboard( {
 		openManager( null )
 	}
 
-	// Shared by both "a language was just created" flows — the older
+	// Shared by every "a language was just created" flow — the older
 	// single-language form's onChanged (createdCode set, jumps straight to
-	// its tab) and the two-column picker's onDone (no single code — it can
-	// create several at once, so this just refreshes and lets the normal
-	// "pick a sensible default" in refreshLanguages() take over).
+	// its tab), the two-column picker's onDone/onCreated (now reports back
+	// the first code it created), and App.jsx's onboarding hand-off (relayed
+	// down via createdLanguageCode, see the languageAddedSignal effect above).
 	function handleLanguagesAdded( createdCode ) {
 		const wasFirstLanguage = languages.length === 0
 		refreshLanguages()
@@ -529,10 +532,39 @@ export default function Dashboard( {
 			api.get( '/scan/status' ).then( ( res ) => {
 				if ( ( res.status || 'running' ) === 'running' ) {
 					setExtractionPending( true )
-					setTimeout( pollFirstScan, 3000 )
+					setTimeout( () => pollFirstScan( createdCode ), 3000 )
+				} else {
+					announceExtractionDone( createdCode )
 				}
 			} )
 		}
+	}
+
+	// Content count for the "extraction finished" toast — /scan/status itself
+	// deliberately never carries counts (see ScanRestController's own doc
+	// comment), so ask the board for the same total_texts value it already
+	// shows in the header progress badge. total is a property of the source
+	// content itself (how many translatable units a collection holds), not
+	// of any one target language's translation progress, so any language
+	// code works here, including one that's still a draft.
+	function announceExtractionDone( lang ) {
+		if ( ! lang ) {
+			return
+		}
+		api.get( `/collections?language=${ enc( lang ) }&limit=1` ).then(
+			( res ) => {
+				if ( ! res.ok ) {
+					return
+				}
+				const count = res.total_texts ?? 0
+				showToast(
+					'success',
+					`Found ${ count } text${
+						count === 1 ? '' : 's'
+					} to translate.`
+				)
+			}
+		)
 	}
 
 	// The one place entitlements gets fetched — mount, and after every AI
@@ -940,14 +972,16 @@ export default function Dashboard( {
 	// languageAddedSignal starts undefined/0 and only changes after App.jsx's
 	// onboarding hand-off actually creates a language — skip the initial
 	// mount (refreshLanguages() above already covers it) and only react to a
-	// real bump.
+	// real bump. Routed through handleLanguagesAdded(), not a bare
+	// refreshLanguages(), so onboarding gets the same extraction-scan
+	// polling and "found N texts" toast as every other add-language flow.
 	const firstLanguageAddedSignal = useRef( languageAddedSignal )
 	useEffect( () => {
 		if ( languageAddedSignal === firstLanguageAddedSignal.current ) {
 			return
 		}
 		firstLanguageAddedSignal.current = languageAddedSignal
-		refreshLanguages()
+		handleLanguagesAdded( createdLanguageCode )
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [ languageAddedSignal ] )
 
@@ -1057,17 +1091,21 @@ export default function Dashboard( {
 	// Same poll-until-done shape as pollScanStatus, but gates the board body
 	// (via extractionPending) instead of a toast — used once, right after the
 	// very first language is created, so the user never sees an empty content
-	// list while the activation-time scan is still filling it in.
-	function pollFirstScan() {
+	// list while the activation-time scan is still filling it in. `lang`
+	// threads through the recursive setTimeout rather than reading
+	// selectedLang live, so the eventual "extraction done" toast still names
+	// the right language even if the user switches languages while waiting.
+	function pollFirstScan( lang ) {
 		api.get( '/scan/status' ).then( ( res ) => {
 			const status = res.status || 'running'
 			if ( status === 'running' ) {
-				setTimeout( pollFirstScan, 3000 )
+				setTimeout( () => pollFirstScan( lang ), 3000 )
 				return
 			}
 			setExtractionPending( false )
 			if ( status === 'completed' ) {
 				invalidateCollections()
+				announceExtractionDone( lang )
 			}
 		} )
 	}
@@ -2841,15 +2879,21 @@ export default function Dashboard( {
 						open={ addLanguagesPickerOpen }
 						onClose={ () => setAddLanguagesPickerOpen( false ) }
 						title="Add languages"
-						size="large"
 					>
 						<Modal.Section>
 							<AddLanguagesPicker
 								defaultCode={ defaultCode }
-								onDone={ () => {
+								// onCreated fires whenever anything was
+								// created (partial or full success) and does
+								// all the actual work; onDone only ever
+								// closes the dialog, on top of that — calling
+								// handleLanguagesAdded() from both would run
+								// it twice on a full success (onCreated then
+								// onDone, in the same submit()).
+								onCreated={ handleLanguagesAdded }
+								onDone={ () =>
 									setAddLanguagesPickerOpen( false )
-									handleLanguagesAdded()
-								} }
+								}
 							/>
 						</Modal.Section>
 					</Modal>

@@ -258,6 +258,7 @@ export default function AiConfiguration( {
 										updateRow( { provider: v } )
 									}
 									disabled={ row.saving }
+									size="small"
 								/>
 							</div>
 							<div style={ { flex: 1 } }>
@@ -273,6 +274,7 @@ export default function AiConfiguration( {
 										updateRow( { draft: v } )
 									}
 									disabled={ row.saving }
+									size="small"
 								/>
 							</div>
 						</InlineStack>

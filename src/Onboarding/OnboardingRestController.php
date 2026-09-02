@@ -63,11 +63,13 @@ final class OnboardingRestController
     public function state(): WP_REST_Response
     {
         $status = $this->status->current();
-        // A stored connection proves configuration was already submitted. This
-        // also repairs installs that completed configuration before the
-        // completion flag was moved earlier in the flow.
-        $onboardingCompleted = $this->connection->isOnboardingComplete()
-            || $this->connection->isConnected();
+        // Only the dedicated flag counts — set exclusively by configure()
+        // (the Continue button) or complete(). A stored connection used to
+        // also imply this, as a repair for installs that connected before
+        // the completion flag existed this early in the flow; dropped since
+        // it let a merely-connected site skip straight past configuration
+        // on every reload, without the user ever having pressed Continue.
+        $onboardingCompleted = $this->connection->isOnboardingComplete();
 
         return rest_ensure_response([
             'ok'                    => true,

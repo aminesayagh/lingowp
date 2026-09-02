@@ -212,6 +212,11 @@ final class LanguageRestController
         $status           = $request->get_param('status') === 'active' ? 'active' : 'draft';
 
         $created = [];
+        // Every locale the client asked for that didn't become a language,
+        // with why — so the frontend can tell a genuine partial success
+        // (some skipped, most likely already added by another tab/session)
+        // apart from silently pretending the whole batch went through.
+        $skipped = [];
         foreach ($selections as $selection) {
             if (!is_array($selection)) {
                 continue;
@@ -224,7 +229,12 @@ final class LanguageRestController
 
             foreach ($locales as $rawLocale) {
                 $code = LocaleNormalizer::normalize((string) $rawLocale);
-                if ($code === '' || $code === $defaultCode || $this->store->has($code)) {
+                if ($code === '') {
+                    $skipped[] = ['locale' => (string) $rawLocale, 'reason' => 'invalid_locale'];
+                    continue;
+                }
+                if ($code === $defaultCode || $this->store->has($code)) {
+                    $skipped[] = ['locale' => $code, 'reason' => 'already_exists'];
                     continue;
                 }
 
@@ -241,12 +251,18 @@ final class LanguageRestController
                 // Never trust the client's declared base language for a locale —
                 // same "don't trust the form" edge create() applies to its own
                 // single code/catalog pairing.
-                if ($entry === null || $entry['language'] !== $language) {
+                if ($entry === null) {
+                    $skipped[] = ['locale' => $code, 'reason' => 'unknown_locale'];
+                    continue;
+                }
+                if ($entry['language'] !== $language) {
+                    $skipped[] = ['locale' => $code, 'reason' => 'language_mismatch'];
                     continue;
                 }
 
                 $slug = sanitize_title(str_replace('_', '-', strtolower($code)));
                 if (!$this->slugAvailable($slug)) {
+                    $skipped[] = ['locale' => $code, 'reason' => 'slug_taken'];
                     continue;
                 }
 
@@ -273,7 +289,11 @@ final class LanguageRestController
         }
 
         if ($created === []) {
-            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+            return new WP_REST_Response([
+                'ok'      => false,
+                'error'   => 'ERR_NO_LANGUAGES_ADDED',
+                'skipped' => $skipped,
+            ], 400);
         }
 
         if ($status === 'active') {
@@ -284,6 +304,7 @@ final class LanguageRestController
         return rest_ensure_response([
             'ok'        => true,
             'languages' => $created,
+            'skipped'   => $skipped,
             'next'      => 'dashboard_workspace',
         ]);
     }
