@@ -81,11 +81,6 @@ use LingoWP\Insights\InsightsRestController;
 use LingoWP\Insights\NotifyEmailResolver;
 use LingoWP\Privacy\PrivacyPolicyContent;
 
-/**
- * @phpstan-type BackendBundle array{connection: ConnectionRepository, backendClient: BackendClient,
- *   siteMetadata: SiteMetadataProvider, connectionStatus: ConnectionStatus,
- *   languageMetadata: LanguageMetadataStore}
- */
 class Plugin
 {
     /**
@@ -130,14 +125,12 @@ class Plugin
         // view — only where the backend is actually reachable: wp-admin, the REST
         // API the SPA calls, and the cron/loopback request that runs the sync job.
         // (A bare is_admin() check would be wrong: REST and cron are not is_admin().)
-        $backend = $this->isBackendContext()
-            ? $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $htmlCrawl)
-            : null;
+        if ($this->isBackendContext()) {
+            $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $htmlCrawl);
+        }
 
-        // is_admin() implies isBackendContext() (see that method), so $backend is
-        // always set by the time we get here.
         if (is_admin()) {
-            $this->bootAdmin($wpdb, $languageRegistry, $backend);
+            $this->bootAdmin($wpdb, $languageRegistry);
         }
     }
 
@@ -320,8 +313,6 @@ class Plugin
      * Phase 3: the backend connection, the Collections board, AI translation,
      * gettext domain management, and export/import — everything that only
      * runs where the backend is actually reachable (wp-admin, REST, cron).
-     *
-     * @return BackendBundle handed to bootAdmin() for the dev reset tool
      */
     private function bootBackendAndBoard(
         \wpdb $wpdb,
@@ -329,7 +320,7 @@ class Plugin
         WpDbSourceRepository $sourceRepository,
         InitialDiscoveryScan $initialScan,
         HtmlDiscoveryCrawl $htmlCrawl
-    ): array {
+    ): void {
         // Hash-link children have no FK to their parents (many parents share one
         // child), so a source edit or a deleted post leaves them behind. Reclaimed
         // by a daily job. Here for the context gate — admin/REST/cron, never a
@@ -389,22 +380,13 @@ class Plugin
             $gettextAiQueue
         ))->register();
 
-        return [
-            'connection'       => $connection,
-            'backendClient'    => $backendClient,
-            'siteMetadata'     => $siteMetadata,
-            'connectionStatus' => $connectionStatus,
-            'languageMetadata' => $languageMetadata,
-        ];
     }
 
     /**
      * Thin wp-admin chrome: assets, the Site Health panel, the onboarding
      * page shell, and (WP_DEBUG only) the dev reset tool.
-     *
-     * @param BackendBundle $backend from bootBackendAndBoard()
      */
-    private function bootAdmin(\wpdb $wpdb, OptionLanguageRegistry $languageRegistry, array $backend): void
+    private function bootAdmin(\wpdb $wpdb, OptionLanguageRegistry $languageRegistry): void
     {
         (new DatabaseHealthReport(new DatabaseHealthCheck($wpdb)))->register();
         (new AdminAssets())->register();
@@ -418,15 +400,7 @@ class Plugin
         // file entirely (bin/build-release-zip.sh), so a production site
         // with WP_DEBUG mistakenly on must skip this, not fatal.
         if (defined('WP_DEBUG') && WP_DEBUG && class_exists(ResetPageController::class)) {
-            (new ResetPageController(
-                $wpdb,
-                $backend['connection'],
-                new BackendEndpointResolver(),
-                $backend['connectionStatus'],
-                $backend['siteMetadata'],
-                $languageRegistry,
-                $backend['languageMetadata']
-            ))->register();
+            (new ResetPageController($wpdb))->register();
         }
     }
 

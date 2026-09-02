@@ -2,27 +2,18 @@
 
 namespace LingoWP\Admin;
 
-use LingoWP\Backend\BackendEndpointResolver;
-use LingoWP\Backend\ConnectionRepository;
-use LingoWP\Backend\ConnectionStatus;
-use LingoWP\Backend\SiteMetadataProvider;
-use LingoWP\Database\OrphanTranslationSweep;
-use LingoWP\Database\TranslationMemorySchema;
-use LingoWP\Extraction\Html\HtmlDiscoveryCrawl;
-use LingoWP\Extraction\Structured\InitialDiscoveryScan;
-use LingoWP\Language\Infrastructure\LanguageMetadataStore;
-use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Database\PluginDataCleanup;
 use LingoWP\Shared\PhpTemplateRenderer;
 
 /**
- * Dev-only "reset everything" tool — drops every wp_tl_* table (including the
- * legacy static-text ones, no longer supported), deletes every lingowp_*
- * option/transient (config AND the API connection), and deactivates the
- * plugin. This is the button-triggered equivalent of a real uninstall minus
- * the file deletion: the admin is expected to reactivate manually afterwards,
- * which runs Activator::run() and starts setup over from a clean slate.
+ * Dev-only "reset everything" tool — runs the exact same purge as a real
+ * uninstall (PluginDataCleanup::run: drop every table, delete every option
+ * and transient, cancel scheduled work) minus the file deletion, then
+ * deactivates the plugin. The admin is expected to reactivate manually
+ * afterwards, which runs Activator::run() and starts setup over from a clean
+ * slate.
  *
- * Registered only when WP_DEBUG is on (see Bootstrap/Plugin.php) — a real
+ * Registered only when WP_DEBUG is on (see Setup/Plugin.php) — a real
  * customer's site admin should never be able to wipe their connection and
  * translated content with one click; that is what uninstall.php is for.
  */
@@ -33,29 +24,10 @@ class ResetPageController
     private const PARENT    = 'lingowp';
 
     private \wpdb $wpdb;
-    private ConnectionRepository $connection;
-    private BackendEndpointResolver $endpointResolver;
-    private ConnectionStatus $connectionStatus;
-    private SiteMetadataProvider $siteMetadata;
-    private OptionLanguageRegistry $languageRegistry;
-    private LanguageMetadataStore $languageMetadata;
 
-    public function __construct(
-        \wpdb $wpdb,
-        ConnectionRepository $connection,
-        BackendEndpointResolver $endpointResolver,
-        ConnectionStatus $connectionStatus,
-        SiteMetadataProvider $siteMetadata,
-        OptionLanguageRegistry $languageRegistry,
-        LanguageMetadataStore $languageMetadata
-    ) {
-        $this->wpdb              = $wpdb;
-        $this->connection        = $connection;
-        $this->endpointResolver  = $endpointResolver;
-        $this->connectionStatus  = $connectionStatus;
-        $this->siteMetadata      = $siteMetadata;
-        $this->languageRegistry  = $languageRegistry;
-        $this->languageMetadata  = $languageMetadata;
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
     }
 
     public function register(): void
@@ -71,9 +43,10 @@ class ResetPageController
 
     public function addMenu(): void
     {
-        // ponytail: null parent = page stays reachable at
-        // admin.php?page=lingowp-reset but no sidebar link. Pass self::PARENT
-        // again to bring the "Reset Data" nav item back.
+        // null parent: the page stays reachable at admin.php?page=lingowp-reset
+        // but gets no sidebar link — this dev tool should never be one click
+        // away for anyone browsing the menu. Swap null for self::PARENT to
+        // bring the "Reset Data" nav item back.
         add_submenu_page(
             null,
             __('Reset Translation Data', 'lingowp'),
@@ -94,10 +67,8 @@ class ResetPageController
     }
 
     /**
-     * Drop every table, delete every option, then deactivate. Table names are
-     * derived from TranslationMemorySchema, the single source of truth,
-     * rather than a second hardcoded list. Nothing is re-seeded here —
-     * Activator::run() does that fresh when the admin reactivates.
+     * Full purge, then deactivate. Nothing is re-seeded here — Activator::run()
+     * does that fresh when the admin reactivates.
      */
     public function handleReset(): void
     {
@@ -109,40 +80,11 @@ class ResetPageController
             wp_die(esc_html__('Security check failed. Please try again.', 'lingowp'));
         }
 
-        TranslationMemorySchema::dropAllTables($this->wpdb);
-
-        $this->deleteConnection();
-        $this->deleteConfiguration();
+        PluginDataCleanup::run($this->wpdb);
 
         deactivate_plugins(LINGOWP_BASENAME);
 
         wp_safe_redirect(admin_url('plugins.php'));
         exit;
-    }
-
-    /** Delete the API connection entirely: credentials and cached status. */
-    private function deleteConnection(): void
-    {
-        $this->connection->forgetAll();
-        $this->endpointResolver->resetOrigin();
-        $this->connectionStatus->clearCache();
-    }
-
-    /**
-     * Delete every remaining piece of Settings-page configuration: schema
-     * version, scan/sweep bookkeeping, language roster, source locale,
-     * behavior toggles, categories, language metadata.
-     */
-    private function deleteConfiguration(): void
-    {
-        delete_option(TranslationMemorySchema::OPTION_DB_VERSION);
-        delete_option('lingowp_rewrite_rules_version');
-        delete_option(OrphanTranslationSweep::OPTION_LAST_RUN);
-        delete_option(InitialDiscoveryScan::OPTION_FLAG);
-        delete_option(HtmlDiscoveryCrawl::OPTION_FLAG);
-        TranslationMemorySchema::deleteConfigOptions();
-        $this->languageRegistry->resetToDefaults();
-        $this->siteMetadata->resetCategories();
-        $this->languageMetadata->reset();
     }
 }

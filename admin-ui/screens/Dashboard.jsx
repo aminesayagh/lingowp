@@ -285,6 +285,11 @@ export default function Dashboard( {
 	defaultLanguage,
 	onboardingCompleted,
 	onStartOnboarding,
+	// Bumped by App.jsx after its own "add your first language" step (the
+	// onboarding hand-off modal) creates a language — refreshLanguages()
+	// already auto-selects a language when the current selection is invalid,
+	// so this is enough to jump the workspace onto it, no code needed here.
+	languageAddedSignal,
 } ) {
 	const queryClient = useQueryClient()
 	const [ languages, setLanguages ] = useState( [] )
@@ -889,6 +894,20 @@ export default function Dashboard( {
 	// useState setter — nuqs's own examples omit it from effect deps too.
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	useEffect( refreshLanguages, [] )
+
+	// languageAddedSignal starts undefined/0 and only changes after App.jsx's
+	// onboarding hand-off actually creates a language — skip the initial
+	// mount (refreshLanguages() above already covers it) and only react to a
+	// real bump.
+	const firstLanguageAddedSignal = useRef( languageAddedSignal )
+	useEffect( () => {
+		if ( languageAddedSignal === firstLanguageAddedSignal.current ) {
+			return
+		}
+		firstLanguageAddedSignal.current = languageAddedSignal
+		refreshLanguages()
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ languageAddedSignal ] )
 
 	// Debounce the box into the term we actually query with. Below SEARCH_MIN the term
 	// counts as empty, so backspacing to one letter restores the full tree.

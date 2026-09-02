@@ -357,6 +357,8 @@ class TranslationMemorySchema
 
     /**
      * Set behavior options on first activation only (add_option is a no-op if they exist).
+     * The reciprocal delete lives in PluginDataCleanup::OPTIONS (shared by
+     * uninstall.php and the reset button).
      * The source language is captured ONCE here: the normalized site
      * locale is frozen into lingowp_source_locale so runtime never reads the
      * filtered, mid-request-switchable get_locale().
@@ -442,13 +444,4 @@ class TranslationMemorySchema
         }
     }
 
-    /** Dev-only reset tool: the reciprocal of setDefaultOptions() above. */
-    public static function deleteConfigOptions(): void
-    {
-        delete_option('lingowp_enabled_languages');
-        delete_option('lingowp_prefix_default_language');
-        delete_option('lingowp_cookie_preference');
-        delete_option('lingowp_browser_detection');
-        delete_option('lingowp_auto_redirect');
-    }
 }

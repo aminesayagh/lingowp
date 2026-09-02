@@ -61,12 +61,18 @@ export function aiModelOptions( { hasSubscription, providerKeys } ) {
 	return opts.length ? opts : [ { label: 'Auto', value: 'auto' } ]
 }
 
-// Language manager: a sidebar of every language (reuses the dashboard's
+// Language manager body: a sidebar of every language (reuses the dashboard's
 // LanguageList) + a config pane. Selecting a row edits it; "+ Add" starts a new
 // one. Creating a language closes the modal and hands its code back via
 // onChanged so the caller can jump straight to that language's tab; editing an
 // existing language keeps the modal open so several can be reconfigured in a row.
-export default function LanguageManagerModal( {
+//
+// Exported on its own (not just as the default-exported Modal below) so a
+// caller that needs to host this content inside a *different* Modal instance
+// can — e.g. App.jsx's onboarding modal, which stays open across "finish
+// setup" and "add your first language" as one continuous dialog rather than
+// closing one Modal and opening another.
+export function LanguagesManagerBody( {
 	open,
 	languages,
 	catalog,
@@ -206,121 +212,130 @@ export default function LanguageManagerModal( {
 	}
 
 	return (
-		<Modal open={ open } onClose={ onClose } title="Languages" large>
-			<Modal.Section>
+		<div
+			className="lingowp-wide-modal"
+			style={ {
+				display: 'flex',
+				gap: isFirstLanguage ? 0 : 16,
+				minHeight: 420,
+				maxWidth: '100%',
+				// `clip`, not `hidden`: `overflow-x: hidden` with a
+				// `visible` y-axis computes y to `auto`, making this div a
+				// stray vertical scroll container whose bar flickers on
+				// and off against the submit button's spinner animation.
+				// `clip` still contains horizontal bleed but leaves y
+				// alone, so scrolling stays with the Polaris modal body.
+				overflowX: 'clip',
+			} }
+		>
+			{ ! isFirstLanguage && (
 				<div
-					className="lingowp-wide-modal"
 					style={ {
-						display: 'flex',
-						gap: isFirstLanguage ? 0 : 16,
-						minHeight: 420,
-						maxWidth: '100%',
-						// `clip`, not `hidden`: `overflow-x: hidden` with a
-						// `visible` y-axis computes y to `auto`, making this div a
-						// stray vertical scroll container whose bar flickers on
-						// and off against the submit button's spinner animation.
-						// `clip` still contains horizontal bleed but leaves y
-						// alone, so scrolling stays with the Polaris modal body.
-						overflowX: 'clip',
+						flex: '0 0 220px',
+						width: 220,
+						borderInlineEnd:
+							'1px solid var(--p-color-border, rgba(0,0,0,0.08))',
+						paddingInlineEnd: 12,
 					} }
 				>
-					{ ! isFirstLanguage && (
-						<div
-							style={ {
-								flex: '0 0 220px',
-								width: 220,
-								borderInlineEnd:
-									'1px solid var(--p-color-border, rgba(0,0,0,0.08))',
-								paddingInlineEnd: 12,
-							} }
+					<BlockStack gap="200">
+						<Button
+							fullWidth
+							textAlign="left"
+							variant={
+								isConfiguration ? 'primary' : 'tertiary'
+							}
+							onClick={ () => setSel( 'configuration' ) }
 						>
-							<BlockStack gap="200">
-								<Button
-									fullWidth
-									textAlign="left"
-									variant={
-										isConfiguration ? 'primary' : 'tertiary'
-									}
-									onClick={ () => setSel( 'configuration' ) }
-								>
-									Configuration
-								</Button>
-								<Divider />
-								<Text as="h3" variant="headingSm">
-									Languages
-								</Text>
-								<LanguageList
-									languages={ languages }
-									selectedCode={ current?.code }
-									showProgress={ false }
-									onSelect={ ( lang ) => setSel( lang.code ) }
-									onToggleStatus={ toggleStatus }
-									onSwitchToInternal={
-										aiEngines.hasSubscription
-											? onSwitchToInternal
-											: undefined
-									}
-									onDelete={ del }
-									onAdd={ () => setSel( 'new' ) }
-								/>
-							</BlockStack>
-						</div>
-					) }
-
-					<div
-						style={ {
-							flex: 1,
-							minWidth: 0,
-							paddingBlockStart: 4,
-							paddingInline: 5,
-						} }
-					>
-						{ isConfiguration ? (
-							<GeneralConfiguration
-								defaultLanguage={ defaultCode }
-								onSaved={ onClose }
-							/>
-						) : (
-							<LanguageForm
-								key={ `${ sel }:${ catalogRevision }:${
-									resolvedCatalog?.length || 0
-								}:${ aiEngines.hasSubscription }:${
-									aiEngines.providerKeys.length
-								}` }
-								mode={ mode }
-								current={ current }
-								hasSubscription={ aiEngines.hasSubscription }
-								providerKeys={ aiEngines.providerKeys }
-								defaultCode={ defaultCode }
-								catalog={
-									mode === 'new' && catalogStatus !== 'ready'
-										? null
-										: resolvedCatalog
-								}
-								catalogError={
-									mode === 'new' && catalogStatus === 'error'
-								}
-								onCatalogRetry={ () =>
-									setCatalogReload( ( reload ) => reload + 1 )
-								}
-								existing={ languages.map( ( l ) => l.code ) }
-								firstLanguage={ isFirstLanguage }
-								onDone={ ( code ) => {
-									// Saving is done either way — close the modal.
-									// Creating a language also jumps the workspace
-									// to its new tab so translating can start right
-									// away; saving an edit just refreshes in place.
-									onClose()
-									if ( mode === 'new' && code ) {
-										onChanged( code )
-										return
-									}
-									onChanged()
-								} }
-							/>
-						) }
-					</div>
+							Configuration
+						</Button>
+						<Divider />
+						<Text as="h3" variant="headingSm">
+							Languages
+						</Text>
+						<LanguageList
+							languages={ languages }
+							selectedCode={ current?.code }
+							showProgress={ false }
+							onSelect={ ( lang ) => setSel( lang.code ) }
+							onToggleStatus={ toggleStatus }
+							onSwitchToInternal={
+								aiEngines.hasSubscription
+									? onSwitchToInternal
+									: undefined
+							}
+							onDelete={ del }
+							onAdd={ () => setSel( 'new' ) }
+						/>
+					</BlockStack>
 				</div>
+			) }
+
+			<div
+				style={ {
+					flex: 1,
+					minWidth: 0,
+					paddingBlockStart: 4,
+					paddingInline: 5,
+				} }
+			>
+				{ isConfiguration ? (
+					<GeneralConfiguration
+						defaultLanguage={ defaultCode }
+						onSaved={ onClose }
+					/>
+				) : (
+					<LanguageForm
+						key={ `${ sel }:${ catalogRevision }:${
+							resolvedCatalog?.length || 0
+						}:${ aiEngines.hasSubscription }:${
+							aiEngines.providerKeys.length
+						}` }
+						mode={ mode }
+						current={ current }
+						hasSubscription={ aiEngines.hasSubscription }
+						providerKeys={ aiEngines.providerKeys }
+						defaultCode={ defaultCode }
+						catalog={
+							mode === 'new' && catalogStatus !== 'ready'
+								? null
+								: resolvedCatalog
+						}
+						catalogError={
+							mode === 'new' && catalogStatus === 'error'
+						}
+						onCatalogRetry={ () =>
+							setCatalogReload( ( reload ) => reload + 1 )
+						}
+						existing={ languages.map( ( l ) => l.code ) }
+						firstLanguage={ isFirstLanguage }
+						onDone={ ( code ) => {
+							// Saving is done either way — close the modal.
+							// Creating a language also jumps the workspace
+							// to its new tab so translating can start right
+							// away; saving an edit just refreshes in place.
+							onClose()
+							if ( mode === 'new' && code ) {
+								onChanged( code )
+								return
+							}
+							onChanged()
+						} }
+					/>
+				) }
+			</div>
+		</div>
+	)
+}
+
+// Thin Modal wrapper around the body above — this is what Dashboard.jsx
+// mounts for every purpose except the onboarding hand-off (edit a language,
+// open Settings, "+ Add" a later language).
+export default function LanguageManagerModal( props ) {
+	return (
+		<Modal open={ props.open } onClose={ props.onClose } title="Languages" large>
+			<Modal.Section>
+				<LanguagesManagerBody { ...props } />
 			</Modal.Section>
 		</Modal>
 	)
