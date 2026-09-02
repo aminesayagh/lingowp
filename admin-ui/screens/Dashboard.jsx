@@ -79,6 +79,11 @@ const LanguageManagerModal = lazy( () =>
 		/* webpackChunkName: "language-manager-modal" */ './LanguageManagerModal'
 	)
 )
+const AddLanguagesPicker = lazy( () =>
+	import(
+		/* webpackChunkName: "add-languages-picker" */ './AddLanguagesPicker'
+	)
+)
 const CompareOverlay = lazy( () =>
 	import( /* webpackChunkName: "compare-overlay" */ './CompareOverlay' )
 )
@@ -339,6 +344,11 @@ export default function Dashboard( {
 	// every open/close after that (so its own Polaris close transition still
 	// gets to run, instead of the component being unmounted mid-exit).
 	const [ managerEverOpened, setManagerEverOpened ] = useState( false )
+	// A site with zero languages gets the two-column picker (same one
+	// onboarding ships) instead of the older single-language form — that
+	// form still handles adding a 2nd+ language and editing an existing one.
+	const [ addLanguagesPickerOpen, setAddLanguagesPickerOpen ] =
+		useState( false )
 	const [ pageMenuOpen, setPageMenuOpen ] = useState( false )
 	// The target-language column header is a switcher: click it for a popover
 	// list of the configured languages.
@@ -491,6 +501,38 @@ export default function Dashboard( {
 		setManagerInitial( code || 'new' )
 		setManagerOpen( true )
 		setManagerEverOpened( true )
+	}
+
+	// "Add a language" while none exist yet goes to the two-column picker
+	// instead — same content, same call either way, everything else about
+	// adding a first vs. a later language stays as it was.
+	function openAddLanguage() {
+		if ( languages.length === 0 ) {
+			setAddLanguagesPickerOpen( true )
+			return
+		}
+		openManager( null )
+	}
+
+	// Shared by both "a language was just created" flows — the older
+	// single-language form's onChanged (createdCode set, jumps straight to
+	// its tab) and the two-column picker's onDone (no single code — it can
+	// create several at once, so this just refreshes and lets the normal
+	// "pick a sensible default" in refreshLanguages() take over).
+	function handleLanguagesAdded( createdCode ) {
+		const wasFirstLanguage = languages.length === 0
+		refreshLanguages()
+		if ( createdCode ) {
+			setSelectedLang( createdCode )
+		}
+		if ( wasFirstLanguage ) {
+			api.get( '/scan/status' ).then( ( res ) => {
+				if ( ( res.status || 'running' ) === 'running' ) {
+					setExtractionPending( true )
+					setTimeout( pollFirstScan, 3000 )
+				}
+			} )
+		}
 	}
 
 	// The one place entitlements gets fetched — mount, and after every AI
@@ -2031,7 +2073,8 @@ export default function Dashboard( {
 											onDelete={ ( lang ) =>
 												confirmDeleteLang( lang )
 											}
-											onAdd={ () => openManager( null ) }
+											onAdd={ openAddLanguage }
+											maxHeight={ 420 }
 										/>
 									) : (
 										<InlineStack align="center">
@@ -2493,7 +2536,7 @@ export default function Dashboard( {
 									heading="Add your first language"
 									action={ {
 										content: 'Create a language',
-										onAction: () => openManager( null ),
+										onAction: openAddLanguage,
 									} }
 								>
 									<p>
@@ -2577,13 +2620,35 @@ export default function Dashboard( {
 								</BlockStack>
 							</Box>
 						) }
-						{ showGroupsEmpty && (
-							<Box padding="500">
-								<Text as="p" tone="subdued">
-									{ emptyGroupsMessage }
-								</Text>
-							</Box>
-						) }
+						{ showGroupsEmpty &&
+							( searching || hasAnyFilter ? (
+								<Box padding="500">
+									<Text as="p" tone="subdued">
+										{ emptyGroupsMessage }
+									</Text>
+								</Box>
+							) : (
+								// Genuinely nothing found — distinct from
+								// extractionPending (the scan is done, this is
+								// its real result) — same centered-notice
+								// treatment as "Add your first language",
+								// with the one thing actually worth doing:
+								// check again.
+								<Box padding="500">
+									<EmptyState
+										heading="No content found yet"
+										action={ {
+											content: 'Refresh',
+											onAction: () => groupsQ.refetch(),
+										} }
+									>
+										<p>
+											If you just published something,
+											refreshing may pick it up.
+										</p>
+									</EmptyState>
+								</Box>
+							) ) }
 						{ showGroups && (
 							<BlockStack gap="0">
 								{ searching && (
@@ -2766,29 +2831,28 @@ export default function Dashboard( {
 						onSwitchToInternal={
 							hasSubscription ? switchLangToInternal : undefined
 						}
-						onChanged={ ( createdCode ) => {
-							const wasFirstLanguage = languages.length === 0
-							refreshLanguages()
-							// A newly created language is handed back explicitly so this
-							// jumps to its tab even when the current selection was
-							// already valid (refreshLanguages() only re-picks a language
-							// when the current selection stops being valid).
-							if ( createdCode ) {
-								setSelectedLang( createdCode )
-							}
-							if ( wasFirstLanguage ) {
-								api.get( '/scan/status' ).then( ( res ) => {
-									if (
-										( res.status || 'running' ) ===
-										'running'
-									) {
-										setExtractionPending( true )
-										setTimeout( pollFirstScan, 3000 )
-									}
-								} )
-							}
-						} }
+						onChanged={ handleLanguagesAdded }
 					/>
+				</Suspense>
+			) }
+			{ addLanguagesPickerOpen && (
+				<Suspense fallback={ null }>
+					<Modal
+						open={ addLanguagesPickerOpen }
+						onClose={ () => setAddLanguagesPickerOpen( false ) }
+						title="Add languages"
+						size="large"
+					>
+						<Modal.Section>
+							<AddLanguagesPicker
+								defaultCode={ defaultCode }
+								onDone={ () => {
+									setAddLanguagesPickerOpen( false )
+									handleLanguagesAdded()
+								} }
+							/>
+						</Modal.Section>
+					</Modal>
 				</Suspense>
 			) }
 			{ overlayEverOpened && (

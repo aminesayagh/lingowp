@@ -244,7 +244,7 @@ export default function GeneralConfiguration( { defaultLanguage, onSaved } ) {
 								Default language
 							</Text>
 							<SearchableLanguageSelect
-								label="WordPress site language"
+								// label="WordPress site language"
 								options={ languageOptions }
 								value={ selectedLocale }
 								onChange={ selectSiteLanguage }

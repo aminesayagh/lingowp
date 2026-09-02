@@ -83,23 +83,33 @@ final class LanguageMetadataStore
 
 
     /**
-     * Point every configured language at one AI model in a single option write,
-     * refreshing updated_at on the ones that change. A per-language PATCH loop
-     * from the client races itself — each PATCH is a read-modify-write of this
-     * same option, so concurrent requests clobber each other's change. This is
-     * the atomic bulk path. Returns how many entries actually changed.
+     * Point every configured language at one AI model and writing style in a
+     * single option write, refreshing updated_at on the ones that change. A
+     * per-language PATCH loop from the client races itself — each PATCH is a
+     * read-modify-write of this same option, so concurrent requests clobber
+     * each other's change. This is the atomic bulk path. $style of null
+     * leaves each language's own style untouched (model-only bulk change);
+     * an empty string clears it. Returns how many entries actually changed.
      */
-    public function setAiModelForAll(string $model): int
+    public function setAiConfigForAll(string $model, ?string $style = null): int
     {
         $map = $this->all();
         $now     = current_time('mysql', true);
         $changed = 0;
 
         foreach ($map as $code => $entry) {
-            if (! is_array($entry) || (string) ($entry['ai_model'] ?? '') === $model) {
+            if (! is_array($entry)) {
                 continue;
             }
-            $entry['ai_model']   = $model;
+            $modelChanged = (string) ($entry['ai_model'] ?? '') !== $model;
+            $styleChanged = $style !== null && (string) ($entry['ai_style'] ?? '') !== $style;
+            if (! $modelChanged && ! $styleChanged) {
+                continue;
+            }
+            $entry['ai_model'] = $model;
+            if ($style !== null) {
+                $entry['ai_style'] = $style;
+            }
             $entry['updated_at'] = $now;
             $map[$code]          = $entry;
             $changed++;

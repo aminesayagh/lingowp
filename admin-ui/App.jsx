@@ -5,12 +5,12 @@ import { useEffect, useRef, useState } from '@wordpress/element'
 import { api } from './api'
 import Configuration from './screens/Configuration'
 import Dashboard from './screens/Dashboard'
-import { LanguagesManagerBody } from './screens/LanguageManagerModal'
+import AddLanguagesPicker from './screens/AddLanguagesPicker'
 
 // Gap between finishing onboarding and the "add your first language" step
 // appearing — the dialog itself never closes in between (see the Modal
 // below), this just keeps the hand-off from feeling instant.
-const ADD_LANGUAGE_DELAY_MS = 800
+const ADD_LANGUAGE_DELAY_MS = 300
 
 // Module-level: one client for the whole admin page, not per-mount.
 const queryClient = new QueryClient( {
@@ -68,12 +68,16 @@ export default function App() {
 			setState( s )
 			if ( ! s.onboarding_completed ) {
 				setStep( 'onboarding' )
-			} else if ( ! s.has_target_language ) {
+			} else if ( ! s.has_any_language ) {
 				// Onboarding was already done on a previous visit but no
-				// language exists yet (e.g. the user dismissed the
+				// language exists yet at all (e.g. the user dismissed the
 				// 'add-language' step last time, or refreshed mid-way) — go
 				// straight to it, no delay (that's only for the transition
-				// right after finishing onboarding, not a page load).
+				// right after finishing onboarding, not a page load). Checked
+				// against has_any_language, not has_target_language — a
+				// language created here starts as a draft, not active, so
+				// the active-only flag would keep reopening this every
+				// reload until it's separately published.
 				setStep( 'add-language' )
 			}
 		} )
@@ -117,10 +121,10 @@ export default function App() {
 							}
 							title={
 								step === 'add-language'
-									? 'Languages'
+									? 'Add languages'
 									: 'Finish setting up LingoWP'
 							}
-							large={ step === 'add-language' }
+							// size="large"
 						>
 							{ step === 'onboarding' && state && (
 								<Modal.Section>
@@ -149,17 +153,11 @@ export default function App() {
 							) }
 							{ step === 'add-language' && (
 								<Modal.Section>
-									<LanguagesManagerBody
-										open
-										languages={ [] }
-										catalog={ null }
+									<AddLanguagesPicker
 										defaultCode={
 											state?.default_language?.code
 										}
-										initialCode="new"
-										onClose={ () => setStep( null ) }
-										onConfirm={ () => {} }
-										onChanged={ () => {
+										onDone={ () => {
 											setStep( null )
 											setLanguageAddedSignal(
 												( n ) => n + 1

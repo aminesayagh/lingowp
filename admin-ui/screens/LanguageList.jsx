@@ -313,12 +313,24 @@ export default function LanguageList( {
 	onAdd,
 	addLabel = '+ Add language',
 	showProgress = true,
+	// Caps the row list to its own scrollbar instead of growing forever —
+	// e.g. the dashboard rail's Target language section, so a long roster
+	// doesn't push the "+ Add language" button and everything below it (the
+	// Sources section) out of view. Unset (the language manager modal's own
+	// sidebar) keeps the old unbounded behavior.
+	maxHeight,
 } ) {
 	const sorted = useMemo( () => sortLanguages( languages ), [ languages ] )
 
 	return (
 		<BlockStack gap="300">
-			<div>
+			<div
+				style={
+					maxHeight
+						? { maxHeight, overflowY: 'auto' }
+						: undefined
+				}
+			>
 				{ sorted.map( ( lang ) => (
 					<LanguageRow
 						key={ lang.code }

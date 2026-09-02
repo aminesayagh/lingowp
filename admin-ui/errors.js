@@ -12,6 +12,8 @@ const MESSAGES = {
 	ERR_NOT_FOUND: 'Not found. Refresh and try again.',
 	ERR_INVALID_PAYLOAD: "That request wasn't valid. Refresh and try again.",
 	ERR_INVALID_INPUT: 'Select at least one category to continue.',
+	ERR_SLUG_TAKEN:
+		'This URL slug is already used by another language. Choose a different one.',
 	ERR_NOT_CONNECTED: 'Not connected. Finish setup to continue.',
 	ERR_INVALID_STATUS: 'Unknown status filter. Refresh and try again.',
 	ERR_LICENSE_DETACHED:

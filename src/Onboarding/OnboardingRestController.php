@@ -7,6 +7,7 @@ use LingoWP\Backend\ConnectionStatus;
 use LingoWP\Backend\SiteConnector;
 use LingoWP\Language\Domain\LanguageRegistry;
 use LingoWP\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
 use LingoWP\Language\Infrastructure\WordPressLanguageCatalog;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -81,6 +82,12 @@ final class OnboardingRestController
             'default_language_slug' => $this->languages->slugForLanguage($this->languages->getDefaultLanguage()),
             'settings'              => $this->currentSettings(),
             'has_target_language'   => $this->languages->getTargetLanguages() !== [],
+            // Distinct from has_target_language above (which is active-only):
+            // a language just created by the "add your first language" step
+            // starts as a draft, not active, so that flag alone would keep
+            // re-opening the step on every reload until the user separately
+            // publishes it. This just asks "does one exist at all yet".
+            'has_any_language'      => (new LanguageMetadataStore())->all() !== [],
             // Only meaningful pre-onboarding: Configuration.jsx uses it to seed the
             // "Prefix default language" checkbox. Skip the post-count/age queries once
             // onboarding is done — no screen reads this value afterwards.

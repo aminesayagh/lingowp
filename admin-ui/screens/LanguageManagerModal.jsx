@@ -1,4 +1,5 @@
 import {
+	Banner,
 	BlockStack,
 	Button,
 	Divider,
@@ -8,16 +9,21 @@ import {
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useEffect, useState } from '@wordpress/element'
+import { useCallback, useEffect, useState } from '@wordpress/element'
 import { api } from '../api'
+import { errorMessage } from '../errors'
+import AiConfiguration from './AiConfiguration'
 import GeneralConfiguration from './GeneralConfiguration'
 import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList'
 import SearchableLanguageSelect from './SearchableLanguageSelect'
 
 const enc = encodeURIComponent
 const localeSlug = ( locale ) => locale.toLowerCase().replaceAll( '_', '-' )
+// '' (not "General") when the locale carries no real region and no variant —
+// callers show the language name alone in that case rather than a
+// meaningless "General" qualifier.
 const regionLabel = ( item ) => {
-	let region = item.region_name || item.region || 'General'
+	let region = item.region_name || item.region || ''
 	if (
 		item.region &&
 		( ! item.region_name || item.region_name === item.region )
@@ -30,6 +36,9 @@ const regionLabel = ( item ) => {
 		} catch {
 			region = item.region
 		}
+	}
+	if ( ! region ) {
+		return item.variant_name || ''
 	}
 	return item.variant_name ? `${ region } — ${ item.variant_name }` : region
 }
@@ -103,11 +112,8 @@ export function LanguagesManagerBody( {
 		}
 	}, [ initialCode, languages, open ] )
 
-	useEffect( () => {
-		if ( ! open ) {
-			return
-		}
-		Promise.all( [
+	const refreshAiEngines = useCallback( () => {
+		return Promise.all( [
 			api.get( '/provider-keys' ),
 			api.get( '/billing/entitlements' ),
 		] ).then( ( [ keysRes, entitlementsRes ] ) => {
@@ -119,21 +125,31 @@ export function LanguagesManagerBody( {
 				providerKeys: Array.isArray( keysRes.keys ) ? keysRes.keys : [],
 			} )
 		} )
-	}, [ open ] )
+	}, [] )
+
+	useEffect( () => {
+		if ( ! open ) {
+			return
+		}
+		refreshAiEngines()
+	}, [ open, refreshAiEngines ] )
 
 	useEffect( () => {
 		setResolvedCatalog( catalog )
 	}, [ catalog ] )
 
 	const isConfiguration = sel === 'configuration'
+	const isAi = sel === 'ai'
 	let current = null
-	if ( sel !== 'new' && ! isConfiguration ) {
+	if ( sel !== 'new' && ! isConfiguration && ! isAi ) {
 		current =
 			languages.find( ( language ) => language.code === sel ) || null
 	}
 	let mode = 'new'
 	if ( isConfiguration ) {
 		mode = 'configuration'
+	} else if ( isAi ) {
+		mode = 'ai'
 	} else if ( current ) {
 		mode = 'edit'
 	}
@@ -165,7 +181,12 @@ export function LanguagesManagerBody( {
 
 	// If the selected language was deleted elsewhere, fall back to the first.
 	useEffect( () => {
-		if ( sel !== 'new' && sel !== 'configuration' && ! current ) {
+		if (
+			sel !== 'new' &&
+			sel !== 'configuration' &&
+			sel !== 'ai' &&
+			! current
+		) {
 			setSel( languages[ 0 ]?.code || 'new' )
 		}
 	}, [ current, languages, sel ] )
@@ -239,16 +260,26 @@ export function LanguagesManagerBody( {
 					} }
 				>
 					<BlockStack gap="200">
-						<Button
-							fullWidth
-							textAlign="left"
-							variant={
-								isConfiguration ? 'primary' : 'tertiary'
-							}
-							onClick={ () => setSel( 'configuration' ) }
-						>
-							Configuration
-						</Button>
+						<BlockStack gap="050">
+							<Button
+								fullWidth
+								textAlign="left"
+								variant={
+									isConfiguration ? 'primary' : 'tertiary'
+								}
+								onClick={ () => setSel( 'configuration' ) }
+							>
+								Configuration
+							</Button>
+							<Button
+								fullWidth
+								textAlign="left"
+								variant={ isAi ? 'primary' : 'tertiary' }
+								onClick={ () => setSel( 'ai' ) }
+							>
+								AI settings
+							</Button>
+						</BlockStack>
 						<Divider />
 						<Text as="h3" variant="headingSm">
 							Languages
@@ -266,6 +297,7 @@ export function LanguagesManagerBody( {
 							}
 							onDelete={ del }
 							onAdd={ () => setSel( 'new' ) }
+							maxHeight={ 420 }
 						/>
 					</BlockStack>
 				</div>
@@ -283,6 +315,12 @@ export function LanguagesManagerBody( {
 					<GeneralConfiguration
 						defaultLanguage={ defaultCode }
 						onSaved={ onClose }
+					/>
+				) : isAi ? (
+					<AiConfiguration
+						hasSubscription={ aiEngines.hasSubscription }
+						onConfirm={ onConfirm }
+						onKeysChanged={ refreshAiEngines }
 					/>
 				) : (
 					<LanguageForm
@@ -333,7 +371,12 @@ export function LanguagesManagerBody( {
 // open Settings, "+ Add" a later language).
 export default function LanguageManagerModal( props ) {
 	return (
-		<Modal open={ props.open } onClose={ props.onClose } title="Languages" large>
+		<Modal
+			open={ props.open }
+			onClose={ props.onClose }
+			title="Settings"
+			size="large"
+		>
 			<Modal.Section>
 				<LanguagesManagerBody { ...props } />
 			</Modal.Section>
@@ -419,6 +462,7 @@ function LanguageForm( {
 		isNew ? initialLocale?.direction || 'ltr' : current.direction || 'ltr'
 	)
 	const [ saving, setSaving ] = useState( false )
+	const [ error, setError ] = useState( '' )
 	// Snapshot of the values when the form loaded; the Save button only appears
 	// once the form differs from it (and resets to the saved values after save).
 	const [ baseline, setBaseline ] = useState( {
@@ -430,6 +474,17 @@ function LanguageForm( {
 		style,
 	} )
 
+	// The very first language on a fresh site has nothing to differentiate a
+	// name/slug from the region's own default (pickLocale already derives
+	// both) — asking for them here is pure friction, so they're never shown
+	// for it. Editing that same language afterward (isNew is false then)
+	// still offers both, in case the auto-derived values aren't what's wanted.
+	const hideNameAndSlug = isNew && firstLanguage
+	// No real AI engine choice exists without a subscription or a stored
+	// provider key — aiModelOptions() then returns just the single "Auto"
+	// placeholder, so asking the user to pick from one option (or write a
+	// style for it) is nothing but noise.
+	const hasAiChoice = hasSubscription || providerKeys.length > 0
 	const dirty =
 		code !== baseline.code ||
 		displayName !== baseline.displayName ||
@@ -437,12 +492,19 @@ function LanguageForm( {
 		fallback !== baseline.fallback ||
 		aiModel !== baseline.aiModel ||
 		style !== baseline.style
+	// Name/slug needing no user input (hidden for the first language) only
+	// gates readiness on the region pick itself.
 	const firstLanguageReady =
-		code.trim() !== '' && displayName.trim() !== '' && slug.trim() !== ''
+		code.trim() !== '' &&
+		( hideNameAndSlug ||
+			( displayName.trim() !== '' && slug.trim() !== '' ) )
 	const showAction = firstLanguage || dirty
 	const actionDisabled = firstLanguage
 		? ! firstLanguageReady
 		: isNew && ! code
+	const regionsForLanguage = catalogItems.filter(
+		( item ) => item.language === language
+	)
 	let actionLabel = 'Save'
 	if ( firstLanguage ) {
 		actionLabel = 'Create language'
@@ -456,15 +518,13 @@ function LanguageForm( {
 			value: '',
 			disabled: true,
 		},
-		...catalogItems
-			.filter( ( item ) => item.language === language )
-			.map( ( item ) => ( {
-				label: `${ regionLabel( item ) }${ localeStatus(
-					item.locale
-				) }`,
-				value: item.locale,
-				disabled: localeUnavailable( item.locale ),
-			} ) ),
+		...regionsForLanguage.map( ( item ) => ( {
+			label: `${
+				regionLabel( item ) || item.language_name
+			}${ localeStatus( item.locale ) }`,
+			value: item.locale,
+			disabled: localeUnavailable( item.locale ),
+		} ) ),
 	]
 	const defaultLanguage = catalogItems.find(
 		( item ) => item.locale === defaultCode
@@ -499,6 +559,17 @@ function LanguageForm( {
 			return
 		}
 		setLanguage( value )
+		// Nothing to actually choose when there's only one region available —
+		// pick it immediately instead of making the region Select a pointless
+		// extra click.
+		const onlyRegion = catalogItems.filter(
+			( item ) =>
+				item.language === value && ! localeUnavailable( item.locale )
+		)
+		if ( onlyRegion.length === 1 ) {
+			pickLocale( onlyRegion[ 0 ].locale )
+			return
+		}
 		setCode( '' )
 		setDisplayName( '' )
 		setSlug( '' )
@@ -528,7 +599,9 @@ function LanguageForm( {
 		}
 		setCode( value )
 		setDisplayName(
-			`${ choice.language_name } (${ regionLabel( choice ) })`
+			regionLabel( choice )
+				? `${ choice.language_name } (${ regionLabel( choice ) })`
+				: choice.language_name
 		)
 		setDirection( choice.direction || 'ltr' )
 		setSlug( localeSlug( value ) )
@@ -537,6 +610,7 @@ function LanguageForm( {
 
 	async function submit() {
 		setSaving( true )
+		setError( '' )
 		const res = isNew
 			? await api.post( '/languages', {
 					code,
@@ -559,15 +633,19 @@ function LanguageForm( {
 		if ( res.ok ) {
 			setBaseline( { code, displayName, slug, fallback, aiModel, style } )
 			onDone( isNew ? code : current.code )
+		} else {
+			setError( res.error || 'ERR_BACKEND' )
 		}
 	}
 
 	if ( isNew && catalogError ) {
 		return (
 			<BlockStack gap="200">
-				<Text as="h3" variant="headingMd">
-					Add a language
-				</Text>
+				{ ! firstLanguage && (
+					<Text as="h3" variant="headingMd">
+						Add a language
+					</Text>
+				) }
 				<Text as="p" tone="critical">
 					Could not load WordPress’s language catalog. Check the
 					site’s outgoing connection and try again.
@@ -590,9 +668,11 @@ function LanguageForm( {
 	if ( isNew && available.length === 0 ) {
 		return (
 			<BlockStack gap="200">
-				<Text as="h3" variant="headingMd">
-					Add a language
-				</Text>
+				{ ! firstLanguage && (
+					<Text as="h3" variant="headingMd">
+						Add a language
+					</Text>
+				) }
 				<Text as="p" tone="subdued">
 					All available WordPress languages have already been added.
 				</Text>
@@ -602,13 +682,20 @@ function LanguageForm( {
 
 	return (
 		<BlockStack gap="300">
-			<Text as="h3" variant="headingMd">
-				{ isNew
-					? 'Add a language'
-					: `Edit ${
-							current.display_name || current.name || current.code
-					  }` }
-			</Text>
+			{ /* The Modal wrapping this already says "Languages" — this
+			duplicated it for the isFirstLanguage case (no sidebar to
+			disambiguate against, unlike editing/adding among several). */ }
+			{ ! firstLanguage && (
+				<Text as="h3" variant="headingMd">
+					{ isNew
+						? 'Add a language'
+						: `Edit ${
+								current.display_name ||
+								current.name ||
+								current.code
+						  }` }
+				</Text>
+			) }
 			<BlockStack gap="300">
 				{ isNew && (
 					<>
@@ -630,21 +717,25 @@ function LanguageForm( {
 						/>
 					</>
 				) }
-				<TextField
-					label="Name"
-					requiredIndicator
-					value={ displayName }
-					onChange={ setDisplayName }
-					autoComplete="off"
-					disabled={ isNew && ! code }
-				/>
-				<TextField
-					label="URL slug"
-					requiredIndicator
-					value={ slug }
-					onChange={ setSlug }
-					autoComplete="off"
-				/>
+				{ ! hideNameAndSlug && (
+					<>
+						<TextField
+							label="Name"
+							requiredIndicator
+							value={ displayName }
+							onChange={ setDisplayName }
+							autoComplete="off"
+							disabled={ isNew && ! code }
+						/>
+						<TextField
+							label="URL slug"
+							requiredIndicator
+							value={ slug }
+							onChange={ setSlug }
+							autoComplete="off"
+						/>
+					</>
+				) }
 				{ ! isNew && (
 					<SearchableLanguageSelect
 						label="Fallback language"
@@ -657,35 +748,43 @@ function LanguageForm( {
 				) }
 			</BlockStack>
 
-			<Divider />
+			{ hasAiChoice && (
+				<>
+					<Divider />
 
-			<Text as="h3" variant="headingSm">
-				AI settings
-			</Text>
-			<BlockStack gap="300">
-				<Select
-					label="AI model"
-					options={ modelOptions }
-					value={ aiModel }
-					onChange={ setAiModel }
-					helpText={
-						hasSubscription && providerKeys.length > 0
-							? 'The LingoWP model bills to your subscription; your own key bills to your provider account.'
-							: undefined
-					}
-				/>
-				<TextField
-					label="Website voice and style"
-					multiline={ 2 }
-					maxLength={ AI_STYLE_MAX }
-					showCharacterCount
-					value={ style }
-					onChange={ setStyle }
-					autoComplete="off"
-					placeholder={ AI_STYLE_PLACEHOLDER }
-					helpText="Your website voice guides the translation, but the original text’s tone and intent always take priority."
-				/>
-			</BlockStack>
+					<Text as="h3" variant="headingSm">
+						AI settings
+					</Text>
+					<BlockStack gap="300">
+						<Select
+							label="AI model"
+							options={ modelOptions }
+							value={ aiModel }
+							onChange={ setAiModel }
+							helpText={
+								hasSubscription && providerKeys.length > 0
+									? 'The LingoWP model bills to your subscription; your own key bills to your provider account.'
+									: undefined
+							}
+						/>
+						<TextField
+							label="Website voice and style"
+							multiline={ 2 }
+							maxLength={ AI_STYLE_MAX }
+							showCharacterCount
+							value={ style }
+							onChange={ setStyle }
+							autoComplete="off"
+							placeholder={ AI_STYLE_PLACEHOLDER }
+							helpText="Guides tone — never overrides the original text’s own intent."
+						/>
+					</BlockStack>
+				</>
+			) }
+
+			{ error && (
+				<Banner tone="critical">{ errorMessage( error ) }</Banner>
+			) }
 
 			{ showAction && (
 				<InlineStack align="end">

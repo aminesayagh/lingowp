@@ -2,8 +2,8 @@ import {
 	Banner,
 	BlockStack,
 	Button,
-	Card,
 	Checkbox,
+	InlineStack,
 	Text,
 } from '@shopify/polaris'
 import { useState } from '@wordpress/element'
@@ -76,48 +76,41 @@ export default function Configuration( {
 
 	return (
 		<BlockStack gap="400">
-			<Text as="p" tone="subdued">
-				Tell us about your site and how visitors should reach translated
-				pages.
-			</Text>
-
 			{ error && (
 				<Banner tone="critical">{ errorMessage( error ) }</Banner>
 			) }
 
-			<Card>
-				<BlockStack gap="300">
-					<Checkbox
-						label="Prefix default language"
-						helpText={ `Add /${ slug } to default-language URLs. Example: example.com/${ slug }/about/` }
-						checked={ prefix }
-						onChange={ handlePrefixChange }
-					/>
-					<Checkbox
-						label="Cookie preference"
-						helpText="Remember a visitor's chosen language."
-						checked={ cookie }
-						onChange={ setCookie }
-					/>
-					<Checkbox
-						label="Browser detection"
-						helpText="Detect language from the browser."
-						checked={ browser }
-						onChange={ setBrowser }
-					/>
-					<Checkbox
-						label="Auto redirect"
-						helpText={
-							canAutoRedirect
-								? 'Send visitors to their detected language. Visitors may be redirected automatically based on their browser language.'
-								: 'Enable browser detection before using auto redirect.'
-						}
-						checked={ effectiveAutoRedirect }
-						disabled={ ! canAutoRedirect }
-						onChange={ setAutoRedirect }
-					/>
-				</BlockStack>
-			</Card>
+			<BlockStack gap="300">
+				<Checkbox
+					label="Prefix default language"
+					helpText={ `Add /${ slug } to default-language URLs. Example: example.com/${ slug }/about/` }
+					checked={ prefix }
+					onChange={ handlePrefixChange }
+				/>
+				<Checkbox
+					label="Cookie preference"
+					helpText="Remember a visitor's chosen language."
+					checked={ cookie }
+					onChange={ setCookie }
+				/>
+				<Checkbox
+					label="Browser detection"
+					helpText="Detect language from the browser."
+					checked={ browser }
+					onChange={ setBrowser }
+				/>
+				<Checkbox
+					label="Auto redirect"
+					helpText={
+						canAutoRedirect
+							? 'Send visitors to their detected language.'
+							: 'Enable browser detection before using auto redirect.'
+					}
+					checked={ effectiveAutoRedirect }
+					disabled={ ! canAutoRedirect }
+					onChange={ setAutoRedirect }
+				/>
+			</BlockStack>
 
 			{ prefixToast && (
 				<Banner tone={ prefixToast.tone }>
@@ -125,14 +118,11 @@ export default function Configuration( {
 				</Banner>
 			) }
 
-			<Button
-				variant="primary"
-				size="large"
-				loading={ submitting }
-				onClick={ submit }
-			>
-				Continue
-			</Button>
+			<InlineStack align="end">
+				<Button variant="primary" loading={ submitting } onClick={ submit }>
+					Continue
+				</Button>
+			</InlineStack>
 		</BlockStack>
 	)
 }
