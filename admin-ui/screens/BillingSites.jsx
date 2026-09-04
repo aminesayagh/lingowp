@@ -12,10 +12,16 @@ import {
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useCallback, useEffect, useState } from '@wordpress/element'
-import { api } from '../api'
+import { useState } from '@wordpress/element'
 import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
+import {
+	useAddWebsite,
+	useBillingOwner,
+	useBillingWebsites,
+	useEntitlements,
+	useRemoveWebsite,
+} from '../queries/billing'
 
 function AddSiteModal( { open, onClose, slotsLeft, loading, error, onAdd } ) {
 	const [ domain, setDomain ] = useState( '' )
@@ -146,88 +152,48 @@ function RemoveSiteModal( { site, onClose, loading, error, onRemove } ) {
 }
 
 export default function BillingSites() {
-	const [ websites, setWebsites ] = useState( null )
-	const [ websitesError, setWebsitesError ] = useState( '' )
-	const [ sitesLimit, setSitesLimit ] = useState( null )
-	const [ sitesUsedOnPlan, setSitesUsedOnPlan ] = useState( null )
-	const [ ownerVerified, setOwnerVerified ] = useState( false )
-
 	const [ addOpen, setAddOpen ] = useState( false )
-	const [ addLoading, setAddLoading ] = useState( false )
-	const [ addError, setAddError ] = useState( '' )
 	const [ addSuccess, setAddSuccess ] = useState( false )
-
 	const [ removeTarget, setRemoveTarget ] = useState( null )
-	const [ removeLoading, setRemoveLoading ] = useState( false )
-	const [ removeError, setRemoveError ] = useState( '' )
 
-	const fetchWebsites = useCallback( () => {
-		setWebsitesError( '' )
-		return api.get( '/billing/websites' ).then( ( res ) => {
-			if ( res.ok ) {
-				setWebsites( res.websites )
-			} else {
-				setWebsitesError( res.error || 'ERR_UNREACHABLE' )
+	const websitesQ = useBillingWebsites()
+	const entQ = useEntitlements()
+	const ownerQ = useBillingOwner()
+	const addWebsite = useAddWebsite()
+	const removeWebsite = useRemoveWebsite()
+
+	const sitesLimit = entQ.data?.sites_limit ?? null
+	const sitesUsedOnPlan = entQ.data?.sites_used ?? null
+	const ownerVerified = !! ownerQ.data?.verified
+	const addLoading = addWebsite.isPending
+	const addError = addWebsite.error?.code || ''
+	const removeLoading = removeWebsite.isPending
+	const removeError = removeWebsite.error?.code || ''
+
+	function addSite( domain, adminEmail ) {
+		addWebsite.mutate(
+			{ domain, adminEmail },
+			{
+				onSuccess: () => {
+					setAddOpen( false )
+					setAddSuccess( true )
+				},
 			}
-		} )
-	}, [] )
-
-	useEffect( () => {
-		fetchWebsites()
-	}, [ fetchWebsites ] )
-
-	useEffect( () => {
-		api.get( '/billing/entitlements' ).then( ( res ) => {
-			if ( res.ok ) {
-				setSitesLimit( res.entitlements?.sites_limit ?? null )
-				setSitesUsedOnPlan( res.entitlements?.sites_used ?? null )
-			}
-		} )
-	}, [] )
-
-	useEffect( () => {
-		api.get( '/billing/owner' ).then( ( res ) => {
-			setOwnerVerified( !! ( res.ok && res.verified ) )
-		} )
-	}, [] )
-
-	async function addSite( domain, adminEmail ) {
-		setAddLoading( true )
-		setAddError( '' )
-		const res = await api.post( '/billing/websites', {
-			domain,
-			admin_email: adminEmail,
-		} )
-		setAddLoading( false )
-		if ( res.ok ) {
-			setAddOpen( false )
-			setAddSuccess( true )
-			return
-		}
-		setAddError( res.error || 'ERR_UNREACHABLE' )
+		)
 	}
 
-	async function removeSite( site ) {
-		setRemoveLoading( true )
-		setRemoveError( '' )
-		const res = await api.del( `/billing/websites/${ site.site_id }` )
-		setRemoveLoading( false )
-		if ( res.ok ) {
-			setWebsites( ( list ) =>
-				list.filter( ( w ) => w.site_id !== site.site_id )
-			)
-			setRemoveTarget( null )
-			return
-		}
-		setRemoveError( res.error || 'ERR_UNREACHABLE' )
+	function removeSite( site ) {
+		removeWebsite.mutate( site.site_id, {
+			onSuccess: () => setRemoveTarget( null ),
+		} )
 	}
 
-	if ( websites === null ) {
-		if ( websitesError ) {
+	if ( websitesQ.data === undefined ) {
+		if ( websitesQ.isError ) {
 			return (
 				<ConnectionErrorCard
-					error={ websitesError }
-					onRetry={ fetchWebsites }
+					error={ websitesQ.error?.code || 'ERR_UNREACHABLE' }
+					onRetry={ () => websitesQ.refetch() }
 				/>
 			)
 		}
@@ -238,6 +204,7 @@ export default function BillingSites() {
 		)
 	}
 
+	const websites = websitesQ.data
 	const limit = sitesLimit ?? websites.length
 	const used = websites.length
 	const slotsLeft = Math.max( 0, limit - used )
@@ -337,7 +304,7 @@ export default function BillingSites() {
 				open={ addOpen }
 				onClose={ () => {
 					setAddOpen( false )
-					setAddError( '' )
+					addWebsite.reset()
 				} }
 				slotsLeft={ slotsLeft }
 				loading={ addLoading }
@@ -348,7 +315,7 @@ export default function BillingSites() {
 				site={ removeTarget }
 				onClose={ () => {
 					setRemoveTarget( null )
-					setRemoveError( '' )
+					removeWebsite.reset()
 				} }
 				loading={ removeLoading }
 				error={ removeError }

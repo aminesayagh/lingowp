@@ -4,11 +4,10 @@ import {
 	Button,
 	Checkbox,
 	InlineStack,
-	Text,
 } from '@shopify/polaris'
 import { useState } from '@wordpress/element'
-import { api } from '../api'
 import { errorMessage } from '../errors'
+import { useConfigureOnboarding } from '../queries/onboarding'
 
 // Step 1 of 2. Source/default language is intentionally NOT shown here — it is
 // inherited from WordPress. Toggle defaults follow the wireframe (cookie +
@@ -25,8 +24,9 @@ export default function Configuration( {
 	const [ cookie, setCookie ] = useState( true )
 	const [ browser, setBrowser ] = useState( true )
 	const [ autoRedirect, setAutoRedirect ] = useState( false )
-	const [ error, setError ] = useState( '' )
-	const [ submitting, setSubmitting ] = useState( false )
+	const configure = useConfigureOnboarding()
+	const submitting = configure.isPending
+	const error = configure.error?.code || ''
 	// Advisory only — set when the user moves away from the recommended prefix
 	// value, cleared when they return to it. Continue is still the only thing
 	// that persists anything (see submit()).
@@ -56,21 +56,16 @@ export default function Configuration( {
 	const effectiveAutoRedirect = autoRedirect && canAutoRedirect
 
 	async function submit() {
-		setSubmitting( true )
-		setError( '' )
-
-		const res = await api.post( '/onboarding/configure', {
-			prefix_default_language: prefix,
-			cookie_preference: cookie,
-			browser_detection: browser,
-			auto_redirect: effectiveAutoRedirect,
-		} )
-
-		setSubmitting( false )
-		if ( res.ok ) {
+		try {
+			await configure.mutateAsync( {
+				prefix_default_language: prefix,
+				cookie_preference: cookie,
+				browser_detection: browser,
+				auto_redirect: effectiveAutoRedirect,
+			} )
 			onDone()
-		} else {
-			setError( res.error || 'ERR_BACKEND' )
+		} catch {
+			// Failure is surfaced through configure.error (see `error` above).
 		}
 	}
 

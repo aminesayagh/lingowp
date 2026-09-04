@@ -106,8 +106,12 @@ export function flagIconUrl( lang ) {
 // (e.g. the header switcher's popover, where full desaturation read as too
 // heavy against that surface).
 export function FlagIcon( { src, size = 16, grayscale = false } ) {
-	const grayscaleAmount =
-		typeof grayscale === 'number' ? grayscale : grayscale ? 0.8 : 0
+	let grayscaleAmount = 0
+	if ( typeof grayscale === 'number' ) {
+		grayscaleAmount = grayscale
+	} else if ( grayscale ) {
+		grayscaleAmount = 0.8
+	}
 	const [ broken, setBroken ] = useState( false )
 
 	if ( ! src || broken ) {

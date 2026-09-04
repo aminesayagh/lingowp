@@ -9,15 +9,22 @@ import {
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useCallback, useEffect, useState } from '@wordpress/element'
-import { api } from '../api'
+import { useEffect, useState } from '@wordpress/element'
 import { errorMessage } from '../errors'
+import { useEntitlements } from '../queries/billing'
+import {
+	useAddLanguage,
+	useDeleteLanguage,
+	useLanguageCatalog,
+	usePatchLanguage,
+} from '../queries/languages'
+import { useProviderKeys } from '../queries/providerKeys'
 import AiConfiguration from './AiConfiguration'
 import GeneralConfiguration from './GeneralConfiguration'
 import LanguageList, { PUBLISH_MIN_PERCENT } from './LanguageList'
 import SearchableLanguageSelect from './SearchableLanguageSelect'
 
-const enc = encodeURIComponent
+const EMPTY_ARRAY = []
 const localeSlug = ( locale ) => locale.toLowerCase().replaceAll( '_', '-' )
 // '' (not "General") when the locale carries no real region and no variant —
 // callers show the language name alone in that case rather than a
@@ -110,44 +117,7 @@ export function LanguagesManagerBody( {
 			setSel( initialCode || languages[ 0 ]?.code || 'new' )
 		}
 	}
-	const [ resolvedCatalog, setResolvedCatalog ] = useState( catalog )
-	const [ catalogStatus, setCatalogStatus ] = useState( 'idle' )
-	const [ catalogReload, setCatalogReload ] = useState( 0 )
-	const [ catalogRevision, setCatalogRevision ] = useState( 0 )
-	// Which AI engines the language form can offer: the subscription model and/or
-	// the user's stored provider keys. Fetched once per open (mirrors the
-	// dashboard's own entitlements/provider-keys read).
-	const [ aiEngines, setAiEngines ] = useState( {
-		hasSubscription: false,
-		providerKeys: [],
-	} )
 	const isFirstLanguage = languages.length === 0
-
-	const refreshAiEngines = useCallback( () => {
-		return Promise.all( [
-			api.get( '/provider-keys' ),
-			api.get( '/billing/entitlements' ),
-		] ).then( ( [ keysRes, entitlementsRes ] ) => {
-			setAiEngines( {
-				hasSubscription: !! entitlementsRes.entitlements?.active,
-				// Array.isArray, not `|| []`: a failed /provider-keys call can
-				// still hand back a truthy non-array error body, which `|| []`
-				// would let straight through.
-				providerKeys: Array.isArray( keysRes.keys ) ? keysRes.keys : [],
-			} )
-		} )
-	}, [] )
-
-	useEffect( () => {
-		if ( ! open ) {
-			return
-		}
-		refreshAiEngines()
-	}, [ open, refreshAiEngines ] )
-
-	useEffect( () => {
-		setResolvedCatalog( catalog )
-	}, [ catalog ] )
 
 	const isConfiguration = sel === 'configuration'
 	const isAi = sel === 'ai'
@@ -165,30 +135,36 @@ export function LanguagesManagerBody( {
 		mode = 'edit'
 	}
 
-	useEffect( () => {
-		if ( ! open || mode !== 'new' ) {
-			return undefined
-		}
+	// Which AI engines the language form can offer: the subscription model
+	// and/or the user's stored provider keys. Shared cache — a save/remove in
+	// the AI settings tab invalidates qk.providerKeys() and this updates on its
+	// own, so the old onKeysChanged prop is gone.
+	const providerKeysQ = useProviderKeys( { enabled: open } )
+	const entQ = useEntitlements( { enabled: open } )
+	const aiEngines = {
+		hasSubscription: !! entQ.data?.active,
+		providerKeys: providerKeysQ.data ?? EMPTY_ARRAY,
+	}
 
-		let active = true
-		setCatalogStatus( 'loading' )
-		api.get( '/languages/catalog' ).then( ( res ) => {
-			if ( ! active ) {
-				return
-			}
-			if ( ! res.ok || ! Array.isArray( res.catalog ) ) {
-				setCatalogStatus( 'error' )
-				return
-			}
-			setResolvedCatalog( res.catalog )
-			setCatalogRevision( ( revision ) => revision + 1 )
-			setCatalogStatus( 'ready' )
-		} )
-
-		return () => {
-			active = false
+	// The catalog is only needed for the "+ Add" (new) view. Falls back to the
+	// prop the caller passed until the fresh copy lands.
+	const catalogEnabled = open && mode === 'new'
+	const catalogQ = useLanguageCatalog( { enabled: catalogEnabled } )
+	const resolvedCatalog = catalogQ.data?.catalog ?? catalog
+	const catalogRevision = catalogQ.dataUpdatedAt
+	let catalogStatus = 'idle'
+	if ( catalogEnabled ) {
+		if ( catalogQ.isError ) {
+			catalogStatus = 'error'
+		} else if ( catalogQ.isSuccess ) {
+			catalogStatus = 'ready'
+		} else {
+			catalogStatus = 'loading'
 		}
-	}, [ open, mode, catalogReload ] )
+	}
+
+	const patchLang = usePatchLanguage()
+	const deleteLang = useDeleteLanguage()
 
 	// If the selected language was deleted elsewhere, fall back to the first.
 	useEffect( () => {
@@ -203,11 +179,7 @@ export function LanguagesManagerBody( {
 	}, [ current, languages, sel ] )
 
 	function patchStatus( code, status ) {
-		api.patch( `/languages/${ enc( code ) }`, { status } ).then( ( r ) => {
-			if ( r.ok ) {
-				onChanged()
-			}
-		} )
+		patchLang.mutate( { code, status }, { onSuccess: () => onChanged() } )
 	}
 
 	// Draft → active is "publish"; below PUBLISH_MIN_PERCENT it asks for
@@ -233,13 +205,13 @@ export function LanguagesManagerBody( {
 	}
 
 	function del( lang ) {
-		api.del( `/languages/${ enc( lang.code ) }` ).then( ( r ) => {
-			if ( r.ok ) {
+		deleteLang.mutate( lang.code, {
+			onSuccess: () => {
 				if ( sel === lang.code ) {
 					setSel( 'new' )
 				}
 				onChanged()
-			}
+			},
 		} )
 	}
 
@@ -258,6 +230,62 @@ export function LanguagesManagerBody( {
 	useEffect( () => {
 		onWideChange?.( isWide )
 	}, [ isWide, onWideChange ] )
+
+	// The right-hand pane: one of the two settings screens, or the add/edit
+	// language form.
+	function renderPane() {
+		if ( isConfiguration ) {
+			return (
+				<GeneralConfiguration
+					defaultLanguage={ defaultCode }
+					onSaved={ onClose }
+				/>
+			)
+		}
+		if ( isAi ) {
+			return (
+				<AiConfiguration
+					hasSubscription={ aiEngines.hasSubscription }
+					onConfirm={ onConfirm }
+				/>
+			)
+		}
+		return (
+			<LanguageForm
+				key={ `${ sel }:${ catalogRevision }:${
+					resolvedCatalog?.length || 0
+				}:${ aiEngines.hasSubscription }:${
+					aiEngines.providerKeys.length
+				}` }
+				mode={ mode }
+				current={ current }
+				hasSubscription={ aiEngines.hasSubscription }
+				providerKeys={ aiEngines.providerKeys }
+				defaultCode={ defaultCode }
+				catalog={
+					mode === 'new' && catalogStatus !== 'ready'
+						? null
+						: resolvedCatalog
+				}
+				catalogError={ mode === 'new' && catalogStatus === 'error' }
+				onCatalogRetry={ () => catalogQ.refetch() }
+				existing={ languages.map( ( l ) => l.code ) }
+				firstLanguage={ isFirstLanguage }
+				onDone={ ( code ) => {
+					// Saving is done either way — close the modal. Creating a
+					// language also jumps the workspace to its new tab so
+					// translating can start right away; saving an edit just
+					// refreshes in place.
+					onClose()
+					if ( mode === 'new' && code ) {
+						onChanged( code )
+						return
+					}
+					onChanged()
+				} }
+			/>
+		)
+	}
 
 	return (
 		<div
@@ -339,56 +367,7 @@ export function LanguagesManagerBody( {
 					paddingInline: 5,
 				} }
 			>
-				{ isConfiguration ? (
-					<GeneralConfiguration
-						defaultLanguage={ defaultCode }
-						onSaved={ onClose }
-					/>
-				) : isAi ? (
-					<AiConfiguration
-						hasSubscription={ aiEngines.hasSubscription }
-						onConfirm={ onConfirm }
-						onKeysChanged={ refreshAiEngines }
-					/>
-				) : (
-					<LanguageForm
-						key={ `${ sel }:${ catalogRevision }:${
-							resolvedCatalog?.length || 0
-						}:${ aiEngines.hasSubscription }:${
-							aiEngines.providerKeys.length
-						}` }
-						mode={ mode }
-						current={ current }
-						hasSubscription={ aiEngines.hasSubscription }
-						providerKeys={ aiEngines.providerKeys }
-						defaultCode={ defaultCode }
-						catalog={
-							mode === 'new' && catalogStatus !== 'ready'
-								? null
-								: resolvedCatalog
-						}
-						catalogError={
-							mode === 'new' && catalogStatus === 'error'
-						}
-						onCatalogRetry={ () =>
-							setCatalogReload( ( reload ) => reload + 1 )
-						}
-						existing={ languages.map( ( l ) => l.code ) }
-						firstLanguage={ isFirstLanguage }
-						onDone={ ( code ) => {
-							// Saving is done either way — close the modal.
-							// Creating a language also jumps the workspace
-							// to its new tab so translating can start right
-							// away; saving an edit just refreshes in place.
-							onClose()
-							if ( mode === 'new' && code ) {
-								onChanged( code )
-								return
-							}
-							onChanged()
-						} }
-					/>
-				) }
+				{ renderPane() }
 			</div>
 		</div>
 	)
@@ -505,7 +484,9 @@ function LanguageForm( {
 	const [ direction, setDirection ] = useState(
 		isNew ? initialLocale?.direction || 'ltr' : current.direction || 'ltr'
 	)
-	const [ saving, setSaving ] = useState( false )
+	const addLang = useAddLanguage()
+	const patchLang = usePatchLanguage()
+	const saving = addLang.isPending || patchLang.isPending
 	const [ error, setError ] = useState( '' )
 	// Snapshot of the values when the form loaded; the Save button only appears
 	// once the form differs from it (and resets to the saved values after save).
@@ -662,10 +643,10 @@ function LanguageForm( {
 	}
 
 	async function submit() {
-		setSaving( true )
 		setError( '' )
-		const res = isNew
-			? await api.post( '/languages', {
+		try {
+			if ( isNew ) {
+				await addLang.mutateAsync( {
 					code,
 					locale: code,
 					slug,
@@ -674,20 +655,21 @@ function LanguageForm( {
 					direction,
 					ai_model: aiModel,
 					ai_style: style,
-			  } )
-			: await api.patch( `/languages/${ enc( current.code ) }`, {
+				} )
+			} else {
+				await patchLang.mutateAsync( {
+					code: current.code,
 					display_name: displayName,
 					slug,
 					fallback_language: fallback,
 					ai_model: aiModel,
 					ai_style: style,
-			  } )
-		setSaving( false )
-		if ( res.ok ) {
+				} )
+			}
 			setBaseline( { code, displayName, slug, fallback, aiModel, style } )
 			onDone( isNew ? code : current.code )
-		} else {
-			setError( res.error || 'ERR_BACKEND' )
+		} catch ( e ) {
+			setError( e.code || 'ERR_BACKEND' )
 		}
 	}
 

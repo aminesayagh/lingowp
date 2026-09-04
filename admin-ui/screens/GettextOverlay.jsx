@@ -17,7 +17,7 @@ import {
 	DuplicateIcon,
 } from '@shopify/polaris-icons'
 import { useEffect, useRef, useState } from '@wordpress/element'
-import { api } from '../api'
+import { useSaveGettextUnit, useTranslateGettext } from '../queries/gettext'
 import { AiIcon } from './AiIcon'
 import { flagIconUrl, FlagIcon } from './FlagIcon'
 
@@ -103,6 +103,8 @@ export default function GettextOverlay( {
 	const [ langOpen, setLangOpen ] = useState( false )
 	const [ copied, setCopied ] = useState( false )
 	const savedRef = useRef( '' )
+	const { mutateAsync: saveGettextUnit } = useSaveGettextUnit()
+	const { mutateAsync: translateGettext } = useTranslateGettext()
 
 	useEffect( () => {
 		if ( ! open || ! unit ) {
@@ -121,7 +123,7 @@ export default function GettextOverlay( {
 			return
 		}
 		setSaving( true )
-		const res = await api.post( '/gettext-domains/save-unit', {
+		const res = await saveGettextUnit( {
 			type: row.type,
 			domain: row.domain,
 			locale,
@@ -164,7 +166,7 @@ export default function GettextOverlay( {
 		for ( const lang of languages ) {
 			let res
 			try {
-				res = await api.post( '/gettext-domains/translate', {
+				res = await translateGettext( {
 					scope: 'unit',
 					type: row.type,
 					domain: row.domain,

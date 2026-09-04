@@ -11,11 +11,16 @@ import {
 	Spinner,
 	Text,
 } from '@shopify/polaris'
-import { useCallback, useEffect, useState } from '@wordpress/element'
-import { api } from '../api'
+import { useState } from '@wordpress/element'
 import { PENDING_WORDS_KEY } from '../billingKeys'
 import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
+import {
+	useBuyWordPack,
+	useEntitlements,
+	usePacks,
+	useUsage,
+} from '../queries/billing'
 
 function formatDate( iso ) {
 	if ( ! iso ) {
@@ -143,62 +148,22 @@ function estimateReserveMonths( entitlements, usage ) {
 }
 
 export default function BillingUsage() {
-	const [ entitlements, setEntitlements ] = useState( null )
-	const [ entitlementsError, setEntitlementsError ] = useState( '' )
-	const [ usage, setUsage ] = useState( null )
-	const [ usageError, setUsageError ] = useState( '' )
-	const [ packs, setPacks ] = useState( null )
-	const [ packsError, setPacksError ] = useState( '' )
-
-	const [ buyLoading, setBuyLoading ] = useState( null ) // pack_id in flight, or null
+	// ok:true but no approve_url is the one failure mode a mutation error can't
+	// carry (unwrap already passed), so keep a local slot for the buy error.
 	const [ buyError, setBuyError ] = useState( '' )
 
-	// Each fetcher clears its own error before retrying, so a Retry click that
-	// succeeds doesn't leave the previous failure's banner text stranded.
-	const fetchEntitlements = useCallback( () => {
-		setEntitlementsError( '' )
-		return api.get( '/billing/entitlements' ).then( ( res ) => {
-			if ( res.ok ) {
-				setEntitlements( res.entitlements )
-			} else {
-				setEntitlementsError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
+	const entQ = useEntitlements()
+	const usageQ = useUsage()
+	const packsQ = usePacks()
+	const buyWords = useBuyWordPack()
 
-	const fetchUsage = useCallback( () => {
-		setUsageError( '' )
-		return api.get( '/billing/usage' ).then( ( res ) => {
-			if ( res.ok ) {
-				setUsage( res )
-			} else {
-				setUsageError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
-
-	const fetchPacks = useCallback( () => {
-		setPacksError( '' )
-		return api.get( '/billing/packs' ).then( ( res ) => {
-			if ( res.ok ) {
-				setPacks( res.packs )
-			} else {
-				setPacksError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
-
-	useEffect( () => {
-		fetchEntitlements()
-	}, [ fetchEntitlements ] )
-
-	useEffect( () => {
-		fetchUsage()
-	}, [ fetchUsage ] )
-
-	useEffect( () => {
-		fetchPacks()
-	}, [ fetchPacks ] )
+	const entitlements = entQ.data ?? null
+	const usage = usageQ.data ?? null
+	const packs = packsQ.data ?? null
+	const buyingId = buyWords.isPending ? buyWords.variables : null
+	const entitlementsError = entQ.error?.code || ''
+	const usageError = usageQ.error?.code || ''
+	const packsError = packsQ.error?.code || ''
 
 	if ( entitlements === null || usage === null || packs === null ) {
 		// A still-null value paired with its error means that fetch failed —
@@ -215,13 +180,13 @@ export default function BillingUsage() {
 					error={ initialLoadError }
 					onRetry={ () => {
 						if ( entitlements === null ) {
-							fetchEntitlements()
+							entQ.refetch()
 						}
 						if ( usage === null ) {
-							fetchUsage()
+							usageQ.refetch()
 						}
 						if ( packs === null ) {
-							fetchPacks()
+							packsQ.refetch()
 						}
 					} }
 				/>
@@ -249,22 +214,22 @@ export default function BillingUsage() {
 	// backend contract, not something this tab controls), so a purchase
 	// started here finishes on the Plan & billing tab, not this one.
 	async function doBuyWords( packId ) {
-		setBuyLoading( packId )
 		setBuyError( '' )
 		sessionStorage.setItem(
 			PENDING_WORDS_KEY,
 			String( entitlements.purchased_words )
 		)
-		const res = await api.post( '/billing/packs/order', {
-			pack_id: packId,
-		} )
-		if ( res.ok && res.approve_url ) {
-			window.location.assign( res.approve_url )
-			return
+		try {
+			const res = await buyWords.mutateAsync( packId )
+			if ( res.approve_url ) {
+				window.location.assign( res.approve_url )
+				return
+			}
+			throw new Error( 'ERR_UNREACHABLE' )
+		} catch ( e ) {
+			sessionStorage.removeItem( PENDING_WORDS_KEY )
+			setBuyError( e.code || e.message || 'ERR_UNREACHABLE' )
 		}
-		sessionStorage.removeItem( PENDING_WORDS_KEY )
-		setBuyLoading( null )
-		setBuyError( res.error || 'ERR_UNREACHABLE' )
 	}
 
 	return (
@@ -370,10 +335,8 @@ export default function BillingUsage() {
 							key={ pack.pack_id }
 							pack={ pack }
 							featured={ pack.pack_id === bestValueId }
-							loading={ buyLoading === pack.pack_id }
-							disabled={
-								buyLoading && buyLoading !== pack.pack_id
-							}
+							loading={ buyingId === pack.pack_id }
+							disabled={ buyingId && buyingId !== pack.pack_id }
 							onBuy={ doBuyWords }
 						/>
 					) ) }

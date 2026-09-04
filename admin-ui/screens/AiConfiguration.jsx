@@ -9,9 +9,14 @@ import {
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useCallback, useEffect, useState } from '@wordpress/element'
-import { api } from '../api'
+import { useEffect, useMemo, useState } from '@wordpress/element'
 import { errorMessage } from '../errors'
+import { useSetAllAiModel } from '../queries/languages'
+import {
+	useDeleteProviderKey,
+	useProviderKeys,
+	useSaveProviderKey,
+} from '../queries/providerKeys'
 import {
 	AI_STYLE_MAX,
 	AI_STYLE_PLACEHOLDER,
@@ -92,38 +97,34 @@ export default function AiConfiguration( {
 	onConfirm,
 	onKeysChanged,
 } ) {
-	const [ providerKeys, setProviderKeys ] = useState( null ) // null = loading
-	const [ providerKeysError, setProviderKeysError ] = useState( '' )
 	const [ row, setRow ] = useState( EMPTY_ROW )
-	const [ removing, setRemoving ] = useState( false )
-
 	const [ bulkModel, setBulkModel ] = useState( null )
 	const [ bulkStyle, setBulkStyle ] = useState( '' )
-	const [ applying, setApplying ] = useState( false )
 	const [ bulkNotice, setBulkNotice ] = useState( null ) // { tone, content } | null
+
+	const providerKeysQ = useProviderKeys()
+	const saveKey = useSaveProviderKey()
+	const deleteKey = useDeleteProviderKey()
+	const setAllAiModel = useSetAllAiModel()
+
+	// null = still loading; else a { [provider]: keyData } map, at most one entry.
+	const providerKeys = useMemo( () => {
+		if ( providerKeysQ.data === undefined ) {
+			return null
+		}
+		const byProvider = {}
+		for ( const key of providerKeysQ.data ) {
+			byProvider[ key.provider ] = key
+		}
+		return byProvider
+	}, [ providerKeysQ.data ] )
+	const providerKeysError = providerKeysQ.error?.code || ''
+	const removing = deleteKey.isPending
+	const applying = setAllAiModel.isPending
 
 	const activeEntry = providerKeys
 		? Object.entries( providerKeys )[ 0 ]
 		: undefined
-
-	const fetchProviderKeys = useCallback( () => {
-		setProviderKeysError( '' )
-		return api.get( '/provider-keys' ).then( ( res ) => {
-			if ( res.ok ) {
-				const byProvider = {}
-				for ( const key of res.keys || [] ) {
-					byProvider[ key.provider ] = key
-				}
-				setProviderKeys( byProvider )
-			} else {
-				setProviderKeysError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
-
-	useEffect( () => {
-		fetchProviderKeys()
-	}, [ fetchProviderKeys ] )
 
 	// Once the stored key loads, default the Select to whichever provider is
 	// already active.
@@ -141,33 +142,25 @@ export default function AiConfiguration( {
 	async function doSave() {
 		const { provider, draft } = row
 		updateRow( { saving: true, error: '' } )
-
-		if ( activeEntry && activeEntry[ 0 ] !== provider ) {
-			const delRes = await api.del(
-				`/provider-keys/${ activeEntry[ 0 ] }`
-			)
-			if ( ! delRes.ok && delRes.error !== 'ERR_NOT_FOUND' ) {
-				updateRow( {
-					saving: false,
-					error: delRes.error || 'ERR_UNREACHABLE',
-				} )
-				return
+		try {
+			// One BYO key at a time — drop the other provider's row first.
+			// ERR_NOT_FOUND just means there was nothing to drop.
+			if ( activeEntry && activeEntry[ 0 ] !== provider ) {
+				try {
+					await deleteKey.mutateAsync( activeEntry[ 0 ] )
+				} catch ( e ) {
+					if ( e.code !== 'ERR_NOT_FOUND' ) {
+						throw e
+					}
+				}
 			}
-			setProviderKeys( {} )
-		}
-
-		const res = await api.post( '/provider-keys', {
-			provider,
-			api_key: draft,
-		} )
-		if ( res.ok ) {
-			setProviderKeys( { [ provider ]: res.key } )
+			await saveKey.mutateAsync( { provider, apiKey: draft } )
 			updateRow( { saving: false, draft: '', error: '' } )
 			onKeysChanged?.()
-		} else {
+		} catch ( e ) {
 			updateRow( {
 				saving: false,
-				error: res.error || 'ERR_UNREACHABLE',
+				error: e.code || 'ERR_UNREACHABLE',
 			} )
 		}
 	}
@@ -183,15 +176,12 @@ export default function AiConfiguration( {
 			actionLabel: 'Remove key',
 			destructive: true,
 			onConfirm: async () => {
-				setRemoving( true )
-				const res = await api.del( `/provider-keys/${ provider }` )
-				setRemoving( false )
-				if ( res.ok ) {
-					setProviderKeys( {} )
+				try {
+					await deleteKey.mutateAsync( provider )
 					setRow( EMPTY_ROW )
 					onKeysChanged?.()
-				} else {
-					updateRow( { error: res.error || 'ERR_UNREACHABLE' } )
+				} catch ( e ) {
+					updateRow( { error: e.code || 'ERR_UNREACHABLE' } )
 				}
 			},
 		} )
@@ -211,21 +201,22 @@ export default function AiConfiguration( {
 			: modelOptions[ 0 ]?.value ?? 'auto'
 
 	async function applyToAll() {
-		setApplying( true )
 		setBulkNotice( null )
-		const res = await api
-			.post( '/languages/ai-model', {
+		try {
+			await setAllAiModel.mutateAsync( {
 				ai_model: resolvedBulkModel,
 				ai_style: bulkStyle,
 			} )
-			.catch( () => ( { ok: false } ) )
-		setApplying( false )
-		setBulkNotice( {
-			tone: res.ok ? 'success' : 'critical',
-			content: res.ok
-				? 'Applied to all languages.'
-				: 'Could not update the languages. Try again.',
-		} )
+			setBulkNotice( {
+				tone: 'success',
+				content: 'Applied to all languages.',
+			} )
+		} catch {
+			setBulkNotice( {
+				tone: 'critical',
+				content: 'Could not update the languages. Try again.',
+			} )
+		}
 	}
 
 	const keyPlaceholder =
@@ -248,7 +239,7 @@ export default function AiConfiguration( {
 						tone="critical"
 						action={ {
 							content: 'Retry',
-							onAction: fetchProviderKeys,
+							onAction: () => providerKeysQ.refetch(),
 						} }
 					>
 						{ errorMessage( providerKeysError ) }

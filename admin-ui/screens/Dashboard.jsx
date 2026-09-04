@@ -48,8 +48,30 @@ import {
 } from '@shopify/polaris-icons'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { AnimatePresence, motion } from 'motion/react'
-import { api } from '../api'
-import { ensureConnected } from '../connection'
+import { qk } from '../queryKeys'
+import {
+	fetchBoard,
+	useAiTranslate,
+	useCollectionAction,
+	useSaveTranslation,
+	useSetTextStatus,
+} from '../queries/board'
+import { useTranslateGettext } from '../queries/gettext'
+import { useEntitlements } from '../queries/billing'
+import {
+	useConfirmConnection,
+	useConnect,
+	useConnectionStatus,
+} from '../queries/connection'
+import {
+	useDeleteLanguage,
+	useLanguages,
+	usePatchLanguage,
+	useSetAllAiModel,
+	useUseFallback,
+} from '../queries/languages'
+import { useProviderKeys } from '../queries/providerKeys'
+import { useRefreshScan, useScanStatus } from '../queries/scan'
 import { errorMessage } from '../errors'
 import { AiIcon } from './AiIcon'
 import LanguageList, {
@@ -296,6 +318,39 @@ export default function Dashboard( {
 	createdLanguageCode,
 } ) {
 	const queryClient = useQueryClient()
+
+	// --- server state via React Query --------------------------------------
+	// These feed the local useState below through sync effects (further down),
+	// so the many downstream references keep working unchanged while the
+	// fetching moves off hand-rolled api.get().then(setState) onto cached,
+	// shared queries.
+	const languagesQ = useLanguages()
+	const connectionQ = useConnectionStatus( { verify: true } )
+	const connected = !! connectionQ.data?.connected
+	const entitlementsQ = useEntitlements( { enabled: connected } )
+	const providerKeysQ = useProviderKeys( { enabled: connected } )
+	const connectMut = useConnect()
+	const confirmConnectionMut = useConfirmConnection()
+	const patchLangMut = usePatchLanguage()
+	const deleteLangMut = useDeleteLanguage()
+	const setAllAiModelMut = useSetAllAiModel()
+	const useFallbackMut = useUseFallback()
+	const refreshScanMut = useRefreshScan()
+	const aiTranslateMut = useAiTranslate()
+	const translateGettextMut = useTranslateGettext()
+	// Non-null while a content-extraction scan is expected to be running: set
+	// by the first-language flow and the manual "Rescan" button. Shape:
+	// { mode: 'first' | 'rescan', lang?, htmlCrawlRunning? }
+	const [ scanWatch, setScanWatch ] = useState( null )
+	// Set to Date.now() whenever a watch is armed. scanQ stays mounted with
+	// enabled:false between scans, so its cache can still hold the PREVIOUS
+	// scan's terminal status (e.g. 'completed') the instant re-enabling flips
+	// it back on — before the freshly-invalidated refetch has landed. The
+	// completion effect below compares this against scanQ.dataUpdatedAt so it
+	// never mistakes that stale leftover for the new scan already finishing.
+	const scanArmedAtRef = useRef( 0 )
+	const scanQ = useScanStatus( { enabled: !! scanWatch } )
+
 	const [ languages, setLanguages ] = useState( [] )
 	// Distinguishes "no languages yet" (still loading) from "confirmed empty" —
 	// without it, the rail briefly renders an empty list + a bare "+ Add
@@ -542,14 +597,14 @@ export default function Dashboard( {
 			setSelectedLang( createdCode )
 		}
 		if ( wasFirstLanguage ) {
-			api.get( '/scan/status' ).then( ( res ) => {
-				if ( ( res.status || 'running' ) === 'running' ) {
-					setExtractionPending( true )
-					setTimeout( () => pollFirstScan( createdCode ), 3000 )
-				} else {
-					announceExtractionDone( createdCode )
-				}
-			} )
+			// Gate the board on the activation-time scan. The scan-completion
+			// effect (below) clears extractionPending and fires the "found N
+			// texts" toast once useScanStatus reports a terminal status —
+			// including immediately, if the scan already finished.
+			setExtractionPending( true )
+			scanArmedAtRef.current = Date.now()
+			queryClient.invalidateQueries( { queryKey: qk.scan.status() } )
+			setScanWatch( { mode: 'first', lang: createdCode } )
 		}
 	}
 
@@ -564,11 +619,8 @@ export default function Dashboard( {
 		if ( ! lang ) {
 			return
 		}
-		api.get( `/collections?language=${ enc( lang ) }&limit=1` ).then(
-			( res ) => {
-				if ( ! res.ok ) {
-					return
-				}
+		fetchBoard( `/collections?language=${ enc( lang ) }&limit=1` )
+			.then( ( res ) => {
 				const count = res.total_texts ?? 0
 				showToast(
 					'success',
@@ -576,46 +628,92 @@ export default function Dashboard( {
 						count === 1 ? '' : 's'
 					} to translate.`
 				)
-			}
-		)
+			} )
+			.catch( () => {} )
 	}
 
-	// The one place entitlements gets fetched — mount, and after every AI
-	// translate (usage changed). Also derives billingBlocked from the same
-	// response instead of a separate request, and feeds the quota rail.
+	// Ask React Query to re-pull entitlements (called after an AI translate —
+	// usage changed). The useEntitlements query + its sync effect below do the
+	// actual fetch + state derivation.
 	const refetchEntitlements = useCallback( () => {
-		return api.get( '/billing/entitlements' ).then( ( entitlementsRes ) => {
-			setQuota( entitlementsRes.ok ? entitlementsRes.entitlements : null )
-			const subscribed = !! entitlementsRes.entitlements?.active
-			const overSlotNow = !! entitlementsRes.entitlements?.over_slot
-			setOverSlot( overSlotNow )
-			setBillingBlocked( ! subscribed || overSlotNow )
+		return queryClient.invalidateQueries( {
+			queryKey: qk.billing.entitlements(),
 		} )
-	}, [] )
+	}, [ queryClient ] )
 
-	// Validate an existing cloud connection. A fresh local-only install stops
-	// at ERR_NOT_CONNECTED and makes no external request; the explicit
-	// QuotaCard action below is the sole first-connect path. Shared by the
-	// plain on-mount check and the confirm-token relay below it, so a
-	// reclaim/attach/owner confirmation reflects immediately instead of
-	// waiting for the next page load.
-	const checkConnection = useCallback( () => {
-		return ensureConnected().then( ( status ) => {
-			setAi( { available: status.available, error: status.error } )
-			if ( status.connected && ! status.available ) {
-				showToast( 'warning', errorMessage( status.error ) )
+	// --- sync effects: query data -> the local useState the UI still reads ---
+
+	// /languages -> the rail list + catalog, and reconcile the selected code.
+	useEffect( () => {
+		if ( languagesQ.isError ) {
+			setLanguageCatalog( [] )
+			setLanguagesLoaded( true )
+			return
+		}
+		if ( ! languagesQ.data ) {
+			return
+		}
+		const langs = languagesQ.data.languages || []
+		setLanguageCatalog( languagesQ.data.catalog || [] )
+		setLanguages( langs )
+		setLanguagesLoaded( true )
+		setSelectedLang( ( cur ) => {
+			if ( cur && langs.some( ( l ) => l.code === cur ) ) {
+				return cur
 			}
-			if ( status.connected ) {
-				api.get( '/provider-keys' ).then( ( r ) =>
-					setProviderKeys( Array.isArray( r.keys ) ? r.keys : [] )
-				)
-				return refetchEntitlements()
-			}
-			setQuota( null )
-			setBillingBlocked( true )
+			const active = langs.find( ( l ) => l.enabled ) || langs[ 0 ]
+			return active?.code || ''
 		} )
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- refetchEntitlements/showToast are stable
-	}, [ refetchEntitlements ] )
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedLang stable
+	}, [ languagesQ.data, languagesQ.isError ] )
+
+	// /billing/entitlements -> quota rail + billing gates.
+	useEffect( () => {
+		if ( entitlementsQ.isError ) {
+			setQuota( null )
+			return
+		}
+		const ent = entitlementsQ.data
+		if ( ent === undefined ) {
+			return
+		}
+		setQuota( ent )
+		const subscribed = !! ent?.active
+		const overSlotNow = !! ent?.over_slot
+		setOverSlot( overSlotNow )
+		setBillingBlocked( ! subscribed || overSlotNow )
+	}, [ entitlementsQ.data, entitlementsQ.isError ] )
+
+	// /connection/check -> AI availability, plus a one-shot warning toast when
+	// connected-but-unavailable, and the disconnected billing gate.
+	const connWarnedRef = useRef( false )
+	useEffect( () => {
+		const status = connectionQ.data
+		if ( ! status ) {
+			return
+		}
+		setAi( { available: status.available, error: status.error } )
+		if (
+			status.connected &&
+			! status.available &&
+			status.error &&
+			! connWarnedRef.current
+		) {
+			connWarnedRef.current = true
+			showToast( 'warning', errorMessage( status.error ) )
+		}
+		if ( ! status.connected ) {
+			setBillingBlocked( true )
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- showToast stable
+	}, [ connectionQ.data ] )
+
+	// /provider-keys -> the BYOK list used by the settings popover.
+	useEffect( () => {
+		setProviderKeys(
+			Array.isArray( providerKeysQ.data ) ? providerKeysQ.data : []
+		)
+	}, [ providerKeysQ.data ] )
 
 	// Deep link from any confirm email — attach-website, a licence reclaim,
 	// or POST /billing/owner's assign-owner ask: ?confirm_token=... . One
@@ -634,32 +732,41 @@ export default function Dashboard( {
 	)
 	useEffect( () => {
 		if ( ! confirmToken ) {
-			checkConnection()
+			// The on-mount connection check is now the useConnectionStatus
+			// query above.
 			return
 		}
-		api.post( '/connection/confirm', { token: confirmToken } ).then(
-			( res ) => {
+		confirmConnectionMut
+			.mutateAsync( { token: confirmToken } )
+			.then( ( res ) => {
 				setConfirmToken( null )
 				if ( ! res.ok ) {
 					showToast( 'warning', errorMessage( res.error ) )
 				}
-				checkConnection()
-			}
-		)
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount; checkConnection/showToast are stable
+				// useConfirmConnection's onSuccess invalidates the connection
+				// query, so `ai` re-syncs against the applied state.
+			} )
+			.catch( () => setConfirmToken( null ) )
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
 	}, [] )
 
 	// Explicit, user-initiated connect/reconnect — connect() never blocks or
-	// emails anything itself now: every success carries a working key.
+	// emails anything itself now: every success carries a working key. The
+	// mutation's onSuccess invalidates connection + entitlements + provider
+	// keys, so those re-sync on their own.
 	function handleConnect() {
-		api.post( '/connection/connect' ).then( ( res ) => {
-			if ( res.ok ) {
-				setAi( { available: !! res.ai_available, error: '' } )
-				setRecoveryAvailable( !! res.recovery_available )
-				refetchEntitlements()
-				return
-			}
-			showToast( 'warning', errorMessage( res.error || 'ERR_BACKEND' ) )
+		connectMut.mutate( undefined, {
+			onSuccess: ( res ) => {
+				if ( res.ok ) {
+					setAi( { available: res.available, error: '' } )
+					setRecoveryAvailable( res.recoveryAvailable )
+					return
+				}
+				showToast(
+					'warning',
+					errorMessage( res.error || 'ERR_BACKEND' )
+				)
+			},
 		} )
 	}
 
@@ -732,7 +839,7 @@ export default function Dashboard( {
 		const multi =
 			Array.isArray( opts.languages ) && opts.languages.length > 0
 		const langs = multi ? opts.languages : [ opts.language ?? selectedLang ]
-		const res = await api.post( '/translate', {
+		const res = await aiTranslateMut.mutateAsync( {
 			scope,
 			...opts,
 			// exactly one of these two goes on the wire; the other is dropped by
@@ -847,15 +954,10 @@ export default function Dashboard( {
 		}
 		setTranslatingAll( true )
 		try {
-			let res = await api.post( '/gettext-domains/translate', {
-				scope: 'board',
-				locale: selectedLang,
-			} )
+			const gettextBoardArgs = { scope: 'board', locale: selectedLang }
+			let res = await translateGettextMut.mutateAsync( gettextBoardArgs )
 			while ( res?.ok && res.more ) {
-				res = await api.post( '/gettext-domains/translate', {
-					scope: 'board',
-					locale: selectedLang,
-				} )
+				res = await translateGettextMut.mutateAsync( gettextBoardArgs )
 			}
 			if ( ! res?.ok ) {
 				handleAiFailure( res?.error )
@@ -876,13 +978,7 @@ export default function Dashboard( {
 	}
 
 	function patchLangStatus( code, status ) {
-		api.patch( `/languages/${ enc( code ) }`, { status } ).then(
-			( res ) => {
-				if ( res.ok ) {
-					refreshLanguages()
-				}
-			}
-		)
+		patchLangMut.mutate( { code, status } )
 	}
 
 	// Row menu "Switch to LingoWP model": point a language that currently
@@ -890,14 +986,13 @@ export default function Dashboard( {
 	// model. Only offered (see the LanguageList props below) when a subscription
 	// is active and the language's ai_model is a BYO provider.
 	function switchLangToInternal( lang ) {
-		api.patch( `/languages/${ enc( lang.code ) }`, {
-			ai_model: 'internal',
-		} ).then( ( res ) => {
-			if ( res.ok ) {
-				refreshLanguages()
-				showToast( 'success', 'Now using the LingoWP model.' )
+		patchLangMut.mutate(
+			{ code: lang.code, ai_model: 'internal' },
+			{
+				onSuccess: () =>
+					showToast( 'success', 'Now using the LingoWP model.' ),
 			}
-		} )
+		)
 	}
 
 	// Settings-popover bulk action: point every configured language at one AI
@@ -907,33 +1002,34 @@ export default function Dashboard( {
 	// read-modify-write of that shared option) and silently drops some changes.
 	async function applyProviderToAllLanguages( target ) {
 		setApplyingProvider( target )
-		const res = await api
-			.post( '/languages/ai-model', { ai_model: target } )
-			.catch( () => ( { ok: false } ) )
-		refreshLanguages()
+		let ok = true
+		try {
+			await setAllAiModelMut.mutateAsync( { ai_model: target } )
+		} catch {
+			ok = false
+		}
 		setApplyingProvider( null )
 		showToast(
-			res.ok ? 'success' : 'critical',
-			res.ok
-				? 'All languages updated.'
-				: 'Could not update the languages.'
+			ok ? 'success' : 'critical',
+			ok ? 'All languages updated.' : 'Could not update the languages.'
 		)
 	}
 
 	function deleteLang( code ) {
-		api.del( `/languages/${ enc( code ) }` ).then( ( res ) => {
-			if ( res.ok ) {
-				setSelectedLang( ( cur ) => ( cur === code ? '' : cur ) )
-				refreshLanguages()
-			}
+		deleteLangMut.mutate( code, {
+			onSuccess: () =>
+				setSelectedLang( ( cur ) => ( cur === code ? '' : cur ) ),
 		} )
 	}
 
 	function confirmDeleteLang( lang ) {
 		setConfirm( {
 			title: `Delete ${
-			lang.display_name || lang.native_display || lang.name || lang.code
-		}?`,
+				lang.display_name ||
+				lang.native_display ||
+				lang.name ||
+				lang.code
+			}?`,
 			body: 'This removes it from the public site and the workspace. Its translations are kept and restored if you re-add the language.',
 			actionLabel: 'Delete',
 			destructive: true,
@@ -986,10 +1082,10 @@ export default function Dashboard( {
 			body: "Fills in every text this language is missing using its fallback language's existing translations, marked as Needs review. Existing translations are never overwritten.",
 			actionLabel: 'Use fallback translation',
 			onConfirm: async () => {
-				const res = await api.post(
-					`/languages/${ enc( lang.code ) }/use-fallback`
-				)
-				if ( ! res.ok ) {
+				let res
+				try {
+					res = await useFallbackMut.mutateAsync( lang.code )
+				} catch {
 					showToast( 'critical', 'Could not copy translations.' )
 					return
 				}
@@ -1005,38 +1101,19 @@ export default function Dashboard( {
 						q.queryKey[ 0 ] === 'texts' &&
 						q.queryKey[ 2 ] === lang.code,
 				} )
-				refreshLanguages() // rail percentages changed
 			},
 		} )
 	}
 
+	// Re-pull /languages (rail percentages, roster). The useLanguages query +
+	// its sync effect above do the fetch + state derivation; this just marks
+	// it stale. Returns the invalidation promise so the "refresh %" icon
+	// button can await it.
 	function refreshLanguages() {
-		return api.get( '/languages' ).then( ( res ) => {
-			if ( ! res.ok ) {
-				// Resolve the pending state even when the request fails so the modal
-				// never leaves the user behind an endless loading message.
-				setLanguageCatalog( [] )
-				setLanguagesLoaded( true )
-				return
-			}
-			const langs = res.languages || []
-			setLanguageCatalog( res.catalog || [] )
-			setLanguages( langs )
-			setLanguagesLoaded( true )
-			setSelectedLang( ( cur ) => {
-				if ( cur && langs.some( ( l ) => l.code === cur ) ) {
-					return cur
-				}
-				const active = langs.find( ( l ) => l.enabled ) || langs[ 0 ]
-				return active?.code || ''
-			} )
+		return queryClient.invalidateQueries( {
+			queryKey: qk.languages.list(),
 		} )
 	}
-
-	// setSelectedLang (from useQueryState) is stable across renders like a
-	// useState setter — nuqs's own examples omit it from effect deps too.
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	useEffect( refreshLanguages, [] )
 
 	// languageAddedSignal starts undefined/0 and only changes after App.jsx's
 	// onboarding hand-off actually creates a language — skip the initial
@@ -1074,7 +1151,7 @@ export default function Dashboard( {
 					texts.some( ( t ) => t.status === 'pending' )
 				)
 			} )
-		const unsub = cache.subscribe( () => {
+		return cache.subscribe( () => {
 			const now = anyPending()
 			if ( hadPendingRef.current && ! now ) {
 				refetchEntitlements()
@@ -1082,7 +1159,6 @@ export default function Dashboard( {
 			}
 			hadPendingRef.current = now
 		} )
-		return unsub
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient/refetchEntitlements stable; refreshLanguages is a stable declaration
 	}, [] )
 
@@ -1114,21 +1190,16 @@ export default function Dashboard( {
 			},
 		],
 		initialPageParam: 0,
-		queryFn: async ( { pageParam, signal } ) => {
-			const res = await api.get(
+		queryFn: ( { pageParam, signal } ) =>
+			fetchBoard(
 				`/collections?language=${ enc(
 					selectedLang
 				) }&offset=${ pageParam }&limit=${ PAGE_SIZE }` +
 					`${ searchParam( query ) }&status=${ enc(
 						statusFilter
 					) }&source=${ enc( board ) }${ advancedFilterParams }`,
-				{ signal }
-			)
-			if ( ! res.ok ) {
-				throw new Error( res.error || 'ERR_UNREACHABLE' )
-			}
-			return res
-		},
+				signal
+			),
 		getNextPageParam: ( last ) =>
 			last.has_more ? last.next_offset : undefined,
 		// Plugins & Themes has its own board (GettextBoard) now — no need to
@@ -1144,41 +1215,79 @@ export default function Dashboard( {
 		} )
 	}
 
-	// Manual "recheck the site for missing text": re-arm the same scan that runs
-	// on activation, then poll status the same way pollFirstScan does after the
-	// first language is created. On completion, refetch the board so newly
-	// discovered text shows up without a full page reload.
+	// Manual "recheck the site for missing text": re-arm the activation-time
+	// scan. useScanStatus then polls, and the scan-completion effect below
+	// refetches the board and toasts when it finishes.
 	//
 	// The HTML crawl also gets (re-)triggered by this same click, but it is
-	// deliberately NOT part of what's polled below — it's network-bound (one
-	// fetch per page) and can run far longer than the DB-only scan on a large
-	// site. Waiting for it would hold the dashboard hostage for no reason: the
-	// crawl keeps filling in html in the background regardless, and newly
-	// discovered hardcoded text just shows up next time the html:all group is
-	// fetched (a manual refresh, reopening the group, etc.) — no spinner needed.
+	// deliberately NOT waited on — it's network-bound and can run far longer
+	// than the DB-only scan; newly discovered hardcoded text just shows up
+	// next time the html:all group is fetched. htmlCrawlRunning only picks the
+	// wording of the completion toast.
 	function refreshScan() {
 		if ( refreshing ) {
 			return
 		}
 		setRefreshing( true )
 		showToast( 'info', 'Rescanning your site…' )
-		api.post( '/scan/refresh' ).then( ( res ) => {
-			pollScanStatus( res.html_status === 'running' )
+		refreshScanMut.mutate( undefined, {
+			onSuccess: ( res ) => {
+				scanArmedAtRef.current = Date.now()
+				setScanWatch( {
+					mode: 'rescan',
+					htmlCrawlRunning: res.html_status === 'running',
+				} )
+			},
+			onError: () => {
+				setRefreshing( false )
+				showToast( 'critical', 'Scan failed. Try again.' )
+			},
 		} )
 	}
 
-	function pollScanStatus( htmlCrawlRunning ) {
-		api.get( '/scan/status' ).then( ( res ) => {
-			const status = res.status || 'running'
-			if ( status === 'running' ) {
-				setTimeout( () => pollScanStatus( htmlCrawlRunning ), 3000 )
-				return
+	// "Refresh" on the first-scan gate: force an immediate status re-check
+	// instead of waiting for the next poll tick. A terminal status is handled
+	// by the scan-completion effect below.
+	function recheckFirstScan() {
+		scanQ.refetch().then( ( res ) => {
+			if ( ( res.data?.status ?? 'running' ) === 'running' ) {
+				showToast( 'info', 'Still scanning — check back in a moment.' )
 			}
+		} )
+	}
+
+	// Drive the one-shot scan outcomes off the polled status. scanWatch says
+	// what kicked the scan; a terminal status runs the matching finish and
+	// stops the watch (which stops useScanStatus polling).
+	useEffect( () => {
+		if ( ! scanWatch || ! scanQ.data ) {
+			return
+		}
+		// scanQ can still be holding the PREVIOUS scan's terminal result the
+		// instant this watch re-enables it — the invalidated refetch this watch
+		// triggered hasn't landed yet. Wait for data that's actually newer than
+		// the arm, so a stale 'completed' can't be mistaken for this scan.
+		if ( scanQ.dataUpdatedAt < scanArmedAtRef.current ) {
+			return
+		}
+		const status = scanQ.data.status || 'running'
+		if ( status === 'running' ) {
+			return
+		}
+		const watch = scanWatch
+		setScanWatch( null )
+		if ( watch.mode === 'first' ) {
+			setExtractionPending( false )
+			if ( status === 'completed' ) {
+				invalidateCollections()
+				announceExtractionDone( watch.lang )
+			}
+		} else {
 			setRefreshing( false )
 			if ( status === 'completed' ) {
 				showToast(
 					'success',
-					htmlCrawlRunning
+					watch.htmlCrawlRunning
 						? 'Scan complete — still scanning for more text.'
 						: 'Scan complete.'
 				)
@@ -1186,45 +1295,14 @@ export default function Dashboard( {
 			} else {
 				showToast( 'critical', 'Scan failed. Try again.' )
 			}
-		} )
-	}
-
-	// Same poll-until-done shape as pollScanStatus, but gates the board body
-	// (via extractionPending) instead of a toast — used once, right after the
-	// very first language is created, so the user never sees an empty content
-	// list while the activation-time scan is still filling it in. `lang`
-	// threads through the recursive setTimeout rather than reading
-	// selectedLang live, so the eventual "extraction done" toast still names
-	// the right language even if the user switches languages while waiting.
-	function pollFirstScan( lang ) {
-		api.get( '/scan/status' ).then( ( res ) => {
-			const status = res.status || 'running'
-			if ( status === 'running' ) {
-				setTimeout( () => pollFirstScan( lang ), 3000 )
-				return
-			}
-			setExtractionPending( false )
-			if ( status === 'completed' ) {
-				invalidateCollections()
-				announceExtractionDone( lang )
-			}
-		} )
-	}
-
-	// "Refresh" on the first-scan gate: check status now instead of waiting for
-	// the background pollFirstScan tick, so the user can clear the loading
-	// screen the moment the scan finishes without reloading the whole page.
-	function recheckFirstScan() {
-		api.get( '/scan/status' ).then( ( res ) => {
-			if ( ( res.status || 'running' ) === 'running' ) {
-				showToast( 'info', 'Still scanning — check back in a moment.' )
-				return
-			}
-			setExtractionPending( false )
-			invalidateCollections()
-			announceExtractionDone( selectedLang || createdLanguageCode )
-		} )
-	}
+		}
+		// scanQ.dataUpdatedAt is listed, not just scanQ.data: React Query's
+		// structural sharing can hand back the SAME data reference across two
+		// fetches with equal content (e.g. two 'completed' results in a row),
+		// which would silently skip this effect on the real completion if only
+		// the object reference were watched.
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- helpers are stable declarations
+	}, [ scanQ.data, scanQ.dataUpdatedAt, scanWatch ] )
 
 	// Copies a link that lands on this same board/language and scrolls straight
 	// to this collection (view/board/lang/collection all restore from the query
@@ -1718,20 +1796,15 @@ export default function Dashboard( {
 			statusFilter,
 			advancedFilters,
 		],
-		queryFn: async ( { signal } ) => {
-			const res = await api.get(
+		queryFn: ( { signal } ) =>
+			fetchBoard(
 				`/collections/${ enc( overlay.cid ) }/texts?language=${ enc(
 					selectedLang
 				) }${ searchParam( query ) }&status=${ enc(
 					statusFilter
 				) }${ advancedFilterParams }`,
-				{ signal }
-			)
-			if ( ! res.ok ) {
-				throw new Error( res.error || 'ERR_UNREACHABLE' )
-			}
-			return res
-		},
+				signal
+			),
 		enabled: !! overlay,
 		refetchInterval: pollWhilePending,
 	} )
@@ -1752,20 +1825,15 @@ export default function Dashboard( {
 			board,
 			advancedFilters,
 		],
-		queryFn: async ( { signal } ) => {
-			const res = await api.get(
+		queryFn: ( { signal } ) =>
+			fetchBoard(
 				`/collections/text-order?language=${ enc(
 					selectedLang
 				) }${ searchParam( query ) }&status=${ enc(
 					statusFilter
 				) }&source=${ enc( board ) }${ advancedFilterParams }`,
-				{ signal }
-			)
-			if ( ! res.ok ) {
-				throw new Error( res.error || 'ERR_UNREACHABLE' )
-			}
-			return res
-		},
+				signal
+			),
 		enabled: !! overlay,
 	} )
 	const orderFlat = useMemo(
@@ -2393,13 +2461,17 @@ export default function Dashboard( {
 												}
 												loading={ translatingAll }
 												size="large"
-												onClick={
-													billingBlocked
-														? handleAiBlocked
-														: showGettextBoard
-														? translateAllGettext
-														: translateAllInLanguage
-												}
+												onClick={ () => {
+													if ( billingBlocked ) {
+														handleAiBlocked()
+													} else if (
+														showGettextBoard
+													) {
+														translateAllGettext()
+													} else {
+														translateAllInLanguage()
+													}
+												} }
 											>
 												Translate All
 											</Button>
@@ -3131,6 +3203,7 @@ function CollectionGroup( {
 	const c = collection
 	const open = ! collapsed
 	const searching = search !== ''
+	const collectionActionMut = useCollectionAction()
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ hovered, setHovered ] = useState( false )
 	const [ shown, setShown ] = useState( TEXT_BATCH )
@@ -3152,20 +3225,15 @@ function CollectionGroup( {
 
 	const textsQ = useQuery( {
 		queryKey: [ 'texts', c.id, language, search, status, filterKey ],
-		queryFn: async ( { signal } ) => {
-			const res = await api.get(
+		queryFn: ( { signal } ) =>
+			fetchBoard(
 				`/collections/${ enc( c.id ) }/texts?language=${ enc(
 					language
 				) }${
 					search ? `&search=${ enc( search ) }` : ''
 				}&status=${ enc( status ) }${ filterParams }`,
-				{ signal }
-			)
-			if ( ! res.ok ) {
-				throw new Error( res.error || 'ERR_UNREACHABLE' )
-			}
-			return res
-		},
+				signal
+			),
 		enabled: ! collapsed && settled,
 		refetchInterval: pollWhilePending,
 	} )
@@ -3196,30 +3264,24 @@ function CollectionGroup( {
 	// meaning for the other collection types.
 	const staleQ = useQuery( {
 		queryKey: [ 'html-stale', c.id, language ],
-		queryFn: async ( { signal } ) => {
-			const res = await api.get(
+		queryFn: ( { signal } ) =>
+			fetchBoard(
 				`/collections/${ enc( c.id ) }/stale?language=${ enc(
 					language
 				) }`,
-				{ signal }
-			)
-			if ( ! res.ok ) {
-				throw new Error( res.error || 'ERR_UNREACHABLE' )
-			}
-			return res
-		},
+				signal
+			),
 		enabled: c.id === 'html:all' && ! collapsed && settled,
 	} )
 	const staleCount = staleQ.data?.texts?.length ?? 0
 
 	async function bulk( action ) {
 		setMenuOpen( false )
-		const res = await api.post(
-			`/collections/${ enc( c.id ) }/${ action }`,
-			{
-				language,
-			}
-		)
+		const res = await collectionActionMut.mutateAsync( {
+			id: c.id,
+			action,
+			body: { language },
+		} )
 		if ( res.ok ) {
 			onMutate( res )
 		}
@@ -3278,12 +3340,11 @@ function CollectionGroup( {
 
 	async function deleteStale() {
 		setMenuOpen( false )
-		const res = await api.post(
-			`/collections/${ enc( c.id ) }/delete-stale`,
-			{
-				language,
-			}
-		)
+		const res = await collectionActionMut.mutateAsync( {
+			id: c.id,
+			action: 'delete-stale',
+			body: { language },
+		} )
 		if ( res.ok ) {
 			onMutate( res )
 			staleQ.refetch()
@@ -3632,6 +3693,8 @@ function TextUnitRow( {
 	const [ hovered, setHovered ] = useState( false )
 	const [ translating, setTranslating ] = useState( false )
 	const moreActionsRef = useRef( null )
+	const saveTranslationMut = useSaveTranslation()
+	const setTextStatusMut = useSetTextStatus()
 
 	// A review toggle (needs_review <-> reviewed) flips one flag server-side, so
 	// show the new badge the instant it's clicked and reconcile — or revert —
@@ -3708,7 +3771,7 @@ function TextUnitRow( {
 		if ( ( unit.translated ?? '' ) === draft ) {
 			return
 		}
-		const res = await api.post( '/translations', {
+		const res = await saveTranslationMut.mutateAsync( {
 			text_unit_id: unit.id,
 			language,
 			text: draft,
@@ -3725,16 +3788,16 @@ function TextUnitRow( {
 
 	async function doStatus( action ) {
 		setMenuOpen( false )
-		const optimisticTo =
-			action === 'reviewed'
-				? 'reviewed'
-				: action === 'review'
-				? 'needs_review'
-				: null
+		const OPTIMISTIC_STATUS = {
+			reviewed: 'reviewed',
+			review: 'needs_review',
+		}
+		const optimisticTo = OPTIMISTIC_STATUS[ action ] ?? null
 		if ( optimisticTo ) {
 			setOptimistic( { from: unit.status, to: optimisticTo } )
 		}
-		const res = await api.post( `/texts/${ enc( unit.id ) }/status`, {
+		const res = await setTextStatusMut.mutateAsync( {
+			ref: unit.id,
 			action,
 			language,
 			collection_id: collectionId,
@@ -3784,6 +3847,88 @@ function TextUnitRow( {
 	function handleAiClick() {
 		moreActionsRef.current?.querySelector( 'button' )?.focus()
 		translateThisText()
+	}
+
+	// The translation cell has three shapes: an ignored row (read-only text),
+	// a "long/composed" row (click/Enter opens the compare overlay), or the
+	// default inline-editable input.
+	function renderTranslationCell() {
+		if ( unit.ignored ) {
+			return (
+				<div style={ { ...oneLineStyle, userSelect: 'text' } }>
+					<Text as="span" variant="bodySm" tone="subdued">
+						{ shownText }
+					</Text>
+				</div>
+			)
+		}
+		if ( clickable ) {
+			return (
+				<motion.div
+					role="button"
+					tabIndex={ 0 }
+					onClick={ () => onOpenOverlay( unit ) }
+					onKeyDown={ ( e ) => {
+						if ( e.key === 'Enter' || e.key === ' ' ) {
+							e.preventDefault()
+							onOpenOverlay( unit )
+						}
+					} }
+					animate={ { opacity: showShimmer ? 0 : 1 } }
+					transition={ { duration: 0.15 } }
+					style={ { ...oneLineStyle, userSelect: 'text' } }
+				>
+					<Text
+						as="span"
+						variant="bodySm"
+						tone={ hasTranslation ? undefined : 'subdued' }
+					>
+						{ shownText }
+					</Text>
+				</motion.div>
+			)
+		}
+		return (
+			<motion.input
+				type="text"
+				aria-label="Translation"
+				value={ draft }
+				onChange={ ( e ) => setDraft( e.target.value ) }
+				onBlur={ saveTranslation }
+				onKeyDown={ ( e ) => {
+					if ( e.key !== 'Enter' ) {
+						return
+					}
+					e.preventDefault()
+					const inputs = Array.from(
+						document.querySelectorAll(
+							'input[aria-label="Translation"]'
+						)
+					)
+					const next = inputs[ inputs.indexOf( e.currentTarget ) + 1 ]
+					if ( next ) {
+						next.focus()
+					} else {
+						e.currentTarget.blur()
+					}
+				} }
+				placeholder={ unit.fallback || '' }
+				animate={ { opacity: showShimmer ? 0 : 1 } }
+				transition={ { duration: 0.15 } }
+				style={ {
+					all: 'unset',
+					display: 'block',
+					width: '100%',
+					minWidth: 0,
+					cursor: 'text',
+					fontSize: 'var(--p-font-size-300, 0.75rem)',
+					lineHeight: 'var(--p-font-line-height-300, 1rem)',
+					color: hasTranslation
+						? 'var(--p-color-text)'
+						: 'var(--p-color-text-subdued)',
+				} }
+			/>
+		)
 	}
 
 	// The row's AI-translate button, spelled once — used both as the visible
@@ -3949,110 +4094,7 @@ function TextUnitRow( {
 							dir={ targetDir }
 							style={ { position: 'relative', minWidth: 0 } }
 						>
-							{ unit.ignored ? (
-								// Ignored rows are read-only: original text, muted,
-								// no overlay, no input. Restore is in the row menu.
-								<div
-									style={ {
-										...oneLineStyle,
-										userSelect: 'text',
-									} }
-								>
-									<Text
-										as="span"
-										variant="bodySm"
-										tone="subdued"
-									>
-										{ shownText }
-									</Text>
-								</div>
-							) : clickable ? (
-								<motion.div
-									role="button"
-									tabIndex={ 0 }
-									onClick={ () => onOpenOverlay( unit ) }
-									onKeyDown={ ( e ) => {
-										if (
-											e.key === 'Enter' ||
-											e.key === ' '
-										) {
-											e.preventDefault()
-											onOpenOverlay( unit )
-										}
-									} }
-									animate={ {
-										opacity: showShimmer ? 0 : 1,
-									} }
-									transition={ { duration: 0.15 } }
-									style={ {
-										...oneLineStyle,
-										userSelect: 'text',
-									} }
-								>
-									<Text
-										as="span"
-										variant="bodySm"
-										tone={
-											hasTranslation
-												? undefined
-												: 'subdued'
-										}
-									>
-										{ shownText }
-									</Text>
-								</motion.div>
-							) : (
-								<motion.input
-									type="text"
-									aria-label="Translation"
-									value={ draft }
-									onChange={ ( e ) =>
-										setDraft( e.target.value )
-									}
-									onBlur={ saveTranslation }
-									onKeyDown={ ( e ) => {
-										if ( e.key !== 'Enter' ) {
-											return
-										}
-										e.preventDefault()
-										const inputs = Array.from(
-											document.querySelectorAll(
-												'input[aria-label="Translation"]'
-											)
-										)
-										const next =
-											inputs[
-												inputs.indexOf(
-													e.currentTarget
-												) + 1
-											]
-										if ( next ) {
-											next.focus()
-										} else {
-											e.currentTarget.blur()
-										}
-									} }
-									placeholder={ unit.fallback || '' }
-									animate={ {
-										opacity: showShimmer ? 0 : 1,
-									} }
-									transition={ { duration: 0.15 } }
-									style={ {
-										all: 'unset',
-										display: 'block',
-										width: '100%',
-										minWidth: 0,
-										cursor: 'text',
-										fontSize:
-											'var(--p-font-size-300, 0.75rem)',
-										lineHeight:
-											'var(--p-font-line-height-300, 1rem)',
-										color: hasTranslation
-											? 'var(--p-color-text)'
-											: 'var(--p-color-text-subdued)',
-									} }
-								/>
-							) }
+							{ renderTranslationCell() }
 							{ /* No AnimatePresence here on purpose — an exit
 							transition would keep this mounted over the just-
 							arrived real text and read as a stall. It gets an

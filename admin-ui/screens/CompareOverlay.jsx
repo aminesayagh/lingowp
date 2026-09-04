@@ -19,7 +19,7 @@ import {
 } from '@shopify/polaris-icons'
 import { useCallback, useEffect, useRef, useState } from '@wordpress/element'
 import { AnimatePresence, motion } from 'motion/react'
-import { api } from '../api'
+import { useSaveTranslation } from '../queries/board'
 import { AiIcon } from './AiIcon'
 import { flagIconUrl, FlagIcon } from './FlagIcon'
 import {
@@ -116,6 +116,7 @@ export default function CompareOverlay( {
 	const [ text, setText ] = useState( '' )
 	const [ saving, setSaving ] = useState( false )
 	const [ savedTick, setSavedTick ] = useState( 0 )
+	const { mutateAsync: saveTranslation } = useSaveTranslation()
 	const [ error, setError ] = useState( '' )
 	const [ submitting, setSubmitting ] = useState( false )
 	const [ menuOpen, setMenuOpen ] = useState( false )
@@ -153,7 +154,7 @@ export default function CompareOverlay( {
 				return // broken tag structure never reaches the server
 			}
 			setSaving( true )
-			const res = await api.post( '/translations', {
+			const res = await saveTranslation( {
 				text_unit_id: unitId,
 				language,
 				text: value,
@@ -194,6 +195,7 @@ export default function CompareOverlay( {
 			onSaved,
 			unit,
 			onLengthWarning,
+			saveTranslation,
 		]
 	)
 

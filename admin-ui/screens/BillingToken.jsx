@@ -10,9 +10,18 @@ import {
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useCallback, useEffect, useState } from '@wordpress/element'
-import { api } from '../api'
+import { useEffect, useMemo, useState } from '@wordpress/element'
 import { errorMessage } from '../errors'
+import {
+	useDisconnect,
+	useConnectionStatus,
+	useRecoverKey,
+} from '../queries/connection'
+import {
+	useDeleteProviderKey,
+	useProviderKeys,
+	useSaveProviderKey,
+} from '../queries/providerKeys'
 
 const PROVIDERS = [
 	{ id: 'openai', label: 'OpenAI' },
@@ -83,59 +92,40 @@ function KeyStatusLine( { provider, data, onRemove } ) {
 }
 
 export default function BillingToken() {
-	const [ status, setStatus ] = useState( null ) // null = loading
-	const [ fetchError, setFetchError ] = useState( '' )
 	const [ confirmOpen, setConfirmOpen ] = useState( false )
-	const [ recovering, setRecovering ] = useState( false )
 	const [ recoverBanner, setRecoverBanner ] = useState( null ) // { tone, content } | null
 	const [ disconnectOpen, setDisconnectOpen ] = useState( false )
-	const [ disconnecting, setDisconnecting ] = useState( false )
-
-	const [ providerKeys, setProviderKeys ] = useState( null ) // null = loading, else { [provider]: keyData }, at most one entry
-	const [ providerKeysError, setProviderKeysError ] = useState( '' )
 	const [ row, setRow ] = useState( EMPTY_ROW )
 	const [ removeOpen, setRemoveOpen ] = useState( false )
-	const [ removing, setRemoving ] = useState( false )
+
+	const statusQ = useConnectionStatus()
+	const providerKeysQ = useProviderKeys()
+	const saveKey = useSaveProviderKey()
+	const deleteKey = useDeleteProviderKey()
+	const recover = useRecoverKey()
+	const disconnect = useDisconnect()
+
+	const status = statusQ.data ?? null // { connected, maskedKey, ... } | null
+	const fetchError = statusQ.error?.code || ''
+	// null = still loading; else a { [provider]: keyData } map, at most one entry.
+	const providerKeys = useMemo( () => {
+		if ( providerKeysQ.data === undefined ) {
+			return null
+		}
+		const byProvider = {}
+		for ( const key of providerKeysQ.data ) {
+			byProvider[ key.provider ] = key
+		}
+		return byProvider
+	}, [ providerKeysQ.data ] )
+	const providerKeysError = providerKeysQ.error?.code || ''
+	const removing = deleteKey.isPending
+	const recovering = recover.isPending
+	const disconnecting = disconnect.isPending
 
 	const activeEntry = providerKeys
 		? Object.entries( providerKeys )[ 0 ]
 		: undefined
-
-	// Clears its own error before retrying, so a Retry click that succeeds
-	// doesn't leave the previous failure's banner text stranded.
-	const fetchStatus = useCallback( () => {
-		setFetchError( '' )
-		return api.get( '/connection/status' ).then( ( res ) => {
-			if ( res.ok ) {
-				setStatus( res )
-			} else {
-				setFetchError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
-
-	const fetchProviderKeys = useCallback( () => {
-		setProviderKeysError( '' )
-		return api.get( '/provider-keys' ).then( ( res ) => {
-			if ( res.ok ) {
-				const byProvider = {}
-				for ( const key of res.keys || [] ) {
-					byProvider[ key.provider ] = key
-				}
-				setProviderKeys( byProvider )
-			} else {
-				setProviderKeysError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
-
-	useEffect( () => {
-		fetchStatus()
-	}, [ fetchStatus ] )
-
-	useEffect( () => {
-		fetchProviderKeys()
-	}, [ fetchProviderKeys ] )
 
 	// Once the stored key loads, default the Select to whichever provider is
 	// already active. activeEntry is derived from providerKeys on every
@@ -155,32 +145,24 @@ export default function BillingToken() {
 	async function doSave() {
 		const { provider, draft } = row
 		updateRow( { saving: true, error: '' } )
-
-		if ( activeEntry && activeEntry[ 0 ] !== provider ) {
-			const delRes = await api.del(
-				`/provider-keys/${ activeEntry[ 0 ] }`
-			)
-			if ( ! delRes.ok && delRes.error !== 'ERR_NOT_FOUND' ) {
-				updateRow( {
-					saving: false,
-					error: delRes.error || 'ERR_UNREACHABLE',
-				} )
-				return
+		try {
+			// A site holds one BYO key at a time — drop the other provider's
+			// row first. ERR_NOT_FOUND just means there was nothing to drop.
+			if ( activeEntry && activeEntry[ 0 ] !== provider ) {
+				try {
+					await deleteKey.mutateAsync( activeEntry[ 0 ] )
+				} catch ( e ) {
+					if ( e.code !== 'ERR_NOT_FOUND' ) {
+						throw e
+					}
+				}
 			}
-			setProviderKeys( {} )
-		}
-
-		const res = await api.post( '/provider-keys', {
-			provider,
-			api_key: draft,
-		} )
-		if ( res.ok ) {
-			setProviderKeys( { [ provider ]: res.key } )
+			await saveKey.mutateAsync( { provider, apiKey: draft } )
 			updateRow( { saving: false, draft: '', error: '' } )
-		} else {
+		} catch ( e ) {
 			updateRow( {
 				saving: false,
-				error: res.error || 'ERR_UNREACHABLE',
+				error: e.code || 'ERR_UNREACHABLE',
 			} )
 		}
 	}
@@ -191,48 +173,39 @@ export default function BillingToken() {
 			setRemoveOpen( false )
 			return
 		}
-		setRemoving( true )
-		const res = await api.del( `/provider-keys/${ provider }` )
-		setRemoving( false )
-		setRemoveOpen( false )
-		if ( res.ok ) {
-			setProviderKeys( {} )
+		try {
+			await deleteKey.mutateAsync( provider )
+			setRemoveOpen( false )
 			setRow( EMPTY_ROW )
-		} else {
-			updateRow( { error: res.error || 'ERR_UNREACHABLE' } )
+		} catch ( e ) {
+			setRemoveOpen( false )
+			updateRow( { error: e.code || 'ERR_UNREACHABLE' } )
 		}
 	}
 
 	async function doRecover() {
-		setRecovering( true )
-		const res = await api.post( '/connection/recover' )
-		setRecovering( false )
-		setConfirmOpen( false )
-
 		// A working key rotates instantly; a dead key falls back to the
-		// connect ladder instead, which is also instant now — either way
-		// this resolves synchronously, no "check your inbox" state.
-		if ( res.ok ) {
-			await fetchStatus()
-			setRecoverBanner( {
-				tone: 'success',
-				content: 'New key created. Your previous key no longer works.',
-			} )
-			return
-		}
-		setRecoverBanner( {
-			tone: 'critical',
-			content: errorMessage( res.error ),
-		} )
+		// connect ladder, also instant — either way this resolves
+		// synchronously, no "check your inbox" state. The mutation's
+		// onSuccess invalidates connection status, so the masked key updates
+		// on its own.
+		const res = await recover.mutateAsync()
+		setConfirmOpen( false )
+		setRecoverBanner(
+			res.ok
+				? {
+						tone: 'success',
+						content:
+							'New key created. Your previous key no longer works.',
+				  }
+				: { tone: 'critical', content: errorMessage( res.error ) }
+		)
 	}
 
 	async function doDisconnect() {
-		setDisconnecting( true )
-		await api.post( '/connection/disconnect' )
-		setDisconnecting( false )
+		await disconnect.mutateAsync()
 		setDisconnectOpen( false )
 		setRecoverBanner( null )
-		await fetchStatus()
 	}
 
 	const keyPlaceholder =
@@ -252,7 +225,10 @@ export default function BillingToken() {
 				{ fetchError && (
 					<Banner
 						tone="critical"
-						action={ { content: 'Retry', onAction: fetchStatus } }
+						action={ {
+							content: 'Retry',
+							onAction: () => statusQ.refetch(),
+						} }
 					>
 						{ errorMessage( fetchError ) }
 					</Banner>
@@ -272,7 +248,7 @@ export default function BillingToken() {
 						</InlineStack>
 					) : (
 						<Text as="span" tone={ status ? undefined : 'subdued' }>
-							{ status?.masked_key || '—' }
+							{ status?.maskedKey || '—' }
 						</Text>
 					) }
 				</Card>
@@ -299,7 +275,7 @@ export default function BillingToken() {
 								tone="critical"
 								action={ {
 									content: 'Retry',
-									onAction: fetchProviderKeys,
+									onAction: () => providerKeysQ.refetch(),
 								} }
 							>
 								{ errorMessage( providerKeysError ) }

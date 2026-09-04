@@ -268,6 +268,7 @@ export function LanguageRow( {
 				</Text>
 			</span>
 			{ ( showProgress || showMenu ) && (
+				// eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- not an interactive control; this wrapper only stops click propagation to the parent row (the real control is the menu inside it), so a keyboard handler / tab stop here would be spurious
 				<div
 					data-language-actions
 					// The ActionList's items render into a portal — physically

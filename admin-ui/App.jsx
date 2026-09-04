@@ -1,8 +1,10 @@
 import { AppProvider, Frame, Modal, PortalsManager } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from '@wordpress/element'
-import { api } from './api'
+import { makeQueryClient } from './queryClient'
+import { qk } from './queryKeys'
+import { useOnboardingState } from './queries/onboarding'
 import Configuration from './screens/Configuration'
 import Dashboard from './screens/Dashboard'
 import AddLanguagesPicker from './screens/AddLanguagesPicker'
@@ -13,20 +15,18 @@ import AddLanguagesPicker from './screens/AddLanguagesPicker'
 const ADD_LANGUAGE_DELAY_MS = 300
 
 // Module-level: one client for the whole admin page, not per-mount.
-const queryClient = new QueryClient( {
-	defaultOptions: {
-		queries: {
-			staleTime: 5 * 60_000,
-			gcTime: 30 * 60_000,
-			retry: 1,
-			refetchOnWindowFocus: false,
-		},
-		mutations: { retry: 0 },
-	},
-} )
+const queryClient = makeQueryClient()
 
 export default function App() {
-	const [ state, setState ] = useState( null )
+	return (
+		<QueryClientProvider client={ queryClient }>
+			<AppInner />
+		</QueryClientProvider>
+	)
+}
+
+function AppInner() {
+	const rqClient = useQueryClient()
 	// Onboarding is never a separate screen — the Dashboard is always the
 	// landing view. This one Modal instance carries the whole "finish setup"
 	// hand-off as two steps, never closing between them:
@@ -52,6 +52,9 @@ export default function App() {
 	const [ languageAddedSignal, setLanguageAddedSignal ] = useState( 0 )
 	const [ createdLanguageCode, setCreatedLanguageCode ] = useState( null )
 
+	const stateQ = useOnboardingState()
+	const state = stateQ.data ?? null
+
 	// Polaris renders popovers/tooltips/modals into a portal container that, by
 	// default, lives inside the React tree — which in wp-admin sits under the
 	// positioned #wpwrap, offsetting every overlay by the admin-bar height. Give
@@ -68,25 +71,27 @@ export default function App() {
 		return el
 	} )
 
+	// One-shot: pick the initial onboarding step from the bootstrap read. The
+	// ref guard means a later background refetch of /onboarding/state never
+	// re-opens the dialog.
+	//   - not completed -> 'onboarding'
+	//   - completed but no language at all -> straight to 'add-language', no
+	//     delay (that's only for the transition right after finishing
+	//     onboarding). has_any_language, not has_target_language: a language
+	//     created here starts as a draft, so the active-only flag would keep
+	//     reopening this every reload until it's separately published.
+	const seededStepRef = useRef( false )
 	useEffect( () => {
-		api.get( '/onboarding/state' ).then( ( s ) => {
-			setState( s )
-			if ( ! s.onboarding_completed ) {
-				setStep( 'onboarding' )
-			} else if ( ! s.has_any_language ) {
-				// Onboarding was already done on a previous visit but no
-				// language exists yet at all (e.g. the user dismissed the
-				// 'add-language' step last time, or refreshed mid-way) — go
-				// straight to it, no delay (that's only for the transition
-				// right after finishing onboarding, not a page load). Checked
-				// against has_any_language, not has_target_language — a
-				// language created here starts as a draft, not active, so
-				// the active-only flag would keep reopening this every
-				// reload until it's separately published.
-				setStep( 'add-language' )
-			}
-		} )
-	}, [] )
+		if ( seededStepRef.current || ! state ) {
+			return
+		}
+		seededStepRef.current = true
+		if ( ! state.onboarding_completed ) {
+			setStep( 'onboarding' )
+		} else if ( ! state.has_any_language ) {
+			setStep( 'add-language' )
+		}
+	}, [ state ] )
 
 	// Scopes the blurred backdrop (admin-ui/tailwind.css) to just this modal,
 	// instead of every Polaris Modal in the app.
@@ -109,81 +114,87 @@ export default function App() {
 	const onboardingCompleted = state ? state.onboarding_completed : true
 
 	return (
-		<QueryClientProvider client={ queryClient }>
-			<AppProvider i18n={ enTranslations }>
-				<PortalsManager container={ portalRoot }>
-					<Frame>
-						<Dashboard
-							defaultLanguage={ state?.default_language }
-							onboardingCompleted={ onboardingCompleted }
-							onStartOnboarding={ () => setStep( 'onboarding' ) }
-							languageAddedSignal={ languageAddedSignal }
-							createdLanguageCode={ createdLanguageCode }
-						/>
-						<Modal
-							open={ !! step }
-							onClose={
-								// Only the 'add-language' step is dismissible.
-								step === 'add-language'
-									? () => setStep( null )
-									: () => {}
-							}
-							title={
-								step === 'add-language'
-									? 'Add languages'
-									: 'Finish setting up LingoWP'
-							}
-						>
-							{ step === 'onboarding' && state && (
-								<Modal.Section>
-									<Configuration
-										recommendedPrefixDefaultLanguage={
-											state.recommended_prefix_default_language
-										}
-										defaultLanguageSlug={
-											state.default_language_slug
-										}
-										onDone={ () => {
-											setState( ( s ) => ( {
-												...s,
-												onboarding_completed: true,
-											} ) )
-											clearTimeout(
-												addLanguageTimerRef.current
-											)
-											addLanguageTimerRef.current =
-												setTimeout( () => {
-													setStep( 'add-language' )
-												}, ADD_LANGUAGE_DELAY_MS )
-										} }
-									/>
-								</Modal.Section>
-							) }
-							{ step === 'add-language' && (
-								<Modal.Section>
-									<AddLanguagesPicker
-										defaultCode={
-											state?.default_language?.code
-										}
-										// onCreated fires whenever anything was
-										// created (partial or full success) and
-										// carries the actual "refetch and check
-										// extraction" signal; onDone (full
-										// success only) just closes the dialog.
-										onCreated={ ( code ) => {
-											setCreatedLanguageCode( code )
-											setLanguageAddedSignal(
-												( n ) => n + 1
-											)
-										} }
-										onDone={ () => setStep( null ) }
-									/>
-								</Modal.Section>
-							) }
-						</Modal>
-					</Frame>
-				</PortalsManager>
-			</AppProvider>
-		</QueryClientProvider>
+		<AppProvider i18n={ enTranslations }>
+			<PortalsManager container={ portalRoot }>
+				<Frame>
+					<Dashboard
+						defaultLanguage={ state?.default_language }
+						onboardingCompleted={ onboardingCompleted }
+						onStartOnboarding={ () => setStep( 'onboarding' ) }
+						languageAddedSignal={ languageAddedSignal }
+						createdLanguageCode={ createdLanguageCode }
+					/>
+					<Modal
+						open={ !! step }
+						onClose={
+							// Only the 'add-language' step is dismissible.
+							step === 'add-language'
+								? () => setStep( null )
+								: () => {}
+						}
+						title={
+							step === 'add-language'
+								? 'Add languages'
+								: 'Finish setting up LingoWP'
+						}
+					>
+						{ step === 'onboarding' && state && (
+							<Modal.Section>
+								<Configuration
+									recommendedPrefixDefaultLanguage={
+										state.recommended_prefix_default_language
+									}
+									defaultLanguageSlug={
+										state.default_language_slug
+									}
+									onDone={ () => {
+										// Optimistically flip the cached state so
+										// Dashboard's "Finish setting up" prompt
+										// doesn't flash before the invalidated
+										// /onboarding/state refetch lands.
+										rqClient.setQueryData(
+											qk.onboarding.state(),
+											( old ) =>
+												old
+													? {
+															...old,
+															onboarding_completed: true,
+													  }
+													: old
+										)
+										clearTimeout(
+											addLanguageTimerRef.current
+										)
+										addLanguageTimerRef.current =
+											setTimeout( () => {
+												setStep( 'add-language' )
+											}, ADD_LANGUAGE_DELAY_MS )
+									} }
+								/>
+							</Modal.Section>
+						) }
+						{ step === 'add-language' && (
+							<Modal.Section>
+								<AddLanguagesPicker
+									defaultCode={
+										state?.default_language?.code
+									}
+									// onCreated fires whenever anything was
+									// created (partial or full success) and
+									// carries the actual "refetch and check
+									// extraction" signal; onDone (full
+									// success only) just closes the dialog.
+									onCreated={ ( code ) => {
+										setCreatedLanguageCode( code )
+										setLanguageAddedSignal( ( n ) => n + 1 )
+									} }
+									onDone={ () => setStep( null ) }
+								/>
+							</Modal.Section>
+						) }
+					</Modal>
+				</Frame>
+			</PortalsManager>
+		</AppProvider>
 	)
 }

@@ -15,13 +15,24 @@ import {
 	Text,
 } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
-import { useCallback, useEffect, useState } from '@wordpress/element'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { useEffect, useState } from '@wordpress/element'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
-import { api } from './api'
+import { makeQueryClient } from './queryClient'
+import {
+	useAddons,
+	useBuyAddon,
+	useCaptureAddonOrder,
+	useInstallAddon,
+	useNotifyComingSoon,
+} from './queries/addons'
 import ConnectionErrorCard from './screens/ConnectionErrorCard'
 import { errorMessage } from './errors'
 
 const cfg = window.LingoWP || {}
+
+const queryClient = makeQueryClient()
+const EMPTY_LIST = []
 
 const TABS = [
 	{ id: 'overview', heading: 'Overview' },
@@ -85,21 +96,17 @@ function ActionButton( { label, loading, error, onClick } ) {
 // rather than a dedicated notify endpoint (see notifyComingSoon() on the
 // PHP side).
 function NotifyButton( { slug } ) {
-	const [ notifying, setNotifying ] = useState( false )
 	const [ notified, setNotified ] = useState( false )
-	const [ notifyError, setNotifyError ] = useState( '' )
+	const notify = useNotifyComingSoon()
+	const notifying = notify.isPending
+	const notifyError = notify.error ? errorMessage( notify.error.code ) : ''
 
 	async function onNotify() {
-		setNotifying( true )
-		setNotifyError( '' )
-		const res = await api.post(
-			`/billing/addons/coming-soon/${ slug }/notify`
-		)
-		setNotifying( false )
-		if ( res.ok ) {
+		try {
+			await notify.mutateAsync( slug )
 			setNotified( true )
-		} else {
-			setNotifyError( errorMessage( res.error ) )
+		} catch {
+			// surfaced via notify.error
 		}
 	}
 
@@ -418,12 +425,15 @@ function MarketplacePanel( { addons, comingSoon, categories, actions } ) {
 }
 
 export default function IntegrationsApp() {
+	return (
+		<QueryClientProvider client={ queryClient }>
+			<IntegrationsAppInner />
+		</QueryClientProvider>
+	)
+}
+
+function IntegrationsAppInner() {
 	const [ topicId, setTopicId ] = useQueryState( 'topic', topicParser )
-	const [ addons, setAddons ] = useState( [] )
-	const [ comingSoon, setComingSoon ] = useState( [] )
-	const [ categories, setCategories ] = useState( [] )
-	const [ loading, setLoading ] = useState( true )
-	const [ error, setError ] = useState( '' )
 
 	// Server-computed once at page load (is_plugin_active per product) — kept
 	// in state rather than a plain const so a successful install can update
@@ -432,9 +442,7 @@ export default function IntegrationsApp() {
 		cfg.installed_addons || {}
 	)
 
-	const [ installingId, setInstallingId ] = useState( null ) // addon_id in flight, or null
 	const [ installErrors, setInstallErrors ] = useState( {} ) // addon_id -> ERR_* code
-	const [ buyingId, setBuyingId ] = useState( null )
 	const [ buyErrors, setBuyErrors ] = useState( {} )
 
 	const [ polling, setPolling ] = useState( null ) // { addonId, attempts, gaveUp } | null
@@ -453,81 +461,62 @@ export default function IntegrationsApp() {
 		parseAsString
 	)
 
-	// Quiet refresh — no loading spinner, used after a successful install and
-	// by the buy-flow poll loop. The initial/retry load below wraps this with
-	// the loading/error state the rest of the page reacts to.
-	const refreshAddons = useCallback( () => {
-		return api.get( '/billing/addons' ).then( ( res ) => {
-			if ( res.ok ) {
-				setAddons( res.addons || [] )
-				setComingSoon( res.coming_soon || [] )
-				setCategories( res.categories || [] )
-			}
-			return res
-		} )
-	}, [] )
+	const addonsQ = useAddons()
+	const installMut = useInstallAddon()
+	const buyMut = useBuyAddon()
+	const captureMut = useCaptureAddonOrder()
 
-	const fetchAddons = useCallback( () => {
-		setLoading( true )
-		setError( '' )
-		return refreshAddons().then( ( res ) => {
-			if ( ! res.ok ) {
-				setError( res.error || 'ERR_UNREACHABLE' )
-			}
-			setLoading( false )
-		} )
-	}, [ refreshAddons ] )
+	const addons = addonsQ.data?.addons ?? EMPTY_LIST
+	const comingSoon = addonsQ.data?.comingSoon ?? EMPTY_LIST
+	const categories = addonsQ.data?.categories ?? EMPTY_LIST
+	const loading = addonsQ.isPending
+	const error = addonsQ.isError
+		? addonsQ.error?.code || 'ERR_UNREACHABLE'
+		: ''
+	const installingId = installMut.isPending
+		? installMut.variables.addonId
+		: null
+	const buyingId = buyMut.isPending ? buyMut.variables.addonId : null
 
-	useEffect( () => {
-		fetchAddons()
-	}, [ fetchAddons ] )
+	const refreshAddons = addonsQ.refetch
 
 	// Handles both "Add now" (not-owned free) and "Install now" (owned,
 	// not installed here) — same backend route either way.
-	const installAddon = useCallback(
-		async ( addon ) => {
-			setInstallingId( addon.addon_id )
+	async function installAddon( addon ) {
+		setInstallErrors( ( prev ) => ( { ...prev, [ addon.addon_id ]: '' } ) )
+		try {
+			await installMut.mutateAsync( {
+				addonId: addon.addon_id,
+				product: addon.product,
+			} )
+			setInstalledAddons( ( prev ) => ( {
+				...prev,
+				[ addon.product ]: true,
+			} ) )
+		} catch ( e ) {
 			setInstallErrors( ( prev ) => ( {
 				...prev,
-				[ addon.addon_id ]: '',
+				[ addon.addon_id ]: e.code || 'ERR_UNREACHABLE',
 			} ) )
-			const res = await api.post(
-				`/billing/addons/${ addon.addon_id }/install`,
-				{ product: addon.product }
-			)
-			setInstallingId( null )
-			if ( res.ok ) {
-				setInstalledAddons( ( prev ) => ( {
-					...prev,
-					[ addon.product ]: true,
-				} ) )
-				refreshAddons() // flips `owned` for a newly-claimed free addon
-			} else {
-				setInstallErrors( ( prev ) => ( {
-					...prev,
-					[ addon.addon_id ]: res.error || 'ERR_UNREACHABLE',
-				} ) )
-			}
-		},
-		[ refreshAddons ]
-	)
-
-	const buyAddon = useCallback( async ( addon ) => {
-		setBuyingId( addon.addon_id )
-		setBuyErrors( ( prev ) => ( { ...prev, [ addon.addon_id ]: '' } ) )
-		const res = await api.post( '/billing/addons/order', {
-			addon_id: addon.addon_id,
-		} )
-		if ( res.ok && res.approve_url ) {
-			window.location.assign( res.approve_url )
-			return
 		}
-		setBuyingId( null )
-		setBuyErrors( ( prev ) => ( {
-			...prev,
-			[ addon.addon_id ]: res.error || 'ERR_UNREACHABLE',
-		} ) )
-	}, [] )
+	}
+
+	async function buyAddon( addon ) {
+		setBuyErrors( ( prev ) => ( { ...prev, [ addon.addon_id ]: '' } ) )
+		try {
+			const res = await buyMut.mutateAsync( { addonId: addon.addon_id } )
+			if ( res.approve_url ) {
+				window.location.assign( res.approve_url )
+				return
+			}
+			throw new Error( 'ERR_UNREACHABLE' )
+		} catch ( e ) {
+			setBuyErrors( ( prev ) => ( {
+				...prev,
+				[ addon.addon_id ]: e.code || e.message || 'ERR_UNREACHABLE',
+			} ) )
+		}
+	}
 
 	const actions = {
 		installedAddons,
@@ -564,7 +553,7 @@ export default function IntegrationsApp() {
 		clearParams()
 
 		const afterCapture = orderId
-			? api.post( `/billing/addons/orders/${ orderId }/capture` )
+			? captureMut.mutateAsync( orderId ).catch( () => {} )
 			: Promise.resolve()
 
 		afterCapture.then( () => {
@@ -584,11 +573,9 @@ export default function IntegrationsApp() {
 
 		const timer = setTimeout( async () => {
 			const res = await refreshAddons()
-			const target = res.ok
-				? ( res.addons || [] ).find(
-						( a ) => a.addon_id === polling.addonId
-				  )
-				: null
+			const target = ( res.data?.addons || [] ).find(
+				( a ) => a.addon_id === polling.addonId
+			)
 			if ( target?.owned ) {
 				setPolling( null )
 				return
@@ -733,7 +720,9 @@ export default function IntegrationsApp() {
 										{ ! loading && error && (
 											<ConnectionErrorCard
 												error={ error }
-												onRetry={ fetchAddons }
+												onRetry={ () =>
+													addonsQ.refetch()
+												}
 											/>
 										) }
 										{ ! loading &&

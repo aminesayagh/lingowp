@@ -14,13 +14,22 @@ import {
 	Spinner,
 	Text,
 } from '@shopify/polaris'
-import { useCallback, useEffect, useState } from '@wordpress/element'
+import { useEffect, useState } from '@wordpress/element'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
-import { api } from '../api'
 import { PENDING_WORDS_KEY } from '../billingKeys'
 import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
+import {
+	useBuyWordPack,
+	useCapturePackOrder,
+	useChangePlan,
+	useEntitlements,
+	usePacks,
+	usePlans,
+	useStartSubscription,
+	useTransactions,
+} from '../queries/billing'
 
 const RECEIPT_STATUS = {
 	COMPLETED: { label: 'Paid', tone: 'success' },
@@ -644,35 +653,15 @@ function ActiveState( {
 }
 
 export default function BillingSubscription() {
-	const [ plans, setPlans ] = useState( null )
-	const [ plansError, setPlansError ] = useState( '' )
-	const [ packs, setPacks ] = useState( null )
-	const [ packsError, setPacksError ] = useState( '' )
-	const [ entitlements, setEntitlements ] = useState( null )
-	const [ entitlementsError, setEntitlementsError ] = useState( '' )
-	const [ transactions, setTransactions ] = useState( null )
-	const [ transactionsError, setTransactionsError ] = useState( '' )
-	const [ transactionsPage, setTransactionsPage ] = useState( 1 )
-	const [ hasMoreTransactions, setHasMoreTransactions ] = useState( false )
-	const [ transactionsLoadingMore, setTransactionsLoadingMore ] =
-		useState( false )
-	const [ transactionsLoadMoreError, setTransactionsLoadMoreError ] =
-		useState( '' )
-
 	const [ buyWordsOpen, setBuyWordsOpen ] = useState( false )
-	const [ buyLoading, setBuyLoading ] = useState( false )
 	const [ buyError, setBuyError ] = useState( '' )
-
-	const [ actionLoading, setActionLoading ] = useState( null ) // plan_key in flight, or null
 	const [ actionError, setActionError ] = useState( '' )
-
-	const [ changeLoading, setChangeLoading ] = useState( null ) // plan_key in flight, or null
 	const [ changeError, setChangeError ] = useState( '' )
 
 	// change_plan polls until entitlements.pending_plan_change matches
 	// targetPlan — that field (not local state) is the single source of truth
 	// for "a change is confirmed/scheduled", so ActiveState reads it directly.
-	const [ polling, setPolling ] = useState( null ) // { kind: 'subscribe' | 'purchase' | 'change_plan', attempts, gaveUp, before?, targetPlan? } | null
+	const [ polling, setPolling ] = useState( null ) // { kind, attempts, gaveUp, before?, targetPlan? } | null
 	const [ noticeBanner, setNoticeBanner ] = useState( '' )
 
 	const [ status, setStatus ] = useQueryState(
@@ -692,109 +681,55 @@ export default function BillingSubscription() {
 		parseAsString
 	)
 
-	// Each fetcher clears its own error before retrying, so a Retry click that
-	// succeeds doesn't leave the previous failure's banner text stranded.
-	const fetchPlans = useCallback( () => {
-		setPlansError( '' )
-		return api.get( '/billing/plans' ).then( ( res ) => {
-			if ( res.ok ) {
-				setPlans( res.plans )
-			} else {
-				setPlansError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
+	const pollActive = !! polling && ! polling.gaveUp
 
-	const fetchPacks = useCallback( () => {
-		setPacksError( '' )
-		return api.get( '/billing/packs' ).then( ( res ) => {
-			if ( res.ok ) {
-				setPacks( res.packs )
-			} else {
-				setPacksError( res.error || 'ERR_UNREACHABLE' )
-			}
-		} )
-	}, [] )
+	const plansQ = usePlans()
+	const packsQ = usePacks()
+	const txQ = useTransactions()
+	// `fresh: true` while polling bypasses the 60s server cache, same as the old
+	// refetchEntitlements({ fresh: true }).
+	const entQ = useEntitlements( { fresh: pollActive } )
+	const startSub = useStartSubscription()
+	const changePlanM = useChangePlan()
+	const buyWords = useBuyWordPack()
+	const capturePack = useCapturePackOrder()
 
-	const fetchTransactions = useCallback( ( page = 1 ) => {
-		const loadingMore = page > 1
-		if ( loadingMore ) {
-			setTransactionsLoadingMore( true )
-			setTransactionsLoadMoreError( '' )
-		} else {
-			setTransactionsError( '' )
-		}
+	const plans = plansQ.data ?? null
+	const packs = packsQ.data ?? null
+	const entitlements = entQ.data ?? null
+	const transactions = txQ.data
+		? txQ.data.pages.flatMap( ( p ) => p.transactions )
+		: null
+	const hasMoreTransactions = !! txQ.hasNextPage
+	const transactionsLoadingMore = txQ.isFetchingNextPage
+	const transactionsLoadMoreError = txQ.isFetchNextPageError
+		? txQ.error?.code || 'ERR_UNREACHABLE'
+		: ''
 
-		return api
-			.get( `/billing/transactions?page=${ page }&page_size=20` )
-			.then( ( res ) => {
-				if ( res.ok ) {
-					setTransactions( ( current ) =>
-						loadingMore
-							? [ ...( current || [] ), ...res.transactions ]
-							: res.transactions
-					)
-					setTransactionsPage( res.page )
-					setHasMoreTransactions( res.has_more )
-				} else {
-					const error = res.error || 'ERR_UNREACHABLE'
-					if ( loadingMore ) {
-						setTransactionsLoadMoreError( error )
-					} else {
-						setTransactionsError( error )
-					}
-				}
-				setTransactionsLoadingMore( false )
-			} )
-	}, [] )
+	const plansError = plansQ.error?.code || ''
+	const packsError = packsQ.error?.code || ''
+	const entitlementsError = entQ.error?.code || ''
+	const transactionsError = txQ.isLoadingError
+		? txQ.error?.code || 'ERR_UNREACHABLE'
+		: ''
 
-	useEffect( () => {
-		fetchPlans()
-	}, [ fetchPlans ] )
+	const buyLoading = buyWords.isPending
+	const actionLoading = startSub.isPending ? startSub.variables : null
+	const changeLoading = changePlanM.isPending ? changePlanM.variables : null
 
-	useEffect( () => {
-		fetchPacks()
-	}, [ fetchPacks ] )
-
-	useEffect( () => {
-		fetchTransactions()
-	}, [ fetchTransactions ] )
-
-	// The one place entitlements gets fetched — the initial load, a Retry
-	// click, and the poll-until-settled loop below all call this, the latter
-	// with fresh: true to bypass the 60s server-side cache.
-	const refetchEntitlements = useCallback( ( { fresh = false } = {} ) => {
-		setEntitlementsError( '' )
-		return api
-			.get( `/billing/entitlements${ fresh ? '?fresh=1' : '' }` )
-			.then( ( res ) => {
-				if ( res.ok ) {
-					setEntitlements( res.entitlements )
-				} else {
-					setEntitlementsError( res.error || 'ERR_UNREACHABLE' )
-				}
-				return res
-			} )
-	}, [] )
-
-	useEffect( () => {
-		refetchEntitlements()
-	}, [ refetchEntitlements ] )
-
-	// Retries only whichever initial fetch(es) actually failed — the ones
-	// that succeeded already have their data and don't need refetching.
+	// Retries only whichever initial fetch(es) actually failed.
 	function retryInitialLoad() {
 		if ( plans === null ) {
-			fetchPlans()
+			plansQ.refetch()
 		}
 		if ( packs === null ) {
-			fetchPacks()
+			packsQ.refetch()
 		}
 		if ( entitlements === null ) {
-			refetchEntitlements()
+			entQ.refetch()
 		}
 		if ( transactions === null ) {
-			fetchTransactions()
+			txQ.refetch()
 		}
 	}
 
@@ -837,7 +772,7 @@ export default function BillingSubscription() {
 			clearParams()
 
 			const afterCapture = orderId
-				? api.post( `/billing/packs/order/${ orderId }/capture` )
+				? capturePack.mutateAsync( orderId ).catch( () => {} )
 				: Promise.resolve()
 
 			afterCapture.then( () => {
@@ -879,19 +814,22 @@ export default function BillingSubscription() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [ status ] )
 
-	// Poll-until-settled — subscribe/purchase/change_plan.
+	// Poll-until-settled — subscribe/purchase/change_plan. Same shape as before,
+	// but the refetch goes through the shared entitlements query (its `fresh`
+	// flag is already on while `pollActive`).
+	const refetchEnt = entQ.refetch
 	useEffect( () => {
 		if ( ! polling || polling.gaveUp ) {
 			return
 		}
 
 		const timer = setTimeout( async () => {
-			const res = await refetchEntitlements( { fresh: true } )
-			if ( ! res.ok || ! res.entitlements ) {
+			const res = await refetchEnt()
+			if ( ! res.data ) {
 				return
 			}
 
-			if ( isPollSettled( polling, res.entitlements ) ) {
+			if ( isPollSettled( polling, res.data ) ) {
 				setPolling( null )
 				return
 			}
@@ -904,34 +842,31 @@ export default function BillingSubscription() {
 		}, 3000 )
 
 		return () => clearTimeout( timer )
-	}, [ polling, refetchEntitlements ] )
+	}, [ polling, refetchEnt ] )
 
 	async function doSubscribe( planKey ) {
-		setActionLoading( planKey )
 		setActionError( '' )
-		const res = await api.post( '/billing/subscription', {
-			plan_key: planKey,
-		} )
-		if ( res.ok && res.approve_url ) {
-			window.location.assign( res.approve_url )
-			return
+		try {
+			const res = await startSub.mutateAsync( planKey )
+			if ( res.approve_url ) {
+				window.location.assign( res.approve_url )
+				return
+			}
+			setActionError( 'ERR_UNREACHABLE' )
+		} catch ( e ) {
+			setActionError( e.code || 'ERR_UNREACHABLE' )
 		}
-		setActionLoading( null )
-		setActionError( res.error || 'ERR_UNREACHABLE' )
 	}
 
 	async function doChangePlan( planKey ) {
-		setChangeLoading( planKey )
 		setChangeError( '' )
-		const res = await api.post( '/billing/subscription/plan', {
-			plan_key: planKey,
-		} )
-		if ( ! res.ok ) {
-			setChangeLoading( null )
-			setChangeError( res.error || 'ERR_UNREACHABLE' )
+		let res
+		try {
+			res = await changePlanM.mutateAsync( planKey )
+		} catch ( e ) {
+			setChangeError( e.code || 'ERR_UNREACHABLE' )
 			return
 		}
-		setChangeLoading( null )
 		if ( res.approve_url ) {
 			sessionStorage.setItem( PENDING_ACTION_KEY, 'change_plan' )
 			window.location.assign( res.approve_url )
@@ -950,22 +885,22 @@ export default function BillingSubscription() {
 	}
 
 	async function doBuyWords( packId ) {
-		setBuyLoading( true )
 		setBuyError( '' )
 		sessionStorage.setItem(
 			PENDING_WORDS_KEY,
 			String( entitlements?.purchased_words ?? 0 )
 		)
-		const res = await api.post( '/billing/packs/order', {
-			pack_id: packId,
-		} )
-		if ( res.ok && res.approve_url ) {
-			window.location.assign( res.approve_url )
-			return
+		try {
+			const res = await buyWords.mutateAsync( packId )
+			if ( res.approve_url ) {
+				window.location.assign( res.approve_url )
+				return
+			}
+			throw new Error( 'ERR_UNREACHABLE' )
+		} catch ( e ) {
+			sessionStorage.removeItem( PENDING_WORDS_KEY )
+			setBuyError( e.code || e.message || 'ERR_UNREACHABLE' )
 		}
-		sessionStorage.removeItem( PENDING_WORDS_KEY )
-		setBuyLoading( false )
-		setBuyError( res.error || 'ERR_UNREACHABLE' )
 	}
 
 	if (
@@ -1040,9 +975,7 @@ export default function BillingSubscription() {
 				hasMoreTransactions={ hasMoreTransactions }
 				transactionsLoadingMore={ transactionsLoadingMore }
 				transactionsLoadMoreError={ transactionsLoadMoreError }
-				onLoadMoreTransactions={ () =>
-					fetchTransactions( transactionsPage + 1 )
-				}
+				onLoadMoreTransactions={ () => txQ.fetchNextPage() }
 				onBuyWords={ () => setBuyWordsOpen( true ) }
 				onChangePlan={ doChangePlan }
 				changeLoading={ changeLoading }

@@ -8,9 +8,9 @@ import {
 	Text,
 	TextField,
 } from '@shopify/polaris'
-import { useCallback, useEffect, useState } from '@wordpress/element'
-import { api } from '../api'
+import { useState } from '@wordpress/element'
 import { errorMessage } from '../errors'
+import { useAssignOwner, useBillingOwner } from '../queries/billing'
 
 const cfg = window.LingoWP || {}
 
@@ -24,41 +24,22 @@ const cfg = window.LingoWP || {}
 // read. Loading is deliberately quiet (no spinner) — "never blocks the
 // plugin" extends to not making the whole page wait on this one card.
 export default function OwnerEmailCard() {
-	const [ ownerEmail, setOwnerEmail ] = useState( null ) // null = loading
-	const [ verified, setVerified ] = useState( false )
 	const [ mode, setMode ] = useState( 'view' ) // 'view' | 'edit' | 'pending'
 	const [ draft, setDraft ] = useState( '' )
-	const [ sending, setSending ] = useState( false )
-	const [ sendError, setSendError ] = useState( '' )
 
-	const fetchStatus = useCallback( () => {
-		return api.get( '/billing/owner' ).then( ( res ) => {
-			if ( res.ok ) {
-				setOwnerEmail( res.owner_email )
-				setVerified( res.verified )
-			} else {
-				// Quiet failure — this card is a convenience, not a gate; the
-				// rest of Billing still works if this one read fails.
-				setOwnerEmail( '' )
-				setVerified( false )
-			}
-		} )
-	}, [] )
+	const ownerQ = useBillingOwner()
+	const assignOwner = useAssignOwner()
 
-	useEffect( () => {
-		fetchStatus()
-	}, [ fetchStatus ] )
+	// Quiet failure — this card is a convenience, not a gate; the rest of
+	// Billing still works if this one read fails, so a failed load reads as
+	// "no owner email set" ('') rather than staying in the loading state (null).
+	const ownerEmail = ownerQ.isError ? '' : ownerQ.data?.owner_email ?? null
+	const verified = !! ownerQ.data?.verified
+	const sending = assignOwner.isPending
+	const sendError = assignOwner.error?.code || ''
 
-	async function send( email ) {
-		setSending( true )
-		setSendError( '' )
-		const res = await api.post( '/billing/owner', { email } )
-		setSending( false )
-		if ( res.ok ) {
-			setMode( 'pending' )
-			return
-		}
-		setSendError( res.error || 'ERR_UNREACHABLE' )
+	function send( email ) {
+		assignOwner.mutate( email, { onSuccess: () => setMode( 'pending' ) } )
 	}
 
 	if ( ownerEmail === null ) {

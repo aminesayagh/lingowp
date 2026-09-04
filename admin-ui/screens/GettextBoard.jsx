@@ -23,7 +23,15 @@ import {
 	useState,
 } from '@wordpress/element'
 import { AnimatePresence, motion } from 'motion/react'
-import { api } from '../api'
+import {
+	fetchGettext,
+	useFindGettextOnline,
+	useIgnoreGettextUnit,
+	useImportGettext,
+	useSaveGettextUnit,
+	useScanGettext,
+	useTranslateGettext,
+} from '../queries/gettext'
 import { AiIcon } from './AiIcon'
 import { FlagIcon, flagIconUrl } from './FlagIcon'
 import GettextOverlay from './GettextOverlay'
@@ -181,6 +189,11 @@ export default function GettextBoard( {
 	onAiUnavailable,
 } ) {
 	const queryClient = useQueryClient()
+	// Destructured for the stable mutate fn (RQ guarantees it) so the scan /
+	// find-online effects below can list it as a dep without re-running.
+	const { mutateAsync: findOnline } = useFindGettextOnline()
+	const { mutateAsync: scanComponent } = useScanGettext()
+	const translateGettextMut = useTranslateGettext()
 	const [ openKeys, setOpenKeys ] = useState( loadOpenKeys )
 	// Sticky row headers, keyed by rowKey — toggle() reads these to anchor
 	// scroll on collapse (see below), same idea as the Content board's own
@@ -279,7 +292,7 @@ export default function GettextBoard( {
 	const rowsQ = useInfiniteQuery( {
 		queryKey: [ 'gettext-domains', language, search, untranslatedOnly ],
 		initialPageParam: 0,
-		queryFn: async ( { pageParam, signal } ) => {
+		queryFn: ( { pageParam, signal } ) => {
 			const params = new URLSearchParams( {
 				language,
 				offset: String( pageParam ),
@@ -287,14 +300,10 @@ export default function GettextBoard( {
 				...( search ? { search } : {} ),
 				...( untranslatedOnly ? { status: 'untranslated' } : {} ),
 			} )
-			const res = await api.get(
+			return fetchGettext(
 				`/gettext-domains?${ params.toString() }`,
-				{ signal }
+				signal
 			)
-			if ( ! res.ok ) {
-				throw new Error( res.error || 'ERR_UNREACHABLE' )
-			}
-			return res
 		},
 		getNextPageParam: ( last ) =>
 			last.has_more ? last.next_offset : undefined,
@@ -326,6 +335,7 @@ export default function GettextBoard( {
 		) {
 			rowsQ.fetchNextPage()
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- the individual rowsQ fields it reads are listed; depending on the whole query object would re-run on every state tick
 	}, [
 		untranslatedOnly,
 		serverRows.length,
@@ -383,7 +393,7 @@ export default function GettextBoard( {
 				// a full page reload.
 				percentCheckedRef.current.delete( rowKey( row ) )
 				try {
-					await api.post( '/gettext-domains/find-online', {
+					await findOnline( {
 						type: row.type,
 						domain: row.domain,
 						locale: row.locale,
@@ -395,7 +405,7 @@ export default function GettextBoard( {
 			runningRef.current = false
 			reload()
 		} )()
-	}, [ reload, rows, rowsQ.isPending ] )
+	}, [ reload, rows, rowsQ.isPending, findOnline ] )
 
 	// Progressive search-scan: while a search is active, scan every
 	// not-yet-scanned component one at a time so its original text becomes
@@ -428,7 +438,7 @@ export default function GettextBoard( {
 					// until the page is reloaded (scannedRef is per-mount).
 					scannedRef.current.add( compKey )
 					try {
-						const res = await api.post( '/gettext-domains/scan', {
+						const res = await scanComponent( {
 							type: c.type,
 							domain: c.domain,
 						} )
@@ -454,7 +464,7 @@ export default function GettextBoard( {
 		return () => {
 			cancelled = true
 		}
-	}, [ search, rowsQ.data, rowsQ.isPending, reload ] )
+	}, [ search, rowsQ.data, rowsQ.isPending, reload, scanComponent ] )
 
 	// translated_percent is never computed by GET /gettext-domains itself
 	// (a full source scan per row would be as slow as the old all-in-one
@@ -486,7 +496,7 @@ export default function GettextBoard( {
 						domain: row.domain,
 						locale: row.locale,
 					} )
-					const res = await api.get(
+					const res = await fetchGettext(
 						`/gettext-domains/percent?${ params.toString() }`
 					)
 					if ( res.ok ) {
@@ -498,6 +508,7 @@ export default function GettextBoard( {
 			}
 			percentRunningRef.current = false
 		} )()
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- patchPercent is an un-memoized inline helper; re-running this backfill loop on every render would defeat the once-per-row percentCheckedRef guard
 	}, [ rows, rowsQ.isPending ] )
 
 	// Patches one row's percent across every cached search variant for this
@@ -584,19 +595,15 @@ export default function GettextBoard( {
 		const key = rowKey( row )
 		setTranslatingComponents( ( prev ) => new Set( prev ).add( key ) )
 		try {
-			let res = await api.post( '/gettext-domains/translate', {
+			const componentArgs = {
 				scope: 'component',
 				type: row.type,
 				domain: row.domain,
 				locale: row.locale,
-			} )
+			}
+			let res = await translateGettextMut.mutateAsync( componentArgs )
 			while ( res?.ok && res.more ) {
-				res = await api.post( '/gettext-domains/translate', {
-					scope: 'component',
-					type: row.type,
-					domain: row.domain,
-					locale: row.locale,
-				} )
+				res = await translateGettextMut.mutateAsync( componentArgs )
 			}
 			if ( ! res?.ok ) {
 				if ( res?.error !== 'ERR_INVALID_INPUT' ) {
@@ -691,6 +698,15 @@ export default function GettextBoard( {
 			untranslatedOnly &&
 			serverRows.length > 0 &&
 			( rowsQ.hasNextPage || rowsQ.isFetchingNextPage )
+		let emptyText = 'No plugin/theme domains found.'
+		if ( search && scanFailed > 0 ) {
+			emptyText = `No matches yet — ${ scanFailed } plugin/theme couldn’t be scanned. Reload the page to retry.`
+		} else if ( search ) {
+			emptyText = `No plugin or theme matches “${ search }”.`
+		} else if ( untranslatedOnly ) {
+			emptyText =
+				'Every plugin and theme is fully translated for this language.'
+		}
 		return (
 			<Box padding="500">
 				{ scanning || stillPaging ? (
@@ -707,13 +723,7 @@ export default function GettextBoard( {
 					</InlineStack>
 				) : (
 					<Text as="p" tone="subdued">
-						{ search && scanFailed > 0
-							? `No matches yet — ${ scanFailed } plugin/theme couldn’t be scanned. Reload the page to retry.`
-							: search
-							? `No plugin or theme matches “${ search }”.`
-							: untranslatedOnly
-							? 'Every plugin and theme is fully translated for this language.'
-							: 'No plugin/theme domains found.' }
+						{ emptyText }
 					</Text>
 				) }
 			</Box>
@@ -722,284 +732,306 @@ export default function GettextBoard( {
 
 	return (
 		<div ref={ boardRef }>
-		<BlockStack gap="0">
-			{ /* GettextBoard draws its own column-header bar (the shared
+			<BlockStack gap="0">
+				{ /* GettextBoard draws its own column-header bar (the shared
 			search bar above only measures itself for GettextBoard — see
 			Dashboard's stickyRef), so it measures and pins itself the same
 			way: sticky right under the search bar, and (see setOwnHeaderRef
 			above) feeds its own height into --lingowp-gettext-row-sticky-top
 			so the row headers below can stick just beneath it instead of
 			underneath/overlapping it. */ }
-			<div
-				ref={ setOwnHeaderRef }
-				style={ {
-					position: 'sticky',
-					top: 'var(--lingowp-group-sticky-top, 32px)',
-					zIndex: 2,
-					background: 'var(--p-color-bg-surface, #fff)',
-				} }
-			>
-				<Box paddingInlineStart="1000">
-					<Box paddingInline="300" paddingBlock="200">
-						<InlineStack
-							gap="300"
-							align="space-between"
-							blockAlign="center"
-							wrap={ false }
-						>
-							<Box width="45%" minWidth="0">
-								<Text
-									as="span"
-									variant="bodySm"
-									tone="subdued"
-									fontWeight="medium"
-								>
-									{ originalLabel }
-								</Text>
-							</Box>
-							<Box width="45%" minWidth="0">
-								<Popover
-									active={ langSwitcherOpen }
-									preferredAlignment="left"
-									onClose={ () => setLangSwitcherOpen( false ) }
-									activator={
-										<button
-											type="button"
-											onClick={ () =>
-												setLangSwitcherOpen( ( o ) => ! o )
-											}
-											style={ {
-												all: 'unset',
-												cursor: 'pointer',
-												display: 'flex',
-												alignItems: 'center',
-												gap: 4,
-												maxWidth: '100%',
-											} }
-										>
-											<span
+				<div
+					ref={ setOwnHeaderRef }
+					style={ {
+						position: 'sticky',
+						top: 'var(--lingowp-group-sticky-top, 32px)',
+						zIndex: 2,
+						background: 'var(--p-color-bg-surface, #fff)',
+					} }
+				>
+					<Box paddingInlineStart="1000">
+						<Box paddingInline="300" paddingBlock="200">
+							<InlineStack
+								gap="300"
+								align="space-between"
+								blockAlign="center"
+								wrap={ false }
+							>
+								<Box width="45%" minWidth="0">
+									<Text
+										as="span"
+										variant="bodySm"
+										tone="subdued"
+										fontWeight="medium"
+									>
+										{ originalLabel }
+									</Text>
+								</Box>
+								<Box width="45%" minWidth="0">
+									<Popover
+										active={ langSwitcherOpen }
+										preferredAlignment="left"
+										onClose={ () =>
+											setLangSwitcherOpen( false )
+										}
+										activator={
+											<button
+												type="button"
+												onClick={ () =>
+													setLangSwitcherOpen(
+														( o ) => ! o
+													)
+												}
 												style={ {
-													minWidth: 0,
-													overflow: 'hidden',
-													textOverflow: 'ellipsis',
-													whiteSpace: 'nowrap',
-													marginTop: 1,
+													all: 'unset',
+													cursor: 'pointer',
+													display: 'flex',
+													alignItems: 'center',
+													gap: 4,
+													maxWidth: '100%',
 												} }
 											>
+												<span
+													style={ {
+														minWidth: 0,
+														overflow: 'hidden',
+														textOverflow:
+															'ellipsis',
+														whiteSpace: 'nowrap',
+														marginTop: 1,
+													} }
+												>
+													<Text
+														as="span"
+														variant="bodySm"
+														tone="subdued"
+														fontWeight="medium"
+													>
+														{ translationLabel }
+													</Text>
+												</span>
 												<Text
 													as="span"
 													variant="bodySm"
 													tone="subdued"
-													fontWeight="medium"
 												>
-													{ translationLabel }
+													▾
 												</Text>
-											</span>
-											<Text
-												as="span"
-												variant="bodySm"
-												tone="subdued"
-											>
-												▾
-											</Text>
-										</button>
-									}
-								>
-									<ActionList
-										items={ sortedLanguages.map( ( l ) => ( {
-											content: langLabel( l ),
-											prefix: (
-												<FlagIcon
-													src={ flagIconUrl( l ) }
-													size={ 16 }
-													// Matches the Content board switcher: lighter than
-													// the sidebar's full desaturation.
-													grayscale={
-														l.enabled ? false : 0.35
-													}
-												/>
-											),
-											active: l.code === language,
-											onAction: () => {
-												onPickLanguage( l.code )
-												setLangSwitcherOpen( false )
-											},
-										} ) ) }
-									/>
-								</Popover>
-							</Box>
-							<Box width="16%" />
-						</InlineStack>
+											</button>
+										}
+									>
+										<ActionList
+											items={ sortedLanguages.map(
+												( l ) => ( {
+													content: langLabel( l ),
+													prefix: (
+														<FlagIcon
+															src={ flagIconUrl(
+																l
+															) }
+															size={ 16 }
+															// Matches the Content board switcher: lighter than
+															// the sidebar's full desaturation.
+															grayscale={
+																l.enabled
+																	? false
+																	: 0.35
+															}
+														/>
+													),
+													active: l.code === language,
+													onAction: () => {
+														onPickLanguage( l.code )
+														setLangSwitcherOpen(
+															false
+														)
+													},
+												} )
+											) }
+										/>
+									</Popover>
+								</Box>
+								<Box width="16%" />
+							</InlineStack>
+						</Box>
 					</Box>
-				</Box>
-				<Divider />
-			</div>
-			{ scanIndicator }
-			{ rows.map( ( row, i ) => {
-				const key = rowKey( row )
-				const open = openKeys.has( key )
-				const revealed =
-					hoveredRowKey === key || menuOpenRowKey === key
+					<Divider />
+				</div>
+				{ scanIndicator }
+				{ rows.map( ( row, i ) => {
+					const key = rowKey( row )
+					const open = openKeys.has( key )
+					const revealed =
+						hoveredRowKey === key || menuOpenRowKey === key
 
-				return (
-					<Box key={ key }>
-						{ i > 0 && <Divider /> }
-						{ /* Same pinned-header treatment as the Content board's own
+					return (
+						<Box key={ key }>
+							{ i > 0 && <Divider /> }
+							{ /* Same pinned-header treatment as the Content board's own
 						CollectionGroup: sticky under the shared search bar (reads
 						its live height off the --lingowp-group-sticky-top CSS var
 						Dashboard sets on the common card ancestor), opaque so rows
 						scrolling up behind it don't show through. */ }
-						<div
-							ref={ ( el ) => {
-								if ( el ) {
-									headerRefs.current.set( key, el )
-								} else {
-									headerRefs.current.delete( key )
-								}
-							} }
-							onMouseEnter={ () => setHoveredRowKey( key ) }
-							onMouseLeave={ () => setHoveredRowKey( null ) }
-							style={ {
-								position: 'sticky',
-								// Stacks under this board's own column-header
-								// bar (see setOwnHeaderRef above).
-								top: 'var(--lingowp-gettext-row-sticky-top, 64px)',
-								zIndex: 1,
-								background: 'var(--p-color-bg-surface, #fff)',
-							} }
-						>
-							<Box
-								padding="300"
-								background={
-									open ? 'bg-surface-secondary' : undefined
-								}
+							<div
+								ref={ ( el ) => {
+									if ( el ) {
+										headerRefs.current.set( key, el )
+									} else {
+										headerRefs.current.delete( key )
+									}
+								} }
+								onMouseEnter={ () => setHoveredRowKey( key ) }
+								onMouseLeave={ () => setHoveredRowKey( null ) }
+								style={ {
+									position: 'sticky',
+									// Stacks under this board's own column-header
+									// bar (see setOwnHeaderRef above).
+									top: 'var(--lingowp-gettext-row-sticky-top, 64px)',
+									zIndex: 1,
+									background:
+										'var(--p-color-bg-surface, #fff)',
+								} }
 							>
-								<InlineStack
-									align="space-between"
-									blockAlign="center"
-									gap="200"
-									wrap={ false }
+								<Box
+									padding="300"
+									background={
+										open
+											? 'bg-surface-secondary'
+											: undefined
+									}
 								>
-									<button
-										type="button"
-										onClick={ () => toggle( key ) }
-										style={ {
-											all: 'unset',
-											cursor: 'pointer',
-											display: 'flex',
-											flex: 1,
-											minWidth: 0,
-											alignItems: 'center',
-											gap: '8px',
-										} }
-									>
-										<Text
-											as="span"
-											variant="bodyMd"
-											fontWeight="medium"
-										>
-											{ open ? '▾' : '▸' }
-										</Text>
-										<span
-											style={ {
-												display: 'inline-flex',
-												flexShrink: 0,
-												width: 16,
-												height: 16,
-												color: 'var(--p-color-icon-subdued)',
-											} }
-										>
-											<PageIcon
-												fill="currentColor"
-												width={ 16 }
-												height={ 16 }
-											/>
-										</span>
-										<Text
-											as="span"
-											variant="bodyMd"
-											fontWeight="medium"
-										>
-											{ row.label }{ ' ' }
-											<Text as="span" tone="subdued">
-												({ row.type })
-											</Text>
-										</Text>
-										{ domainProgressChip( row ) }
-									</button>
 									<InlineStack
-										gap="200"
+										align="space-between"
 										blockAlign="center"
+										gap="200"
 										wrap={ false }
 									>
-										{ row.ai_pending > 0 && (
-											<Badge tone="info" size="small">
-												{ `Translating ${ row.ai_pending }…` }
-											</Badge>
-										) }
-										<GettextRowMenu
-											row={ row }
-											revealed={ revealed }
-											active={ menuOpenRowKey === key }
-											translating={ translatingComponents.has(
-												key
+										<button
+											type="button"
+											onClick={ () => toggle( key ) }
+											style={ {
+												all: 'unset',
+												cursor: 'pointer',
+												display: 'flex',
+												flex: 1,
+												minWidth: 0,
+												alignItems: 'center',
+												gap: '8px',
+											} }
+										>
+											<Text
+												as="span"
+												variant="bodyMd"
+												fontWeight="medium"
+											>
+												{ open ? '▾' : '▸' }
+											</Text>
+											<span
+												style={ {
+													display: 'inline-flex',
+													flexShrink: 0,
+													width: 16,
+													height: 16,
+													color: 'var(--p-color-icon-subdued)',
+												} }
+											>
+												<PageIcon
+													fill="currentColor"
+													width={ 16 }
+													height={ 16 }
+												/>
+											</span>
+											<Text
+												as="span"
+												variant="bodyMd"
+												fontWeight="medium"
+											>
+												{ row.label }{ ' ' }
+												<Text as="span" tone="subdued">
+													({ row.type })
+												</Text>
+											</Text>
+											{ domainProgressChip( row ) }
+										</button>
+										<InlineStack
+											gap="200"
+											blockAlign="center"
+											wrap={ false }
+										>
+											{ row.ai_pending > 0 && (
+												<Badge tone="info" size="small">
+													{ `Translating ${ row.ai_pending }…` }
+												</Badge>
 											) }
-											onToggle={ () =>
-												setMenuOpenRowKey( ( k ) =>
-													k === key ? null : key
-												)
-											}
-											onClose={ () =>
-												setMenuOpenRowKey( null )
-											}
-											aiAvailable={ aiAvailable }
-											billingBlocked={ billingBlocked }
-											onAiBlocked={ onAiBlocked }
-											onTranslateAll={ () =>
-												translateAllInComponent( row )
-											}
-											onImported={ reload }
-										/>
+											<GettextRowMenu
+												row={ row }
+												revealed={ revealed }
+												active={
+													menuOpenRowKey === key
+												}
+												translating={ translatingComponents.has(
+													key
+												) }
+												onToggle={ () =>
+													setMenuOpenRowKey( ( k ) =>
+														k === key ? null : key
+													)
+												}
+												onClose={ () =>
+													setMenuOpenRowKey( null )
+												}
+												aiAvailable={ aiAvailable }
+												billingBlocked={
+													billingBlocked
+												}
+												onAiBlocked={ onAiBlocked }
+												onTranslateAll={ () =>
+													translateAllInComponent(
+														row
+													)
+												}
+												onImported={ reload }
+											/>
+										</InlineStack>
 									</InlineStack>
-								</InlineStack>
-							</Box>
-						</div>
-						<Collapsible open={ open }>
-							<Box
-								paddingInlineStart="1000"
-								paddingBlockEnd="300"
-							>
-								<GettextUnitList
-									row={ row }
-									search={ search }
-									untranslatedOnly={ untranslatedOnly }
-									targetDir={ targetDir }
-									onConfirm={ onConfirm }
-									sourceLabel={ sourceLabel }
-									sourceFlag={ sourceFlag }
-									languages={ languages }
-									aiAvailable={ aiAvailable }
-									billingBlocked={ billingBlocked }
-									onAiBlocked={ onAiBlocked }
-									onPickLanguage={ onPickLanguage }
-									onAiUnavailable={ onAiUnavailable }
-								/>
-							</Box>
-						</Collapsible>
-					</Box>
-				)
-			} ) }
-			{ paginationAction && (
-				<>
-					<Divider />
-					<Box padding="300">
-						<InlineStack align="center">
-							{ paginationAction }
-						</InlineStack>
-					</Box>
-				</>
-			) }
-		</BlockStack>
+								</Box>
+							</div>
+							<Collapsible open={ open }>
+								<Box
+									paddingInlineStart="1000"
+									paddingBlockEnd="300"
+								>
+									<GettextUnitList
+										row={ row }
+										search={ search }
+										untranslatedOnly={ untranslatedOnly }
+										targetDir={ targetDir }
+										onConfirm={ onConfirm }
+										sourceLabel={ sourceLabel }
+										sourceFlag={ sourceFlag }
+										languages={ languages }
+										aiAvailable={ aiAvailable }
+										billingBlocked={ billingBlocked }
+										onAiBlocked={ onAiBlocked }
+										onPickLanguage={ onPickLanguage }
+										onAiUnavailable={ onAiUnavailable }
+									/>
+								</Box>
+							</Collapsible>
+						</Box>
+					)
+				} ) }
+				{ paginationAction && (
+					<>
+						<Divider />
+						<Box padding="300">
+							<InlineStack align="center">
+								{ paginationAction }
+							</InlineStack>
+						</Box>
+					</>
+				) }
+			</BlockStack>
 		</div>
 	)
 }
@@ -1025,7 +1057,8 @@ function GettextRowMenu( {
 	onImported,
 } ) {
 	const queryClient = useQueryClient()
-	const [ importing, setImporting ] = useState( false )
+	const importMut = useImportGettext()
+	const importing = importMut.isPending
 	const [ error, setError ] = useState( '' )
 	const fileRef = useRef( null )
 
@@ -1040,25 +1073,14 @@ function GettextRowMenu( {
 			return
 		}
 
-		setImporting( true )
 		setError( '' )
-		const body = new FormData()
-		body.append( 'file', file )
-		body.append( 'type', row.type )
-		body.append( 'domain', row.domain )
-		body.append( 'locale', row.locale )
 		try {
-			const res = await fetch(
-				`${ ( window.LingoWP || {} ).rest }/gettext-domains/import`,
-				{
-					method: 'POST',
-					headers: {
-						'X-WP-Nonce': ( window.LingoWP || {} ).nonce,
-					},
-					body,
-				}
-			)
-			const data = await res.json()
+			const data = await importMut.mutateAsync( {
+				file,
+				type: row.type,
+				domain: row.domain,
+				locale: row.locale,
+			} )
 			if ( data.ok ) {
 				onImported()
 				// An already-open editor for this row caches its own string
@@ -1080,7 +1102,6 @@ function GettextRowMenu( {
 		} catch {
 			setError( 'Import failed — please check the file and try again.' )
 		}
-		setImporting( false )
 	}
 
 	const items = [
@@ -1171,6 +1192,7 @@ function GettextUnitList( {
 	onAiUnavailable,
 } ) {
 	const queryClient = useQueryClient()
+	const ignoreUnitMut = useIgnoreGettextUnit()
 	// search + untranslatedOnly are baked into the key so an expanded row's
 	// string list narrows to the matching / still-untranslated strings while
 	// the header filter is active, same as the Content board.
@@ -1187,7 +1209,7 @@ function GettextUnitList( {
 	const unitsQ = useInfiniteQuery( {
 		queryKey,
 		initialPageParam: 0,
-		queryFn: async ( { pageParam, signal } ) => {
+		queryFn: ( { pageParam, signal } ) => {
 			const params = new URLSearchParams( {
 				type: row.type,
 				domain: row.domain,
@@ -1197,14 +1219,10 @@ function GettextUnitList( {
 				...( search ? { search } : {} ),
 				...( untranslatedOnly ? { status: 'untranslated' } : {} ),
 			} )
-			const res = await api.get(
+			return fetchGettext(
 				`/gettext-domains/units?${ params.toString() }`,
-				{ signal }
+				signal
 			)
-			if ( ! res.ok ) {
-				throw new Error( res.error || 'ERR_UNREACHABLE' )
-			}
-			return res
 		},
 		getNextPageParam: ( last ) =>
 			last.has_more ? last.next_offset : undefined,
@@ -1249,7 +1267,7 @@ function GettextUnitList( {
 
 	async function ignoreUnit( i ) {
 		const unit = units[ i ]
-		await api.post( '/gettext-domains/ignore-unit', {
+		await ignoreUnitMut.mutateAsync( {
 			type: row.type,
 			domain: row.domain,
 			locale: row.locale,
@@ -1288,15 +1306,19 @@ function GettextUnitList( {
 		)
 	}
 	if ( units.length === 0 ) {
+		let noUnitsText =
+			'No translatable strings found in this component’s source.'
+		if ( untranslatedOnly && ! search ) {
+			noUnitsText =
+				'Every string in this component is translated for this language.'
+		} else if ( untranslatedOnly && search ) {
+			noUnitsText = `No untranslated string matches “${ search }” here.`
+		} else if ( search ) {
+			noUnitsText = `No string matches “${ search }” here.`
+		}
 		return (
 			<Text as="p" tone="subdued" variant="bodySm">
-				{ untranslatedOnly && ! search
-					? 'Every string in this component is translated for this language.'
-					: untranslatedOnly && search
-					? `No untranslated string matches “${ search }” here.`
-					: search
-					? `No string matches “${ search }” here.`
-					: 'No translatable strings found in this component’s source.' }
+				{ noUnitsText }
 			</Text>
 		)
 	}
@@ -1365,12 +1387,10 @@ function GettextUnitList( {
 				onAiUnavailable={ onAiUnavailable }
 				onClose={ () => setOverlayIndex( null ) }
 				onQueued={ () =>
-					overlayUnit &&
-					markUnitPending( unitKey( overlayUnit ) )
+					overlayUnit && markUnitPending( unitKey( overlayUnit ) )
 				}
 				onSaved={ ( msgstr ) =>
-					overlayUnit &&
-					updateUnit( unitKey( overlayUnit ), msgstr )
+					overlayUnit && updateUnit( unitKey( overlayUnit ), msgstr )
 				}
 				onPrev={ () =>
 					setOverlayIndex( ( i ) => Math.max( 0, i - 1 ) )
@@ -1405,6 +1425,8 @@ function GettextUnitRow( {
 	const [ hovered, setHovered ] = useState( false )
 	const [ translating, setTranslating ] = useState( false )
 	const moreActionsRef = useRef( null )
+	const saveUnitMut = useSaveGettextUnit()
+	const translateUnitMut = useTranslateGettext()
 
 	const hasTranslation = unit.msgstr !== ''
 	const shownText = draft || unit.msgid
@@ -1429,7 +1451,8 @@ function GettextUnitRow( {
 		const t = setTimeout( () => setErrorDismissed( true ), 10000 )
 		return () => clearTimeout( t )
 	}, [ unit.ai_pending, unit.ai_error, errorDismissed ] )
-	const showAiFailed = ! unit.ai_pending && !! unit.ai_error && ! errorDismissed
+	const showAiFailed =
+		! unit.ai_pending && !! unit.ai_error && ! errorDismissed
 
 	const originalRef = useRef( null )
 	const [ isLong, setIsLong ] = useState( false )
@@ -1453,7 +1476,7 @@ function GettextUnitRow( {
 		if ( draft === unit.msgstr ) {
 			return
 		}
-		const res = await api.post( '/gettext-domains/save-unit', {
+		const res = await saveUnitMut.mutateAsync( {
 			type: row.type,
 			domain: row.domain,
 			locale: row.locale,
@@ -1470,7 +1493,7 @@ function GettextUnitRow( {
 		setTranslating( true )
 		let res
 		try {
-			res = await api.post( '/gettext-domains/translate', {
+			res = await translateUnitMut.mutateAsync( {
 				scope: 'unit',
 				type: row.type,
 				domain: row.domain,
@@ -1546,9 +1569,7 @@ function GettextUnitRow( {
 								ref={ originalRef }
 								role={ isLong ? 'button' : undefined }
 								tabIndex={ isLong ? 0 : undefined }
-								onClick={
-									isLong ? onOpenOverlay : undefined
-								}
+								onClick={ isLong ? onOpenOverlay : undefined }
 								onKeyDown={
 									isLong
 										? ( e ) => {
