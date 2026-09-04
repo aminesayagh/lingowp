@@ -198,7 +198,11 @@ export default function GettextOverlay( {
 	}
 
 	const targetLang = languages.find( ( l ) => l.code === locale )
-	const targetLabel = targetLang?.display_name || targetLang?.name || locale
+	const targetLabel =
+		targetLang?.display_name ||
+		targetLang?.native_display ||
+		targetLang?.name ||
+		locale
 	const targetFlag = flagIconUrl( targetLang || { code: locale, locale } )
 	const matchesOriginal = text === unit.msgid
 	let copyTooltipContent = 'Copy original to clipboard'
@@ -377,7 +381,10 @@ export default function GettextOverlay( {
 								<ActionList
 									items={ languages.map( ( l ) => ( {
 										content:
-											l.display_name || l.name || l.code,
+											l.display_name ||
+											l.native_display ||
+											l.name ||
+											l.code,
 										active: l.code === locale,
 										onAction: () =>
 											withFlush( () => {
@@ -398,11 +405,7 @@ export default function GettextOverlay( {
 						value={ text }
 						onChange={ ( e ) => setText( e.target.value ) }
 						onBlur={ flush }
-						placeholder={
-							aiPending
-								? 'Translating…'
-								: unit.msgid
-						}
+						placeholder={ aiPending ? 'Translating…' : unit.msgid }
 						aria-label="Translation"
 						disabled={ aiPending }
 						style={ { ...textareaStyle( false ), resize: 'none' } }

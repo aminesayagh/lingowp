@@ -35,6 +35,32 @@ final class OnboardingPageController
     {
         add_action('admin_menu', [$this, 'addMenu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
+        add_action('admin_init', [$this, 'maybeRedirectAfterActivation']);
+    }
+
+    /**
+     * Right after activation, send the admin to the LingoWP workspace instead
+     * of leaving them on the plugins list. One-shot (a 30s transient set by
+     * Activator::run()); skipped for bulk "activate selected" activation, which
+     * would otherwise redirect away mid-list.
+     */
+    public function maybeRedirectAfterActivation(): void
+    {
+        if (
+            (function_exists('wp_doing_ajax') && wp_doing_ajax())
+            || ! get_transient('lingowp_activation_redirect')
+        ) {
+            return;
+        }
+        delete_transient('lingowp_activation_redirect');
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- WordPress' own bulk-activate marker, presence check only, no state change.
+        if (isset($_GET['activate-multi']) || is_network_admin() || ! current_user_can(self::CAPABILITY)) {
+            return;
+        }
+
+        wp_safe_redirect(admin_url('admin.php?page=' . self::SLUG));
+        exit;
     }
 
     public function addMenu(): void

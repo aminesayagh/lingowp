@@ -224,7 +224,7 @@ export function LanguagesManagerBody( {
 		}
 		onConfirm( {
 			title: `Publish ${
-				lang.display_name || lang.name || lang.code
+				lang.native_display || lang.name || lang.code
 			} at ${ percent }% translated?`,
 			body: 'Some pages are not fully translated yet. Publishing now may cause search engines to index fallback content in the wrong language, which could affect your SEO. You can continue translating after publishing.',
 			actionLabel: 'Publish anyway',
@@ -315,6 +315,7 @@ export function LanguagesManagerBody( {
 							languages={ languages }
 							selectedCode={ current?.code }
 							showProgress={ false }
+							flagGrayscale={ false }
 							onSelect={ ( lang ) => setSel( lang.code ) }
 							onToggleStatus={ toggleStatus }
 							onSwitchToInternal={
@@ -548,6 +549,11 @@ function LanguageForm( {
 	const regionsForLanguage = catalogItems.filter(
 		( item ) => item.language === language
 	)
+	// The canonical label shown everywhere when no nickname is set.
+	const canonicalName =
+		catalogItems.find(
+			( item ) => item.locale === ( isNew ? code : current.code )
+		)?.native_display || ''
 	let actionLabel = 'Save'
 	if ( firstLanguage ) {
 		actionLabel = 'Create language'
@@ -572,6 +578,11 @@ function LanguageForm( {
 	const defaultLanguage = catalogItems.find(
 		( item ) => item.locale === defaultCode
 	)
+	// "Français (Canada)", not "fr_CA" — the catalog's canonical label, always
+	// populated (falls back to the language name, never a bare locale).
+	const fallbackLabel = ( item ) =>
+		item.native_display || item.language_name || item.locale
+
 	// Edit-only (see the form below): creation picks this automatically via
 	// smartFallback() below, with no field shown, so it never interrupts adding
 	// a language — this list exists only to let an already-added language's
@@ -580,7 +591,7 @@ function LanguageForm( {
 		{ label: 'None', value: '' },
 		{
 			label: `${
-				defaultLanguage?.english_name || defaultCode
+				defaultLanguage ? fallbackLabel( defaultLanguage ) : defaultCode
 			} — Website default`,
 			value: defaultCode,
 		},
@@ -592,7 +603,7 @@ function LanguageForm( {
 					item.locale !== defaultCode
 			)
 			.map( ( item ) => ( {
-				label: item.english_name,
+				label: fallbackLabel( item ),
 				value: item.locale,
 			} ) ),
 	]
@@ -641,11 +652,10 @@ function LanguageForm( {
 			return
 		}
 		setCode( value )
-		setDisplayName(
-			regionLabel( choice )
-				? `${ choice.language_name } (${ regionLabel( choice ) })`
-				: choice.language_name
-		)
+		// Display name is an optional workspace-board nickname — left blank
+		// unless the user types one. Every screen shows the language's own
+		// canonical label ("Português (Brasil)") when it's blank.
+		setDisplayName( '' )
 		setDirection( choice.direction || 'ltr' )
 		setSlug( localeSlug( value ) )
 		setFallback( smartFallback( choice.language ) )
@@ -733,7 +743,7 @@ function LanguageForm( {
 					{ isNew
 						? 'Add a language'
 						: `Edit ${
-								current.display_name ||
+								current.native_display ||
 								current.name ||
 								current.code
 						  }` }
@@ -764,11 +774,12 @@ function LanguageForm( {
 					<>
 						<TextField
 							label="Name"
-							requiredIndicator
 							value={ displayName }
 							onChange={ setDisplayName }
 							autoComplete="off"
 							disabled={ isNew && ! code }
+							placeholder={ canonicalName }
+							helpText="Optional. A nickname shown only on the translation board — leave blank to use the language's own name everywhere."
 						/>
 						<TextField
 							label="URL slug"
@@ -820,6 +831,10 @@ function LanguageForm( {
 							autoComplete="off"
 							placeholder={ AI_STYLE_PLACEHOLDER }
 							helpText="Guides tone — never overrides the original text’s own intent."
+							// Writing style ships with the LingoWP subscription
+							// model only — disabled when this language uses a
+							// BYOK provider key.
+							disabled={ aiModel !== 'internal' }
 						/>
 					</BlockStack>
 				</>

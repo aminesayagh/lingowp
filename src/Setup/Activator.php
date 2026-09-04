@@ -75,5 +75,11 @@ class Activator
         // Flushing is expensive, so it happens only on activation, never per request.
         flush_rewrite_rules();
         update_option('lingowp_rewrite_rules_version', LanguageRouteRegistrar::REWRITE_RULES_VERSION, false);
+
+        // Land the admin on the LingoWP workspace on the next page load instead
+        // of the plugins list. One-shot: consumed by
+        // OnboardingPageController::maybeRedirectAfterActivation(), which also
+        // skips it for bulk ("activate selected") activation.
+        set_transient('lingowp_activation_redirect', 1, 30);
     }
 }

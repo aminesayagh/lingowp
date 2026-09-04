@@ -112,20 +112,21 @@ function groupCatalog( catalogItems, defaultCode ) {
 	)
 }
 
-// A left-column entry is only ever a not-yet-added language (added ones move
-// to the right column entirely, see AddLanguagesPicker below) — so the whole
-// row does one thing: add it, with every one of its regions, right away. No
-// separate "select" vs "configure" step.
-function LeftRow( { group, onAdd } ) {
+// One not-yet-added region on the left — one row per locale, added individually
+// (a language with several regions contributes several of these). Clicking it
+// moves just that region to the right column.
+function LeftRow( { group, item, onAdd } ) {
+	const region = regionLabel( item )
+	const label = region ? `${ group.label } (${ region })` : group.label
 	return (
 		<div
 			role="button"
 			tabIndex={ 0 }
-			onClick={ () => onAdd( group ) }
+			onClick={ () => onAdd( group, item ) }
 			onKeyDown={ ( event ) => {
 				if ( event.key === 'Enter' || event.key === ' ' ) {
 					event.preventDefault()
-					onAdd( group )
+					onAdd( group, item )
 				}
 			} }
 			style={ {
@@ -139,23 +140,12 @@ function LeftRow( { group, onAdd } ) {
 			} }
 		>
 			<FlagIcon
-				// Prefer a group member that actually carries a region (most
-				// do) over an arbitrary items[0] — a group can mix a
-				// region-less "General" entry with real regional variants.
-				// flagIconUrl() falls back to a curated per-language flag
-				// (REGION_FALLBACK in FlagIcon.jsx) keyed by `code` when
-				// nothing in the group has one — the catalog entry itself has
-				// no `code` field, only `language`.
-				src={ flagIconUrl( {
-					...( group.items.find( ( item ) => item.region ) ||
-						group.items[ 0 ] ),
-					code: group.language,
-				} ) }
+				src={ flagIconUrl( { ...item, code: group.language } ) }
 				size={ 16 }
 			/>
 			<div style={ { flex: 1, minWidth: 0 } }>
 				<Text as="span" fontWeight="semibold" truncate>
-					{ group.label }
+					{ label }
 				</Text>
 			</div>
 		</div>
@@ -210,7 +200,11 @@ const SKIP_REASON_LABELS = {
 	invalid_locale: 'not recognized',
 }
 
-export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } ) {
+export default function AddLanguagesPicker( {
+	defaultCode,
+	onDone,
+	onCreated,
+} ) {
 	const [ catalog, setCatalog ] = useState( [] )
 	const [ catalogStatus, setCatalogStatus ] = useState( 'loading' )
 	const [ catalogReload, setCatalogReload ] = useState( 0 )
@@ -339,12 +333,7 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 	}, [] )
 
 	const groups = groupCatalog( catalog, defaultCode )
-	// A language stays on the left as long as it has at least one region not
-	// already on the right — only once *every* region is added does it drop
-	// off entirely. Without this, removing just one of a language's several
-	// regions made the whole language vanish from the left until every other
-	// region was also removed — the only way back to that one region was to
-	// undo everything and re-add the language from scratch.
+	// Every region of a language that isn't already on the right.
 	function remainingLocales( group ) {
 		const already = selection.get( group.language )
 		if ( ! already ) {
@@ -352,14 +341,25 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 		}
 		return group.items.filter( ( item ) => ! already.has( item.locale ) )
 	}
-	const availableGroups = groups.filter(
-		( group ) => remainingLocales( group ).length > 0
-	)
+	// Flat list of every selectable region, one entry per locale, sorted by
+	// language then region so a language's regions stay adjacent.
+	const availableLocales = []
+	for ( const group of groups ) {
+		for ( const item of remainingLocales( group ) ) {
+			availableLocales.push( { group, item } )
+		}
+	}
+	availableLocales.sort( ( a, b ) => {
+		const byLanguage = a.group.label.localeCompare( b.group.label )
+		return byLanguage !== 0
+			? byLanguage
+			: regionLabel( a.item ).localeCompare( regionLabel( b.item ) )
+	} )
 	const term = search.trim().toLowerCase()
-	const rows = availableGroups.filter(
-		( group ) =>
+	const rows = availableLocales.filter(
+		( { group, item } ) =>
 			! term ||
-			`${ group.label } ${ group.language }`
+			`${ group.label } ${ group.language } ${ regionLabel( item ) }`
 				.toLowerCase()
 				.includes( term )
 	)
@@ -388,19 +388,12 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 		}
 	}
 
-	function addLanguage( group ) {
+	function addLocale( group, item ) {
 		setSelection( ( prev ) => {
 			const next = new Map( prev )
-			// Union with whatever's already added, not a fresh Set — and
-			// deliberately re-adds every region, including ones the user
-			// previously removed on the right: clicking the language on the
-			// left is a "give me all of it" action, confirmed as the wanted
-			// behavior even for a language already partially added.
-			const merged = new Set( next.get( group.language ) )
-			for ( const item of group.items ) {
-				merged.add( item.locale )
-			}
-			next.set( group.language, merged )
+			const set = new Set( next.get( group.language ) )
+			set.add( item.locale )
+			next.set( group.language, set )
 			return next
 		} )
 	}
@@ -557,7 +550,7 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 		<div>
 			<BlockStack gap="400">
 				<Text as="p" tone="subdued">
-					Select a language to add it, with all its regions.
+					Select each language and region you want to add.
 				</Text>
 				<div
 					style={ {
@@ -581,11 +574,12 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 						/>
 						<div style={ { maxHeight: 360, overflowY: 'auto' } }>
 							<BlockStack gap="050">
-								{ rows.map( ( group ) => (
+								{ rows.map( ( { group, item } ) => (
 									<LeftRow
-										key={ group.language }
+										key={ item.locale }
 										group={ group }
-										onAdd={ addLanguage }
+										item={ item }
+										onAdd={ addLocale }
 									/>
 								) ) }
 								{ rows.length === 0 && (
@@ -595,7 +589,7 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 											tone="subdued"
 											alignment="center"
 										>
-											{ availableGroups.length === 0
+											{ availableLocales.length === 0
 												? 'Every language has been added.'
 												: `No languages match “${ search }”.` }
 										</Text>
@@ -634,8 +628,8 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 											tone="subdued"
 											alignment="center"
 										>
-											Select a language on the left to
-											add it here.
+											Select a language on the left to add
+											it here.
 										</Text>
 									</Box>
 								) }
@@ -693,11 +687,7 @@ export default function AddLanguagesPicker( { defaultCode, onDone, onCreated } )
 						disabled={ languageCount === 0 }
 						onClick={ submit }
 					>
-						{ languageCount === 0
-							? 'Add languages'
-							: `Add ${ languageCount } language${
-									languageCount === 1 ? '' : 's'
-							  }` }
+						Add languages
 					</Button>
 				</InlineStack>
 			</BlockStack>

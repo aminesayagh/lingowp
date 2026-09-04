@@ -8,12 +8,12 @@ import {
 	ChoiceList,
 	Divider,
 	EmptyState,
-	Filters,
 	InlineStack,
 	Modal,
 	Page,
 	Popover,
 	Spinner,
+	Tag,
 	Text,
 	TextField,
 	Thumbnail,
@@ -39,19 +39,15 @@ import {
 import {
 	AlertTriangleIcon,
 	CheckCircleIcon,
+	FilterIcon,
 	InfoIcon,
 	MenuHorizontalIcon,
 	PageIcon,
+	RefreshIcon,
 	SettingsIcon,
 } from '@shopify/polaris-icons'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
-import {
-	AnimatePresence,
-	motion,
-	useMotionValueEvent,
-	useReducedMotion,
-	useScroll,
-} from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api'
 import { ensureConnected } from '../connection'
 import { errorMessage } from '../errors'
@@ -112,6 +108,12 @@ const TOAST_TONE_ICON = {
 // the async queue server-side (CollectionsRestController::maybeCollectAiResults),
 // so polling is what actually turns a pending row into its real result.
 const PENDING_POLL_MS = 3000
+
+// The AI submit can resolve before the shimmer sweep (1.2s loop, see
+// .lingowp-shimmer) has visibly run — a fast backend makes the "translating"
+// feedback flash and vanish. Once the shimmer starts (on click), hold it at
+// least this long so it always registers as an animation.
+const MIN_SHIMMER_MS = 1000
 
 // TanStack Query v5 refetchInterval callback: (query) => ms | false. Reads
 // query.state.data directly (not the `select`-transformed shape) per v5's
@@ -195,11 +197,14 @@ function openCanvas( url, target, snippet ) {
 	window.open( final, '_blank', 'noopener' )
 }
 
-// Header status filters — sent as ?status= to the server now.
+// Header status filters — sent as ?status= to the server now. 'ignored' is a
+// separate view: the normal tree is hidden and a single "Ignored" collection
+// lists every ignored text so it can be found and restored from its row menu.
 const FILTERS = [
 	{ key: 'untranslated', label: 'Untranslated' },
 	{ key: 'needs_review', label: 'Needs review' },
 	{ key: 'translated', label: 'Translated' },
+	{ key: 'ignored', label: 'Ignored' },
 ]
 const ORIGIN_FILTERS = [
 	{ key: 'manual', label: 'Manual' },
@@ -252,15 +257,6 @@ const PAGE_SIZE = 20
 // Rows revealed per "Show more" click in a group — an auto-opened 1,000-text
 // group never dumps every row at once.
 const TEXT_BATCH = 50
-// Adaptive sticky header (the filter row auto-hides while scrolling down
-// through a long list, see the scroll tracking below): a scroll delta under
-// this many px is trackpad/wheel jitter, not an intentional direction.
-const FILTER_ROW_SCROLL_NOISE_PX = 4
-// Never hide the filter row this close to the top — nothing to reclaim space
-// from yet, and it'd flicker in/out on a barely-scrolled page.
-const FILTER_ROW_MIN_SCROLL_PX = 40
-// How long the page has to sit still before the filter row comes back on its own.
-const FILTER_ROW_IDLE_MS = 1500
 const boardParser = parseAsStringLiteral( [ 'content', 'plugins' ] )
 	.withDefault( 'content' )
 	.withOptions( { history: 'replace' } )
@@ -356,7 +352,22 @@ export default function Dashboard( {
 	// The target-language column header is a switcher: click it for a popover
 	// list of the configured languages.
 	const [ langSwitcherOpen, setLangSwitcherOpen ] = useState( false )
+	// Content board's filter trigger (icon button next to Translate All): one
+	// Popover, its content switching between "pick a filter" (ActionList) and
+	// "edit this one filter's value" (its own ChoiceList) — simpler than two
+	// separately-anchored popovers, and avoids Polaris's own <Filters> bar,
+	// whose built-in trigger can't be repositioned or given a different icon.
+	const [ filterPopoverOpen, setFilterPopoverOpen ] = useState( false )
+	const [ activeFilterKey, setActiveFilterKey ] = useState( null )
+	function closeFilterPopover() {
+		setFilterPopoverOpen( false )
+		setActiveFilterKey( null )
+	}
 	const [ refreshing, setRefreshing ] = useState( false )
+	// Icon button next to the "Target language" heading — re-pulls /languages
+	// (and with it every language's translated_percent) so the rail bars catch
+	// up without a full page reload.
+	const [ refreshingPercents, setRefreshingPercents ] = useState( false )
 	// True right after the first language is created, until the initial
 	// content scan (running since plugin activation, independent of
 	// onboarding) reports done — gates the board body with a loader instead
@@ -442,9 +453,11 @@ export default function Dashboard( {
 	const hasSubscription = !! quota?.active
 
 	// Extra settings-popover items, gated on billing state:
-	//  - paid + valid billing: one "Use ..." item per AI provider available
-	//    (LingoWP model + each stored BYOK key), each bulk-setting every
-	//    language and disabled once they're all already on it.
+	//  - paid + valid billing + at least one stored BYOK key: one "Use ..."
+	//    item per engine (LingoWP model + each key), each bulk-setting every
+	//    language and disabled once they're all already on it. With no BYOK
+	//    key there's only one engine, so every language is already on it and
+	//    the whole group is dead — skip it entirely.
 	//  - free / no subscription: the two links that unlock AI.
 	const ownKeyProviders = providerKeys
 		.map( ( k ) => k.provider )
@@ -453,7 +466,7 @@ export default function Dashboard( {
 	const allLangsOn = ( p ) =>
 		langsReady && languages.every( ( l ) => l.ai_model === p )
 	const providerMenuItems = []
-	if ( hasSubscription && ! billingBlocked ) {
+	if ( hasSubscription && ! billingBlocked && ownKeyProviders.length > 0 ) {
 		providerMenuItems.push( {
 			content: 'Use LingoWP AI model',
 			disabled:
@@ -771,6 +784,54 @@ export default function Dashboard( {
 		}
 	}
 
+	// Same as translateAllInLanguage() but targets one language explicitly (from
+	// its row menu in the sidebar), so the user needn't select it first. Shares
+	// the translatingAll guard, so it won't run alongside the header button or a
+	// second row-menu click. A toast confirms the queue since an unselected
+	// language shows no shimmering rows to signal work is underway.
+	async function translateAllForLanguage( lang ) {
+		if ( translatingAll ) {
+			return
+		}
+		if ( billingBlocked ) {
+			handleAiBlocked()
+			return
+		}
+		if ( ! ai.available ) {
+			showToast(
+				'warning',
+				ai.error || 'AI unavailable — connect LingoWP to enable it.'
+			)
+			return
+		}
+		setTranslatingAll( true )
+		try {
+			let res = await translateScope( 'language', {
+				source: board,
+				language: lang.code,
+			} )
+			while ( res?.more ) {
+				res = await translateScope( 'language', {
+					source: board,
+					language: lang.code,
+				} )
+			}
+			if ( res?.ok ) {
+				showToast(
+					'success',
+					`Translating ${
+						lang.display_name ||
+						lang.native_display ||
+						lang.name ||
+						lang.code
+					}…`
+				)
+			}
+		} finally {
+			setTranslatingAll( false )
+		}
+	}
+
 	// Plugins & Themes board equivalent of the above -- a distinct endpoint
 	// (gettext strings live in .mo files, not the Content board's tables), so
 	// this can't reuse translateScope(). Same auto-continue-on-`more` shape;
@@ -870,7 +931,9 @@ export default function Dashboard( {
 
 	function confirmDeleteLang( lang ) {
 		setConfirm( {
-			title: `Delete ${ lang.display_name || lang.name || lang.code }?`,
+			title: `Delete ${
+			lang.display_name || lang.native_display || lang.name || lang.code
+		}?`,
 			body: 'This removes it from the public site and the workspace. Its translations are kept and restored if you re-add the language.',
 			actionLabel: 'Delete',
 			destructive: true,
@@ -892,7 +955,10 @@ export default function Dashboard( {
 		}
 		setConfirm( {
 			title: `Publish ${
-				lang.display_name || lang.name || lang.code
+				lang.display_name ||
+				lang.native_display ||
+				lang.name ||
+				lang.code
 			} at ${ percent }% translated?`,
 			body: 'Some pages are not fully translated yet. Publishing now may cause search engines to index fallback content in the wrong language, which could affect your SEO. You can continue translating after publishing.',
 			actionLabel: 'Publish anyway',
@@ -908,11 +974,14 @@ export default function Dashboard( {
 		setSelectedLang( lang.code )
 		const fb = languages.find( ( l ) => l.code === lang.fallback_language )
 		const fbLabel = fb
-			? fb.display_name || fb.name || fb.code
+			? fb.display_name || fb.native_display || fb.name || fb.code
 			: lang.fallback_language
 		setConfirm( {
 			title: `Use ${ fbLabel } translations for ${
-				lang.display_name || lang.name || lang.code
+				lang.display_name ||
+				lang.native_display ||
+				lang.name ||
+				lang.code
 			}?`,
 			body: "Fills in every text this language is missing using its fallback language's existing translations, marked as Needs review. Existing translations are never overwritten.",
 			actionLabel: 'Use fallback translation',
@@ -942,7 +1011,7 @@ export default function Dashboard( {
 	}
 
 	function refreshLanguages() {
-		api.get( '/languages' ).then( ( res ) => {
+		return api.get( '/languages' ).then( ( res ) => {
 			if ( ! res.ok ) {
 				// Resolve the pending state even when the request fails so the modal
 				// never leaves the user behind an endless loading message.
@@ -984,6 +1053,38 @@ export default function Dashboard( {
 		handleLanguagesAdded( createdLanguageCode )
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [ languageAddedSignal ] )
+
+	// A queued AI translation only consumes words later, when its `pending` row
+	// is drained by the texts poll (pollWhilePending) -- not by the POST that
+	// queued it. translateScope()'s own refetchEntitlements() therefore runs too
+	// early to see the usage change. Watch the cache for the falling edge (some
+	// texts query had a pending row, now none do) and refetch then, so
+	// QuotaCard's consumed count and the rail percentages catch up on their own.
+	const hadPendingRef = useRef( false )
+	useEffect( () => {
+		const cache = queryClient.getQueryCache()
+		const anyPending = () =>
+			cache.getAll().some( ( q ) => {
+				if ( q.queryKey[ 0 ] !== 'texts' ) {
+					return false
+				}
+				const texts = q.state.data?.texts
+				return (
+					Array.isArray( texts ) &&
+					texts.some( ( t ) => t.status === 'pending' )
+				)
+			} )
+		const unsub = cache.subscribe( () => {
+			const now = anyPending()
+			if ( hadPendingRef.current && ! now ) {
+				refetchEntitlements()
+				refreshLanguages()
+			}
+			hadPendingRef.current = now
+		} )
+		return unsub
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient/refetchEntitlements stable; refreshLanguages is a stable declaration
+	}, [] )
 
 	// Debounce the box into the term we actually query with. Below SEARCH_MIN the term
 	// counts as empty, so backspacing to one letter restores the full tree.
@@ -1110,6 +1211,21 @@ export default function Dashboard( {
 		} )
 	}
 
+	// "Refresh" on the first-scan gate: check status now instead of waiting for
+	// the background pollFirstScan tick, so the user can clear the loading
+	// screen the moment the scan finishes without reloading the whole page.
+	function recheckFirstScan() {
+		api.get( '/scan/status' ).then( ( res ) => {
+			if ( ( res.status || 'running' ) === 'running' ) {
+				showToast( 'info', 'Still scanning — check back in a moment.' )
+				return
+			}
+			setExtractionPending( false )
+			invalidateCollections()
+			announceExtractionDone( selectedLang || createdLanguageCode )
+		} )
+	}
+
 	// Copies a link that lands on this same board/language and scrolls straight
 	// to this collection (view/board/lang/collection all restore from the query
 	// string via nuqs — see pendingScrollId).
@@ -1139,9 +1255,13 @@ export default function Dashboard( {
 
 		const stillMatchesFilter =
 			statusFilter === 'all' ||
-			( statusFilter === 'untranslated' && summary.missing > 0 ) ||
+			( statusFilter === 'untranslated' &&
+				( summary.missing > 0 || summary.pending > 0 ) ) ||
 			( statusFilter === 'needs_review' && summary.needs_review > 0 ) ||
-			( statusFilter === 'translated' && summary.translated > 0 )
+			( statusFilter === 'translated' && summary.translated > 0 ) ||
+			// Ignored view: keep the one "Ignored" card while any ignored text
+			// remains (a Restore drops the row and decrements total); drop it at 0.
+			( statusFilter === 'ignored' && summary.total > 0 )
 
 		queryClient.setQueriesData(
 			{
@@ -1395,38 +1515,6 @@ export default function Dashboard( {
 	// collapse anchor's scroll math below — the live per-render value groups
 	// actually stick to is the CSS variable set above.
 	const groupStickyTop = 32 + stickyBarH
-
-	// Adaptive filter row: yields its space while the user is actively reading
-	// down the list, comes back the moment they might want it (scroll up, stop
-	// scrolling, hover/focus the header, or have it configured already).
-	// `showFilters` is derived below, not stored — nothing here to desync.
-	const [ scrollDirection, setScrollDirection ] = useState( 'idle' )
-	const [ nearScrollTop, setNearScrollTop ] = useState( true )
-	const [ headerHovered, setHeaderHovered ] = useState( false )
-	const [ headerFocused, setHeaderFocused ] = useState( false )
-	const { scrollY } = useScroll()
-	const lastScrollYRef = useRef( 0 )
-	const filterIdleTimerRef = useRef( null )
-	useMotionValueEvent( scrollY, 'change', ( latest ) => {
-		const delta = latest - lastScrollYRef.current
-		lastScrollYRef.current = latest
-		setNearScrollTop( latest < FILTER_ROW_MIN_SCROLL_PX )
-		if ( Math.abs( delta ) >= FILTER_ROW_SCROLL_NOISE_PX ) {
-			setScrollDirection( delta > 0 ? 'down' : 'up' )
-		}
-		clearTimeout( filterIdleTimerRef.current )
-		filterIdleTimerRef.current = setTimeout( () => {
-			setScrollDirection( 'idle' )
-		}, FILTER_ROW_IDLE_MS )
-	} )
-	useEffect( () => () => clearTimeout( filterIdleTimerRef.current ), [] )
-	const reduceMotion = useReducedMotion()
-	const showFilterRow =
-		scrollDirection !== 'down' ||
-		headerHovered ||
-		headerFocused ||
-		hasAnyFilter ||
-		nearScrollTop
 
 	const getItemKey = useCallback(
 		( i ) => ( i < groups.length ? groups[ i ].id : '__sentinel__' ),
@@ -1704,7 +1792,17 @@ export default function Dashboard( {
 		queryClient.invalidateQueries( {
 			queryKey: [ 'texts', cid, selectedLang ],
 		} )
-		if ( patch?.collection_summary ) {
+		if ( patch?.ignore_status_changed ) {
+			// Ignore/restore moves the row between status views (in/out of the
+			// Ignored filter). An optimistic single-collection patch can't add it
+			// to the ignored:all list it isn't in yet, so refresh every board
+			// query for this language plus the ignored:all texts list — with
+			// staleTime 5m, an already-open Ignored view won't refetch otherwise.
+			invalidateCollections()
+			queryClient.invalidateQueries( {
+				queryKey: [ 'texts', 'ignored:all', selectedLang ],
+			} )
+		} else if ( patch?.collection_summary ) {
 			patchCollectionSummary( patch.collection_summary )
 		} else {
 			invalidateCollections()
@@ -1783,6 +1881,8 @@ export default function Dashboard( {
 		'No translatable content found for this language yet.'
 	if ( searching ) {
 		emptyGroupsMessage = `No text matches “${ query }” in this language.`
+	} else if ( statusFilter === 'ignored' ) {
+		emptyGroupsMessage = 'No ignored text.'
 	} else if ( hasAnyFilter ) {
 		emptyGroupsMessage = 'No content matches the selected filters.'
 	}
@@ -1803,7 +1903,11 @@ export default function Dashboard( {
 		}
 	}
 	const langLabel = ( l ) =>
-		l && ( l.display_name || l.name || codeName( l.code || l ) )
+		l &&
+		( l.display_name ||
+			l.native_display ||
+			l.name ||
+			codeName( l.code || l ) )
 	const originalLabel =
 		langLabel( defaultLanguage ) || codeName( defaultCode ) || 'Original'
 	const translationLabel =
@@ -2084,9 +2188,30 @@ export default function Dashboard( {
 								<Divider />
 
 								<BlockStack gap="200">
-									<Text as="h2" variant="headingSm">
-										Target language
-									</Text>
+									<InlineStack
+										align="space-between"
+										blockAlign="center"
+									>
+										<Text as="h2" variant="headingSm">
+											Target language
+										</Text>
+										<Button
+											icon={ RefreshIcon }
+											variant="tertiary"
+											size="micro"
+											loading={ refreshingPercents }
+											accessibilityLabel="Refresh translation progress"
+											onClick={ () => {
+												setRefreshingPercents( true )
+												refreshLanguages().finally(
+													() =>
+														setRefreshingPercents(
+															false
+														)
+												)
+											} }
+										/>
+									</InlineStack>
 									{ languagesLoaded ? (
 										<LanguageList
 											languages={ languages }
@@ -2096,6 +2221,12 @@ export default function Dashboard( {
 											}
 											onEdit={ ( lang ) =>
 												openManager( lang.code )
+											}
+											onTranslateAll={
+												ai.available &&
+												board === 'content'
+													? translateAllForLanguage
+													: undefined
 											}
 											onToggleStatus={
 												togglePublishStatus
@@ -2201,35 +2332,6 @@ export default function Dashboard( {
 					>
 						<div
 							ref={ stickyRef }
-							onMouseEnter={ () => setHeaderHovered( true ) }
-							onMouseLeave={ () => setHeaderHovered( false ) }
-							onFocusCapture={ () => setHeaderFocused( true ) }
-							onBlurCapture={ () => {
-								// Filters/Popover render into the body-level
-								// #lingowp-portals root, not as real DOM children
-								// of this header, so a plain relatedTarget check
-								// would read "Add filter" opening as focus leaving.
-								// Re-check where focus actually landed once the
-								// DOM has settled, against both the header itself
-								// and that portal root.
-								window.requestAnimationFrame( () => {
-									const doc = stickyRef.current?.ownerDocument
-									const active = doc?.activeElement
-									const inHeader =
-										!! active &&
-										stickyRef.current?.contains( active )
-									const inPortal =
-										!! active &&
-										doc
-											?.getElementById(
-												'lingowp-portals'
-											)
-											?.contains( active )
-									setHeaderFocused(
-										!! ( inHeader || inPortal )
-									)
-								} )
-							} }
 							style={ {
 								position: 'sticky',
 								top: 32,
@@ -2274,128 +2376,145 @@ export default function Dashboard( {
 												}
 											/>
 										</div>
-										<Button
-											icon={ ( props ) => (
-												<AiIcon
-													{ ...props }
-													size={ 14 }
-												/>
-											) }
-											variant="secondary"
-											disabled={
-												! ai.available || translatingAll
-											}
-											loading={ translatingAll }
-											size="large"
-											onClick={
-												billingBlocked
-													? handleAiBlocked
-													: showGettextBoard
-													? translateAllGettext
-													: translateAllInLanguage
-											}
-										>
-											Translate All
-										</Button>
-									</div>
-									{ /* Plugins & Themes board: the only filter that
-									carries over is "Untranslated only" (same
-									statusFilter state, so it stays URL-shareable). The
-									full Polaris <Filters> row below is Content-board
-									only. */ }
-									{ showGettextBoard && (
-										<div
-											className="lingowp-filters"
-											style={ {
-												display: 'flex',
-												alignItems: 'center',
-												gap: 8,
-												paddingBlockStart: 8,
-											} }
-										>
+										{ /* The Ignored view lists excluded text —
+										nothing to bulk-translate there. */ }
+										{ statusFilter !== 'ignored' && (
 											<Button
-												pressed={
-													statusFilter ===
-													'untranslated'
+												icon={ ( props ) => (
+													<AiIcon
+														{ ...props }
+														size={ 14 }
+													/>
+												) }
+												variant="secondary"
+												disabled={
+													! ai.available ||
+													translatingAll
 												}
-												onClick={ () =>
-													setStatusFilter(
-														statusFilter ===
-															'untranslated'
-															? 'all'
-															: 'untranslated'
-													)
+												loading={ translatingAll }
+												size="large"
+												onClick={
+													billingBlocked
+														? handleAiBlocked
+														: showGettextBoard
+														? translateAllGettext
+														: translateAllInLanguage
 												}
 											>
-												Untranslated only
+												Translate All
 											</Button>
-										</div>
-									) }
-									{ /* Line 2: standard Polaris Filters (status) — these all
-									filter the Content board's collections/texts query, which
-									the Plugins & Themes board doesn't use. Adaptive: yields
-									its height while the user scrolls down through a long
-									list (showFilterRow), and comes right back on scroll-up,
-									idle, hover, focus, or an already-configured filter — see
-									the scroll tracking above. */ }
-									{ ! showGettextBoard && (
-										<motion.div
-											initial={ false }
-											animate={ {
-												height: showFilterRow
-													? 'auto'
-													: 0,
-												opacity: showFilterRow ? 1 : 0,
-											} }
-											transition={
-												reduceMotion
-													? { duration: 0.01 }
-													: {
-															type: 'spring',
-															stiffness: 430,
-															damping: 38,
-															mass: 0.8,
-													  }
+										) }
+										<Button
+											size="large"
+											pressed={
+												statusFilter === 'untranslated'
 											}
-											style={ { overflow: 'hidden' } }
+											onClick={ () =>
+												setStatusFilter(
+													statusFilter ===
+														'untranslated'
+														? 'all'
+														: 'untranslated'
+												)
+											}
 										>
+											Untranslated
+										</Button>
+										{ ! showGettextBoard && (
+											<Popover
+												active={ filterPopoverOpen }
+												onClose={ closeFilterPopover }
+												activator={
+													<Button
+														icon={ FilterIcon }
+														variant="secondary"
+														size="large"
+														accessibilityLabel="Filter"
+														onClick={ () =>
+															setFilterPopoverOpen(
+																( open ) =>
+																	! open
+															)
+														}
+													/>
+												}
+											>
+												{ activeFilterKey ? (
+													<Box
+														padding="300"
+														minWidth="240px"
+													>
+														{
+															filters.find(
+																( f ) =>
+																	f.key ===
+																	activeFilterKey
+															)?.filter
+														}
+													</Box>
+												) : (
+													<ActionList
+														items={ filters.map(
+															( f ) => ( {
+																content:
+																	f.label,
+																onAction: () =>
+																	setActiveFilterKey(
+																		f.key
+																	),
+															} )
+														) }
+													/>
+												) }
+											</Popover>
+										) }
+									</div>
+									{ /* Plugins & Themes board: the only filter that
+									carries over is "Untranslated" (same
+									statusFilter state, so it stays URL-shareable,
+									now moved up to line 1 next to Translate All —
+									same spot and style as the Content board's).
+									The filter icon button and applied-filter
+									pills below are Content-board only. */ }
+									{ /* Line 2: applied filter pills (the
+									"Untranslated" toggle and filter icon
+									button up on line 1 pick and edit them —
+									see above) and "Open all collections".
+									Filters the Content board's collections/texts
+									query, which the Plugins & Themes board
+									doesn't use. */ }
+									{ ! showGettextBoard &&
+										( appliedFilters.length > 0 ||
+											collapseToTarget ) && (
 											<div
 												className="lingowp-filters"
 												style={ {
 													display: 'flex',
 													alignItems: 'center',
+													flexWrap: 'wrap',
 													gap: 8,
 													paddingBlockStart: 8,
 												} }
 											>
-												<Button
-													pressed={
-														statusFilter ===
-														'untranslated'
-													}
-													onClick={ () =>
-														setStatusFilter(
-															statusFilter ===
-																'untranslated'
-																? 'all'
-																: 'untranslated'
-														)
-													}
-												>
-													Untranslated only
-												</Button>
-												<Filters
-													hideQueryField
-													filters={ filters }
-													appliedFilters={
-														appliedFilters
-													}
-													onQueryChange={ () => {} }
-													onQueryClear={ () => {} }
-													onClearAll={
-														clearAllFilters
-													}
-												/>
+												{ appliedFilters.map( ( f ) => (
+													<Tag
+														key={ f.key }
+														onRemove={ f.onRemove }
+													>
+														{ f.label }
+													</Tag>
+												) ) }
+												{ appliedFilters.length > 0 && (
+													<Button
+														variant="monochromePlain"
+														size="micro"
+														onClick={
+															clearAllFilters
+														}
+													>
+														Clear filters
+													</Button>
+												) }
 												{ collapseToTarget && (
 													<Button
 														onClick={
@@ -2406,8 +2525,7 @@ export default function Dashboard( {
 													</Button>
 												) }
 											</div>
-										</motion.div>
-									) }
+										) }
 								</BlockStack>
 							</Box>
 							{ /* Column headers ride inside the sticky bar so they
@@ -2586,17 +2704,20 @@ export default function Dashboard( {
 						) }
 						{ extractionPending && (
 							<Box padding="500">
-								<BlockStack gap="200" inlineAlign="center">
-									<Spinner
-										accessibilityLabel="Scanning your site"
-										size="small"
-									/>
-									<Text as="p" tone="subdued">
-										Automatically scanning your site for
-										translatable content. This can take a
-										moment.
-									</Text>
-								</BlockStack>
+								<EmptyState
+									heading="Scanning your site for content"
+									action={ {
+										content: 'Refresh',
+										onAction: recheckFirstScan,
+									} }
+								>
+									<p>
+										We’re finding translatable text across
+										your site. This can take a minute on a
+										larger site — refresh to check if it’s
+										ready.
+									</p>
+								</EmptyState>
 							</Box>
 						) }
 						{ showGettextBoard &&
@@ -3013,6 +3134,9 @@ function CollectionGroup( {
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	const [ hovered, setHovered ] = useState( false )
 	const [ shown, setShown ] = useState( TEXT_BATCH )
+	// True while "Translate all" for this collection is in flight — forces the
+	// shimmer on every still-untranslated row up front (see translateAllInCollection).
+	const [ bulkTranslating, setBulkTranslating ] = useState( false )
 
 	// Suppress requests for groups only flashed past during fast scroll: a
 	// collapsed/just-scrolled-past group never settles long enough to fetch.
@@ -3047,6 +3171,25 @@ function CollectionGroup( {
 	} )
 	const allTexts = textsQ.data?.texts ?? []
 	const rows = allTexts.slice( 0, shown )
+
+	// "Needs review" rows in this group. c.needs_review is the summary count,
+	// which lags behind inline review toggles when an advanced filter is active
+	// (patchCollectionSummary invalidates instead of patching then) — so take
+	// whichever is higher, the summary or the actually-loaded rows.
+	const reviewCount = Math.max(
+		c.needs_review ?? 0,
+		allTexts.filter( ( t ) => t.status === 'needs_review' ).length
+	)
+
+	// Rows that actually hold a translation (reviewed/machine or needs-review) —
+	// what "Clear all" would remove. Hidden when there's nothing to clear. Same
+	// summary-vs-loaded-rows guard as reviewCount above.
+	const clearableCount = Math.max(
+		( c.translated ?? 0 ) + ( c.needs_review ?? 0 ),
+		allTexts.filter(
+			( t ) => t.status !== 'missing' && t.status !== 'pending'
+		).length
+	)
 
 	// Stale html rows: text nobody (marking mode or the background crawl)
 	// has re-encountered in the grace window. Html-only — staleness has no
@@ -3092,9 +3235,24 @@ function CollectionGroup( {
 	// so a large collection needs one click, not several.
 	async function translateAllInCollection() {
 		setMenuOpen( false )
-		let res = await onAiTranslate( 'collection', { id: c.id, language } )
-		while ( res?.more ) {
-			res = await onAiTranslate( 'collection', { id: c.id, language } )
+		// Shimmer every still-missing row immediately, before the request — the
+		// real `pending` status only lands a POST + refetch later, which reads
+		// as a lag. Cleared once the submit loop finishes (rows that were
+		// actually queued keep shimmering via unit.status === 'pending').
+		setBulkTranslating( true )
+		try {
+			let res = await onAiTranslate( 'collection', {
+				id: c.id,
+				language,
+			} )
+			while ( res?.more ) {
+				res = await onAiTranslate( 'collection', {
+					id: c.id,
+					language,
+				} )
+			}
+		} finally {
+			setBulkTranslating( false )
 		}
 	}
 
@@ -3147,61 +3305,81 @@ function CollectionGroup( {
 	// Ignore all / Clear all are whole-collection on the server. Offering them beside
 	// a filtered row list would read as "ignore these 3", so they hide during a search;
 	// the preview link is scope-free and stays.
-	const bulkItems = [
-		{
-			content: 'Share collection',
-			onAction: () => {
-				setMenuOpen( false )
-				onShare( c )
-			},
-		},
-		...( c.preview_url
-			? [
-					{
-						content:
-							c.preview_target === 'frontend'
-								? 'Show in canvas'
-								: 'Edit in WordPress',
-						onAction: () => {
-							setMenuOpen( false )
-							openCanvas( c.preview_url, c.preview_target )
-						},
-					},
-			  ]
-			: [] ),
-		...( searching
+	// The synthetic "Ignored" collection has no whole-collection actions (its rows
+	// are restore-only), so it gets no bulk menu at all.
+	const bulkItems =
+		c.type === 'ignored'
 			? []
 			: [
-					...( aiAvailable && c.missing > 0
+					{
+						content: 'Share collection',
+						onAction: () => {
+							setMenuOpen( false )
+							onShare( c )
+						},
+					},
+					...( c.preview_url && c.preview_target !== 'frontend'
 						? [
 								{
-									content: 'Translate all',
-									onAction: billingBlocked
-										? onAiBlocked
-										: translateAllInCollection,
+									content: 'Edit in WordPress',
+									onAction: () => {
+										setMenuOpen( false )
+										openCanvas(
+											c.preview_url,
+											c.preview_target
+										)
+									},
 								},
 						  ]
 						: [] ),
-					{
-						content: 'Clear all',
-						onAction: confirmClearAll,
-					},
-					{
-						content: 'Ignore all',
-						destructive: true,
-						onAction: confirmIgnoreAll,
-					},
-					...( c.id === 'html:all' && staleCount > 0
-						? [
+					...( searching
+						? []
+						: [
+								...( aiAvailable && c.missing > 0
+									? [
+											{
+												content: 'Translate all',
+												onAction: billingBlocked
+													? onAiBlocked
+													: translateAllInCollection,
+											},
+									  ]
+									: [] ),
+								...( reviewCount > 1
+									? [
+											{
+												content: 'Approve all',
+												// Non-destructive and reversible (re-flag any row),
+												// so no confirm dialog — unlike Clear/Ignore all.
+												onAction: () =>
+													bulk( 'approve' ),
+											},
+									  ]
+									: [] ),
+								...( clearableCount > 0
+									? [
+											{
+												content: 'Clear all',
+												onAction: confirmClearAll,
+											},
+									  ]
+									: [] ),
 								{
-									content: `Delete stale (${ staleCount })`,
+									content: 'Ignore all',
 									destructive: true,
-									onAction: confirmDeleteStale,
+									onAction: confirmIgnoreAll,
 								},
-						  ]
-						: [] ),
-			  ] ),
-	]
+								...( c.id === 'html:all' && staleCount > 0
+									? [
+											{
+												content: `Delete stale (${ staleCount })`,
+												destructive: true,
+												onAction: confirmDeleteStale,
+											},
+									  ]
+									: [] ),
+						  ] ),
+			  ]
 
 	return (
 		<Box>
@@ -3387,6 +3565,7 @@ function CollectionGroup( {
 											language={ language }
 											targetDir={ targetDir }
 											collectionId={ c.id }
+											bulkTranslating={ bulkTranslating }
 											onMutate={ onMutate }
 											onConfirm={ onConfirm }
 											aiAvailable={ aiAvailable }
@@ -3437,6 +3616,7 @@ function TextUnitRow( {
 	language,
 	targetDir = 'ltr',
 	collectionId,
+	bulkTranslating = false,
 	onMutate,
 	onConfirm,
 	onOpenOverlay,
@@ -3474,7 +3654,13 @@ function TextUnitRow( {
 	// of the async wait, cleared only when textsQ's poll (pollWhilePending)
 	// sees the real result land -- a submit response no longer carries the
 	// translation itself (see AiTranslationController::submit).
-	const showShimmer = translating || unit.status === 'pending'
+	// `bulkTranslating && !hasTranslation` shows the shimmer on every missing
+	// row the instant "Translate all" is clicked, before its POST + refetch
+	// turns them into real `pending` rows.
+	const showShimmer =
+		translating ||
+		unit.status === 'pending' ||
+		( bulkTranslating && ! hasTranslation )
 	let badge = null
 	if ( status === 'needs_review' ) {
 		badge = STATUS_BADGE.needs_review
@@ -3574,6 +3760,7 @@ function TextUnitRow( {
 
 	async function translateThisText() {
 		setTranslating( true )
+		const startedAt = Date.now()
 		// The submit resolves before translation actually happens (async
 		// queue) -- the real text lands via textsQ's poll (pollWhilePending),
 		// which updates `unit.translated` and the draft-sync effect above
@@ -3583,6 +3770,11 @@ function TextUnitRow( {
 			ref: unit.id,
 			collection_id: collectionId,
 		} )
+		// Keep the shimmer up for at least one sweep even when the API beat it.
+		const remaining = MIN_SHIMMER_MS - ( Date.now() - startedAt )
+		if ( remaining > 0 ) {
+			await new Promise( ( resolve ) => setTimeout( resolve, remaining ) )
+		}
 		setTranslating( false )
 	}
 
@@ -3594,61 +3786,93 @@ function TextUnitRow( {
 		translateThisText()
 	}
 
-	const menuSections = [
-		{
-			items: [
+	// The row's AI-translate button, spelled once — used both as the visible
+	// control and as the hidden footprint-reserving ghost below. No tooltip on
+	// the normal state: the icon plus accessibilityLabel already name it, and a
+	// bubble on every row hover was pure noise. Only the billing-blocked state
+	// keeps a tooltip (see below), since "why is this disabled" is worth saying.
+	const aiTranslateButton = (
+		<Button
+			variant="secondary"
+			size="micro"
+			accessibilityLabel="AI translate"
+			icon={ ( props ) => <AiIcon { ...props } size={ 12 } /> }
+			onClick={ billingBlocked ? onAiBlocked : handleAiClick }
+		/>
+	)
+
+	// Ignored view (statusFilter=ignored): the row is view + Restore only —
+	// no overlay, no edit, no AI, no review actions. Restore flips the source
+	// back to discovered and it reappears in the normal board, untranslated.
+	const menuSections = unit.ignored
+		? [
 				{
-					content: 'Open in overlay',
-					onAction: () => {
-						setMenuOpen( false )
-						onOpenOverlay( unit )
-					},
+					items: [
+						{
+							content: 'Restore',
+							onAction: () => {
+								setMenuOpen( false )
+								doStatus( 'restore' )
+							},
+						},
+					],
 				},
-				unit.preview_url && {
-					content:
-						unit.preview_target === 'frontend'
-							? 'Preview on website'
-							: 'Edit in WordPress',
-					onAction: () => {
-						setMenuOpen( false )
-						openCanvas(
-							unit.preview_url,
-							unit.preview_target,
-							stripMarkers(
-								unit.translated ?? unit.original ?? ''
-							)
-						)
-					},
-				},
-			].filter( Boolean ),
-		},
-		{
-			items: [
-				hasTranslation &&
-					( isReview
-						? {
-								content: 'Mark as ready',
-								onAction: () => doStatus( 'reviewed' ),
-						  }
-						: {
-								content: 'Flag for review',
-								onAction: () => doStatus( 'review' ),
-						  } ),
-				hasTranslation && {
-					content: 'Clear',
-					onAction: () => doStatus( 'clear' ),
+		  ]
+		: [
+				{
+					items: [
+						{
+							content: 'Open in overlay',
+							onAction: () => {
+								setMenuOpen( false )
+								onOpenOverlay( unit )
+							},
+						},
+						unit.preview_url && {
+							content:
+								unit.preview_target === 'frontend'
+									? 'Preview on website'
+									: 'Edit in WordPress',
+							onAction: () => {
+								setMenuOpen( false )
+								openCanvas(
+									unit.preview_url,
+									unit.preview_target,
+									stripMarkers(
+										unit.translated ?? unit.original ?? ''
+									)
+								)
+							},
+						},
+					].filter( Boolean ),
 				},
 				{
-					content: 'Ignore',
-					destructive: true,
-					onAction: () => {
-						setMenuOpen( false )
-						confirmIgnore()
-					},
+					items: [
+						hasTranslation &&
+							( isReview
+								? {
+										content: 'Mark as ready',
+										onAction: () => doStatus( 'reviewed' ),
+								  }
+								: {
+										content: 'Flag for review',
+										onAction: () => doStatus( 'review' ),
+								  } ),
+						hasTranslation && {
+							content: 'Clear',
+							onAction: () => doStatus( 'clear' ),
+						},
+						{
+							content: 'Ignore',
+							destructive: true,
+							onAction: () => {
+								setMenuOpen( false )
+								confirmIgnore()
+							},
+						},
+					].filter( Boolean ),
 				},
-			].filter( Boolean ),
-		},
-	]
+		  ]
 
 	return (
 		<div
@@ -3725,7 +3949,24 @@ function TextUnitRow( {
 							dir={ targetDir }
 							style={ { position: 'relative', minWidth: 0 } }
 						>
-							{ clickable ? (
+							{ unit.ignored ? (
+								// Ignored rows are read-only: original text, muted,
+								// no overlay, no input. Restore is in the row menu.
+								<div
+									style={ {
+										...oneLineStyle,
+										userSelect: 'text',
+									} }
+								>
+									<Text
+										as="span"
+										variant="bodySm"
+										tone="subdued"
+									>
+										{ shownText }
+									</Text>
+								</div>
+							) : clickable ? (
 								<motion.div
 									role="button"
 									tabIndex={ 0 }
@@ -3936,15 +4177,15 @@ function TextUnitRow( {
 									blockAlign="center"
 									wrap={ false }
 								>
-									{ aiAvailable && (
+									{ aiAvailable && ! unit.ignored && (
 										<div
 											style={ {
 												position: 'relative',
 												flexShrink: 0,
 											} }
 										>
-											{ /* Invisible ghost, same markup as the
-											real button below — reserves its exact
+											{ /* Invisible ghost, same button as the
+											real one below — reserves its exact
 											footprint (Polaris's own box, not a
 											guessed size) so the slot never shifts
 											when the real button mounts/unmounts. */ }
@@ -3954,18 +4195,7 @@ function TextUnitRow( {
 													visibility: 'hidden',
 												} }
 											>
-												<Tooltip content="AI translate">
-													<Button
-														variant="secondary"
-														size="micro"
-														icon={ ( props ) => (
-															<AiIcon
-																{ ...props }
-																size={ 12 }
-															/>
-														) }
-													/>
-												</Tooltip>
+												{ aiTranslateButton }
 											</div>
 											<AnimatePresence initial={ false }>
 												{ ! showShimmer && (
@@ -4005,34 +4235,15 @@ function TextUnitRow( {
 																	: undefined
 															}
 														>
-															<Tooltip
-																content={
-																	billingBlocked
-																		? 'AI translation unavailable — tap for details'
-																		: 'AI translate'
-																}
-															>
-																<Button
-																	variant="secondary"
-																	size="micro"
-																	accessibilityLabel="AI translate"
-																	icon={ (
-																		props
-																	) => (
-																		<AiIcon
-																			{ ...props }
-																			size={
-																				12
-																			}
-																		/>
-																	) }
-																	onClick={
-																		billingBlocked
-																			? onAiBlocked
-																			: handleAiClick
+															{ billingBlocked ? (
+																<Tooltip content="AI translation unavailable — tap for details">
+																	{
+																		aiTranslateButton
 																	}
-																/>
-															</Tooltip>
+																</Tooltip>
+															) : (
+																aiTranslateButton
+															) }
 														</span>
 													</motion.div>
 												) }

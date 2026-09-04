@@ -9,6 +9,8 @@ import { useState } from '@wordpress/element'
 // (`gb-wls`, `es-ct`, `es-pv`, `gb-sct`), or `eo` for the bundled Esperanto
 // flag. Only used when the locale itself has no region — a regioned locale
 // like fr_CA still resolves to `ca`, not the `fr` fallback.
+// ponytail: hand-kept copy of FlagResolver::REGION_FALLBACK (PHP, the source
+// of truth for the front-end switcher). Keep the two in sync on edits.
 const REGION_FALLBACK = {
 	fr: 'FR',
 	es: 'ES',
@@ -16,7 +18,7 @@ const REGION_FALLBACK = {
 	it: 'IT',
 	pt: 'PT',
 	nl: 'NL',
-	ar: 'MA',
+	ar: 'arab',
 	en: 'US',
 	af: 'ZA',
 	am: 'ET',

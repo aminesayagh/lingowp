@@ -3,13 +3,15 @@
 namespace LingoWP\LocalizationRouting;
 
 use LingoWP\Language\Application\ResolveRequestLanguage;
+use LingoWP\Language\Domain\FlagResolver;
+use LingoWP\Language\Domain\LocaleNormalizer;
 use LingoWP\Language\Infrastructure\LanguageMetadataStore;
 use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use LingoWP\Language\Infrastructure\SupportedLanguages;
 
 /**
  * Turns "which languages does this site have" + "what page am I on" into a list
- * of {code, slug, url, names, dir, is_source, current} rows.
+ * of {code, slug, url, names, dir, region, flag_url, is_source, current} rows.
  *
  * Every switcher surface reads from here — the bundled renderer, the shortcode,
  * and any theme or plugin calling lingowp_get_language_links() — so they can
@@ -73,7 +75,7 @@ class LanguageLinks
      *   @type string[]        $include       Keep only these locales, in this order.
      *   @type string|string[] $order         'settings' (default), 'alpha', or an explicit locale list.
      * }
-     * @return array<int, array{code:string,slug:string,url:string,native_name:string,english_name:string,dir:string,is_source:bool,current:bool}>
+     * @return array<int, array{code:string,slug:string,url:string,native_name:string,english_name:string,dir:string,region:string,flag_url:string,is_source:bool,current:bool}>
      */
     public function links(array $args = []): array
     {
@@ -169,6 +171,8 @@ class LanguageLinks
                 'native_name'  => $this->languages->nativeLabel($code),
                 'english_name' => $this->languages->label($code),
                 'dir'          => $this->languages->direction($code),
+                'region'       => LocaleNormalizer::region($code),
+                'flag_url'     => FlagResolver::url($code) ?? '',
                 'is_source'    => $code === $default,
                 'current'      => $code === $active,
             ];

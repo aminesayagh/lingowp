@@ -92,8 +92,8 @@ final class TranslationRestController
     }
 
     /**
-     * Single-text action: ignore (source-global), clear (this language),
-     * review (flag needs_review), reviewed (mark reviewed).
+     * Single-text action: ignore / restore (source-global), clear (this
+     * language), review (flag needs_review), reviewed (mark reviewed).
      */
     public function status(WP_REST_Request $request): WP_REST_Response
     {
@@ -105,10 +105,23 @@ final class TranslationRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
-        // Ignore is language-global; the others act on one language's child row.
+        // Ignore/restore are language-global; the others act on one language's child row.
+        // `ignore_status_changed` tells the client the row moved between status
+        // views (in/out of the Ignored filter), which a single-collection summary
+        // patch can't express — it invalidates the whole board instead.
         if ($action === 'ignore') {
             $this->repo->ignoreSource($ref);
-            return rest_ensure_response(['ok' => true] + $this->boardPatch($request, $lang, $ref));
+            return rest_ensure_response(
+                ['ok' => true, 'ignore_status_changed' => true] + $this->boardPatch($request, $lang, $ref)
+            );
+        }
+        if ($action === 'restore') {
+            // Back to discovered (status 0). Children were deleted on ignore, so
+            // the string is untranslated again and reappears in the normal board.
+            $this->repo->restoreSources([$ref]);
+            return rest_ensure_response(
+                ['ok' => true, 'ignore_status_changed' => true] + $this->boardPatch($request, $lang, $ref)
+            );
         }
 
         if ($lang === '') {

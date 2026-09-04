@@ -15,7 +15,7 @@ const MESSAGES = {
 	ERR_SLUG_TAKEN:
 		'This URL slug is already used by another language. Choose a different one.',
 	ERR_NO_LANGUAGES_ADDED:
-		"None of the selected languages could be added — they may already exist or their web address is taken.",
+		'None of the selected languages could be added — they may already exist or their web address is taken.',
 	ERR_NOT_CONNECTED: 'Not connected. Finish setup to continue.',
 	ERR_INVALID_STATUS: 'Unknown status filter. Refresh and try again.',
 	ERR_LICENSE_DETACHED:
@@ -73,7 +73,8 @@ const MESSAGES = {
 	ERR_ADDON_REVOKED: "This add-on's access was revoked. Contact support.",
 	ERR_ADDON_ARTIFACT_MISSING:
 		"This add-on isn't available for download right now. Try again later.",
-	ERR_ADDON_INSTALL_FAILED: "Couldn't install this add-on. Try again in a moment.",
+	ERR_ADDON_INSTALL_FAILED:
+		"Couldn't install this add-on. Try again in a moment.",
 	ERR_ADDON_ACTIVATE_FAILED:
 		"Installed, but couldn't activate it. Activate it from the Plugins page.",
 }

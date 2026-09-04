@@ -438,7 +438,18 @@ class TranslationMemorySchema
      */
     public static function dropAllTables(\wpdb $wpdb): void
     {
-        foreach ([...self::childTables(), ...self::parentTables(), self::gettextUnitTable()] as $table) {
+        // array_values: childTables() and parentTables() share the same string
+        // keys (post, meta, …), so unpacking them directly makes the parent
+        // entries overwrite the children and no *_translation table is ever
+        // dropped — plus the two parent_id parents then survive on their child
+        // FK. Re-index to plain lists first.
+        $tables = [
+            ...array_values(self::childTables()),
+            ...array_values(self::parentTables()),
+            self::gettextUnitTable(),
+        ];
+
+        foreach ($tables as $table) {
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
             $wpdb->query('DROP TABLE IF EXISTS ' . $table);
         }

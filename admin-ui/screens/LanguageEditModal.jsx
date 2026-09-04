@@ -62,7 +62,9 @@ export default function LanguageEditModal( { open, lang, onClose, onSaved } ) {
 		<Modal
 			open={ open }
 			onClose={ onClose }
-			title={ `Edit ${ lang.display_name || lang.name || lang.code }` }
+			title={ `Edit ${
+				lang.native_display || lang.name || lang.code
+			}` }
 			primaryAction={ {
 				content: 'Save',
 				onAction: save,

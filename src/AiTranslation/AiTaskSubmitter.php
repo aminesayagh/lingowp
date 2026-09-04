@@ -33,34 +33,6 @@ final class AiTaskSubmitter
     }
 
     /**
-     * Per-target-language AI config for the submit payload's `languages` map:
-     * which provider to bill against (the subscription model is 'platform';
-     * a stored key passes through as 'openai' / 'anthropic') plus the
-     * language's saved writing style, omitted when blank.
-     *
-     * @param string[] $langs
-     * @return array<string, array{provider:string, writing_style?:string}>
-     */
-    private function languageConfig(array $langs): array
-    {
-        $map = [];
-        foreach ($langs as $lang) {
-            $meta     = $this->metadata->get($lang) ?? [];
-            $model    = (string) ($meta['ai_model'] ?? '');
-            $provider = in_array($model, ['openai', 'anthropic'], true) ? $model : 'platform';
-
-            $entry = ['provider' => $provider];
-            $style = trim((string) ($meta['ai_style'] ?? ''));
-            if ($style !== '') {
-                $entry['writing_style'] = $style;
-            }
-            $map[$lang] = $entry;
-        }
-
-        return $map;
-    }
-
-    /**
      * @param array<int, array{ref:\LingoWP\Shared\Source\SourceRef, original:string, group_id:string}> $units
      * @param string[] $langs
      * @return array{error: ?string}
@@ -75,7 +47,7 @@ final class AiTaskSubmitter
         $payload = [
             'source_lang'  => $this->registry->getDefaultLanguage(),
             'target_langs' => $langs,
-            'languages'    => $this->languageConfig($langs),
+            'languages'    => $this->metadata->providerConfig($langs),
             'texts'        => array_map(static fn (array $u): array => [
                 'text'     => $u['original'],
                 'group_id' => $u['group_id'],

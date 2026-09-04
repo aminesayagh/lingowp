@@ -217,6 +217,16 @@ final class CollectionBoard
      */
     public function collectionTexts(string $id, string $lang, string $search, array $filters = [], bool $withFallback = true): ?array
     {
+        if ($id === 'ignored:all') {
+            // Ignored sources have no child translation and no owning-entity
+            // preview (they span every type); the row is view + Restore only.
+            return array_map(
+                fn (array $r): array => $this->presentText($r['kind'], $r, (string) $r['field'])
+                    + ['ignored' => true, 'preview_url' => null, 'preview_target' => 'admin'],
+                $this->repo->listIgnoredTexts($search)
+            );
+        }
+
         if ($id === 'option:site') {
             $optionPreview = ['preview_url' => admin_url('options-general.php'), 'preview_target' => 'admin'];
             $rows          = $this->repo->listOptionTexts($lang, $search, $filters);

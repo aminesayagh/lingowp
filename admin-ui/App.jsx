@@ -91,7 +91,10 @@ export default function App() {
 	// Scopes the blurred backdrop (admin-ui/tailwind.css) to just this modal,
 	// instead of every Polaris Modal in the app.
 	useEffect( () => {
-		document.body.classList.toggle( 'lingowp-onboarding-modal-open', !! step )
+		document.body.classList.toggle(
+			'lingowp-onboarding-modal-open',
+			!! step
+		)
 		return () => {
 			document.body.classList.remove( 'lingowp-onboarding-modal-open' )
 		}

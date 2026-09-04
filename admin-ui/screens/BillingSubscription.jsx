@@ -302,8 +302,6 @@ function NotSubscribedState( {
 	onLoadMoreTransactions,
 	actionLoading,
 	actionError,
-	pendingPlan,
-	pendingApproveUrl,
 	onChoose,
 } ) {
 	const hasHistory = transactions.length > 0
@@ -351,13 +349,6 @@ function NotSubscribedState( {
 						onChange={ setBillingInterval }
 					/>
 				</InlineStack>
-				{ pendingApproveUrl && (
-					<PendingSubscriptionBanner
-						plans={ plans }
-						pendingPlan={ pendingPlan }
-						pendingApproveUrl={ pendingApproveUrl }
-					/>
-				) }
 				{ actionError && (
 					<Banner tone="critical">
 						{ errorMessage( actionError ) }
@@ -413,42 +404,6 @@ function NotSubscribedState( {
 	)
 }
 
-// entitlements.active is false but a PayPal checkout was already started and
-// never finished (closed tab, browser back, etc.) — the backend keeps that
-// approve_url alive rather than losing track of it. This is a notice, not a
-// replacement for the plan picker below: the admin can either resume this
-// checkout, or ignore it and pick a plan (start over) — the latter still 409s
-// (already_subscribed) against the current backend, since there is no
-// cancel-pending action yet; that fails visibly via the picker's own
-// actionError banner rather than being silently blocked here.
-function PendingSubscriptionBanner( {
-	plans,
-	pendingPlan,
-	pendingApproveUrl,
-} ) {
-	const plan = plans.find( ( p ) => p.plan_key === pendingPlan )
-
-	return (
-		<Banner
-			tone="warning"
-			action={ {
-				content: 'Resume checkout',
-				onAction: () => window.location.assign( pendingApproveUrl ),
-			} }
-		>
-			<Text as="span">
-				You started subscribing to{ ' ' }
-				{ plan ? planLabel( plan ) : 'a plan' } but didn&apos;t finish
-				checkout on PayPal. Resume it below, or pick a plan to start
-				over.
-			</Text>
-		</Banner>
-	)
-}
-
-// entitlements.pending_approve_url is surfaced inside NotSubscribedState's
-// own body, not up here — it never replaces the picker, so this stays the
-// same two-way split as before that field existed.
 function SubscriptionStateBody( {
 	entitlements,
 	plans,
@@ -493,8 +448,6 @@ function SubscriptionStateBody( {
 			onLoadMoreTransactions={ onLoadMoreTransactions }
 			actionLoading={ actionLoading }
 			actionError={ actionError }
-			pendingPlan={ entitlements.pending_plan }
-			pendingApproveUrl={ entitlements.pending_approve_url }
 			onChoose={ onChoose }
 		/>
 	)

@@ -41,6 +41,10 @@ import { lengthWarningMessage } from './lengthWarning.mjs'
  */
 
 const AUTOSAVE_DEBOUNCE_MS = 800
+// The AI submit can resolve before the shimmer sweep (1.2s loop, see
+// .lingowp-shimmer) has visibly run. Once it starts (on click), hold it at
+// least this long so a fast backend doesn't make it flash and vanish.
+const MIN_SHIMMER_MS = 1000
 const PANE_HEIGHT = 'min(62vh, 620px)'
 // Polaris' Modal dialog sits at a z-index (519) above a Tooltip's own portal
 // (400) — inside a Modal a Tooltip renders but paints behind it unless
@@ -259,12 +263,18 @@ export default function CompareOverlay( {
 	// changes for this pane's language.
 	async function translate() {
 		setSubmitting( true )
+		const startedAt = Date.now()
 		await flush()
 		await onAiTranslate( 'text', {
 			ref: unit.id,
 			collection_id: collectionId,
 			languages: languages.map( ( l ) => l.code ),
 		} )
+		// Keep the shimmer up for at least one sweep even when the API beat it.
+		const remaining = MIN_SHIMMER_MS - ( Date.now() - startedAt )
+		if ( remaining > 0 ) {
+			await new Promise( ( resolve ) => setTimeout( resolve, remaining ) )
+		}
 		setSubmitting( false )
 	}
 
@@ -285,6 +295,7 @@ export default function CompareOverlay( {
 	const targetLang = languages.find( ( l ) => l.code === language )
 	const targetLabel =
 		targetLang?.display_name ||
+		targetLang?.native_display ||
 		targetLang?.name ||
 		language ||
 		'Translation'
@@ -604,7 +615,10 @@ export default function CompareOverlay( {
 								<ActionList
 									items={ languages.map( ( l ) => ( {
 										content:
-											l.display_name || l.name || l.code,
+											l.display_name ||
+											l.native_display ||
+											l.name ||
+											l.code,
 										active: l.code === language,
 										onAction: () =>
 											withFlush( () => {

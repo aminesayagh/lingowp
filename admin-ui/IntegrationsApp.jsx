@@ -16,11 +16,7 @@ import {
 } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
 import { useCallback, useEffect, useState } from '@wordpress/element'
-import {
-	parseAsString,
-	parseAsStringLiteral,
-	useQueryState,
-} from 'nuqs'
+import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { api } from './api'
 import ConnectionErrorCard from './screens/ConnectionErrorCard'
 import { errorMessage } from './errors'
@@ -68,7 +64,11 @@ const ADDON_IMAGE_SIZE = Math.round( 80 * 0.7 )
 function ActionButton( { label, loading, error, onClick } ) {
 	return (
 		<BlockStack gap="100">
-			<Button loading={ loading } disabled={ loading } onClick={ onClick }>
+			<Button
+				loading={ loading }
+				disabled={ loading }
+				onClick={ onClick }
+			>
 				{ label }
 			</Button>
 			{ error && (
@@ -92,7 +92,9 @@ function NotifyButton( { slug } ) {
 	async function onNotify() {
 		setNotifying( true )
 		setNotifyError( '' )
-		const res = await api.post( `/billing/addons/coming-soon/${ slug }/notify` )
+		const res = await api.post(
+			`/billing/addons/coming-soon/${ slug }/notify`
+		)
 		setNotifying( false )
 		if ( res.ok ) {
 			setNotified( true )
@@ -179,7 +181,12 @@ function AddonAction( { addon, actions } ) {
 	)
 }
 
-function AddonCard( { addon, categories = [], showCategoryChip = true, actions } ) {
+function AddonCard( {
+	addon,
+	categories = [],
+	showCategoryChip = true,
+	actions,
+} ) {
 	const badgeLabel =
 		showCategoryChip && addon.categories?.[ 0 ]
 			? categoryLabel( categories, addon.categories[ 0 ] )
@@ -441,7 +448,10 @@ export default function IntegrationsApp() {
 		'addon_id',
 		parseAsString
 	)
-	const [ tokenParam, setTokenParam ] = useQueryState( 'token', parseAsString )
+	const [ tokenParam, setTokenParam ] = useQueryState(
+		'token',
+		parseAsString
+	)
 
 	// Quiet refresh — no loading spinner, used after a successful install and
 	// by the buy-flow poll loop. The initial/retry load below wraps this with
@@ -477,7 +487,10 @@ export default function IntegrationsApp() {
 	const installAddon = useCallback(
 		async ( addon ) => {
 			setInstallingId( addon.addon_id )
-			setInstallErrors( ( prev ) => ( { ...prev, [ addon.addon_id ]: '' } ) )
+			setInstallErrors( ( prev ) => ( {
+				...prev,
+				[ addon.addon_id ]: '',
+			} ) )
 			const res = await api.post(
 				`/billing/addons/${ addon.addon_id }/install`,
 				{ product: addon.product }
@@ -698,15 +711,15 @@ export default function IntegrationsApp() {
 										) }
 										{ polling && ! polling.gaveUp && (
 											<Banner tone="info">
-												Payment received — updating
-												your account…
+												Payment received — updating your
+												account…
 											</Banner>
 										) }
 										{ polling?.gaveUp && (
 											<Banner tone="warning">
-												Still processing — this can
-												take a minute. Refresh shortly
-												to see the update.
+												Still processing — this can take
+												a minute. Refresh shortly to see
+												the update.
 											</Banner>
 										) }
 										{ loading && (

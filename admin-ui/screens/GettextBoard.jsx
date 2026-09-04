@@ -42,8 +42,11 @@ function codeName( code ) {
 		return code
 	}
 }
+// Board nickname first (display_name), then the language's own canonical
+// label ("Português (Brasil)"), then bare fallbacks.
 const langLabel = ( l ) =>
-	l && ( l.display_name || l.name || codeName( l.code || l ) )
+	l &&
+	( l.display_name || l.native_display || l.name || codeName( l.code || l ) )
 
 const oneLineStyle = {
 	all: 'unset',
@@ -240,7 +243,6 @@ export default function GettextBoard( {
 		},
 		[ measureOwnHeader ]
 	)
-	const [ manualKeys, setManualKeys ] = useState( () => new Set() )
 	const [ langSwitcherOpen, setLangSwitcherOpen ] = useState( false )
 	// Row-level "⋯" menu (Translate all) — same hover/open-reveal idea as the
 	// Content board's own CollectionGroup menu. Only one row can be
@@ -574,10 +576,6 @@ export default function GettextBoard( {
 		}
 	}
 
-	function startManual( key ) {
-		setManualKeys( ( prev ) => new Set( prev ).add( key ) )
-	}
-
 	// Per-component "Translate all" — the async queue counterpart to the
 	// header's board-wide button. Same auto-continue-on-`more` loop; polling
 	// (pollWhileGettextRowsPending/pollWhileGettextUnitsPending above) is what
@@ -840,7 +838,8 @@ export default function GettextBoard( {
 			{ rows.map( ( row, i ) => {
 				const key = rowKey( row )
 				const open = openKeys.has( key )
-				const showEditor = row.status !== null || manualKeys.has( key )
+				const revealed =
+					hoveredRowKey === key || menuOpenRowKey === key
 
 				return (
 					<Box key={ key }>
@@ -938,89 +937,29 @@ export default function GettextBoard( {
 												{ `Translating ${ row.ai_pending }…` }
 											</Badge>
 										) }
-										{ aiAvailable &&
-											row.translated_percent !== 100 && (
-												<motion.div
-													animate={ {
-														opacity:
-															hoveredRowKey ===
-																key ||
-															menuOpenRowKey ===
-																key
-																? 1
-																: 0,
-													} }
-													transition={ {
-														duration: 0.12,
-													} }
-													style={ {
-														visibility:
-															hoveredRowKey ===
-																key ||
-															menuOpenRowKey ===
-																key
-																? 'visible'
-																: 'hidden',
-													} }
-												>
-													<Popover
-														active={
-															menuOpenRowKey ===
-															key
-														}
-														onClose={ () =>
-															setMenuOpenRowKey(
-																null
-															)
-														}
-														activator={
-															<Button
-																size="micro"
-																variant="tertiary"
-																icon={
-																	MenuHorizontalIcon
-																}
-																accessibilityLabel="More actions"
-																loading={ translatingComponents.has(
-																	key
-																) }
-																onClick={ () =>
-																	setMenuOpenRowKey(
-																		( k ) =>
-																			k ===
-																			key
-																				? null
-																				: key
-																	)
-																}
-															/>
-														}
-													>
-														<ActionList
-															items={ [
-																{
-																	content:
-																		'Translate all',
-																	onAction: () => {
-																		setMenuOpenRowKey(
-																			null
-																		)
-																		if (
-																			billingBlocked
-																		) {
-																			onAiBlocked?.()
-																		} else {
-																			translateAllInComponent(
-																				row
-																			)
-																		}
-																	},
-																},
-															] }
-														/>
-													</Popover>
-												</motion.div>
+										<GettextRowMenu
+											row={ row }
+											revealed={ revealed }
+											active={ menuOpenRowKey === key }
+											translating={ translatingComponents.has(
+												key
 											) }
+											onToggle={ () =>
+												setMenuOpenRowKey( ( k ) =>
+													k === key ? null : key
+												)
+											}
+											onClose={ () =>
+												setMenuOpenRowKey( null )
+											}
+											aiAvailable={ aiAvailable }
+											billingBlocked={ billingBlocked }
+											onAiBlocked={ onAiBlocked }
+											onTranslateAll={ () =>
+												translateAllInComponent( row )
+											}
+											onImported={ reload }
+										/>
 									</InlineStack>
 								</InlineStack>
 							</Box>
@@ -1028,34 +967,23 @@ export default function GettextBoard( {
 						<Collapsible open={ open }>
 							<Box
 								paddingInlineStart="1000"
-								paddingBlockStart={
-									showEditor ? undefined : '300'
-								}
 								paddingBlockEnd="300"
 							>
-								{ showEditor ? (
-									<GettextUnitList
-										row={ row }
-										search={ search }
-										untranslatedOnly={ untranslatedOnly }
-										targetDir={ targetDir }
-										onConfirm={ onConfirm }
-										sourceLabel={ sourceLabel }
-										sourceFlag={ sourceFlag }
-										languages={ languages }
-										aiAvailable={ aiAvailable }
-										billingBlocked={ billingBlocked }
-										onAiBlocked={ onAiBlocked }
-										onPickLanguage={ onPickLanguage }
-										onAiUnavailable={ onAiUnavailable }
-									/>
-								) : (
-									<GettextRowActions
-										row={ row }
-										onImported={ reload }
-										onManual={ () => startManual( key ) }
-									/>
-								) }
+								<GettextUnitList
+									row={ row }
+									search={ search }
+									untranslatedOnly={ untranslatedOnly }
+									targetDir={ targetDir }
+									onConfirm={ onConfirm }
+									sourceLabel={ sourceLabel }
+									sourceFlag={ sourceFlag }
+									languages={ languages }
+									aiAvailable={ aiAvailable }
+									billingBlocked={ billingBlocked }
+									onAiBlocked={ onAiBlocked }
+									onPickLanguage={ onPickLanguage }
+									onAiUnavailable={ onAiUnavailable }
+								/>
 							</Box>
 						</Collapsible>
 					</Box>
@@ -1076,7 +1004,27 @@ export default function GettextBoard( {
 	)
 }
 
-function GettextRowActions( { row, onImported, onManual } ) {
+// The row's "⋯" menu — same hover-reveal treatment as the Content board's own
+// CollectionGroup menu. Always rendered now (not gated on aiAvailable): "Import
+// .po" is offered at every stage — before any translation exists, over a
+// wordpress.org language pack, or over a partial manual translation — so
+// re-importing is never a dead end. "Translate all" is still added only when AI
+// can act on this row. The editable string table itself lives in the expanded
+// row body (GettextUnitList), reached just by opening the row.
+function GettextRowMenu( {
+	row,
+	revealed,
+	active,
+	translating,
+	onToggle,
+	onClose,
+	aiAvailable,
+	billingBlocked,
+	onAiBlocked,
+	onTranslateAll,
+	onImported,
+} ) {
+	const queryClient = useQueryClient()
 	const [ importing, setImporting ] = useState( false )
 	const [ error, setError ] = useState( '' )
 	const fileRef = useRef( null )
@@ -1113,6 +1061,17 @@ function GettextRowActions( { row, onImported, onManual } ) {
 			const data = await res.json()
 			if ( data.ok ) {
 				onImported()
+				// An already-open editor for this row caches its own string
+				// list — refresh it so imported translations show without
+				// collapsing and reopening.
+				queryClient.invalidateQueries( {
+					queryKey: [
+						'gettext-units',
+						row.type,
+						row.domain,
+						row.locale,
+					],
+				} )
 			} else {
 				setError(
 					'Import failed — please check the file and try again.'
@@ -1124,33 +1083,66 @@ function GettextRowActions( { row, onImported, onManual } ) {
 		setImporting( false )
 	}
 
+	const items = [
+		{
+			content: 'Import .po',
+			onAction: () => {
+				onClose()
+				fileRef.current?.click()
+			},
+		},
+	]
+	if ( aiAvailable && row.translated_percent !== 100 ) {
+		items.push( {
+			content: 'Translate all',
+			onAction: () => {
+				onClose()
+				if ( billingBlocked ) {
+					onAiBlocked?.()
+				} else {
+					onTranslateAll()
+				}
+			},
+		} )
+	}
+
 	return (
-		<BlockStack gap="200">
-			<InlineStack gap="200">
-				<Button
-					size="slim"
-					loading={ importing }
-					onClick={ () => fileRef.current?.click() }
+		<InlineStack gap="100" blockAlign="center" wrap={ false }>
+			<motion.div
+				animate={ { opacity: revealed ? 1 : 0 } }
+				transition={ { duration: 0.12 } }
+				style={ { visibility: revealed ? 'visible' : 'hidden' } }
+			>
+				<Popover
+					active={ active }
+					onClose={ onClose }
+					activator={
+						<Button
+							size="micro"
+							variant="tertiary"
+							icon={ MenuHorizontalIcon }
+							accessibilityLabel="More actions"
+							loading={ translating || importing }
+							onClick={ onToggle }
+						/>
+					}
 				>
-					Import .po
-				</Button>
-				<input
-					ref={ fileRef }
-					type="file"
-					accept=".po"
-					hidden
-					onChange={ onFileChosen }
-				/>
-				<Button size="slim" onClick={ onManual }>
-					Translate manually
-				</Button>
-			</InlineStack>
+					<ActionList items={ items } />
+				</Popover>
+			</motion.div>
+			<input
+				ref={ fileRef }
+				type="file"
+				accept=".po"
+				hidden
+				onChange={ onFileChosen }
+			/>
 			{ error && (
-				<Text as="p" tone="critical" variant="bodySm">
+				<Text as="span" tone="critical" variant="bodySm">
 					{ error }
 				</Text>
 			) }
-		</BlockStack>
+		</InlineStack>
 	)
 }
 

@@ -4,6 +4,7 @@ namespace LingoWP\Language\Application;
 
 use LingoWP\Language\Domain\LanguageRegistry;
 use LingoWP\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
 
 /**
  * Decides the active language for the current request.
@@ -226,6 +227,11 @@ class ResolveRequestLanguage
     /**
      * Same as validate(), but also accepts a draft target language — used only
      * by resolveFromPreview(), which is already gated on edit_posts.
+     *
+     * A never-published draft lives in the language metadata option only: it is
+     * added to the active/existing rosters (isEnabledLanguage/existingLanguages)
+     * only when published, so previewing one needs the metadata check too —
+     * that's the whole point of the preview URL.
      */
     private function validatePreviewable(string $lang): ?string
     {
@@ -234,7 +240,9 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->isEnabledLanguage($lang) || in_array($lang, $this->registry->existingLanguages(), true)
+        return $this->isEnabledLanguage($lang)
+            || in_array($lang, $this->registry->existingLanguages(), true)
+            || (new LanguageMetadataStore())->has($lang)
             ? $lang
             : null;
     }

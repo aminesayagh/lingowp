@@ -119,7 +119,11 @@ export default function Configuration( {
 			) }
 
 			<InlineStack align="end">
-				<Button variant="primary" loading={ submitting } onClick={ submit }>
+				<Button
+					variant="primary"
+					loading={ submitting }
+					onClick={ submit }
+				>
 					Continue
 				</Button>
 			</InlineStack>

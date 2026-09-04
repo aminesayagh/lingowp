@@ -69,6 +69,14 @@ final class LanguageRestController
         foreach ($this->store->all() as $code => $entry) {
             $entry['enabled'] = in_array($code, $active, true);
 
+            // The canonical label every screen shows ("Português (Brasil)").
+            // The stored display_name is a workspace-board-only nickname and is
+            // left untouched here.
+            $entry['native_display'] = WordPressLanguageCatalog::nativeDisplay(
+                $code,
+                (string) ($entry['name'] ?? strtoupper($code))
+            );
+
             $progress                    = $this->repo->languageProgress($code);
             $entry['total_texts']        = $progress['total'];
             $entry['translated_texts']   = $progress['translated'];
@@ -272,7 +280,9 @@ final class LanguageRestController
                     'locale'            => $code,
                     'region'            => $entry['region'],
                     'name'              => $entry['english_name'],
-                    'display_name'      => $entry['language_name'] . ' (' . $this->regionLabel($entry) . ')',
+                    // Workspace-board nickname only — left empty on bulk add;
+                    // every screen falls back to the canonical native label.
+                    'display_name'      => '',
                     'slug'              => $slug,
                     'fallback_language' => $this->smartFallback($entry['language'], $defaultCode),
                     'ai_style'          => $aiStyle,
@@ -307,14 +317,6 @@ final class LanguageRestController
             'skipped'   => $skipped,
             'next'      => 'dashboard_workspace',
         ]);
-    }
-
-    /** Same "region — variant" label shape the SPA's own regionLabel() builds for the region <Select>. */
-    private function regionLabel(array $catalogEntry): string
-    {
-        $label = $catalogEntry['region_name'] !== '' ? $catalogEntry['region_name'] : ($catalogEntry['region'] !== '' ? $catalogEntry['region'] : 'General');
-
-        return $catalogEntry['variant_name'] !== '' ? $label . ' — ' . $catalogEntry['variant_name'] : $label;
     }
 
     /**

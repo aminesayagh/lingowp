@@ -678,6 +678,15 @@ final class WpDbSourceRepository
     }
 
     /**
+     * Every ignored source across all parent tables, for the synthetic
+     * "ignored:all" board collection. Language-global (ignore deletes children).
+     */
+    public function listIgnoredTexts(string $search = ''): array
+    {
+        return $this->board->listIgnoredTexts($search);
+    }
+
+    /**
      * Aggregate translation progress for one language across the content tables
      * (post, meta, term, option, html) — for the rail's per-language percentage.
      *

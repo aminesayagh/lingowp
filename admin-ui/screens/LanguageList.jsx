@@ -142,15 +142,23 @@ export function LanguageRow( {
 	showProgress,
 	onSelect,
 	onEdit,
+	onTranslateAll,
 	onToggleStatus,
 	onUseFallback,
 	onSwitchToInternal,
 	onDelete,
+	// Draft languages show a desaturated flag in the sidebar rail so their
+	// unpublished state reads at a glance. The language manager modal turns
+	// this off (flagGrayscale={false}) — there the row's own status control
+	// already says it, and the greyed flag just looked broken next to it.
+	flagGrayscale = true,
 } ) {
 	const [ hover, setHover ] = useState( false )
 	const [ menuOpen, setMenuOpen ] = useState( false )
+	// The canonical label, "Português (Brasil)" — never the workspace-board
+	// nickname (lang.display_name), which belongs on the board alone.
 	const name =
-		( lang.display_name || lang.name || lang.code ).trim() || lang.code
+		( lang.native_display || lang.name || lang.code ).trim() || lang.code
 
 	const items = [
 		onEdit && {
@@ -158,6 +166,15 @@ export function LanguageRow( {
 			onAction: () => {
 				setMenuOpen( false )
 				onEdit()
+			},
+		},
+		// AI-translate every still-missing text in this language, without having
+		// to select it first. Parent only passes the handler when AI is usable.
+		onTranslateAll && {
+			content: 'Translate all',
+			onAction: () => {
+				setMenuOpen( false )
+				onTranslateAll()
 			},
 		},
 		// Only shown when this language currently translates through the user's
@@ -235,7 +252,7 @@ export function LanguageRow( {
 			<FlagIcon
 				src={ flagIconUrl( lang ) }
 				size={ 16 }
-				grayscale={ ! lang.enabled }
+				grayscale={ flagGrayscale && ! lang.enabled }
 			/>
 			<span
 				style={ {
@@ -306,6 +323,7 @@ export default function LanguageList( {
 	selectedCode,
 	onSelect,
 	onEdit,
+	onTranslateAll,
 	onToggleStatus,
 	onUseFallback,
 	onSwitchToInternal,
@@ -313,6 +331,9 @@ export default function LanguageList( {
 	onAdd,
 	addLabel = '+ Add language',
 	showProgress = true,
+	// Passed straight to each row — see LanguageRow. Sidebar keeps the default
+	// (draft flags desaturated); the language manager modal sets it false.
+	flagGrayscale = true,
 	// Caps the row list to its own scrollbar instead of growing forever —
 	// e.g. the dashboard rail's Target language section, so a long roster
 	// doesn't push the "+ Add language" button and everything below it (the
@@ -326,9 +347,7 @@ export default function LanguageList( {
 		<BlockStack gap="300">
 			<div
 				style={
-					maxHeight
-						? { maxHeight, overflowY: 'auto' }
-						: undefined
+					maxHeight ? { maxHeight, overflowY: 'auto' } : undefined
 				}
 			>
 				{ sorted.map( ( lang ) => (
@@ -338,10 +357,16 @@ export default function LanguageList( {
 						selected={ lang.code === selectedCode }
 						percent={ lang.translated_percent ?? 0 }
 						showProgress={ showProgress }
+						flagGrayscale={ flagGrayscale }
 						onSelect={
 							onSelect ? () => onSelect( lang ) : undefined
 						}
 						onEdit={ onEdit ? () => onEdit( lang ) : undefined }
+						onTranslateAll={
+							onTranslateAll
+								? () => onTranslateAll( lang )
+								: undefined
+						}
 						onToggleStatus={
 							onToggleStatus
 								? () => onToggleStatus( lang )

@@ -31,6 +31,8 @@ if (!function_exists('lingowp_get_language_links')) {
      *     'native_name'  => 'Français',
      *     'english_name' => 'French',
      *     'dir'          => 'ltr',     // 'ltr' | 'rtl'
+     *     'region'       => 'FR',      // ISO-3166 region from the locale, or ''
+     *     'flag_url'     => 'https://example.com/wp-content/plugins/lingowp/assets/flags/fr.svg', // '' when none maps
      *     'is_source'    => false,
      *     'current'      => true,      // the active request language
      *   ]
@@ -57,10 +59,19 @@ if (!function_exists('lingowp_get_switcher')) {
      * The bundled language switcher markup as a string.
      *
      * @param array<string, mixed> $args {
-     *   @type string $display       'native' (default) | 'english' | 'code'.
-     *   @type string $layout        'dropdown' (default) | 'inline' | 'list'.
-     *   @type bool   $hide_current  Drop the active language. Default false.
-     *   @type string $class         Extra CSS classes for the wrapper.
+     *   @type string          $display        'native' (default) | 'english' | 'code'.
+     *   @type string          $layout         'dropdown' (default) | 'inline' | 'list'.
+     *   @type bool|string      $flags          true | false | 'only'. Default: true for
+     *                                          dropdown, false for inline/list.
+     *   @type string          $flag_fallback  'globe' (default) | 'code' | 'none'.
+     *   @type string          $size           'lg' (default) | 'md' | 'sm'.
+     *   @type bool            $shadow         Drop shadow on the control. Default true.
+     *   @type bool            $hide_current   Drop the active language. Default false.
+     *   @type string          $label          Wrapper aria-label. Default "Language".
+     *   @type string          $id             Wrapper id. Default none.
+     *   @type string          $class          Extra CSS classes for the wrapper.
+     *   @type string[]        $include        Keep only these locales, in this order.
+     *   @type string|string[] $order          'settings' (default), 'alpha', or a locale list.
      * }
      */
     function lingowp_get_switcher(array $args = []): string

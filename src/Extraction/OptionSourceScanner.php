@@ -63,6 +63,16 @@ final class OptionSourceScanner
             }
 
             $value   = maybe_unserialize(get_option($optionName));
+
+            // WordPress mirrors sidebars_widgets into theme_mods (retrieve_widgets()).
+            // Its leaves are widget IDs and sidebar-assignment bookkeeping
+            // ("block-2", "wp_inactive_widgets", …), never translatable text —
+            // strip it before the recursive walk so those slugs don't pass
+            // looksTranslatable() and land in the Site settings collection.
+            if ($optionName === 'theme_mods_' . get_stylesheet() && is_array($value)) {
+                unset($value['sidebars_widgets']);
+            }
+
             $records = [];
 
             foreach ((array) $paths as $path) {

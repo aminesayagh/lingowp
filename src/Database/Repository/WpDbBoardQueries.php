@@ -17,6 +17,21 @@ final class WpDbBoardQueries
 {
     private \wpdb $wpdb;
 
+    /**
+     * ORDER BY fragment that puts a post/term's title row first, then body, then
+     * excerpt, then every other field. Plain `ORDER BY p.field` sorts the literal
+     * column name alphabetically — post_content, post_excerpt, post_title and
+     * term description, name — which buries the title at the bottom of the group.
+     * Compile-time constant, spliced into SQL, never bound — no request input.
+     */
+    private const FIELD_SORT = "CASE p.field
+                WHEN 'post_title' THEN 1
+                WHEN 'name' THEN 1
+                WHEN 'post_content' THEN 2
+                WHEN 'description' THEN 2
+                WHEN 'post_excerpt' THEN 3
+                ELSE 4 END";
+
     public function __construct(\wpdb $wpdb)
     {
         $this->wpdb = $wpdb;
@@ -81,7 +96,7 @@ final class WpDbBoardQueries
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.post_id = %d AND p.status = %d
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn})){$match}
-                ORDER BY p.field, p.id";
+                ORDER BY " . self::FIELD_SORT . ", p.field, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
@@ -257,6 +272,7 @@ final class WpDbBoardQueries
             'total'            => (int) $r['total'],
             'translated'       => (int) $r['translated'],
             'needs_review'     => (int) $r['needs_review'],
+            'pending'          => (int) $r['pending'],
             'missing'          => (int) $r['missing'],
         ], (array) $rows);
     }
@@ -272,7 +288,7 @@ final class WpDbBoardQueries
                 FROM {$parent} p
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.term_taxonomy_id = %d AND p.status = %d
-                ORDER BY p.field, p.id";
+                ORDER BY " . self::FIELD_SORT . ", p.field, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
@@ -303,7 +319,7 @@ final class WpDbBoardQueries
                 JOIN {$terms} tm ON tm.term_id = tx.term_id
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE tx.taxonomy = %s AND p.status = %d{$match}
-                ORDER BY tm.name, p.field, p.id";
+                ORDER BY tm.name, " . self::FIELD_SORT . ", p.field, p.id";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
@@ -436,6 +452,7 @@ final class WpDbBoardQueries
             'total'        => (int) $r['total'],
             'translated'   => (int) $r['translated'],
             'needs_review' => (int) $r['needs_review'],
+            'pending'      => (int) $r['pending'],
             'missing'      => (int) $r['missing'],
         ], (array) $rows);
     }
@@ -494,7 +511,7 @@ final class WpDbBoardQueries
                 WHERE wp.post_type = 'attachment' AND wp.post_mime_type LIKE 'image/%%'
                       AND wp.post_status IN ({$statusIn})
                       AND p.status = %d{$match}
-                ORDER BY wp.post_title, p.field, p.id";
+                ORDER BY wp.post_title, " . self::FIELD_SORT . ", p.field, p.id";
 
         $args = array_merge([$langCode], $statusArgs, [TranslationStatus::SOURCE_DISCOVERED], $matchArgs);
 
@@ -614,6 +631,61 @@ final class WpDbBoardQueries
             return $unit;
         }, (array) $rows);
     }
+
+    /**
+     * Every ignored source (parent status -1) across all seven parent tables,
+     * flattened into one board-row list for the synthetic "ignored:all"
+     * collection. Language-global on purpose: ignoreSource() deletes the child
+     * translations, so an ignored source is untranslated in every language and
+     * the list is identical whichever language the board is on — no child join,
+     * no fallbacks. Each row carries its `kind` so CollectionBoard can build the
+     * right SourceRef for the row-level Restore action.
+     *
+     * The per-table `kind` literal and column names are compile-time constants
+     * from this method, never request input — spliced, not bound, like FIELD_SORT.
+     */
+    public function listIgnoredTexts(string $search = ''): array
+    {
+        $p = TranslationMemorySchema::parentTables();
+        // kind => [table, display-field column, original_hash expression]
+        $sources = [
+            'post'      => [$p['post'],      'field',       'LOWER(HEX(original_hash))'],
+            'meta'      => [$p['meta'],      'meta_key',    'NULL'],
+            'term'      => [$p['term'],      'field',       'LOWER(HEX(original_hash))'],
+            'term_meta' => [$p['term_meta'], 'meta_key',    'NULL'],
+            'option'    => [$p['option'],    'option_name', 'LOWER(HEX(original_hash))'],
+            'user'      => [$p['user'],      'field',       'LOWER(HEX(original_hash))'],
+            'html'      => [$p['html'],      'selector',    'LOWER(HEX(original_hash))'],
+        ];
+
+        $like    = $search === '' ? null : '%' . $this->wpdb->esc_like($search) . '%';
+        $selects = [];
+        $args    = [];
+        foreach ($sources as $kind => [$table, $fieldCol, $hashExpr]) {
+            $where  = 'status = %d';
+            $args[] = TranslationStatus::SOURCE_IGNORED;
+            if ($like !== null) {
+                $where .= ' AND original_text LIKE %s';
+                $args[] = $like;
+            }
+            $selects[] = "SELECT '{$kind}' AS kind, id AS id, original_text AS original_text,
+                                 {$hashExpr} AS original_hash, {$fieldCol} AS field,
+                                 NULL AS translated_text, NULL AS status, NULL AS provider,
+                                 NULL AS ai_pending_since, NULL AS ai_error
+                          FROM {$table} WHERE {$where}";
+        }
+        $sql = implode("\nUNION ALL\n", $selects) . "\nORDER BY kind, field, id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit         = $this->textUnitRow($r);
+            $unit['kind'] = (string) $r['kind'];
+            return $unit;
+        }, (array) $rows);
+    }
+
     public function languageProgress(string $langCode): array
     {
         $total = 0;
@@ -637,14 +709,15 @@ final class WpDbBoardQueries
     /**
      * @return array{0:int, 1:int} [total sources, done translations] for one table + language.
      *
-     * "done" here counts anything other than untouched (child status default
-     * 0 -- includes a still-pending AI job, which never writes status) or no
-     * row at all: machine (1), reviewed (2), AND needs_review (-1) all count.
-     * The sidebar's per-language percentage is meant to read "how much of
-     * this language has *some* translation", not "how much is fully signed
-     * off" -- needs_review already has translated text, it's just flagged
-     * for a human look, so `status > 0` alone was undercounting it as if it
-     * were untranslated.
+     * "done" = the child row actually holds translated text
+     * (`translated_text IS NOT NULL`), which is the same set the board's own
+     * per-collection totals count: machine (1), reviewed (2) AND needs_review
+     * (-1) all count, because the sidebar percentage reads "how much of this
+     * language has *some* translation", not "how much is signed off". It is NOT
+     * `status <> 0`: a still-pending AI job leaves status 0 (correctly excluded),
+     * but a row flagged needs_review with its text since cleared, or otherwise
+     * left with a non-zero status and no text, must not count — checking the
+     * text directly keeps this honest whatever the status says.
      */
     private function countTable(string $tableKey, bool $parentId, string $langCode): array
     {
@@ -663,7 +736,7 @@ final class WpDbBoardQueries
             $posts = $this->wpdb->posts;
             [$statusIn, $statusArgs] = $this->postStatusClause();
 
-            $sql = "SELECT COUNT(*) AS total, SUM(t.status <> 0) AS done
+            $sql = "SELECT COUNT(*) AS total, SUM(t.translated_text IS NOT NULL) AS done
                     FROM {$parent} p
                     JOIN {$posts} wp ON wp.ID = p.post_id
                     LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
@@ -671,7 +744,7 @@ final class WpDbBoardQueries
             $args[] = TranslationStatus::SOURCE_DISCOVERED;
             array_push($args, ...$statusArgs);
         } else {
-            $sql = "SELECT COUNT(*) AS total, SUM(t.status <> 0) AS done
+            $sql = "SELECT COUNT(*) AS total, SUM(t.translated_text IS NOT NULL) AS done
                     FROM {$parent} p
                     LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
                     WHERE p.status = %d";

@@ -59,18 +59,30 @@ LingoWP exposes a small template API for building your own language switcher.
 
 `lingowp_get_language_links( array $args = [] )` returns the current page's URL
 in every enabled language, as an array of rows with keys `code`, `slug`, `url`
-(absolute), `native_name`, `english_name`, `dir` (`ltr`/`rtl`), `is_source`, and
-`current`. Values are raw — escape at output. It runs no database query and is
-memoized per request. Args: `hide_current` (bool), `include` (array of locale
-codes), `order` (`settings`, `alpha`, or an explicit array of codes).
+(absolute), `native_name`, `english_name`, `dir` (`ltr`/`rtl`), `region` (ISO
+region from the locale, or empty), `flag_url` (bundled flag SVG, or empty when
+none maps), `is_source`, and `current`. Values are raw — escape at output. It
+runs no database query and is memoized per request. Args: `hide_current`
+(bool), `include` (array of locale codes), `order` (`settings`, `alpha`, or an
+explicit array of codes).
 
 `lingowp_get_switcher( array $args = [] )` returns the bundled switcher markup;
 `lingowp_switcher( array $args = [] )` echoes it. Args: `display` (`native`,
-`english`, `code`), `layout` (`dropdown`, `inline`, `list`), `hide_current`,
-`class`.
+`english`, `code`), `layout` (`dropdown`, `inline`, `list`), `flags` (`true`,
+`false`, or `only` — default `true` for `dropdown`, `false` otherwise; `only`
+keeps the label for screen readers), `flag_fallback` (`globe`, `code`, `none`
+— shown when a language has no bundled flag), `size` (`lg` default, `md`, `sm`),
+`shadow` (`true` default; `false` removes the control's drop shadow),
+`hide_current`, `label` (the wrapper's aria-label), `id`, `class`, `include`,
+`order`.
 
-The `[lingowp_language_switcher]` shortcode accepts the same attributes and works
-in every page builder.
+The dropdown is a native `<details>` element and works without JavaScript; a
+small bundled script adds `aria-expanded`, close-on-Escape / click-outside, and
+arrow-key navigation when it loads.
+
+The `[lingowp_language_switcher]` shortcode accepts the same attributes (as
+strings; `include`/`order` take a comma-separated list) and works in every page
+builder.
 
 Filter `lingowp_language_links` ( `array $links`, `array $args` ) to reorder,
 relabel, or drop languages once for every switcher surface at the same time.

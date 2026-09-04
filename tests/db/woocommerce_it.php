@@ -443,7 +443,9 @@ $zeroRatedResult = TaxRateLabelResolver::translate('ZQWOOIT VAT Updated', 'zero-
 test_ok('a non-numeric sentinel key (e.g. "zero-rated") is left untouched', $zeroRatedResult === 'ZQWOOIT VAT Updated');
 
 $rateSummary = $repo->optionCollectionSummary($lang);
-test_ok('board summary (option:site) sees the translated tax rate name too', $rateSummary['total'] >= 2 && $rateSummary['translated'] >= 2);
+// Section 5 already deleted the attribute label's source row (asserted above),
+// so the tax rate name is the only translated option row alive here — >= 1, not >= 2.
+test_ok('board summary (option:site) sees the translated tax rate name too', $rateSummary['total'] >= 1 && $rateSummary['translated'] >= 1);
 
 WC_Tax::_delete_tax_rate($rateId2);
 $afterRateDelete = get_option(TaxRateSync::OPTION_NAME);

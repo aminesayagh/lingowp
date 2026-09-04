@@ -38,15 +38,24 @@ class SupportedLanguages
     }
 
     /**
-     * The language's name in its own language, e.g. "Français", "Español".
-     * Falls back to the English name, then the uppercased code.
+     * The language written in its own language, with its region:
+     * "Português (Brasil)", "Français (Canada)", "日本語". Every visitor- and
+     * admin-facing surface shows this. A user-typed workspace name is a
+     * separate label that lives only on the workspace board — it is applied
+     * there, never here.
+     *
+     * Falls back to the stored English name, then the uppercased code.
      */
     public function nativeLabel(string $code): string
     {
-        $stored = $this->store->get($code);
-        if ($stored !== null) {
-            return (string) ($stored['display_name'] ?: ($stored['name'] ?? strtoupper($code)));
+        $stored   = $this->store->get($code);
+        $fallback = (string) ($stored['name'] ?? '');
+
+        $native = WordPressLanguageCatalog::nativeDisplay($code, $fallback);
+        if ($native !== '') {
+            return $native;
         }
+
         $all = self::all();
 
         return $all[$code]['native'] ?? ($all[$code]['name'] ?? strtoupper($code));

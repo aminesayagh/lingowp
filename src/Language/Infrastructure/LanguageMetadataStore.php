@@ -146,7 +146,8 @@ final class LanguageMetadataStore
      * 422 if omitted; every AI-translate call site must send it). Provider
      * resolves from ai_model (openai/anthropic pass through, anything else —
      * including the default 'auto' — becomes 'platform'); writing_style is
-     * included only when set, matching the backend's optional field.
+     * included only when set AND provider is 'platform' (it's a
+     * subscription-model feature — see the guard below).
      *
      * @param string[] $langs
      * @return array<string, array{provider: string, writing_style?: string}>
@@ -160,8 +161,12 @@ final class LanguageMetadataStore
             $provider = in_array($model, ['openai', 'anthropic'], true) ? $model : 'platform';
 
             $entry = ['provider' => $provider];
+            // Writing style is a subscription-model feature: a BYOK
+            // (openai/anthropic) language never sends it, even if an older
+            // ai_style value is still stored. The settings form disables the
+            // field for these languages too.
             $style = trim((string) ($meta['ai_style'] ?? ''));
-            if ($style !== '') {
+            if ($provider === 'platform' && $style !== '') {
                 $entry['writing_style'] = $style;
             }
             $map[$lang] = $entry;

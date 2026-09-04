@@ -31,7 +31,12 @@ const PROVIDER_OPTIONS = PROVIDERS.map( ( p ) => ( {
 	label: p.label,
 	value: p.id,
 } ) )
-const EMPTY_ROW = { provider: PROVIDERS[ 0 ].id, draft: '', saving: false, error: '' }
+const EMPTY_ROW = {
+	provider: PROVIDERS[ 0 ].id,
+	draft: '',
+	saving: false,
+	error: '',
+}
 
 function providerLabel( id ) {
 	return PROVIDERS.find( ( p ) => p.id === id )?.label || id
@@ -41,7 +46,9 @@ function relativeTime( iso ) {
 	if ( ! iso ) {
 		return ''
 	}
-	const mins = Math.round( ( Date.now() - new Date( iso ).getTime() ) / 60000 )
+	const mins = Math.round(
+		( Date.now() - new Date( iso ).getTime() ) / 60000
+	)
 	if ( mins < 1 ) {
 		return 'just now'
 	}
@@ -95,7 +102,9 @@ export default function AiConfiguration( {
 	const [ applying, setApplying ] = useState( false )
 	const [ bulkNotice, setBulkNotice ] = useState( null ) // { tone, content } | null
 
-	const activeEntry = providerKeys ? Object.entries( providerKeys )[ 0 ] : undefined
+	const activeEntry = providerKeys
+		? Object.entries( providerKeys )[ 0 ]
+		: undefined
 
 	const fetchProviderKeys = useCallback( () => {
 		setProviderKeysError( '' )
@@ -134,9 +143,14 @@ export default function AiConfiguration( {
 		updateRow( { saving: true, error: '' } )
 
 		if ( activeEntry && activeEntry[ 0 ] !== provider ) {
-			const delRes = await api.del( `/provider-keys/${ activeEntry[ 0 ] }` )
+			const delRes = await api.del(
+				`/provider-keys/${ activeEntry[ 0 ] }`
+			)
 			if ( ! delRes.ok && delRes.error !== 'ERR_NOT_FOUND' ) {
-				updateRow( { saving: false, error: delRes.error || 'ERR_UNREACHABLE' } )
+				updateRow( {
+					saving: false,
+					error: delRes.error || 'ERR_UNREACHABLE',
+				} )
 				return
 			}
 			setProviderKeys( {} )
@@ -151,7 +165,10 @@ export default function AiConfiguration( {
 			updateRow( { saving: false, draft: '', error: '' } )
 			onKeysChanged?.()
 		} else {
-			updateRow( { saving: false, error: res.error || 'ERR_UNREACHABLE' } )
+			updateRow( {
+				saving: false,
+				error: res.error || 'ERR_UNREACHABLE',
+			} )
 		}
 	}
 
@@ -188,7 +205,8 @@ export default function AiConfiguration( {
 		providerKeys: providerKeysList,
 	} )
 	const resolvedBulkModel =
-		bulkModel && modelOptions.some( ( option ) => option.value === bulkModel )
+		bulkModel &&
+		modelOptions.some( ( option ) => option.value === bulkModel )
 			? bulkModel
 			: modelOptions[ 0 ]?.value ?? 'auto'
 
@@ -222,8 +240,8 @@ export default function AiConfiguration( {
 					AI provider keys
 				</Text>
 				<Text as="p" tone="subdued">
-					Bill translations to your own OpenAI or Anthropic
-					account instead of your LingoWP subscription.
+					Bill translations to your own OpenAI or Anthropic account
+					instead of your LingoWP subscription.
 				</Text>
 				{ providerKeysError && (
 					<Banner
@@ -238,7 +256,10 @@ export default function AiConfiguration( {
 				) }
 				{ providerKeys === null ? (
 					<InlineStack gap="100" blockAlign="center">
-						<Spinner accessibilityLabel="Loading keys" size="small" />
+						<Spinner
+							accessibilityLabel="Loading keys"
+							size="small"
+						/>
 					</InlineStack>
 				) : (
 					<BlockStack gap="150">
@@ -247,7 +268,11 @@ export default function AiConfiguration( {
 								{ errorMessage( row.error ) }
 							</Banner>
 						) }
-						<InlineStack gap="200" blockAlign="start" wrap={ false }>
+						<InlineStack
+							gap="200"
+							blockAlign="start"
+							wrap={ false }
+						>
 							<div style={ { width: 160 } }>
 								<Select
 									label="Service"

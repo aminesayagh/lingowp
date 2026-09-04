@@ -7,6 +7,8 @@ use LingoWP\Language\Domain\LocaleNormalizer;
 use LingoWP\AiTranslation\AiResultCollector;
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Shared\Source\SourceRef;
+use LingoWP\Shared\Source\TranslationStatus;
 use WP_REST_Request;
 use WP_REST_Response;
 
@@ -30,8 +32,13 @@ final class CollectionsRestController
     /** Board search minimum. Below this the term is ignored and the tree is normal. */
     private const SEARCH_MIN = 2;
 
-    /** Accepted `status` filter values; anything else is a 400, not a silent no-op. */
-    private const VALID_STATUSES = ['all', 'untranslated', 'needs_review', 'translated'];
+    /**
+     * Accepted `status` filter values; anything else is a 400, not a silent no-op.
+     * 'ignored' is the odd one out: it hides the normal tree and shows a single
+     * synthetic "ignored:all" collection of every ignored source, so the user can
+     * find one and Restore it. Advanced filters don't apply to that view.
+     */
+    private const VALID_STATUSES = ['all', 'untranslated', 'needs_review', 'translated', 'ignored'];
 
     /** Accepted `source` board values. */
     private const VALID_SOURCES = ['content'];
@@ -116,6 +123,11 @@ final class CollectionsRestController
         );
         register_rest_route(
             self::NS,
+            '/collections/(?P<id>[^/]+)/approve',
+            ['methods' => 'POST', 'callback' => [$this, 'approveAll']] + $guard
+        );
+        register_rest_route(
+            self::NS,
             '/collections/(?P<id>[^/]+)/stale',
             ['methods' => 'GET', 'callback' => [$this, 'staleTexts']] + $guard
         );
@@ -155,25 +167,31 @@ final class CollectionsRestController
         $offset = max(0, (int) $request->get_param('offset'));
         $limit  = min(self::MAX_LIMIT, max(1, (int) ($request->get_param('limit') ?: self::DEFAULT_LIMIT)));
 
-        $collections = $this->board->buildCollections($lang, $search, $source, $filters);
-        $collections = array_values(array_filter(
-            $collections,
-            fn (array $collection): bool => $this->board->collectionMatchesFilters($collection, $filters)
-        ));
+        if ($status === 'ignored') {
+            $collections = $this->ignoredCollections($lang, $search);
+        } else {
+            $collections = $this->board->buildCollections($lang, $search, $source, $filters);
+            $collections = array_values(array_filter(
+                $collections,
+                fn (array $collection): bool => $this->board->collectionMatchesFilters($collection, $filters)
+            ));
 
-        if ($status !== 'all') {
-            $collections = array_values(array_filter($collections, static function (array $c) use ($status): bool {
-                switch ($status) {
-                    case 'untranslated':
-                        return $c['missing'] > 0;
-                    case 'needs_review':
-                        return $c['needs_review'] > 0;
-                    case 'translated':
-                        return $c['translated'] > 0;
-                    default:
-                        throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
-                }
-            }));
+            if ($status !== 'all') {
+                $collections = array_values(array_filter($collections, static function (array $c) use ($status): bool {
+                    switch ($status) {
+                        case 'untranslated':
+                            // Include collections whose only untranslated rows are
+                            // queued-AI ('pending') — still untranslated content.
+                            return $c['missing'] > 0 || ($c['pending'] ?? 0) > 0;
+                        case 'needs_review':
+                            return $c['needs_review'] > 0;
+                        case 'translated':
+                            return $c['translated'] > 0;
+                        default:
+                            throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                    }
+                }));
+            }
         }
 
         // Header progress badge ("X of Y translated") describes the whole matching
@@ -231,13 +249,17 @@ final class CollectionsRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
 
-        if ($status !== 'all') {
+        if ($status !== 'all' && $status !== 'ignored') {
+            // 'ignored' needs no bucket filter: collectionTexts('ignored:all') already
+            // returns exactly the ignored set (every row status 'missing').
             // presentText() labels a text 'missing' | 'needs_review' | 'reviewed' | 'translated';
             // 'reviewed' shares the "translated" bucket everywhere else (see summaryFor()).
             $texts = array_values(array_filter($texts, static function (array $t) use ($status): bool {
                 switch ($status) {
                     case 'untranslated':
-                        return $t['status'] === 'missing';
+                        // 'pending' is a queued AI translation with no text yet —
+                        // still untranslated, so it belongs in this view.
+                        return $t['status'] === 'missing' || $t['status'] === 'pending';
                     case 'needs_review':
                         return $t['status'] === 'needs_review';
                     case 'translated':
@@ -276,24 +298,30 @@ final class CollectionsRestController
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_FILTER'], 400);
         }
 
-        $collections = $this->board->buildCollections($lang, $search, $source, $filters);
-        $collections = array_values(array_filter(
-            $collections,
-            fn (array $collection): bool => $this->board->collectionMatchesFilters($collection, $filters)
-        ));
-        if ($status !== 'all') {
-            $collections = array_values(array_filter($collections, static function (array $c) use ($status): bool {
-                switch ($status) {
-                    case 'untranslated':
-                        return $c['missing'] > 0;
-                    case 'needs_review':
-                        return $c['needs_review'] > 0;
-                    case 'translated':
-                        return $c['translated'] > 0;
-                    default:
-                        throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
-                }
-            }));
+        if ($status === 'ignored') {
+            $collections = $this->ignoredCollections($lang, $search);
+        } else {
+            $collections = $this->board->buildCollections($lang, $search, $source, $filters);
+            $collections = array_values(array_filter(
+                $collections,
+                fn (array $collection): bool => $this->board->collectionMatchesFilters($collection, $filters)
+            ));
+            if ($status !== 'all') {
+                $collections = array_values(array_filter($collections, static function (array $c) use ($status): bool {
+                    switch ($status) {
+                        case 'untranslated':
+                            // Include collections whose only untranslated rows are
+                            // queued-AI ('pending') — still untranslated content.
+                            return $c['missing'] > 0 || ($c['pending'] ?? 0) > 0;
+                        case 'needs_review':
+                            return $c['needs_review'] > 0;
+                        case 'translated':
+                            return $c['translated'] > 0;
+                        default:
+                            throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                    }
+                }));
+            }
         }
 
         $groups = [];
@@ -311,6 +339,36 @@ final class CollectionsRestController
         }
 
         return rest_ensure_response(['ok' => true, 'groups' => $groups]);
+    }
+
+    /**
+     * The synthetic "ignored:all" collection wrapped in a one-element list (or an
+     * empty list when nothing is ignored), so index()/textOrder() can drop it into
+     * the same pagination/response path as the real tree. Language is only echoed
+     * through — the ignored set is language-global.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function ignoredCollections(string $lang, string $search): array
+    {
+        $texts = $this->board->collectionTexts('ignored:all', $lang, $search, []) ?? [];
+        if ($texts === []) {
+            return [];
+        }
+        $count = count($texts);
+
+        return [[
+            'id'             => 'ignored:all',
+            'label'          => __('Ignored', 'lingowp'),
+            'type'           => 'ignored',
+            'preview_url'    => null,
+            'preview_target' => 'admin',
+            'total'          => $count,
+            'translated'     => 0,
+            'needs_review'   => 0,
+            'pending'        => 0,
+            'missing'        => $count,
+        ]];
     }
 
     /** Ignore every text in a collection (source-global). Confirmation-gated in the UI. */
@@ -352,6 +410,43 @@ final class CollectionsRestController
         return rest_ensure_response([
             'ok' => true,
             'count' => count($refs),
+            'collection_summary' => $this->board->summaryFor($id, $lang),
+        ]);
+    }
+
+    /**
+     * Mark every "needs review" translation in a collection as reviewed, for the
+     * selected language. Only the needs_review rows are touched — a machine or
+     * already-reviewed translation is left as it is.
+     */
+    public function approveAll(WP_REST_Request $request): WP_REST_Response
+    {
+        $lang = $this->resolveLang($request);
+        if ($lang === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+        $id    = urldecode((string) $request->get_param('id'));
+        $texts = $this->board->collectionTexts($id, $lang, '', [], false);
+        if ($texts === null) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
+        }
+
+        $approved = 0;
+        foreach ($texts as $text) {
+            if ($text['status'] !== 'needs_review') {
+                continue;
+            }
+            $ref = SourceRef::parse((string) $text['id']);
+            if ($ref === null) {
+                continue;
+            }
+            $this->repo->setTranslationStatus($ref, $lang, TranslationStatus::REVIEWED);
+            $approved++;
+        }
+
+        return rest_ensure_response([
+            'ok' => true,
+            'count' => $approved,
             'collection_summary' => $this->board->summaryFor($id, $lang),
         ]);
     }

@@ -35,9 +35,7 @@ if ( insightsMount ) {
 	)
 }
 
-const integrationsMount = document.getElementById(
-	'lingowp-integrations-app'
-)
+const integrationsMount = document.getElementById( 'lingowp-integrations-app' )
 if ( integrationsMount ) {
 	createRoot( integrationsMount ).render(
 		<NuqsAdapter>
