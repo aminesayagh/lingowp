@@ -20,7 +20,7 @@ The Insights screen is an intentional preview of a possible future feature. Open
 
 = External services =
 
-LingoWP Cloud is currently hosted at the legacy technical endpoint https://translangs-api.masayagh.com and provides optional account, AI translation, provider-key, billing, and authenticated support-suggestion services.
+LingoWP Cloud is hosted at https://cloud.lingowp.com and provides optional account, AI translation, provider-key, billing, and authenticated support-suggestion services.
 
 On first use, the site domain and WordPress administrator email address are sent automatically to create the site connection; this is the only data sent without a further administrator action. AI translation requests send the selected source text, source and target languages, and grouping identifiers, and only when an administrator explicitly requests AI translation. Provider keys entered by an administrator are sent for provider validation and encrypted storage. Billing and account actions send the information necessary to perform the requested action. Clicking “Notify me at launch” sends the legacy backend code `feature_interest:translangs_insights` with the site's existing authentication and domain headers. It does not send an email address in the request body. An administrator can disconnect entirely at any time from the Billing page's Danger zone, which stops all further requests to LingoWP Cloud until reconnected.
 

@@ -18,7 +18,7 @@ final class BackendEndpointResolver
 
     private const VERSION_PATH = '/api/v1';
 
-    private const DEFAULT_ORIGIN = 'https://translangs-api.masayagh.com';
+    private const DEFAULT_ORIGIN = 'https://cloud.lingowp.com';
 
     /** Full API base, e.g. https://api.example.com/api/v1. */
     public function baseUrl(): string

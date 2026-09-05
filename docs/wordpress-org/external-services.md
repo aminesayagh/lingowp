@@ -2,7 +2,7 @@
 
 ## LingoWP Cloud
 
-- Endpoint origin: `https://translangs-api.masayagh.com`.
+- Endpoint origin: `https://cloud.lingowp.com`.
 - Trigger: connects automatically on the first admin page load after
   activation — no separate onboarding step or connection action required. An
   administrator can fully disconnect at any time from Billing → Danger zone,
