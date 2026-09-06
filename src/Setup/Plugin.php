@@ -126,8 +126,20 @@ class Plugin
         // view — only where the backend is actually reachable: wp-admin, the REST
         // API the SPA calls, and the cron/loopback request that runs the sync job.
         // (A bare is_admin() check would be wrong: REST and cron are not is_admin().)
-        if ($this->isBackendContext()) {
+        //
+        // REST is deliberately not detected by sniffing the request URL: the URL
+        // spelling varies by site ("/wp-json/..." on pretty permalinks,
+        // "?rest_route=..." on plain ones, a renamed prefix where a security
+        // plugin hides the default), and an internal rest_do_request() has no URL
+        // at all. WordPress fires rest_api_init on every one of those cases and
+        // on nothing else, so let it be the signal. Priority 1 runs this before
+        // the controllers' own default-priority callbacks on the same hook.
+        if (is_admin() || (function_exists('wp_doing_cron') && wp_doing_cron())) {
             $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $htmlCrawl);
+        } else {
+            add_action('rest_api_init', function () use ($wpdb, $languageRegistry, $sourceRepository, $initialScan, $htmlCrawl): void {
+                $this->bootBackendAndBoard($wpdb, $languageRegistry, $sourceRepository, $initialScan, $htmlCrawl);
+            }, 1);
         }
 
         if (is_admin()) {
@@ -403,32 +415,5 @@ class Plugin
         if (defined('WP_DEBUG') && WP_DEBUG && class_exists(ResetPageController::class)) {
             (new ResetPageController($wpdb))->register();
         }
-    }
-
-    /**
-     * True for requests that may legitimately talk to the LingoWP backend:
-     * the WordPress admin, the REST API (the SPA's calls), and cron/loopback
-     * (the Action Scheduler queue runner). False for ordinary front-end page
-     * views, so visitor traffic never loads the connection layer.
-     */
-    private function isBackendContext(): bool
-    {
-        if (is_admin() || (function_exists('wp_doing_cron') && wp_doing_cron()) || (defined('REST_REQUEST') && REST_REQUEST)) {
-            return true;
-        }
-
-        // rest_api_init has not run yet at plugins_loaded, so match the REST URL prefix.
-        $prefix = trim(rest_get_url_prefix(), '/');
-        $uri    = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
-
-        // "Plain" permalinks have no /wp-json/ path — WordPress routes REST
-        // through ?rest_route=/... instead. Language routing still needs pretty
-        // permalinks (see PermalinkNotice), but the admin SPA must load either
-        // way, or the site owner cannot reach the screen that says so.
-        if (strpos($uri, 'rest_route=') !== false) {
-            return true;
-        }
-
-        return $prefix !== '' && strpos($uri, '/' . $prefix . '/') !== false;
     }
 }
