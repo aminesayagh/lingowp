@@ -66,6 +66,9 @@ echo "==> Removing development-only files"
 rm -rf "$BUILD_DIR"/.[!.]* "$BUILD_DIR"/..?*
 rm -rf \
   "$BUILD_DIR"/admin-ui \
+  "$BUILD_DIR"/node_modules \
+  "$BUILD_DIR"/docs \
+  "$BUILD_DIR"/phpcs-compat.xml.dist \
   "$BUILD_DIR"/tests \
   "$BUILD_DIR"/bin \
   "$BUILD_DIR"/scripts \
@@ -85,15 +88,11 @@ rm -rf \
 if [[ "$STRIP_COMMENTS" == "1" ]]; then
   echo "==> Stripping PHP comments"
   while read -r file; do
-    case "$file" in
-      # lingowp.php carries the plugin header WordPress parses; functions.php is
-      # the documented public API for theme and add-on authors.
-      */lingowp.php|*/functions.php) continue ;;
-    esac
-    # ponytail: skipping a whole file that has translators: notes keeps POT context.
-    if grep -q 'translators:' "$file"; then
-      continue
-    fi
+    # The only exception: lingowp.php opens with the plugin header WordPress
+    # itself parses. Strip it and the plugin stops existing as far as WP is
+    # concerned. Everything else, translators: notes included, goes — the .pot
+    # is generated from the repository, never from this archive.
+    case "$file" in */lingowp.php) continue ;; esac
     php -w "$file" > "$file.stripped" && mv "$file.stripped" "$file"
   done < <(find "$BUILD_DIR" -maxdepth 1 -name '*.php'; find "$BUILD_DIR/src" "$BUILD_DIR/templates" -name '*.php')
 fi
@@ -101,6 +100,15 @@ fi
 for required in lingowp.php readme.txt LICENSE THIRD-PARTY-NOTICES.md assets/admin/build/index.js; do
   if [[ ! -f "$BUILD_DIR/$required" ]]; then
     echo "Release is missing required file: $required" >&2
+    exit 1
+  fi
+done
+
+# node_modules is created by the npm build above rather than by git archive, so
+# nothing upstream fails when it is left behind — it just silently adds ~827 MB.
+for forbidden in node_modules admin-ui tests src/Admin/ResetPageController.php; do
+  if [[ -e "$BUILD_DIR/$forbidden" ]]; then
+    echo "Release still contains a development-only path: $forbidden" >&2
     exit 1
   fi
 done
