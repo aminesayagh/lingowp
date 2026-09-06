@@ -421,6 +421,14 @@ class Plugin
         $prefix = trim(rest_get_url_prefix(), '/');
         $uri    = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
 
+        // "Plain" permalinks have no /wp-json/ path — WordPress routes REST
+        // through ?rest_route=/... instead. Language routing still needs pretty
+        // permalinks (see PermalinkNotice), but the admin SPA must load either
+        // way, or the site owner cannot reach the screen that says so.
+        if (strpos($uri, 'rest_route=') !== false) {
+            return true;
+        }
+
         return $prefix !== '' && strpos($uri, '/' . $prefix . '/') !== false;
     }
 }
