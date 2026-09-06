@@ -1,10 +1,10 @@
-import { api } from '../api'
+import { api, httpErrorCode } from '../api'
 
 // Re-export the raw client so every queryFn / mutationFn in admin-ui/queries/**
 // imports it from here. The ESLint `no-restricted-imports` rule (added in the
 // final step of the React Query migration) forbids importing '../api' anywhere
 // outside this folder.
-export { api }
+export { api, httpErrorCode }
 
 // admin-ui/api.js resolves to `{ ok: false, error }` on a transport failure and
 // does NOT throw on an application-level error either — every lingowp/v1

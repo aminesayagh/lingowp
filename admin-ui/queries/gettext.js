@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { api, unwrap } from './http'
+import { api, httpErrorCode, unwrap } from './http'
 
 // The Plugins & Themes board (GettextBoard.jsx) + the gettext string overlay.
 // Same split as queries/board.js: the inline list queries call fetchGettext(),
@@ -65,7 +65,16 @@ export function useImportGettext() {
 				headers: { 'X-WP-Nonce': cfg.nonce },
 				body,
 			} )
-			return res.json()
+			// Same contract the JSON client applies: a WordPress-level failure
+			// carries no `ok`, so convert it rather than return it as data.
+			const data = await res.json().catch( () => ( {} ) )
+			if ( ! res.ok && data.ok === undefined ) {
+				return {
+					ok: false,
+					error: httpErrorCode( res.status, data.code ),
+				}
+			}
+			return data
 		},
 	} )
 }

@@ -4,10 +4,39 @@
 
 const cfg = window.LingoWP || { rest: '', nonce: '' }
 
+// Joins the REST base with a path that may carry its own query string.
+//
+// The base's shape depends on the site's permalink setting:
+//   pretty -> https://site/wp-json/lingowp/v1        (no query string yet)
+//   plain  -> https://site/index.php?rest_route=/lingowp/v1
+//
+// So a naive base + "/collections?language=fr" yields a SECOND "?" on a plain
+// site, and everything after it stops being read as query parameters — the
+// route becomes "/lingowp/v1/collections?language=fr", which matches nothing
+// and 404s. Split the path and re-attach its query with the right separator.
+//
+// This is the same technique @wordpress/api-fetch uses — its root-url
+// middleware swaps the path's "?" for "&" when the root already has one
+// ("API root may already include query parameter prefix if site is configured
+// to use plain permalinks"). There is no core helper that does it for you, so
+// don't replace this with one; the alternative is adopting api-fetch outright,
+// which this client can't do for free — the plugin signals application errors
+// as HTTP 200 + { ok: false }, which api-fetch would pass through as success.
+function restUrl( path ) {
+	const q = path.indexOf( '?' )
+	const route = q === -1 ? path : path.slice( 0, q )
+	const query = q === -1 ? '' : path.slice( q + 1 )
+	const url = cfg.rest + route
+	if ( ! query ) {
+		return url
+	}
+	return url + ( url.includes( '?' ) ? '&' : '?' ) + query
+}
+
 // WordPress-level failures mapped onto the SPA's own ERR_* vocabulary. A bad
 // nonce and a genuine capability denial are both 403 but mean different things
 // to the user, so branch on the code WordPress sends, not the status alone.
-function httpErrorCode( status, code ) {
+export function httpErrorCode( status, code ) {
 	if ( code === 'rest_no_route' ) {
 		return 'ERR_ROUTE_MISSING'
 	}
@@ -22,7 +51,7 @@ function httpErrorCode( status, code ) {
 
 async function request( method, path, body, { signal } = {} ) {
 	try {
-		const res = await fetch( cfg.rest + path, {
+		const res = await fetch( restUrl( path ), {
 			method,
 			headers: {
 				'Content-Type': 'application/json',
