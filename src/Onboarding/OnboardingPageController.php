@@ -2,6 +2,7 @@
 
 namespace LingoWP\Onboarding;
 
+use LingoWP\Backend\BackendEndpointResolver;
 use LingoWP\Insights\NotifyEmailResolver;
 
 /**
@@ -218,12 +219,15 @@ final class OnboardingPageController
             'nonce'               => wp_create_nonce('wp_rest'),
             'logo'                => esc_url_raw(LINGOWP_URL . 'assets/images/lingowp-logo.svg'),
             'flags_base_url'      => esc_url_raw(LINGOWP_URL . 'assets/flags/'),
-            // GET /billing/addons now returns `image` as a bare filename
-            // ("lingowp-elementor.png") — the backend no longer hosts these,
-            // so the SPA prepends this base itself. Not every filename has a
-            // real PNG yet; IntegrationsApp.jsx falls back to the LingoWP
-            // logo above on a 404.
-            'addons_asset_url'    => esc_url_raw(LINGOWP_URL . 'assets/addons/'),
+            // GET /billing/addons returns `image` as a bare filename
+            // ("lingowp-elementor.png"); the SPA prepends this base. The API
+            // serves the icons publicly (no auth), so artwork for a new or
+            // re-branded add-on lands without shipping a plugin update.
+            // IntegrationsApp.jsx falls back to the LingoWP logo above on a
+            // 404, which also covers the backend being unreachable.
+            'addons_asset_url'    => esc_url_raw(
+                (new BackendEndpointResolver())->baseUrl() . '/addons/icons/'
+            ),
             'billing_url'         => esc_url_raw(admin_url('admin.php?page=' . self::BILLING_SLUG)),
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],

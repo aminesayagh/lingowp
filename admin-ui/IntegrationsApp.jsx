@@ -58,9 +58,12 @@ function categoryLabel( categories, slug ) {
 		.join( ' ' )
 }
 
-// `image` from the API is a bare filename ("lingowp-elementor.png") the
-// backend no longer hosts — this is our own asset base to prepend. Not every
-// filename has a real PNG yet; the <img>'s onError below covers that.
+// `image` from the API is a bare filename ("lingowp-elementor.png"); cfg
+// prepends the API's public icon base (/api/v1/addons/icons/), so icon changes
+// ship from the backend, not a plugin release. The <img>'s onError below falls
+// back to the LingoWP logo when an icon 404s or the backend is unreachable.
+// To change an icon, replace the PNG in the backend's addons/icons/ and deploy
+// it — we no longer ship copies under assets/.
 function addonImageUrl( addon ) {
 	if ( ! addon.image ) {
 		return cfg.logo

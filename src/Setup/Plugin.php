@@ -64,6 +64,7 @@ use LingoWP\Language\LanguageRestController;
 use LingoWP\Board\CollectionsRestController;
 use LingoWP\Board\CollectionBoard;
 use LingoWP\Board\TranslationRestController;
+use LingoWP\AiTranslation\AiScopeUnits;
 use LingoWP\AiTranslation\AiTranslationController;
 use LingoWP\AiTranslation\AiTaskSubmitter;
 use LingoWP\AiTranslation\AiResultCollector;
@@ -356,7 +357,7 @@ class Plugin
         (new TranslationRestController($sourceRepository, $languageRegistry, $collectionBoard))->register();
 
         $aiTaskSubmitter = new AiTaskSubmitter($backendClient, $sourceRepository, $languageRegistry, $languageMetadata);
-        (new AiTranslationController($sourceRepository, $languageRegistry, $collectionBoard, $billingEntitlements, $aiTaskSubmitter, $connectionStatus))->register();
+        (new AiTranslationController(new AiScopeUnits($sourceRepository), $languageRegistry, $collectionBoard, $billingEntitlements, $aiTaskSubmitter, $connectionStatus))->register();
 
         (new ScanRestController($initialScan, $htmlCrawl))->register();
 

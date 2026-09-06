@@ -17,13 +17,13 @@ final class PrivacyPolicyContent
         }
 
         // ponytail: English-only static block mirroring the "Privacy Policy"
-        // section of translangs.com/legal. Update here when that page changes.
+        // section of lingowp.com/legal. Update here when that page changes.
         $content = <<<'HTML'
 <p><em>Last updated: 27 August 2026</em></p>
 
 <h2>1. Operator and scope</h2>
 <p>LingoWP is operated by <strong>Mohamed Amine SAYAGH</strong>, an individual registered as an auto-entrepreneur in Morocco, at <strong>1 rue Abou Bakker El Wahrani, esc. B, étg. 3, appt. 17, La Villette H M, Casablanca, Morocco</strong>. Contact us at <strong>contact@masayagh.com</strong> or <strong>+212616137124</strong>. Full registration details appear in the Legal Notice.</p>
-<p>This policy covers the legacy service domain translangs.com, account and support services, and data sent by the LingoWP WordPress plugin to our backend. The operator of a website using our plugin remains responsible for that website's own privacy information and processing.</p>
+<p>This policy covers the legacy service domain lingowp.com, account and support services, and data sent by the LingoWP WordPress plugin to our backend. The operator of a website using our plugin remains responsible for that website's own privacy information and processing.</p>
 <p>We determine how account, payment-administration, support and security information is processed. When processing personal data in website content on a customer's instructions, we act as a processor, or a sub-processor if the customer is itself a processor. Public website text can contain personal data, including names and testimonials.</p>
 
 <h2>2. Information processed and its purpose</h2>
@@ -82,7 +82,7 @@ final class PrivacyPolicyContent
 <p>Deactivating the plugin preserves its WordPress data. Uninstalling it through WordPress deletes the plugin's local translation tables, settings and related stored options. Neither action automatically deletes backend records or cancels a subscription. The customer controls copies in its own WordPress backups.</p>
 
 <h2>7. Cookies, browser storage and updates</h2>
-<p>The current <strong>translangs.com service landing page</strong> does not set cookies, use analytics or advertising trackers, or load fonts from an external font service. Contact and update forms submit to our own API. This does not describe PayPal's pages or all cookies on a customer's WordPress website.</p>
+<p>The current <strong>lingowp.com service landing page</strong> does not set cookies, use analytics or advertising trackers, or load fonts from an external font service. Contact and update forms submit to our own API. This does not describe PayPal's pages or all cookies on a customer's WordPress website.</p>
 <p>On a website using the plugin, the following cookie can be set:</p>
 <table>
 <thead><tr><th>Cookie</th><th>Purpose and contents</th><th>Configured duration</th><th>Control</th></tr></thead>

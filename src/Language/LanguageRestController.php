@@ -65,8 +65,13 @@ final class LanguageRestController
     {
         $active    = $this->registry->getTargetLanguages();
         $languages = [];
+        $stored    = $this->store->all();
+        // One batched pass for every language's progress -- asking per language
+        // cost 7 table aggregates each, which is what made the rail's "refresh %"
+        // button take seconds on a site with several languages.
+        $progressAll = $this->repo->languageProgressAll(array_keys($stored));
 
-        foreach ($this->store->all() as $code => $entry) {
+        foreach ($stored as $code => $entry) {
             $entry['enabled'] = in_array($code, $active, true);
 
             // The canonical label every screen shows ("Português (Brasil)").
@@ -77,9 +82,13 @@ final class LanguageRestController
                 (string) ($entry['name'] ?? strtoupper($code))
             );
 
-            $progress                    = $this->repo->languageProgress($code);
+            $progress                    = $progressAll[$code] ?? ['total' => 0, 'translated' => 0, 'pending' => 0];
             $entry['total_texts']        = $progress['total'];
             $entry['translated_texts']   = $progress['translated'];
+            // Rows queued on the AI backend but not yet collected. The rail polls
+            // itself while this is non-zero, so progress keeps moving for every
+            // language -- not only whichever one the board happens to show.
+            $entry['pending_texts']      = $progress['pending'];
             // No content yet ⇒ nothing left to translate ⇒ 100% (hides "Translate All").
             $entry['translated_percent'] = $progress['total'] > 0
                 ? (int) round($progress['translated'] / $progress['total'] * 100)

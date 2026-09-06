@@ -3,14 +3,21 @@
 set -euo pipefail
 
 PLUGIN_SLUG="lingowp"
+# --strip-comments produces the client build: comments removed from PHP.
+STRIP_COMMENTS=0
+SUFFIX=""
+if [[ "${1:-}" == "--strip-comments" ]]; then
+  STRIP_COMMENTS=1
+  SUFFIX="-client"
+fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/lingowp.php" | head -n 1)"
 BUILD_DIR="$(mktemp -d)"
 STAGE_PARENT="$(mktemp -d)"
 STAGE_DIR="$STAGE_PARENT/$PLUGIN_SLUG"
 DIST_DIR="$ROOT_DIR/dist"
-DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.zip"
-MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.sha256"
+DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}${SUFFIX}.zip"
+MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}${SUFFIX}.sha256"
 
 cleanup() {
   rm -rf "$BUILD_DIR" "$STAGE_PARENT"
@@ -66,6 +73,22 @@ rm -rf \
   "$BUILD_DIR"/test \
   "$BUILD_DIR"/src/Admin/ResetPageController.php \
   "$BUILD_DIR"/templates/reset.php
+
+if [[ "$STRIP_COMMENTS" == "1" ]]; then
+  echo "==> Stripping PHP comments"
+  while read -r file; do
+    case "$file" in
+      # lingowp.php carries the plugin header WordPress parses; functions.php is
+      # the documented public API for theme and add-on authors.
+      */lingowp.php|*/functions.php) continue ;;
+    esac
+    # ponytail: skipping a whole file that has translators: notes keeps POT context.
+    if grep -q 'translators:' "$file"; then
+      continue
+    fi
+    php -w "$file" > "$file.stripped" && mv "$file.stripped" "$file"
+  done < <(find "$BUILD_DIR" -maxdepth 1 -name '*.php'; find "$BUILD_DIR/src" "$BUILD_DIR/templates" -name '*.php')
+fi
 
 for required in lingowp.php readme.txt LICENSE THIRD-PARTY-NOTICES.md assets/admin/build/index.js; do
   if [[ ! -f "$BUILD_DIR/$required" ]]; then

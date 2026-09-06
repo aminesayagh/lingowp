@@ -193,8 +193,9 @@ class TranslationMemorySchema
         // msgid inserted here would stay blank forever instead of being filled
         // in by that rescan.
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery -- table name only, from the schema map
-        $ignored = (array) $wpdb->get_results("SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM {$table} WHERE status = -1", ARRAY_A);
+        $ignored = (array) $wpdb->get_results("SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM {$table} WHERE status = -1", ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
 
+        // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         $wpdb->query("DROP TABLE IF EXISTS {$table}"); // phpcs:ignore WordPress.DB -- table name only
         $wpdb->query(TableDefinitions::gettextUnit($table, $charsetCollate)); // phpcs:ignore WordPress.DB
 

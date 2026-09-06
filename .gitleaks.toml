@@ -1,0 +1,12 @@
+[extend]
+useDefault = true
+
+# One historical false positive: an illustrative cache-key example in a design
+# doc (docs/translatepress_like_...architecture.md:1072, commit fa1c319a) that
+# no longer exists in the tree. Scoped to that exact literal shape, so a real
+# key anywhere still fires.
+[[allowlists]]
+description = "Doc example cache key, not a secret"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = ['''mytr_translation_[a-z]{2}_[a-z0-9]+''']

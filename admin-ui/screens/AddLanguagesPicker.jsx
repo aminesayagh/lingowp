@@ -525,9 +525,6 @@ export default function AddLanguagesPicker( {
 	return (
 		<div>
 			<BlockStack gap="400">
-				<Text as="p" tone="subdued">
-					Select each language and region you want to add.
-				</Text>
 				<div
 					style={ {
 						display: 'grid',

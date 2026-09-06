@@ -6,6 +6,7 @@ use LingoWP\Shared\Source\SourceRef;
 use LingoWP\Shared\Source\TranslationStatus;
 use LingoWP\Shared\Source\ScannablePostStatuses;
 use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\AiTranslation\AiQueueConfig;
 
 /**
  * Read-only board/collection queries: the Admin dashboard's listing, grouping,
@@ -109,6 +110,52 @@ final class WpDbBoardQueries
         ), ARRAY_A);
 
         return array_map([$this, 'textUnitRow'], (array) $rows);
+    }
+
+    /**
+     * Every discovered post text unit for one language in a single query, each
+     * carrying its post_id. listPostTexts() without the per-post WHERE -- the
+     * AI "translate this whole language" scope needs them all, and asking
+     * post-by-post is an N+1 over the whole site. No $search/$filters: nothing
+     * bulk-translates a filtered view.
+     *
+     * @return array<int, array{id:int, post_id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listAllPostTexts(string $langCode): array
+    {
+        $parent = $this->parent('post');
+        $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
+
+        [$statusIn, $statusArgs] = $this->postStatusClause();
+
+        // Same LEFT JOIN + "wp.ID IS NULL OR" guard as listPostTexts(): keeps an
+        // orphan row (post since deleted) visible, keeps trashed/draft posts out.
+        $sql = "SELECT p.id AS id, p.post_id AS post_id, p.field AS field, p.original_text AS original_text,
+                       LOWER(HEX(p.original_hash)) AS original_hash,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
+                FROM {$parent} p
+                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
+                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                WHERE p.status = %d
+                      AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn}))
+                ORDER BY p.post_id, " . self::FIELD_SORT . ", p.field, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$statusArgs
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit            = $this->textUnitRow($r);
+            $unit['post_id'] = (int) $r['post_id'];
+            return $unit;
+        }, (array) $rows);
     }
 
     public function optionCollectionSummary(string $langCode, string $search = '', array $filters = []): array
@@ -407,6 +454,48 @@ final class WpDbBoardQueries
         return array_map(function (array $r): array {
             $unit          = $this->textUnitRow($r);
             $unit['field'] = (string) $r['meta_key'];
+            return $unit;
+        }, (array) $rows);
+    }
+
+    /**
+     * Every discovered post-meta text unit for one language in a single query,
+     * each carrying its post_id. The listMetaTexts() counterpart to
+     * listAllPostTexts() -- see that method for why.
+     *
+     * @return array<int, array{id:int, post_id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listAllMetaTexts(string $langCode): array
+    {
+        $parent = $this->parent('meta');
+        $child  = $parent . '_translation';
+        $posts  = $this->wpdb->posts;
+
+        [$statusIn, $statusArgs] = $this->postStatusClause();
+
+        $sql = "SELECT p.id AS id, p.post_id AS post_id, p.meta_key AS meta_key, p.original_text AS original_text,
+                       t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
+                       t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
+                FROM {$parent} p
+                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
+                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                WHERE p.status = %d
+                      AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn}))
+                ORDER BY p.post_id, p.meta_key, p.id";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            $sql,
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED,
+            ...$statusArgs
+        ), ARRAY_A);
+
+        return array_map(function (array $r): array {
+            $unit            = $this->textUnitRow($r);
+            $unit['field']   = (string) $r['meta_key'];
+            $unit['post_id'] = (int) $r['post_id'];
             return $unit;
         }, (array) $rows);
     }
@@ -719,6 +808,127 @@ final class WpDbBoardQueries
      * left with a non-zero status and no text, must not count — checking the
      * text directly keeps this honest whatever the status says.
      */
+    /**
+     * languageProgress() for every language at once: one total + one grouped
+     * "done" query per source table, instead of 7 aggregates per language.
+     * The rail's percentages are the only caller, and it always wants them all
+     * -- asking language-by-language made "refresh %" cost 7N table scans.
+     *
+     * @param string[] $langCodes
+     * @return array<string, array{total:int, translated:int, pending:int}> keyed by language code
+     */
+    public function languageProgressAll(array $langCodes): array
+    {
+        $out = [];
+        foreach ($langCodes as $code) {
+            $out[$code] = ['total' => 0, 'translated' => 0, 'pending' => 0];
+        }
+        if ($out === []) {
+            return [];
+        }
+
+        $tables = array_merge(
+            array_map(static fn (string $k): array => [$k, false], TranslationMemorySchema::HASH_LINK_CHILDREN),
+            array_map(static fn (string $k): array => [$k, true], array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS))
+        );
+
+        foreach ($tables as [$tableKey, $parentId]) {
+            $total = $this->countSources($tableKey);
+            foreach ($out as $code => $_) {
+                $out[$code]['total'] += $total;
+            }
+            foreach ($this->countTranslatedByLang($tableKey, $parentId) as $code => $counts) {
+                if (isset($out[$code])) {
+                    $out[$code]['translated'] += $counts['translated'];
+                    $out[$code]['pending']    += $counts['pending'];
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /** Discovered source rows in one parent table -- language-independent, so counted once. */
+    private function countSources(string $tableKey): int
+    {
+        $parent = $this->parent($tableKey);
+        $args   = [TranslationStatus::SOURCE_DISCOVERED];
+
+        // Same post-liveness rule as countTable(): post/meta rows only count
+        // while their WP post is live.
+        if ($tableKey === 'post' || $tableKey === 'meta') {
+            $posts = $this->wpdb->posts;
+            [$statusIn, $statusArgs] = $this->postStatusClause();
+            $sql = "SELECT COUNT(*) FROM {$parent} p
+                    JOIN {$posts} wp ON wp.ID = p.post_id
+                    WHERE p.status = %d AND wp.post_status IN ({$statusIn})";
+            array_push($args, ...$statusArgs);
+        } else {
+            $sql = "SELECT COUNT(*) FROM {$parent} p WHERE p.status = %d";
+        }
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        return (int) $this->wpdb->get_var($this->wpdb->prepare($sql, ...$args));
+    }
+
+    /**
+     * Translated + still-queued source rows in one parent table, grouped by
+     * language. The child is unique per (link, lang_code), so each parent row
+     * contributes at most one row per language -- the same count countTable()
+     * produces one language at a time.
+     *
+     * `pending` is what lets the rail poll itself while an AI queue drains,
+     * without the SPA having to guess from whichever board happens to be open.
+     *
+     * @return array<string, array{translated:int, pending:int}>
+     */
+    private function countTranslatedByLang(string $tableKey, bool $parentId): array
+    {
+        $parent = $this->parent($tableKey);
+        $child  = $parent . '_translation';
+        $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
+        // Same TTL the board applies in presentText() via
+        // AiQueueConfig::isFreshPending() -- an abandoned stamp must stop
+        // counting as queued, or the rail would poll itself forever.
+        $fresh  = gmdate('Y-m-d H:i:s', (int) current_time('timestamp') - (AiQueueConfig::PENDING_TTL_HOURS * 3600));
+        $args   = [$fresh, TranslationStatus::SOURCE_DISCOVERED];
+
+        if ($tableKey === 'post' || $tableKey === 'meta') {
+            $posts = $this->wpdb->posts;
+            [$statusIn, $statusArgs] = $this->postStatusClause();
+            $sql = "SELECT t.lang_code AS lang_code,
+                           SUM(t.translated_text IS NOT NULL) AS done,
+                           SUM(t.translated_text IS NULL AND t.ai_pending_since > %s) AS queued
+                    FROM {$parent} p
+                    JOIN {$posts} wp ON wp.ID = p.post_id
+                    JOIN {$child} t ON {$join}
+                    WHERE p.status = %d AND wp.post_status IN ({$statusIn})
+                    GROUP BY t.lang_code";
+            array_push($args, ...$statusArgs);
+        } else {
+            $sql = "SELECT t.lang_code AS lang_code,
+                           SUM(t.translated_text IS NOT NULL) AS done,
+                           SUM(t.translated_text IS NULL AND t.ai_pending_since > %s) AS queued
+                    FROM {$parent} p
+                    JOIN {$child} t ON {$join}
+                    WHERE p.status = %d
+                    GROUP BY t.lang_code";
+        }
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+
+        $out = [];
+        foreach ((array) $rows as $r) {
+            $out[(string) $r['lang_code']] = [
+                'translated' => (int) $r['done'],
+                'pending'    => (int) $r['queued'],
+            ];
+        }
+
+        return $out;
+    }
+
     private function countTable(string $tableKey, bool $parentId, string $langCode): array
     {
         $parent = $this->parent($tableKey);

@@ -77,3 +77,24 @@ body.lingowp-onboarding-modal-open
 		background-color: #d5dae1;
 	}
 }
+
+/* Language row (LanguageList.jsx): the ⋯ actions button swaps in for the "%"
+   on hover. Deliberately plain CSS, not Tailwind's `hidden` / `group-hover:*`
+   utilities — those live in @layer utilities, and wp-admin's own unlayered
+   `.hidden { display: none }` beats any layered rule regardless of
+   specificity, so the button stayed invisible forever. Hover is CSS rather
+   than a React `hover` state because a JS mouseleave never fires when a modal
+   opens over the cursor or the list scrolls under it — the ⋯ then stuck on. */
+.lingowp-row-actions {
+	display: none;
+}
+.lingowp-row--has-menu:hover .lingowp-row-actions,
+.lingowp-row--has-menu:focus-within .lingowp-row-actions,
+.lingowp-row--menu-open .lingowp-row-actions {
+	display: inline-flex;
+}
+.lingowp-row--has-menu:hover .lingowp-row-percent,
+.lingowp-row--has-menu:focus-within .lingowp-row-percent,
+.lingowp-row--menu-open .lingowp-row-percent {
+	display: none;
+}

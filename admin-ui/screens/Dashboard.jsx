@@ -148,6 +148,18 @@ function pollWhilePending( query ) {
 		: false
 }
 
+// The collections list is the only read that drains the AI queue for groups the
+// user has NOT expanded (GET /collections calls maybeCollectAiResults, same as
+// the texts read, and one pull collects every language at once). A language-wide
+// "Translate All" queues most of its work in collapsed groups, so without this
+// poll nothing pulls those results back and the board -- and the rail's
+// percentage -- sit frozen. Slower than the texts poll: this refetches every
+// loaded page.
+const BOARD_POLL_MS = 6000
+
+// How often the rail re-reads its percentages while a queue is draining.
+const LANGUAGE_POLL_MS = 6000
+
 // POST /translate 402 codes that mean "this site can't use platform AI right
 // now" (over its plan's site limit, no subscription, or out of words) — an
 // expected, actionable gate, not a backend/connectivity failure.
@@ -324,7 +336,17 @@ export default function Dashboard( {
 	// so the many downstream references keep working unchanged while the
 	// fetching moves off hand-rolled api.get().then(setState) onto cached,
 	// shared queries.
-	const languagesQ = useLanguages()
+	const languagesQ = useLanguages( {
+		// Poll while ANY language still has rows queued on the AI backend, so
+		// every rail percentage keeps moving -- not just the one whose board is
+		// open. Stops on its own once pending_texts drains to zero everywhere.
+		refetchInterval: ( q ) =>
+			( q.state.data?.languages ?? [] ).some(
+				( l ) => ( l.pending_texts ?? 0 ) > 0
+			)
+				? LANGUAGE_POLL_MS
+				: false,
+	} )
 	const connectionQ = useConnectionStatus( { verify: true } )
 	const connected = !! connectionQ.data?.connected
 	const entitlementsQ = useEntitlements( { enabled: connected } )
@@ -438,6 +460,8 @@ export default function Dashboard( {
 	// Non-null while a "set every language to provider X" run from the settings
 	// popover is in flight — disables those items against a double-click.
 	const [ applyingProvider, setApplyingProvider ] = useState( null )
+	// True while the settings-popover "publish the ready ones" run is in flight.
+	const [ publishingReady, setPublishingReady ] = useState( false )
 	// A fresh connect also found a matching older licence and emailed its
 	// verified owner a reclaim link — this site already works either way,
 	// it's a non-blocking bonus notice, not a gate.
@@ -450,11 +474,27 @@ export default function Dashboard( {
 	// gated on having a stored BYOK key: POST /translations doesn't consume
 	// one yet (platform-only for now), so a stored key can't unblock this.
 	const [ billingBlocked, setBillingBlocked ] = useState( false )
-	// Guards the header's sitewide "Translate All" against overlapping
-	// double-clicks while its own submit-loop (see translateAllInLanguage) is
-	// still in flight -- otherwise a second click starts a second loop
-	// racing the first, wastefully re-resolving the same scope.
-	const [ translatingAll, setTranslatingAll ] = useState( false )
+	// Language codes whose "Translate All" submit-loop is still in flight. Per
+	// language, not one global flag: two languages queue independently on the
+	// server, so the sidebar can start Spanish while French is still submitting.
+	// Guards only against a second loop for the SAME language, which would
+	// wastefully re-resolve the same scope.
+	const [ translatingLangs, setTranslatingLangs ] = useState(
+		() => new Set()
+	)
+	const markTranslating = ( code, on ) =>
+		setTranslatingLangs( ( prev ) => {
+			const next = new Set( prev )
+			if ( on ) {
+				next.add( code )
+			} else {
+				next.delete( code )
+			}
+			return next
+		} )
+	// The board shows one language at a time, so it shimmers only while that
+	// one is submitting -- see the `bulkTranslating` prop below.
+	const bulkTranslatingBoard = translatingLangs.has( selectedLang )
 	// Narrower reason within billingBlocked: this site specifically is past
 	// its plan's site-slot count (a *subscribed* plan, unlike the generic
 	// billingBlocked case) — only read for messaging (handleAiBlocked,
@@ -520,6 +560,13 @@ export default function Dashboard( {
 	const langsReady = languagesLoaded && languages.length > 0
 	const allLangsOn = ( p ) =>
 		langsReady && languages.every( ( l ) => l.ai_model === p )
+	// Draft languages already translated enough to go live — the settings-menu
+	// "Publish ready languages" action operates on exactly these, and hides
+	// itself when there are none.
+	const readyToPublish = languages.filter(
+		( l ) =>
+			! l.enabled && ( l.translated_percent ?? 0 ) >= PUBLISH_MIN_PERCENT
+	)
 	const providerMenuItems = []
 	if ( hasSubscription && ! billingBlocked && ownKeyProviders.length > 0 ) {
 		providerMenuItems.push( {
@@ -666,6 +713,13 @@ export default function Dashboard( {
 		} )
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedLang stable
 	}, [ languagesQ.data, languagesQ.isError ] )
+
+	// Any language with rows still queued on the AI backend. Drives both polls:
+	// the rail re-reads its own percentages, and the board keeps reading (which
+	// is what actually drains the queue, for every language at once).
+	const anyLanguagePending = languages.some(
+		( l ) => ( l.pending_texts ?? 0 ) > 0
+	)
 
 	// /billing/entitlements -> quota rail + billing gates.
 	useEffect( () => {
@@ -822,43 +876,14 @@ export default function Dashboard( {
 		)
 	}
 
-	// AI translate a scope (text | collection | language), then refresh views + quota.
-	async function translateScope( scope, opts = {} ) {
-		if ( ! ai.available ) {
-			showToast(
-				'warning',
-				ai.error || 'AI unavailable — connect LingoWP to enable it.'
-			)
-			return
-		}
-		// A caller can target languages other than the dashboard's currently
-		// selected one — every cache op below keys off the response's own
-		// language(s), not selectedLang. CompareOverlay passes `languages: [...]`
-		// to translate one text into every configured language in a single
-		// request; every other caller passes a single `language`.
-		const multi =
-			Array.isArray( opts.languages ) && opts.languages.length > 0
-		const langs = multi ? opts.languages : [ opts.language ?? selectedLang ]
-		const res = await aiTranslateMut.mutateAsync( {
-			scope,
-			...opts,
-			// exactly one of these two goes on the wire; the other is dropped by
-			// JSON.stringify (undefined values are omitted).
-			...( multi
-				? { languages: langs.join( ',' ), language: undefined }
-				: { language: langs[ 0 ], languages: undefined } ),
-		} )
-		if ( ! res.ok ) {
-			handleAiFailure( res.error )
-			return
-		}
-		// The response is just {ok, submitted, more} now -- translation
-		// happens later in the async queue, applied server-side on the next
-		// board read (see CollectionsRestController::maybeCollectAiResults).
-		// Nothing to patch here; invalidate so the just-stamped `pending`
-		// rows show up on the next fetch, and await it so callers (the
-		// per-row "translating" flag) see the pending status before they
-		// decide whether to keep showing their own spinner.
+	// Re-read everything a submit just made stale. The response is only
+	// {ok, submitted, more} -- translation happens later in the async queue,
+	// applied server-side on the next board read (see
+	// CollectionsRestController::maybeCollectAiResults). So there's nothing to
+	// patch, just invalidate so the freshly-stamped `pending` rows show up, and
+	// await it so callers (the per-row "translating" flag) see the pending
+	// status before they decide whether to keep showing their own spinner.
+	async function refreshAfterTranslate( langs ) {
 		for ( const code of langs ) {
 			invalidateCollections( code )
 		}
@@ -869,6 +894,48 @@ export default function Dashboard( {
 		} )
 		refetchEntitlements()
 		refreshLanguages() // rail percentages changed
+	}
+
+	// AI translate a scope (text | collection | language), then refresh views +
+	// quota -- unless the caller passes `deferRefresh`, which the multi-batch
+	// "translate all" loops use to refresh once at the end instead of once per
+	// 500-text batch (mid-loop nothing has landed yet, so the refetch storm was
+	// pure cost).
+	async function translateScope( scope, opts = {} ) {
+		if ( ! ai.available ) {
+			showToast(
+				'warning',
+				ai.error || 'AI unavailable — connect LingoWP to enable it.'
+			)
+			return
+		}
+		const { deferRefresh = false, ...params } = opts
+		// A caller can target languages other than the dashboard's currently
+		// selected one — every cache op below keys off the response's own
+		// language(s), not selectedLang. CompareOverlay passes `languages: [...]`
+		// to translate one text into every configured language in a single
+		// request; every other caller passes a single `language`.
+		const multi =
+			Array.isArray( params.languages ) && params.languages.length > 0
+		const langs = multi
+			? params.languages
+			: [ params.language ?? selectedLang ]
+		const res = await aiTranslateMut.mutateAsync( {
+			scope,
+			...params,
+			// exactly one of these two goes on the wire; the other is dropped by
+			// JSON.stringify (undefined values are omitted).
+			...( multi
+				? { languages: langs.join( ',' ), language: undefined }
+				: { language: langs[ 0 ], languages: undefined } ),
+		} )
+		if ( ! res.ok ) {
+			handleAiFailure( res.error )
+			return
+		}
+		if ( ! deferRefresh ) {
+			await refreshAfterTranslate( langs )
+		}
 		return res
 	}
 
@@ -880,24 +947,34 @@ export default function Dashboard( {
 	// language-wide is exactly the scope most likely to exceed
 	// AiQueueConfig::MAX_TEXTS_PER_SUBMIT in one request.
 	async function translateAllInLanguage() {
-		setTranslatingAll( true )
+		// Marking the language in flight also shimmers every still-missing row on
+		// the board immediately, before the first POST -- same trick as the
+		// per-collection "Translate all". The real `pending` status only lands a
+		// POST + refetch later, which reads as the click having done nothing.
+		const code = selectedLang
+		if ( translatingLangs.has( code ) ) {
+			return
+		}
+		markTranslating( code, true )
+		const args = { source: board, language: code, deferRefresh: true }
 		try {
-			let res = await translateScope( 'language', { source: board } )
+			let res = await translateScope( 'language', args )
 			while ( res?.more ) {
-				res = await translateScope( 'language', { source: board } )
+				res = await translateScope( 'language', args )
 			}
+			await refreshAfterTranslate( [ code ] )
 		} finally {
-			setTranslatingAll( false )
+			markTranslating( code, false )
 		}
 	}
 
 	// Same as translateAllInLanguage() but targets one language explicitly (from
-	// its row menu in the sidebar), so the user needn't select it first. Shares
-	// the translatingAll guard, so it won't run alongside the header button or a
-	// second row-menu click. A toast confirms the queue since an unselected
+	// its row menu in the sidebar), so the user needn't select it first. Other
+	// languages may be mid-submit at the same time; only a second loop for THIS
+	// language is refused. A toast confirms the queue since an unselected
 	// language shows no shimmering rows to signal work is underway.
 	async function translateAllForLanguage( lang ) {
-		if ( translatingAll ) {
+		if ( translatingLangs.has( lang.code ) ) {
 			return
 		}
 		if ( billingBlocked ) {
@@ -911,17 +988,16 @@ export default function Dashboard( {
 			)
 			return
 		}
-		setTranslatingAll( true )
+		markTranslating( lang.code, true )
+		const args = {
+			source: board,
+			language: lang.code,
+			deferRefresh: true,
+		}
 		try {
-			let res = await translateScope( 'language', {
-				source: board,
-				language: lang.code,
-			} )
+			let res = await translateScope( 'language', args )
 			while ( res?.more ) {
-				res = await translateScope( 'language', {
-					source: board,
-					language: lang.code,
-				} )
+				res = await translateScope( 'language', args )
 			}
 			if ( res?.ok ) {
 				showToast(
@@ -934,8 +1010,9 @@ export default function Dashboard( {
 					}…`
 				)
 			}
+			await refreshAfterTranslate( [ lang.code ] )
 		} finally {
-			setTranslatingAll( false )
+			markTranslating( lang.code, false )
 		}
 	}
 
@@ -952,7 +1029,7 @@ export default function Dashboard( {
 			)
 			return
 		}
-		setTranslatingAll( true )
+		markTranslating( selectedLang, true )
 		try {
 			const gettextBoardArgs = { scope: 'board', locale: selectedLang }
 			let res = await translateGettextMut.mutateAsync( gettextBoardArgs )
@@ -973,7 +1050,7 @@ export default function Dashboard( {
 			} )
 			refetchEntitlements()
 		} finally {
-			setTranslatingAll( false )
+			markTranslating( selectedLang, false )
 		}
 	}
 
@@ -1012,6 +1089,36 @@ export default function Dashboard( {
 		showToast(
 			ok ? 'success' : 'critical',
 			ok ? 'All languages updated.' : 'Could not update the languages.'
+		)
+	}
+
+	// Settings-popover bulk action: publish every draft language that already
+	// has enough translated content. Sequential on purpose — each PATCH is a
+	// read-modify-write of the shared lingowp_languages option, so firing them
+	// in parallel would drop some of the changes.
+	// ponytail: no bulk endpoint; the roster is a handful of languages.
+	async function publishReadyLanguages( ready ) {
+		setPublishingReady( true )
+		let published = 0
+		for ( const lang of ready ) {
+			try {
+				await patchLangMut.mutateAsync( {
+					code: lang.code,
+					status: 'active',
+				} )
+				published++
+			} catch {
+				// keep going; the count below reports what actually landed
+			}
+		}
+		setPublishingReady( false )
+		showToast(
+			published === ready.length ? 'success' : 'critical',
+			published === ready.length
+				? `Published ${ published } language${
+						published === 1 ? '' : 's'
+				  }.`
+				: `Published ${ published } of ${ ready.length } languages.`
 		)
 	}
 
@@ -1132,32 +1239,48 @@ export default function Dashboard( {
 	}, [ languageAddedSignal ] )
 
 	// A queued AI translation only consumes words later, when its `pending` row
-	// is drained by the texts poll (pollWhilePending) -- not by the POST that
-	// queued it. translateScope()'s own refetchEntitlements() therefore runs too
-	// early to see the usage change. Watch the cache for the falling edge (some
-	// texts query had a pending row, now none do) and refetch then, so
-	// QuotaCard's consumed count and the rail percentages catch up on their own.
-	const hadPendingRef = useRef( false )
+	// is drained by a board read -- not by the POST that queued it.
+	// translateScope()'s own refetchEntitlements() therefore runs too early to
+	// see the usage change. Watch the cache and refetch once the last pending
+	// row lands, so QuotaCard's consumed count catches up on its own.
+	//
+	// Counting collection summaries as well as texts rows is load-bearing: a
+	// language-wide "Translate All" queues thousands of rows in collections the
+	// user never expanded, so there is no `texts` query holding them -- the edge
+	// would otherwise fire the moment the first expanded group finished.
+	const pendingCountRef = useRef( 0 )
 	useEffect( () => {
 		const cache = queryClient.getQueryCache()
-		const anyPending = () =>
-			cache.getAll().some( ( q ) => {
-				if ( q.queryKey[ 0 ] !== 'texts' ) {
-					return false
+		const pendingCount = () => {
+			let n = 0
+			for ( const q of cache.getAll() ) {
+				if ( q.queryKey[ 0 ] === 'texts' ) {
+					const texts = q.state.data?.texts
+					if ( Array.isArray( texts ) ) {
+						n += texts.filter(
+							( t ) => t.status === 'pending'
+						).length
+					}
+				} else if ( q.queryKey[ 0 ] === 'collections' ) {
+					for ( const page of q.state.data?.pages ?? [] ) {
+						for ( const c of page.collections ?? [] ) {
+							n += c.pending ?? 0
+						}
+					}
 				}
-				const texts = q.state.data?.texts
-				return (
-					Array.isArray( texts ) &&
-					texts.some( ( t ) => t.status === 'pending' )
-				)
-			} )
+			}
+			return n
+		}
 		return cache.subscribe( () => {
-			const now = anyPending()
-			if ( hadPendingRef.current && ! now ) {
+			const now = pendingCount()
+			// Falling edge only: the rail polls its own percentages while the
+			// queue drains (see anyLanguagePending), so this exists for the
+			// quota rail, which only settles once the last row lands.
+			if ( pendingCountRef.current > 0 && now === 0 ) {
 				refetchEntitlements()
 				refreshLanguages()
 			}
-			hadPendingRef.current = now
+			pendingCountRef.current = now
 		} )
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient/refetchEntitlements stable; refreshLanguages is a stable declaration
 	}, [] )
@@ -1205,6 +1328,9 @@ export default function Dashboard( {
 		// Plugins & Themes has its own board (GettextBoard) now — no need to
 		// fetch the collections-count list while that tab is active.
 		enabled: !! selectedLang && board === 'content',
+		// Gated on any language's queue, not just this board's: the drain it
+		// triggers is global, so a background language's results still land.
+		refetchInterval: anyLanguagePending ? BOARD_POLL_MS : false,
 	} )
 
 	function invalidateCollections( lang = selectedLang ) {
@@ -2246,6 +2372,25 @@ export default function Dashboard( {
 															refreshScan()
 														},
 													},
+													...( readyToPublish.length
+														? [
+																{
+																	content:
+																		'Publish ready',
+																	disabled:
+																		publishingReady,
+																	onAction:
+																		() => {
+																			setPageMenuOpen(
+																				false
+																			)
+																			publishReadyLanguages(
+																				readyToPublish
+																			)
+																		},
+																},
+														  ]
+														: [] ),
 													...providerMenuItems,
 												] }
 											/>
@@ -2457,9 +2602,8 @@ export default function Dashboard( {
 												variant="secondary"
 												disabled={
 													! ai.available ||
-													translatingAll
+													bulkTranslatingBoard
 												}
-												loading={ translatingAll }
 												size="large"
 												onClick={ () => {
 													if ( billingBlocked ) {
@@ -2989,6 +3133,9 @@ export default function Dashboard( {
 														onAiTranslate={
 															translateScope
 														}
+														bulkTranslatingBoard={
+															bulkTranslatingBoard
+														}
 														billingBlocked={
 															billingBlocked
 														}
@@ -3194,6 +3341,7 @@ function CollectionGroup( {
 	onOpenOverlay,
 	aiAvailable,
 	onAiTranslate,
+	bulkTranslatingBoard = false,
 	billingBlocked,
 	onAiBlocked,
 	onLengthWarning,
@@ -3626,7 +3774,10 @@ function CollectionGroup( {
 											language={ language }
 											targetDir={ targetDir }
 											collectionId={ c.id }
-											bulkTranslating={ bulkTranslating }
+											bulkTranslating={
+												bulkTranslating ||
+												bulkTranslatingBoard
+											}
 											onMutate={ onMutate }
 											onConfirm={ onConfirm }
 											aiAvailable={ aiAvailable }

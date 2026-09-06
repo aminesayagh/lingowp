@@ -230,7 +230,7 @@ final class GettextAiQueue
         $table = TranslationMemorySchema::gettextUnitTable();
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        return (bool) $this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$table} WHERE ai_pending_since IS NOT NULL)");
+        return (bool) $this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$table} WHERE ai_pending_since IS NOT NULL)"); // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::gettextUnitTable()
     }
 
     public function tryPullLock(): bool

@@ -7,7 +7,6 @@ use LingoWP\Board\CollectionBoard;
 
 use LingoWP\Backend\BillingEntitlementsService;
 use LingoWP\Backend\ConnectionStatus;
-use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\Shared\Source\SourceRef;
 use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use WP_REST_Request;
@@ -34,14 +33,14 @@ use WP_REST_Response;
  * front of it. GET /me/entitlements is the canonical snapshot for anyone who
  * wants one (the Dashboard's quota rail), not this controller.
  *
- * "AI translate all" targets missing + needs_review units (already-done ones
- * are skipped).
+ * "AI translate all" targets only missing units -- anything already translated,
+ * needs_review included, is left alone (see AiScopeUnits::pending()).
  */
 final class AiTranslationController
 {
     private const NS = 'lingowp/v1';
 
-    private WpDbSourceRepository $repo;
+    private AiScopeUnits $units;
     private OptionLanguageRegistry $registry;
     private CollectionBoard $collections;
     private BillingEntitlementsService $entitlements;
@@ -49,14 +48,14 @@ final class AiTranslationController
     private ConnectionStatus $connectionStatus;
 
     public function __construct(
-        WpDbSourceRepository $repo,
+        AiScopeUnits $units,
         OptionLanguageRegistry $registry,
         CollectionBoard $collections,
         BillingEntitlementsService $entitlements,
         AiTaskSubmitter $submitter,
         ConnectionStatus $connectionStatus
     ) {
-        $this->repo             = $repo;
+        $this->units            = $units;
         $this->registry         = $registry;
         $this->collections      = $collections;
         $this->entitlements     = $entitlements;
@@ -179,159 +178,20 @@ final class AiTranslationController
     }
 
     /**
-     * Pending source units for a scope as [{ref, original, group_id, translated?, status?}].
-     * 'text' translates only the one clicked ref, regardless of its own status
-     * (preserves "re-translate this one on demand") — never siblings from the
-     * same post, so a single-text click stays a single-item request no matter
-     * how large the surrounding post is. 'collection'/'language' take only
-     * missing + needs_review units. Returns null on a malformed scope/id.
-     *
-     * @return array<int, array{ref:SourceRef, original:string, group_id:string}>|null
+     * Parse the scope's request params, then hand off to AiScopeUnits. The kind
+     * vocabulary and every DB read live there; this is just the HTTP half.
      */
     private function unitsForScope(string $scope, WP_REST_Request $request, string $lang): ?array
     {
         if ($scope === 'text') {
             $ref = SourceRef::parse(urldecode((string) $request->get_param('ref')));
-            if ($ref === null) {
-                return null;
-            }
-            $context = $this->repo->loadSourceValidationContext($ref);
-            if ($context === null) {
-                return [];
-            }
-
-            return [[
-                'ref'      => $ref,
-                'original' => $context['text'],
-                'meta_key' => $context['meta_key'],
-                'group_id' => $ref->format(),
-            ]];
+            return $ref === null ? null : $this->units->forScope('text', $lang, '', $ref);
         }
-
         if ($scope === 'collection') {
-            $units = $this->collectionUnits(urldecode((string) $request->get_param('id')), $lang);
-            return $units === null ? null : $this->pending($units);
+            return $this->units->forScope('collection', $lang, urldecode((string) $request->get_param('id')));
         }
 
-        if ($scope === 'language') {
-            return $this->pending($this->languageUnits($lang));
-        }
-
-        return null;
-    }
-
-    /**
-     * Keep only untranslated units -- needs_review already has a translation
-     * (a human may have started reviewing/editing it), so a bulk collection/
-     * language translate must never silently overwrite it; that stays a
-     * per-unit decision via the row's own AI button. Also drops anything
-     * already queued (a fresh ai_pending_since) -- without this, a resubmit
-     * of the same collection/language scope before the worker finishes
-     * would keep re-resolving the exact same units, and a
-     * >MAX_TEXTS_PER_SUBMIT collection's `more`-driven resubmit loop would
-     * never converge (the same first slice forever, since none of them
-     * transition out of "missing" until the async worker actually finishes).
-     */
-    private function pending(array $units): array
-    {
-        $now = time();
-        return array_values(array_filter(
-            $units,
-            static fn (array $u): bool =>
-                ($u['translated'] ?? null) === null
-                && ! AiQueueConfig::isFreshPending($u['ai_pending_since'] ?? null, $now)
-        ));
-    }
-
-    /**
-     * Units of one collection id. ponytail: the id vocabulary is duplicated from
-     * CollectionBoard — acceptable for two call sites; centralize if a
-     * third appears.
-     *
-     * @return array<int, array{ref:SourceRef, original:string, translated:?string, ai_pending_since:?string}>|null
-     */
-    private function collectionUnits(string $id, string $lang): ?array
-    {
-        if ($id === 'option:site') {
-            return $this->unitsFromRows('option', $this->repo->listOptionTexts($lang), 'option:site');
-        }
-        if ($id === 'html:all') {
-            return $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang), $this->htmlGroupId());
-        }
-        if (preg_match('/^content:([0-9]+)$/', $id, $m)) {
-            $pid = (int) $m[1];
-            return array_merge(
-                $this->unitsFromRows('post', $this->repo->listPostTexts($pid, $lang), "content:{$pid}"),
-                $this->unitsFromRows('meta', $this->repo->listMetaTexts($pid, $lang), "content:{$pid}")
-            );
-        }
-        if (preg_match('/^taxonomy:(.+)$/', $id, $m)) {
-            return $this->unitsFromRows(
-                'term',
-                $this->repo->listTaxonomyTexts($m[1], $lang),
-                static fn (array $r): string => 'term:' . (string) ($r['term_id'] ?? '')
-            );
-        }
-        return null;
-    }
-
-    /** html rows have no post link, so group by crawl source when known; a shared
-     *  fallback bucket for url-less rows still gets sub-chunked correctly downstream. */
-    private function htmlGroupId(): callable
-    {
-        return static fn (array $r): string =>
-            isset($r['source_url']) && $r['source_url'] !== ''
-                ? 'html:' . md5((string) $r['source_url'])
-                : 'html:all';
-    }
-
-    /**
-     * Every unit for a language: posts/meta/terms/options/html — the sidebar's
-     * per-language "Translate All" always uses this.
-     */
-    private function languageUnits(string $lang): array
-    {
-        $units = array_merge(
-            $this->unitsFromRows('option', $this->repo->listOptionTexts($lang), 'option:site'),
-            $this->unitsFromRows('html', $this->repo->listHtmlTexts($lang), $this->htmlGroupId())
-        );
-        foreach ($this->repo->listPostCollections($lang) as $c) {
-            $pid   = $c['post_id'];
-            $units = array_merge(
-                $units,
-                $this->unitsFromRows('post', $this->repo->listPostTexts($pid, $lang), "content:{$pid}"),
-                $this->unitsFromRows('meta', $this->repo->listMetaTexts($pid, $lang), "content:{$pid}")
-            );
-        }
-        foreach ($this->repo->listTermCollections($lang) as $t) {
-            $ttid  = $t['term_taxonomy_id'];
-            $units = array_merge($units, $this->unitsFromRows('term', $this->repo->listTermTexts($ttid, $lang), "term:{$ttid}"));
-        }
-
-        return $units;
-    }
-
-    /**
-     * @param string|callable(array $r):string $groupId constant string, or a
-     *        per-row callable when the group varies per row (html: by source_url;
-     *        term via taxonomy scope: by term_id)
-     * @return array<int, array{ref:SourceRef, original:string, translated:?string, ai_pending_since:?string, meta_key:?string, group_id:string}>
-     */
-    private function unitsFromRows(string $kind, array $rows, $groupId): array
-    {
-        // meta rows already carry the key as `field` (listMetaTexts); keeping it on
-        // the unit is what lets the write guard pick an SEO variable grammar without
-        // a per-item query inside the result loop.
-        return array_map(function (array $r) use ($kind, $groupId): array {
-            return [
-                'ref'              => SourceRef::make($kind, (int) $r['id']),
-                'original'         => (string) $r['original_text'],
-                'translated'       => $r['translated_text'],
-                'ai_pending_since' => $r['ai_pending_since'] ?? null,
-                'meta_key'         => $kind === 'meta' ? (string) ($r['field'] ?? '') : null,
-                'group_id'         => is_string($groupId) ? $groupId : $groupId($r),
-            ];
-        }, $rows);
+        return $this->units->forScope($scope, $lang);
     }
 
     private function resolveLang(WP_REST_Request $request): string

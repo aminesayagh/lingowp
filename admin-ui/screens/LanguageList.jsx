@@ -153,7 +153,6 @@ export function LanguageRow( {
 	// already says it, and the greyed flag just looked broken next to it.
 	flagGrayscale = true,
 } ) {
-	const [ hover, setHover ] = useState( false )
 	const [ menuOpen, setMenuOpen ] = useState( false )
 	// The canonical label, "Português (Brasil)" — never the workspace-board
 	// nickname (lang.display_name), which belongs on the board alone.
@@ -217,14 +216,23 @@ export function LanguageRow( {
 	].filter( Boolean )
 
 	const hasMenu = items.length > 0
-	const showMenu = hasMenu && ( hover || menuOpen )
+	// The %-to-⋯ swap is done in CSS (see .lingowp-row-* in tailwind.css), not
+	// with a React `hover` state: mouseleave never fires when a modal opens over
+	// the cursor or the list scrolls under it, and the ⋯ then stuck on rows the
+	// cursor had long left. Only menuOpen — driven by clicks — stays in JS, to
+	// hold the button visible while its dropdown is up.
+	const rowClass = [
+		hasMenu && 'lingowp-row--has-menu',
+		menuOpen && 'lingowp-row--menu-open',
+	]
+		.filter( Boolean )
+		.join( ' ' )
 
 	return (
 		<div
 			role="button"
 			tabIndex={ 0 }
-			onMouseEnter={ () => setHover( true ) }
-			onMouseLeave={ () => setHover( false ) }
+			className={ rowClass }
 			onClick={ ( event ) => {
 				if ( ! event.target.closest( '[data-language-actions]' ) ) {
 					onSelect()
@@ -267,7 +275,7 @@ export function LanguageRow( {
 					{ name }
 				</Text>
 			</span>
-			{ ( showProgress || showMenu ) && (
+			{ ( showProgress || hasMenu ) && (
 				// eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- not an interactive control; this wrapper only stops click propagation to the parent row (the real control is the menu inside it), so a keyboard handler / tab stop here would be spurious
 				<div
 					data-language-actions
@@ -292,21 +300,32 @@ export function LanguageRow( {
 						open={ menuOpen }
 						onClose={ () => setMenuOpen( false ) }
 						activator={
-							showMenu ? (
-								<Button
-									variant="tertiary"
-									size="micro"
-									icon={ MenuHorizontalIcon }
-									accessibilityLabel="More actions"
-									onClick={ () =>
-										setMenuOpen( ( o ) => ! o )
-									}
-								/>
-							) : (
-								<Text as="span" tone="subdued" variant="bodySm">
-									{ percent }%
-								</Text>
-							)
+							<>
+								{ showProgress && (
+									<span className="lingowp-row-percent">
+										<Text
+											as="span"
+											tone="subdued"
+											variant="bodySm"
+										>
+											{ percent }%
+										</Text>
+									</span>
+								) }
+								{ hasMenu && (
+									<span className="lingowp-row-actions">
+										<Button
+											variant="tertiary"
+											size="micro"
+											icon={ MenuHorizontalIcon }
+											accessibilityLabel="More actions"
+											onClick={ () =>
+												setMenuOpen( ( o ) => ! o )
+											}
+										/>
+									</span>
+								) }
+							</>
 						}
 					>
 						<ActionList items={ items } />

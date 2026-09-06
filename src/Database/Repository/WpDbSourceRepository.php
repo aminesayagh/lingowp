@@ -482,6 +482,19 @@ final class WpDbSourceRepository
     }
 
     /**
+     * Every discovered post text unit for one language in one query, each with its
+     * post_id. Feeds the AI "translate this whole language" scope, which would
+     * otherwise ask post-by-post.
+     *
+     * @return array<int, array{id:int, post_id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listAllPostTexts(string $langCode): array
+    {
+        return $this->board->listAllPostTexts($langCode);
+    }
+
+    /**
      * The single Site-settings collection (all discovered option sources) with
      * per-status counts for one language.
      *
@@ -590,6 +603,18 @@ final class WpDbSourceRepository
     }
 
     /**
+     * Every discovered post-meta text unit for one language in one query, each with
+     * its post_id. The listAllPostTexts() counterpart for meta.
+     *
+     * @return array<int, array{id:int, post_id:int, field:string, original_text:string,
+     *   translated_text:?string, status:?int, provider:?string}>
+     */
+    public function listAllMetaTexts(string $langCode): array
+    {
+        return $this->board->listAllMetaTexts($langCode);
+    }
+
+    /**
      * Term-meta per-status counts grouped by taxonomy for one language. Merged
      * into each taxonomy's collection alongside term name/description.
      *
@@ -695,6 +720,19 @@ final class WpDbSourceRepository
     public function languageProgress(string $langCode): array
     {
         return $this->board->languageProgress($langCode);
+    }
+
+    /**
+     * languageProgress() for every language in one pass -- what the language rail
+     * needs. Flat in the number of languages; the per-language call is 7 table
+     * aggregates each.
+     *
+     * @param string[] $langCodes
+     * @return array<string, array{total:int, translated:int}>
+     */
+    public function languageProgressAll(array $langCodes): array
+    {
+        return $this->board->languageProgressAll($langCodes);
     }
 
     /**
@@ -1039,7 +1077,7 @@ final class WpDbSourceRepository
         foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) {
+            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) { // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::parentTables(); no values interpolated
                 return true;
             }
         }
@@ -1047,7 +1085,7 @@ final class WpDbSourceRepository
         foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) {
+            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) { // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::parentTables(); no values interpolated
                 return true;
             }
         }

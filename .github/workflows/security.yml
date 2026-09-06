@@ -42,6 +42,19 @@ jobs:
               env:
                   TARGET: ${{ (inputs.tool == '' || inputs.tool == 'all') && 'security' || format('security:{0}', inputs.tool) }}
 
+            # Guards the composer.json php floor. Not a scanner, so it sits
+            # outside the `security` aggregate's security:* naming loop.
+            - name: PHP cross-version compatibility
+              if: ${{ inputs.tool == '' || inputs.tool == 'all' }}
+              run: composer run --no-interaction compat:php
+
+            # Slow (full git history), so it is not in the `security` aggregate
+            # that PRs and pushes run. Weekly is enough to catch a committed
+            # secret; workflow_dispatch can still run it on demand.
+            - name: Secrets in git history
+              if: ${{ github.event_name == 'schedule' }}
+              run: composer run --no-interaction security:secrets-history
+
             - uses: actions/upload-artifact@v4
               if: always()
               with:
