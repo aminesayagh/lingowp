@@ -14,6 +14,7 @@ import {
 } from '@shopify/polaris'
 import { MenuHorizontalIcon, PageIcon } from '@shopify/polaris-icons'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { errorMessage } from '../errors'
 import {
 	useCallback,
 	useEffect,
@@ -187,6 +188,7 @@ export default function GettextBoard( {
 	onPickLanguage,
 	onConfirm,
 	onAiUnavailable,
+	onActionError,
 } ) {
 	const queryClient = useQueryClient()
 	// Destructured for the stable mutate fn (RQ guarantees it) so the scan /
@@ -1015,6 +1017,7 @@ export default function GettextBoard( {
 										onAiBlocked={ onAiBlocked }
 										onPickLanguage={ onPickLanguage }
 										onAiUnavailable={ onAiUnavailable }
+										onActionError={ onActionError }
 									/>
 								</Box>
 							</Collapsible>
@@ -1190,6 +1193,7 @@ function GettextUnitList( {
 	onAiBlocked,
 	onPickLanguage,
 	onAiUnavailable,
+	onActionError,
 } ) {
 	const queryClient = useQueryClient()
 	const ignoreUnitMut = useIgnoreGettextUnit()
@@ -1361,6 +1365,7 @@ function GettextUnitList( {
 					onOpenOverlay={ () => setOverlayIndex( i ) }
 					onIgnore={ () => confirmIgnore( i ) }
 					onAiUnavailable={ onAiUnavailable }
+					onActionError={ onActionError }
 				/>
 			) ) }
 			<Box padding="300">
@@ -1385,6 +1390,7 @@ function GettextUnitList( {
 				onAiBlocked={ onAiBlocked }
 				onPickLanguage={ onPickLanguage }
 				onAiUnavailable={ onAiUnavailable }
+				onActionError={ onActionError }
 				onClose={ () => setOverlayIndex( null ) }
 				onQueued={ () =>
 					overlayUnit && markUnitPending( unitKey( overlayUnit ) )
@@ -1419,6 +1425,7 @@ function GettextUnitRow( {
 	onOpenOverlay,
 	onIgnore,
 	onAiUnavailable,
+	onActionError,
 } ) {
 	const [ draft, setDraft ] = useState( unit.msgstr )
 	const [ menuOpen, setMenuOpen ] = useState( false )
@@ -1486,6 +1493,8 @@ function GettextUnitRow( {
 		} )
 		if ( res.ok ) {
 			onSaved( draft )
+		} else {
+			onActionError?.( errorMessage( res.error ) )
 		}
 	}
 

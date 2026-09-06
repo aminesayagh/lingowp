@@ -17,6 +17,7 @@ import {
 	DuplicateIcon,
 } from '@shopify/polaris-icons'
 import { useEffect, useRef, useState } from '@wordpress/element'
+import { errorMessage } from '../errors'
 import { useSaveGettextUnit, useTranslateGettext } from '../queries/gettext'
 import { AiIcon } from './AiIcon'
 import { flagIconUrl, FlagIcon } from './FlagIcon'
@@ -91,6 +92,7 @@ export default function GettextOverlay( {
 	onClose,
 	onQueued,
 	onSaved,
+	onActionError,
 	onPrev,
 	onNext,
 	hasPrev,
@@ -136,6 +138,8 @@ export default function GettextOverlay( {
 			savedRef.current = value
 			setSavedTick( ( t ) => t + 1 )
 			onSaved( value )
+		} else {
+			onActionError?.( errorMessage( res.error ) )
 		}
 	}
 

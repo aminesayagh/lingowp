@@ -2967,6 +2967,7 @@ export default function Dashboard( {
 										onPickLanguage={ setSelectedLang }
 										onConfirm={ setConfirm }
 										onAiUnavailable={ handleAiFailure }
+										onActionError={ showActionError }
 									/>
 								</Suspense>
 							) }
@@ -3432,6 +3433,8 @@ function CollectionGroup( {
 		} )
 		if ( res.ok ) {
 			onMutate( res )
+		} else {
+			onActionError( errorMessage( res.error ) )
 		}
 	}
 
@@ -3496,6 +3499,8 @@ function CollectionGroup( {
 		if ( res.ok ) {
 			onMutate( res )
 			staleQ.refetch()
+		} else {
+			onActionError( errorMessage( res.error ) )
 		}
 	}
 
@@ -3934,6 +3939,8 @@ function TextUnitRow( {
 			if ( warning ) {
 				onLengthWarning( warning )
 			}
+		} else {
+			onActionError( errorMessage( res.error ) )
 		}
 	}
 

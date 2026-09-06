@@ -5,6 +5,15 @@
 
 const MESSAGES = {
 	ERR_UNREACHABLE: "Couldn't connect to LingoWP. Try again in a moment.",
+	// WordPress-level failures, mapped in api.js — the plugin's REST routes
+	// never registered, the admin session lapsed, or PHP died mid-request.
+	ERR_ROUTE_MISSING:
+		"This part of LingoWP isn't responding. Deactivate and reactivate the plugin, then reload this page.",
+	ERR_SESSION_EXPIRED: 'Your session expired. Reload the page and try again.',
+	ERR_FORBIDDEN:
+		"You don't have permission to do that. Ask an administrator.",
+	ERR_HTTP_500:
+		'Your site hit an error handling that request. Check the PHP error log.',
 	ERR_ORIGIN_NOT_CONFIGURED:
 		"Couldn't connect to LingoWP. Try again in a moment.",
 	ERR_BACKEND: "Couldn't connect to LingoWP. Try again in a moment.",

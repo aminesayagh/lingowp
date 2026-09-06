@@ -28,6 +28,7 @@ import {
 	hasMarkers,
 	stripMarkers,
 } from './TranslationUnitEditor'
+import { errorMessage } from '../errors'
 import { lengthWarningMessage } from './lengthWarning.mjs'
 
 /*
@@ -184,7 +185,7 @@ export default function CompareOverlay( {
 			setError(
 				res.error === 'ERR_TAG_STRUCTURE'
 					? 'Tag structure is invalid — fix the highlighted tags.'
-					: 'Could not save. Please try again.'
+					: errorMessage( res.error )
 			)
 		},
 		[
