@@ -40,6 +40,7 @@
 			"@php tests/fallback_chain_check.php",
 			"@php tests/gettext_hash_check.php",
 			"@php tests/gettext_ai_hash_check.php",
+			"@php tests/support_payload_check.php",
 			"@php bin/check-split-field.php"
 		],
 		"test:db": [

@@ -81,6 +81,7 @@ use LingoWP\GettextDomains\GettextTranslationUnitsService;
 use LingoWP\Insights\InsightsRestController;
 use LingoWP\Insights\NotifyEmailResolver;
 use LingoWP\Privacy\PrivacyPolicyContent;
+use LingoWP\Support\SupportRestController;
 
 class Plugin
 {
@@ -374,6 +375,8 @@ class Plugin
         (new ScanRestController($initialScan, $htmlCrawl))->register();
 
         (new InsightsRestController($backendClient, $connection))->register();
+
+        (new SupportRestController($backendClient, $connection))->register();
 
         $gettextImporter          = new GettextPoImporter();
         $gettextRegistry          = new GettextDomainRegistry();

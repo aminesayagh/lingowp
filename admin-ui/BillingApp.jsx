@@ -26,6 +26,7 @@ import BillingUsage from './screens/BillingUsage'
 import BillingSites from './screens/BillingSites'
 import BillingToken from './screens/BillingToken'
 import OwnerEmailCard from './screens/OwnerEmailCard'
+import SupportBubble from './screens/SupportBubble'
 
 const cfg = window.LingoWP || {}
 
@@ -70,9 +71,18 @@ function BillingAppInner() {
 		enabled: !! connectionStatus?.connected,
 	} )
 
+	// `isFetched` — not `isSuccess || isError` — because this gate mounts and
+	// unmounts <BillingSubscription>, which puts a SECOND observer on the same
+	// entitlements query. React Query resets a query with no data back to
+	// status:'pending' / error:null at the start of every fetch, so `isError`
+	// oscillates while the backend is down: error -> tab mounts -> its observer
+	// refetches on mount -> isError false -> tab unmounts -> fetch fails ->
+	// repeat, each pass cancelling the previous request. `isFetched` is
+	// monotonic (dataUpdateCount + errorUpdateCount > 0), so the gate settles
+	// after the first attempt and the failure lands on ConnectionErrorCard's
+	// manual Retry instead of a loop.
 	const connectionReady =
-		statusQ.isSuccess &&
-		( ! connectionStatus.connected || entQ.isSuccess || entQ.isError )
+		statusQ.isSuccess && ( ! connectionStatus.connected || entQ.isFetched )
 	// Optimistic true until entitlements load, so the Usage tab doesn't flash
 	// disabled.
 	const subscribed = entQ.data ? !! entQ.data.active : true
@@ -342,6 +352,7 @@ function BillingAppInner() {
 							</div>
 						</InlineStack>
 					</Page>
+					<SupportBubble />
 				</Frame>
 			</PortalsManager>
 		</AppProvider>

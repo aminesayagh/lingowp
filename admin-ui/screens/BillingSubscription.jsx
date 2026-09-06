@@ -825,11 +825,11 @@ export default function BillingSubscription() {
 
 		const timer = setTimeout( async () => {
 			const res = await refetchEnt()
-			if ( ! res.data ) {
-				return
-			}
-
-			if ( isPollSettled( polling, res.data ) ) {
+			// A failed refetch still counts as an attempt. Returning early on
+			// it (the old behaviour) left `polling` untouched, so this effect
+			// never re-ran and the "updating your account…" banner sat there
+			// forever with the backend down — never settling, never giving up.
+			if ( res.data && isPollSettled( polling, res.data ) ) {
 				setPolling( null )
 				return
 			}

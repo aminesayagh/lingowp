@@ -20,6 +20,7 @@ import { useNotifyInsights } from './queries/insights'
 import { errorMessage } from './errors'
 import { GhostKpiRow, Hero, TopicSection } from './screens/InsightsPreview'
 import { KPI_ROW, TOPICS } from './screens/insightsContent.mjs'
+import SupportBubble from './screens/SupportBubble'
 
 const cfg = window.LingoWP || {}
 
@@ -209,6 +210,7 @@ function InsightsAppInner() {
 							</InlineStack>
 						</BlockStack>
 					</Page>
+					<SupportBubble />
 				</Frame>
 			</PortalsManager>
 		</AppProvider>

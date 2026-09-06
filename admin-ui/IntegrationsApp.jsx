@@ -28,6 +28,7 @@ import {
 } from './queries/addons'
 import ConnectionErrorCard from './screens/ConnectionErrorCard'
 import { errorMessage } from './errors'
+import SupportBubble from './screens/SupportBubble'
 
 const cfg = window.LingoWP || {}
 
@@ -748,6 +749,7 @@ function IntegrationsAppInner() {
 							</InlineStack>
 						</BlockStack>
 					</Page>
+					<SupportBubble />
 				</Frame>
 			</PortalsManager>
 		</AppProvider>
