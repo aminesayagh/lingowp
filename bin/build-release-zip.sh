@@ -48,6 +48,16 @@ echo "==> Rebuilding human-readable admin source"
 npm ci --ignore-scripts --prefix "$BUILD_DIR" >/dev/null
 npm run build --prefix "$BUILD_DIR"
 
+# Dropped before Composer runs, so the optimized classmap never learns a path
+# that is not in the archive. A stale entry is not fatal — Plugin.php guards the
+# reset page with class_exists() — but the autoloader would include() the
+# missing file and warn on every request, on exactly the WP_DEBUG sites where
+# warnings are visible.
+echo "==> Removing the debug-only database reset page"
+rm -f \
+  "$BUILD_DIR"/src/Admin/ResetPageController.php \
+  "$BUILD_DIR"/templates/reset.php
+
 echo "==> Installing production Composer dependencies"
 composer install --no-dev --optimize-autoloader --no-interaction \
   --working-dir="$BUILD_DIR" >/dev/null
@@ -70,9 +80,7 @@ rm -rf \
   "$BUILD_DIR"/AGENTS.md \
   "$BUILD_DIR"/CLAUDE.md \
   "$BUILD_DIR"/wp \
-  "$BUILD_DIR"/test \
-  "$BUILD_DIR"/src/Admin/ResetPageController.php \
-  "$BUILD_DIR"/templates/reset.php
+  "$BUILD_DIR"/test
 
 if [[ "$STRIP_COMMENTS" == "1" ]]; then
   echo "==> Stripping PHP comments"
