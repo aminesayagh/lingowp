@@ -7,7 +7,13 @@ the human-readable source repository and its lockfile.
 
 ## Runtime PHP packages
 
-- Action Scheduler by Automattic — GPL-3.0 license.
+- Action Scheduler by Automattic — GPL-3.0-or-later license. LingoWP is
+  GPL-2.0-or-later, which permits the combination; the distributed whole is
+  therefore effectively GPL-3.0-or-later. The package is bundled under
+  `vendor/woocommerce/action-scheduler/` and loaded by
+  `ActionSchedulerLoader`, which defers to a newer copy shipped by another
+  plugin (WooCommerce most commonly) through Action Scheduler's own version
+  negotiation.
 - Masterminds HTML5 — MIT license.
 - Gettext WordPress Scanner by 10 Quality and its Gettext scanner dependencies — MIT license.
 - Peast and PHP Parser — BSD-3-Clause license.

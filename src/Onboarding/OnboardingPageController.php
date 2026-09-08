@@ -231,8 +231,18 @@ final class OnboardingPageController
             'billing_url'         => esc_url_raw(admin_url('admin.php?page=' . self::BILLING_SLUG)),
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
-            'cloud_terms_url'     => esc_url_raw((string) apply_filters('lingowp_cloud_terms_url', '')),
-            'cloud_privacy_url'   => esc_url_raw((string) apply_filters('lingowp_cloud_privacy_url', '')),
+            // The canonical published pages. They stay filterable so a
+            // white-labelled deployment can point at its own legal pages, but
+            // the defaults are real URLs — an empty default meant the
+            // connection UI disclosed a service with nothing to read first.
+            'cloud_terms_url'     => esc_url_raw((string) apply_filters(
+                'lingowp_cloud_terms_url',
+                'https://www.lingowp.com/legal/terms-of-service/'
+            )),
+            'cloud_privacy_url'   => esc_url_raw((string) apply_filters(
+                'lingowp_cloud_privacy_url',
+                'https://www.lingowp.com/legal/privacy-policy/'
+            )),
             'installed_addons'    => $this->installedAddons(),
         ]);
 

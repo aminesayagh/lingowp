@@ -87,15 +87,26 @@ final class HtmlDiscoveryCrawl
         }
     }
 
-    /** Kick off the first batch once, when activation requested a crawl. */
+    /**
+     * Kick off the first batch once, when activation requested a crawl.
+     *
+     * The flag is only cleared when start() actually queued something. It
+     * returns false when Action Scheduler is missing (a plugin bundling a
+     * newer copy can lose the race on one request, or the bundled copy failed
+     * to load at all) — clearing the flag there would burn the activation
+     * request and the crawl would never run again on that site.
+     */
     public function maybeEnqueue(): void
     {
         if (!get_option(self::OPTION_FLAG)) {
             return;
         }
 
+        if (!$this->start()) {
+            return;
+        }
+
         delete_option(self::OPTION_FLAG);
-        $this->start();
     }
 
     /**

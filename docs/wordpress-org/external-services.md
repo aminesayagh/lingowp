@@ -32,11 +32,22 @@ theme or plugin, LingoWP may request package metadata and download the package
 from WordPress.org. The request concerns the installed component and requested
 locale; it is not an automatic visitor-tracking request.
 
+## Published legal pages
+
+- Terms of Service: https://www.lingowp.com/legal/terms-of-service/
+- Privacy Policy: https://www.lingowp.com/legal/privacy-policy/
+- Refunds policy: https://www.lingowp.com/legal/refunds-policy/
+- Legal notice: https://www.lingowp.com/legal/legal-notice/
+
+The Terms and Privacy URLs are linked from `readme.txt` and are the defaults
+behind the `lingowp_cloud_terms_url` and `lingowp_cloud_privacy_url` filters, so
+the cloud connection UI links to them without any site-side configuration. The
+filters remain in place for white-labelled deployments.
+
 ## Release blockers
 
-- Publish final LingoWP Cloud Terms of Service and Privacy Policy URLs.
-- Configure the `lingowp_cloud_terms_url` and
-  `lingowp_cloud_privacy_url` filters, or replace their empty defaults with
-  canonical production URLs before submission.
-- Ensure the same URLs and data descriptions appear in `readme.txt`, the cloud
-  connection UI, the service website, and the WordPress privacy-policy guidance.
+- The automatic connection described above is the open blocker. Guideline 7
+  requires informed consent before the first request, and today the first
+  request happens on the first admin page load. See `release-readiness.md`.
+- Keep the URLs and data descriptions above in sync across `readme.txt`, the
+  cloud connection UI, the service website, and `PrivacyPolicyContent`.

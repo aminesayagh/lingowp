@@ -2,7 +2,7 @@
 Contributors: aminesayagh
 Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
-Tested up to: 6.2
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 1.0.0
 License: GPLv2 or later
@@ -24,13 +24,25 @@ LingoWP Cloud is hosted at https://cloud.lingowp.com and provides optional accou
 
 On first use, the site domain and WordPress administrator email address are sent automatically to create the site connection; this is the only data sent without a further administrator action. AI translation requests send the selected source text, source and target languages, and grouping identifiers, and only when an administrator explicitly requests AI translation. Provider keys entered by an administrator are sent for provider validation and encrypted storage. Billing and account actions send the information necessary to perform the requested action. Clicking “Notify me at launch” sends the legacy backend code `feature_interest:translangs_insights` with the site's existing authentication and domain headers. It does not send an email address in the request body. An administrator can disconnect entirely at any time from the Billing page's Danger zone, which stops all further requests to LingoWP Cloud until reconnected.
 
-Local manual translation works fully without LingoWP Cloud; disconnecting does not affect it. Service terms and privacy-policy URLs must be finalized and added before marketplace submission; this is tracked in `docs/wordpress-org/release-readiness.md`.
+Local manual translation works fully without LingoWP Cloud; disconnecting does not affect it.
+
+LingoWP Cloud Terms of Service: https://www.lingowp.com/legal/terms-of-service/
+LingoWP Cloud Privacy Policy: https://www.lingowp.com/legal/privacy-policy/
+Refunds policy: https://www.lingowp.com/legal/refunds-policy/
+Legal notice: https://www.lingowp.com/legal/legal-notice/
 
 LingoWP can also contact WordPress.org language-pack APIs when an administrator explicitly requests an available translation package for an installed theme or plugin.
 
 = Human-readable source =
 
-The human-readable JavaScript and CSS source corresponding to version 1.0.0 is published at https://github.com/aminesayagh/lingowp/tree/v1.0.0. Build instructions are included in the repository and the release script rebuilds the admin assets from that source.
+Everything in `assets/admin/build/` is compiled output. The human-readable JavaScript and CSS source it is built from, for exactly this version, is published at https://github.com/aminesayagh/lingowp/tree/v1.0.0 — the `admin-ui/` directory, with `package.json`, `webpack.config.js`, and `postcss.config.js`.
+
+To reproduce those files from that source, with Node.js 20 or newer:
+
+`npm ci`
+`npm run build`
+
+That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` and writes the same bundles shipped here. The release script `bin/build-release-zip.sh` performs exactly these steps when packaging.
 
 == Installation ==
 
