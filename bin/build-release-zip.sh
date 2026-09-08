@@ -1,23 +1,17 @@
 #!/usr/bin/env bash
-# Builds a production-only, reproducible zip for WordPress.org review.
+# Builds a production-only, reproducible zip. One archive serves every
+# channel: WordPress.org review and direct client delivery get the same file.
 set -euo pipefail
 
 PLUGIN_SLUG="lingowp"
-# --strip-comments produces the client build: comments removed from PHP.
-STRIP_COMMENTS=0
-SUFFIX=""
-if [[ "${1:-}" == "--strip-comments" ]]; then
-  STRIP_COMMENTS=1
-  SUFFIX="-client"
-fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/lingowp.php" | head -n 1)"
 BUILD_DIR="$(mktemp -d)"
 STAGE_PARENT="$(mktemp -d)"
 STAGE_DIR="$STAGE_PARENT/$PLUGIN_SLUG"
 DIST_DIR="$ROOT_DIR/dist"
-DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}${SUFFIX}.zip"
-MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}${SUFFIX}.sha256"
+DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.zip"
+MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.sha256"
 
 cleanup() {
   rm -rf "$BUILD_DIR" "$STAGE_PARENT"
@@ -53,9 +47,10 @@ npm run build --prefix "$BUILD_DIR"
 # reset page with class_exists() — but the autoloader would include() the
 # missing file and warn on every request, on exactly the WP_DEBUG sites where
 # warnings are visible.
-# reset.php is the only thing templates/ holds and ResetPageController is
-# PhpTemplateRenderer's only caller, so all three go together — otherwise the
-# release ships a renderer pointing at a directory that no longer exists.
+#
+# All three go together: reset.php is the only thing templates/ holds, and
+# ResetPageController is PhpTemplateRenderer's only caller, so leaving the
+# renderer behind would ship it pointing at a directory that no longer exists.
 echo "==> Removing the debug-only database reset page"
 rm -f \
   "$BUILD_DIR"/src/Admin/ResetPageController.php \
@@ -93,18 +88,6 @@ rm -rf \
   "$BUILD_DIR"/CLAUDE.md \
   "$BUILD_DIR"/wp \
   "$BUILD_DIR"/test
-
-if [[ "$STRIP_COMMENTS" == "1" ]]; then
-  echo "==> Stripping PHP comments"
-  while read -r file; do
-    # The only exception: lingowp.php opens with the plugin header WordPress
-    # itself parses. Strip it and the plugin stops existing as far as WP is
-    # concerned. Everything else, translators: notes included, goes — the .pot
-    # is generated from the repository, never from this archive.
-    case "$file" in */lingowp.php) continue ;; esac
-    php -w "$file" > "$file.stripped" && mv "$file.stripped" "$file"
-  done < <(find "$BUILD_DIR" -maxdepth 1 -name '*.php'; find "$BUILD_DIR/src" -name '*.php')
-fi
 
 for required in \
   lingowp.php \
