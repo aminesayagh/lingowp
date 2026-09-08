@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -35,7 +35,7 @@ LingoWP can also contact WordPress.org language-pack APIs when an administrator 
 
 = Human-readable source =
 
-Everything in `assets/admin/build/` is compiled output. The human-readable JavaScript and CSS source it is built from, for exactly this version, is published at https://github.com/aminesayagh/lingowp/tree/v1.0.0 — the `admin-ui/` directory, with `package.json`, `webpack.config.js`, and `postcss.config.js`.
+Everything in `assets/admin/build/` is compiled output. The human-readable JavaScript and CSS source it is built from, for exactly this version, is published at https://github.com/aminesayagh/lingowp/tree/v1.3.1 — the `admin-ui/` directory, with `package.json`, `webpack.config.js`, and `postcss.config.js`.
 
 To reproduce those files from that source, with Node.js 20 or newer:
 
@@ -107,6 +107,6 @@ LingoWP adds suggested disclosure text to WordPress's Privacy Policy Guide. Site
 
 == Changelog ==
 
-= 1.0.0 =
+= 1.3.1 =
 
 * Initial marketplace release candidate.
