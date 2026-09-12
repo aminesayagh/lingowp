@@ -7,7 +7,7 @@
  *
  * Needs WordPress's own parse_blocks()/WP_Block_Type_Registry, not pure PHP —
  * hence a wp eval-file integration test alongside section5/section6, rather
- * than a bin/check-split-field.php-style pure check.
+ * than a tests/split_field_check.php-style pure check.
  */
 
 require __DIR__ . '/_harness.php';

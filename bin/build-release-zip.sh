@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Builds a production-only, reproducible zip. One archive serves every
-# channel: WordPress.org review and direct client delivery get the same file.
+# Builds a production-only, reproducible zip.
+#
+# Default output is the WordPress.org submission: comments intact, because a
+# reviewer reads them and Guideline 4 asks for readable code.
+#
+# LINGOWP_STRIP_COMMENTS=1 builds the direct-download ("client") variant instead,
+# with the plugin's own PHP comments removed so implementation notes do not ship
+# to customers. It lands under a "-client" name so the two can never be mixed up.
 set -euo pipefail
 
 PLUGIN_SLUG="lingowp"
@@ -10,8 +16,13 @@ BUILD_DIR="$(mktemp -d)"
 STAGE_PARENT="$(mktemp -d)"
 STAGE_DIR="$STAGE_PARENT/$PLUGIN_SLUG"
 DIST_DIR="$ROOT_DIR/dist"
-DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.zip"
-MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.sha256"
+STRIP_COMMENTS="${LINGOWP_STRIP_COMMENTS:-0}"
+VARIANT=""
+if [[ "$STRIP_COMMENTS" == "1" ]]; then
+  VARIANT="-client"
+fi
+DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}${VARIANT}.zip"
+MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}${VARIANT}.sha256"
 
 cleanup() {
   rm -rf "$BUILD_DIR" "$STAGE_PARENT"
@@ -138,6 +149,13 @@ for forbidden in node_modules admin-ui tests templates src/Admin/ResetPageContro
     exit 1
   fi
 done
+
+# Runs last, after every removal, so it only ever sees files that actually ship,
+# and before the timestamp normalisation below so the archive stays reproducible.
+if [[ "$STRIP_COMMENTS" == "1" ]]; then
+  echo "==> Stripping comments (client archive)"
+  php "$ROOT_DIR/bin/strip-comments.php" "$BUILD_DIR"
+fi
 
 SOURCE_DATE_EPOCH="$(git -C "$ROOT_DIR" show -s --format=%ct HEAD)"
 find "$BUILD_DIR" -exec touch -d "@$SOURCE_DATE_EPOCH" {} +

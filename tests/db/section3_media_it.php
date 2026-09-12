@@ -16,7 +16,7 @@
  * SourceLifecycleRefresher is already registered exactly as on a live request.
  *
  * SVG pruning and gallery captions are pure HtmlUnitExtractor behavior, covered
- * in bin/check-split-field.php — not duplicated here as a DB test.
+ * in tests/split_field_check.php — not duplicated here as a DB test.
  */
 
 require __DIR__ . '/_harness.php';

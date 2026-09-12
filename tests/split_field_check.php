@@ -2,7 +2,7 @@
 
 /**
  * Standalone round-trip check for split-field extraction (split-field spec).
- * Run:  php bin/check-split-field.php   (needs composer vendor/ for Masterminds)
+ * Run:  php tests/split_field_check.php   (needs composer vendor/ for Masterminds)
  * Exits non-zero if any case fails. No WordPress, no DB.
  *
  * A record is keyed by its identity() columns and hashes the text with

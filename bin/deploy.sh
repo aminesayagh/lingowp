@@ -2,13 +2,17 @@
 # Builds the plugin zip and drops it in the backend's plugin/ folder, where the
 # public download route picks up the highest version automatically.
 #
-# This is byte-for-byte the same archive submitted to WordPress.org. There used
-# to be a separate comment-stripped "client" variant. It was dropped: the
-# comments turned out to carry information that is read by machines, not just
-# people — 120 phpcs:ignore annotations that keep WordPress.org's Plugin Check
-# quiet about deliberately-unprepared SQL, and translators: notes that give the
-# i18n tooling its context. Stripping also buys nothing toward acceptance, since
-# Guideline 4 asks for readable code, not uncommented code.
+# This builds the comment-stripped "client" variant, not the WordPress.org
+# submission — customers download this one, and the implementation notes in the
+# source are not for them. The WordPress.org archive is built by running
+# build-release-zip.sh on its own, with comments left intact for the reviewer.
+#
+# An earlier client variant was dropped because stripping every comment also
+# removed the ones machines read: the phpcs:ignore annotations that keep
+# WordPress.org's Plugin Check quiet about deliberately-unprepared SQL, and the
+# translators: notes that give the i18n tooling its context. strip-comments.php
+# keeps those, plus the plugin header, and refuses to build if any of them are
+# lost — see its header for the full list.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -63,10 +67,12 @@ step "Integration checks (needs the wordpress container)" \
 # The direct-download channel is not WordPress.org, so it does not depend on
 # the public source repository existing yet. Once that repository is published
 # the check passes anyway and this can go.
-LINGOWP_ALLOW_UNPUBLISHED_SOURCE=1 "$ROOT_DIR/bin/build-release-zip.sh"
+LINGOWP_ALLOW_UNPUBLISHED_SOURCE=1 LINGOWP_STRIP_COMMENTS=1 \
+  "$ROOT_DIR/bin/build-release-zip.sh"
 
 # The backend parses the version out of the filename with -(\d+(\.\d+)*)\.zip$
-# and serves the highest match; a name it cannot parse is silently skipped.
-cp -f "$ROOT_DIR/dist/lingowp-${VERSION}.zip" "$ARTIFACT_DIR/lingowp-${VERSION}.zip"
+# and serves the highest match; a name it cannot parse is silently skipped — so
+# the "-client" build is copied to the plain versioned name it expects.
+cp -f "$ROOT_DIR/dist/lingowp-${VERSION}-client.zip" "$ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Deployed: $ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Publish with: cd $(dirname "$ARTIFACT_DIR") && ./deploy/addons.sh"

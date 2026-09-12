@@ -41,7 +41,7 @@
 			"@php tests/gettext_hash_check.php",
 			"@php tests/gettext_ai_hash_check.php",
 			"@php tests/support_payload_check.php",
-			"@php bin/check-split-field.php"
+			"@php tests/split_field_check.php"
 		],
 		"test:db": [
 			"./wp eval-file tests/db/schema_constraints_it.php",
