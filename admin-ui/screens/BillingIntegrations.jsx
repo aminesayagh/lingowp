@@ -6,11 +6,12 @@ import {
 	Card,
 	Divider,
 	InlineStack,
+	Link,
 	Spinner,
 	Text,
 } from '@shopify/polaris'
 import { Fragment, useState } from '@wordpress/element'
-import { useAddons, useInstallAddon } from '../queries/addons'
+import { useAddons, useAddonDownloadUrl } from '../queries/addons'
 import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
 import { partitionAddons, tierLabel } from './addonLists.mjs'
@@ -67,16 +68,45 @@ function ActionButton( { label, loading, error, onClick } ) {
 // `variant` is which of the three lists the card sits in — decided once by
 // partitionAddons(), not re-derived per card.
 //   installed -> nothing to do
-//   ready     -> Install now (plan covers it, plugin it targets is active)
+//   ready     -> Get download link (plan covers it, plugin it targets is active)
 //   upgrade   -> Upgrade to <tier> (plugin it targets is active, plan too low)
+//
+// The plugin never installs an add-on itself (WordPress.org Guideline 8):
+// "ready" mints a short-lived signed link, shown as a real <a> the admin
+// clicks, then uploads the zip through Plugins → Add New → Upload Plugin.
+// Two steps rather than auto-opening, because a link created after an async
+// request can't be opened without tripping popup blockers.
 function AddonAction( { addon, variant, actions } ) {
 	if ( variant === 'ready' ) {
+		const link = actions.downloadLinks[ addon.addon_id ]
+		if ( link ) {
+			// Links expire after ~10 minutes (backend-signed); the second
+			// button mints a fresh one without a reload.
+			return (
+				<BlockStack gap="100">
+					<Link url={ link } external>
+						Download { addon.title } add-on (.zip)
+					</Link>
+					<Text as="span" tone="subdued" variant="bodySm">
+						Upload it under Plugins → Add New → Upload Plugin and
+						activate it. This page updates once it&apos;s active.
+						The link expires in a few minutes.
+					</Text>
+					<ActionButton
+						label="Get a new link"
+						loading={ actions.linkingId === addon.addon_id }
+						error={ actions.linkErrors[ addon.addon_id ] }
+						onClick={ () => actions.onGetLink( addon ) }
+					/>
+				</BlockStack>
+			)
+		}
 		return (
 			<ActionButton
-				label="Install now"
-				loading={ actions.installingId === addon.addon_id }
-				error={ actions.installErrors[ addon.addon_id ] }
-				onClick={ () => actions.onInstall( addon ) }
+				label="Get download link"
+				loading={ actions.linkingId === addon.addon_id }
+				error={ actions.linkErrors[ addon.addon_id ] }
+				onClick={ () => actions.onGetLink( addon ) }
 			/>
 		)
 	}
@@ -171,15 +201,16 @@ function AddonSection( {
 	)
 }
 
-// Billing > Integrations. Three lists from partitionAddons(): what's
+// Account > Integrations. Three lists from partitionAddons(): what's
 // installed here, what the plan covers and this site could use, and what
 // this site could use but the plan doesn't cover. `onUpgrade` switches to
 // the Plan & billing tab.
 export default function BillingIntegrations( { onUpgrade } ) {
-	const [ installErrors, setInstallErrors ] = useState( {} ) // addon_id -> ERR_* code
+	const [ downloadLinks, setDownloadLinks ] = useState( {} ) // addon_id -> signed url
+	const [ linkErrors, setLinkErrors ] = useState( {} ) // addon_id -> ERR_* code
 
 	const addonsQ = useAddons()
-	const installMut = useInstallAddon()
+	const linkMut = useAddonDownloadUrl()
 
 	if ( addonsQ.data === undefined ) {
 		if ( addonsQ.isError ) {
@@ -203,15 +234,16 @@ export default function BillingIntegrations( { onUpgrade } ) {
 	const { addons, categories, tier } = addonsQ.data
 	const { installed, ready, upgrade } = partitionAddons( addons )
 
-	async function installAddon( addon ) {
-		setInstallErrors( ( prev ) => ( { ...prev, [ addon.addon_id ]: '' } ) )
+	async function getDownloadLink( addon ) {
+		setLinkErrors( ( prev ) => ( { ...prev, [ addon.addon_id ]: '' } ) )
 		try {
-			await installMut.mutateAsync( {
-				addonId: addon.addon_id,
-				product: addon.product,
-			} )
+			const res = await linkMut.mutateAsync( { addonId: addon.addon_id } )
+			setDownloadLinks( ( prev ) => ( {
+				...prev,
+				[ addon.addon_id ]: res.url,
+			} ) )
 		} catch ( e ) {
-			setInstallErrors( ( prev ) => ( {
+			setLinkErrors( ( prev ) => ( {
 				...prev,
 				[ addon.addon_id ]: e.code || 'ERR_UNREACHABLE',
 			} ) )
@@ -219,11 +251,10 @@ export default function BillingIntegrations( { onUpgrade } ) {
 	}
 
 	const actions = {
-		installingId: installMut.isPending
-			? installMut.variables.addonId
-			: null,
-		installErrors,
-		onInstall: installAddon,
+		linkingId: linkMut.isPending ? linkMut.variables.addonId : null,
+		linkErrors,
+		downloadLinks,
+		onGetLink: getDownloadLink,
 		onUpgrade,
 	}
 
@@ -239,7 +270,7 @@ export default function BillingIntegrations( { onUpgrade } ) {
 			title: 'Ready to install',
 			description: `Included in your ${ tierLabel(
 				tier
-			) } plan and matching plugins active on this site.`,
+			) } plan and matching plugins active on this site. Download the add-on, then upload it under Plugins → Add New → Upload Plugin.`,
 			addons: ready,
 			variant: 'ready',
 		},

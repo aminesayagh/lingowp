@@ -50,15 +50,15 @@ const TABS = [
 	{ id: 'token', label: 'API token' },
 ]
 
-export default function BillingApp() {
+export default function AccountApp() {
 	return (
 		<QueryClientProvider client={ queryClient }>
-			<BillingAppInner />
+			<AccountAppInner />
 		</QueryClientProvider>
 	)
 }
 
-function BillingAppInner() {
+function AccountAppInner() {
 	const [ tab, setTab ] = useQueryState( 'tab', tabParser )
 	const [ connectError, setConnectError ] = useState( '' )
 	// A fresh connect also found a matching older licence and emailed its

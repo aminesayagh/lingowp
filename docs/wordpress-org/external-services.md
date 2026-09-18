@@ -6,12 +6,12 @@
 - Trigger: an explicit administrator action only. The onboarding form
   offers "Connect to LingoWP Cloud" (primary) and "Continue without
   connecting"; the same connect button exists in the Workspace rail and on
-  the Billing page. Nothing connects on its own — `SiteConnector::ensureValid()`
+  the Account page. Nothing connects on its own — `SiteConnector::ensureValid()`
   only repairs a key that already exists and has become invalid, detached, or
   revoked; a missing key is left alone. Before offering the connect button,
   onboarding sends one unauthenticated `GET /health` reachability check that
   carries no site data. An administrator can fully disconnect at any time from
-  Billing → Danger zone, which stops all further requests to LingoWP Cloud
+  Account → Danger zone, which stops all further requests to LingoWP Cloud
   until they explicitly reconnect.
 - Connection data: site domain and WordPress administrator email — the only
   two fields the connect request actually sends.
@@ -21,6 +21,12 @@
   encrypted storage by the service.
 - Account and billing: site, owner, subscription, and transaction information
   required by the action selected by the administrator.
+- Add-ons: Account → Integrations lists the add-on catalog (`GET
+  /billing/addons`) and, on an explicit "Get download link" click, requests a
+  short-lived signed download URL (`/billing/addons/{id}/download-url`) that
+  the administrator's browser opens. The plugin never fetches, unpacks, or
+  activates add-on code — the administrator installs the zip through Plugins
+  → Add New → Upload Plugin (Guideline 8).
 - Insights preview: opening the preview sends nothing. On a connected site,
   clicking “Notify me at launch” submits `feature_interest:translangs_insights`
   to `/support/suggestions` using the stored bearer credential and site-domain

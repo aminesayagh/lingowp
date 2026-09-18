@@ -15,14 +15,14 @@ final class OnboardingPageController
 {
     public const CAPABILITY = 'manage_options';
     public const SLUG       = 'lingowp';
-    private const BILLING_SLUG      = 'lingowp-billing';
+    private const ACCOUNT_SLUG      = 'lingowp-account';
     private const INSIGHTS_SLUG     = 'lingowp-insights';
     /** Temporarily hidden — flip to true to bring the Insights menu entry back; the page and its REST routes are untouched. */
     private const INSIGHTS_ENABLED  = false;
     private const HANDLE    = 'lingowp-app';
 
     private string $hookSuffix = '';
-    private string $billingHookSuffix = '';
+    private string $accountHookSuffix = '';
     private string $insightsHookSuffix = '';
 
     private NotifyEmailResolver $notifyEmailResolver;
@@ -94,18 +94,18 @@ final class OnboardingPageController
             [$this, 'renderInsightsPage']
         ) : false;
 
-        $billingHook = add_submenu_page(
+        $accountHook = add_submenu_page(
             self::SLUG,
-            __('Billing', 'lingowp'),
-            __('Billing', 'lingowp'),
+            __('Account', 'lingowp'),
+            __('Account', 'lingowp'),
             self::CAPABILITY,
-            self::BILLING_SLUG,
-            [$this, 'renderBillingPage']
+            self::ACCOUNT_SLUG,
+            [$this, 'renderAccountPage']
         );
 
         $this->hookSuffix = is_string($hook) ? $hook : '';
         $this->insightsHookSuffix = is_string($insightsHook) ? $insightsHook : '';
-        $this->billingHookSuffix = is_string($billingHook) ? $billingHook : '';
+        $this->accountHookSuffix = is_string($accountHook) ? $accountHook : '';
     }
 
     private function menuIcon(): string
@@ -132,13 +132,13 @@ final class OnboardingPageController
         echo '<div class="wrap"><div id="lingowp-app"></div></div>';
     }
 
-    public function renderBillingPage(): void
+    public function renderAccountPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
             wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
         }
 
-        echo '<div class="wrap"><div id="lingowp-billing-app"></div></div>';
+        echo '<div class="wrap"><div id="lingowp-account-app"></div></div>';
     }
 
     public function renderInsightsPage(): void
@@ -152,7 +152,7 @@ final class OnboardingPageController
 
     public function enqueue(string $hook): void
     {
-        $known = [$this->hookSuffix, $this->billingHookSuffix, $this->insightsHookSuffix];
+        $known = [$this->hookSuffix, $this->accountHookSuffix, $this->insightsHookSuffix];
         if (!in_array($hook, $known, true)) {
             return;
         }
@@ -209,7 +209,7 @@ final class OnboardingPageController
             'addons_asset_url'    => esc_url_raw(
                 (new BackendEndpointResolver())->baseUrl() . '/addons/icons/'
             ),
-            'billing_url'         => esc_url_raw(admin_url('admin.php?page=' . self::BILLING_SLUG)),
+            'account_url'         => esc_url_raw(admin_url('admin.php?page=' . self::ACCOUNT_SLUG)),
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
             // The canonical published pages. They stay filterable so a

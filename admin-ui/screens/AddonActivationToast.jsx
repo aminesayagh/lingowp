@@ -57,7 +57,7 @@ export default function AddonActivationToast() {
 				content: kind === 'install' ? 'Install' : 'Upgrade',
 				onAction: () =>
 					window.location.assign(
-						`${ cfg.billing_url }&tab=${ tab }`
+						`${ cfg.account_url }&tab=${ tab }`
 					),
 			} }
 			onDismiss={ next }

@@ -153,7 +153,7 @@ final class ConnectionRestController
     }
 
     /**
-     * "Create a new key" (Billing page's Danger zone). Branches server-side
+     * "Create a new key" (Account page's Danger zone). Branches server-side
      * (SiteConnector::recover()) between an instant key rotation and a
      * fallback through the normal connect() ladder — both outcomes are
      * synchronous now. Deliberately still doesn't return the full
@@ -168,7 +168,7 @@ final class ConnectionRestController
     }
 
     /**
-     * Billing page's "Disconnect from LingoWP Cloud" (Danger zone). Drops the
+     * Account page's "Disconnect from LingoWP Cloud" (Danger zone). Drops the
      * local credential. Nothing is sent to the backend; there is no
      * self-service "revoke this key" route, and there doesn't need to be —
      * an unused key just sits there until reconnected. A missing key is

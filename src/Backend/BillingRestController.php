@@ -50,8 +50,8 @@ final class BillingRestController
         register_rest_route(self::NS, '/billing/addons', ['methods' => 'GET', 'callback' => [$this, 'addons']] + $guard);
         register_rest_route(
             self::NS,
-            '/billing/addons/(?P<addon_id>[^/]+)/install',
-            ['methods' => 'POST', 'callback' => [$this, 'installAddon']] + $guard
+            '/billing/addons/(?P<addon_id>[^/]+)/download-url',
+            ['methods' => 'POST', 'callback' => [$this, 'addonDownloadUrl']] + $guard
         );
         register_rest_route(
             self::NS,
@@ -138,29 +138,29 @@ final class BillingRestController
     }
 
     /**
-     * Downloads the add-on zip and installs+activates it directly on this
-     * site ("Install now" for an add-on the licence tier includes). The
-     * backend is the gate — 402 upgrade_required when the tier is too low.
-     * `product` comes from the request body rather than re-resolving the
-     * catalog server-side — the frontend already has the full addon object
-     * from GET /billing/addons.
+     * Hands the admin a short-lived signed link to the add-on zip. The
+     * browser downloads it straight from LingoWP Cloud and the admin installs
+     * it through WordPress's own uploader (Plugins → Add New → Upload
+     * Plugin). This plugin never downloads or unpacks code itself —
+     * WordPress.org Guideline 8 forbids installing add-ons from any server
+     * but WordPress.org's, user-initiated or not. The backend is the tier
+     * gate: 402 upgrade_required when the licence's plan is too low.
      */
-    public function installAddon(WP_REST_Request $request): WP_REST_Response
+    public function addonDownloadUrl(WP_REST_Request $request): WP_REST_Response
     {
         $addonId = sanitize_text_field((string) $request->get_param('addon_id'));
-        $product = sanitize_text_field((string) $request->get_param('product'));
-        if ($addonId === '' || $product === '') {
+        if ($addonId === '') {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
         }
 
-        $download = $this->backendClient->downloadAddonZip($addonId);
-        if (! $download['ok']) {
-            return rest_ensure_response(['ok' => false, 'error' => $download['error']]);
-        }
+        $result = $this->backendClient->getAddonDownloadUrl($addonId);
+        $url    = (string) ($result['data']['url'] ?? '');
 
-        $result = (new AddonInstaller())->install((string) $download['data'], $product);
-
-        return rest_ensure_response(['ok' => $result['ok'], 'error' => $result['error']]);
+        return rest_ensure_response([
+            'ok'    => $result['ok'] && $url !== '',
+            'url'   => $url,
+            'error' => $result['ok'] && $url === '' ? 'ERR_BACKEND' : $result['error'],
+        ]);
     }
 
     /**

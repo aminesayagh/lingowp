@@ -80,7 +80,7 @@ final class SiteConnector
     }
 
     /**
-     * "Create a new key" (Billing → Danger zone). Branches on whether the
+     * "Create a new key" (Account → Danger zone). Branches on whether the
      * stored key still authenticates: a live key rotates in place via
      * POST /license/rotate-key (synchronous, old key dies immediately); a
      * dead key (not connected, invalid, detached, or revoked) falls back to
@@ -129,7 +129,7 @@ final class SiteConnector
      *   - { owner_email } — POST /owner/assign-owner's confirm. There is no
      *     backend read endpoint for this yet, so this is the only moment the
      *     plugin ever learns the verified address; it's cached locally
-     *     (ConnectionRepository::storeVerifiedOwnerEmail()) so the Billing
+     *     (ConnectionRepository::storeVerifiedOwnerEmail()) so the Account
      *     page can read it back on a later visit.
      *   - { license_key, site_id } — attach-website: a *different* site was
      *     just added from the owner's own LingoWP dashboard, not
@@ -187,9 +187,9 @@ final class SiteConnector
      * admin already agreed to, not consent.
      *
      * A *missing* key is never auto-connected: a fresh install, or one the
-     * admin disconnected (Billing → Danger zone), stays local until an
+     * admin disconnected (Account → Danger zone), stays local until an
      * explicit "Connect to LingoWP Cloud" click — onboarding's primary
-     * button, the workspace rail's QuotaCard, or the Billing page. This is
+     * button, the workspace rail's QuotaCard, or the Account page. This is
      * what makes cloud connection opt-in; ConnectionStatus::refresh() also
      * short-circuits without a key, so an unconnected site never contacts
      * the backend on an admin page load.

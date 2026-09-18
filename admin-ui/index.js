@@ -4,7 +4,7 @@ import '@shopify/polaris/build/esm/styles.css'
 import './wp-admin-reset.css' // strip wp-admin form-style bleed from Polaris inputs
 import './tailwind.css'
 import App from './App'
-import BillingApp from './BillingApp'
+import AccountApp from './AccountApp'
 import InsightsApp from './InsightsApp'
 
 const mount = document.getElementById( 'lingowp-app' )
@@ -16,11 +16,11 @@ if ( mount ) {
 	)
 }
 
-const billingMount = document.getElementById( 'lingowp-billing-app' )
-if ( billingMount ) {
-	createRoot( billingMount ).render(
+const accountMount = document.getElementById( 'lingowp-account-app' )
+if ( accountMount ) {
+	createRoot( accountMount ).render(
 		<NuqsAdapter>
-			<BillingApp />
+			<AccountApp />
 		</NuqsAdapter>
 	)
 }

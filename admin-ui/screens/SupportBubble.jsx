@@ -10,7 +10,7 @@ const cfg = window.LingoWP || {}
 const MAX_MESSAGE_LENGTH = 2000
 
 // Floating "contact support" bubble, rendered by all four SPA mounts (App,
-// BillingApp, InsightsApp) so help is reachable from whichever
+// AccountApp, InsightsApp) so help is reachable from whichever
 // screen the admin got stuck on.
 //
 // ponytail: the button unmounts while the dialog is open rather than competing

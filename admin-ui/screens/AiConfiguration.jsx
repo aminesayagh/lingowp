@@ -308,7 +308,7 @@ export default function AiConfiguration( {
 									variant="plain"
 									onClick={ () =>
 										window.location.assign(
-											cfg.billing_url
+											cfg.account_url
 										)
 									}
 								>

@@ -60,8 +60,8 @@ export default function QuotaCard( {
 								? errorMessage( 'ERR_SITE_OVER_PLAN_LIMIT' )
 								: errorMessage( 'ERR_HOSTED_AI_UNAVAILABLE' ) }
 						</Text>
-						<Button variant="secondary" url={ cfg.billing_url }>
-							Go to Billing
+						<Button variant="secondary" url={ cfg.account_url }>
+							Go to Account
 						</Button>
 					</BlockStack>
 				</Card>
@@ -90,7 +90,7 @@ export default function QuotaCard( {
 							<Text as="span" tone="subdued" variant="bodySm">
 								Connect to LingoWP Cloud to enable AI
 								translation. Plans and your word balance become
-								available in Billing once connected.
+								available on the Account page once connected.
 							</Text>
 							<CloudDisclosure />
 							<Button variant="primary" onClick={ onConnect }>
@@ -159,7 +159,7 @@ export default function QuotaCard( {
 							Near limit — upgrade to keep translating.
 						</Text>
 					) }
-					<Button variant="secondary" url={ cfg.billing_url }>
+					<Button variant="secondary" url={ cfg.account_url }>
 						Upgrade plan
 					</Button>
 				</BlockStack>

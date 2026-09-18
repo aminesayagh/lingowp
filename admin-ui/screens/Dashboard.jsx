@@ -594,11 +594,11 @@ export default function Dashboard( {
 			{
 				content: 'Add your API key',
 				onAction: () =>
-					window.location.assign( `${ cfg.billing_url }&tab=token` ),
+					window.location.assign( `${ cfg.account_url }&tab=token` ),
 			},
 			{
 				content: 'Subscribe to LingoWP',
-				onAction: () => window.location.assign( cfg.billing_url ),
+				onAction: () => window.location.assign( cfg.account_url ),
 			}
 		)
 	}
@@ -836,7 +836,7 @@ export default function Dashboard( {
 				: `${ errorMessage(
 						'ERR_HOSTED_AI_UNAVAILABLE'
 				  ) } Tap to view plans.`,
-			onClick: () => window.location.assign( cfg.billing_url ),
+			onClick: () => window.location.assign( cfg.account_url ),
 		} )
 	}
 

@@ -229,14 +229,15 @@ final class BackendClient implements TranslationBackendPort
     }
 
     /**
-     * GET /billing/addons/{id}/download — bearer + domain. The add-on plugin
-     * zip; success `data` is the raw zip bytes, NOT JSON — every other status
-     * (402 upgrade_required, 404 unknown_addon/artifact_missing)
-     * returns the usual JSON error body, decoded as normal.
+     * GET /billing/addons/{id}/download-url — bearer + domain. Success data:
+     * { url, expires_at } — a short-lived signed link the admin's browser
+     * fetches with no headers. 402 upgrade_required, 404
+     * unknown_addon/artifact_missing. The plugin never fetches the zip
+     * itself (WordPress.org Guideline 8).
      */
-    public function downloadAddonZip(string $addonId): array
+    public function getAddonDownloadUrl(string $addonId): array
     {
-        return $this->request('GET', '/billing/addons/' . rawurlencode($addonId) . '/download', null, $this->authHeaders(), null, false);
+        return $this->request('GET', '/billing/addons/' . rawurlencode($addonId) . '/download-url', null, $this->authHeaders());
     }
 
     /** GET /me/entitlements — bearer + domain. Canonical read for all billing UI state. */
@@ -308,13 +309,7 @@ final class BackendClient implements TranslationBackendPort
         return $this->request('GET', '/billing/usage', null, $this->authHeaders());
     }
 
-    /**
-     * $decodeJson only governs the success path — a non-2xx body is always
-     * JSON per the backend's own error contract, decoded either way so
-     * errorForStatus() can read `detail`. Only downloadAddonZip() passes
-     * false, for the one route whose success body is raw zip bytes.
-     */
-    private function request(string $method, string $path, ?array $body = null, array $headers = [], ?int $timeout = null, bool $decodeJson = true): array
+    private function request(string $method, string $path, ?array $body = null, array $headers = [], ?int $timeout = null): array
     {
         $base = $this->resolver->baseUrl();
         if ($base === '') {
@@ -343,7 +338,7 @@ final class BackendClient implements TranslationBackendPort
         $rawBody = (string) wp_remote_retrieve_body($response);
 
         if ($status >= 200 && $status < 300) {
-            $data = $decodeJson ? json_decode($rawBody, true) : $rawBody;
+            $data = json_decode($rawBody, true);
 
             return ['ok' => true, 'status' => $status, 'data' => $data, 'error' => ''];
         }
@@ -410,11 +405,11 @@ final class BackendClient implements TranslationBackendPort
                 return 'ERR_DOMAIN_CLAIMED';
             case $status === 403 && $detail === 'order_not_owned': // /billing/packs/order/{id}/capture
                 return 'ERR_ORDER_NOT_OWNED';
-            case $detail === 'unknown_addon': // /billing/addons/{id}/download — 404 now, was 400; status-agnostic on purpose
+            case $detail === 'unknown_addon': // /billing/addons/{id}/download-url — 404 now, was 400; status-agnostic on purpose
                 return 'ERR_UNKNOWN_ADDON';
-            case $status === 402 && $detail === 'upgrade_required': // /billing/addons/{id}/download — licence tier below the add-on's tier
+            case $status === 402 && $detail === 'upgrade_required': // /billing/addons/{id}/download-url — licence tier below the add-on's tier
                 return 'ERR_ADDON_UPGRADE_REQUIRED';
-            case $status === 404 && $detail === 'artifact_missing': // /billing/addons/{id}/download
+            case $status === 404 && $detail === 'artifact_missing': // /billing/addons/{id}/download-url
                 return 'ERR_ADDON_ARTIFACT_MISSING';
             case $status === 402 && $detail === 'site_over_plan_limit': // /translations: over_slot asked for platform AI anyway
                 return 'ERR_SITE_OVER_PLAN_LIMIT';

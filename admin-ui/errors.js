@@ -28,7 +28,7 @@ const MESSAGES = {
 	ERR_NOT_CONNECTED: 'Not connected. Finish setup to continue.',
 	ERR_INVALID_STATUS: 'Unknown status filter. Refresh and try again.',
 	ERR_LICENSE_DETACHED:
-		"This site's license isn't attached to a plan. Visit Billing to finish setup.",
+		"This site's license isn't attached to a plan. Open the Account page to finish setup.",
 	ERR_LICENSE_REVOKED: 'This license was revoked. Reconnecting…',
 	ERR_INVALID_CONFIRM_TOKEN:
 		'This link has expired or was already used. Request a new one and try again.',
@@ -80,10 +80,6 @@ const MESSAGES = {
 		"Your plan doesn't include this add-on. Upgrade to install it.",
 	ERR_ADDON_ARTIFACT_MISSING:
 		"This add-on isn't available for download right now. Try again later.",
-	ERR_ADDON_INSTALL_FAILED:
-		"Couldn't install this add-on. Try again in a moment.",
-	ERR_ADDON_ACTIVATE_FAILED:
-		"Installed, but couldn't activate it. Activate it from the Plugins page.",
 }
 
 export function errorMessage( code ) {

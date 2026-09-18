@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 
-// One QueryClient factory, shared by all four SPA roots (App / Billing /
+// One QueryClient factory, shared by all SPA roots (App / Account /
 // Insights / Integrations). Each root is a separate wp-admin page = a separate
 // createRoot mount, so each gets its own instance — there is no cache to share
 // across a full page reload. This only exists so the config lives in one place

@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { qk } from '../queryKeys'
 import { api, unwrap } from './http'
 
-// The Billing page's Integrations tab. Served entirely by /billing/*.
+// The Account page's Integrations tab. Served entirely by /billing/*.
 
 // GET /billing/addons — { tier, addons, categories, recently_activated }.
 // Each addon carries the backend's `tier`/`included`/`detects` plus two facts
@@ -25,17 +25,15 @@ export function useAddons( options = {} ) {
 	} )
 }
 
-// POST /billing/addons/{addonId}/install — pass { addonId, product }. The
-// backend gates by tier (402 upgrade_required); the refetch on success is
-// what flips the card's `installed`.
-export function useInstallAddon() {
-	const queryClient = useQueryClient()
+// POST /billing/addons/{addonId}/download-url — pass { addonId }. Resolves
+// { url } — a short-lived signed link the browser downloads straight from
+// LingoWP Cloud; the admin then installs it through Plugins → Add New →
+// Upload Plugin. The plugin never fetches or unpacks the zip itself
+// (WordPress.org Guideline 8). The backend gates by tier (402
+// upgrade_required). Not a query: every click must mint a fresh link.
+export function useAddonDownloadUrl() {
 	return useMutation( {
-		mutationFn: ( { addonId, product } ) =>
-			unwrap(
-				api.post( `/billing/addons/${ addonId }/install`, { product } )
-			),
-		onSuccess: () =>
-			queryClient.invalidateQueries( { queryKey: qk.billing.addons() } ),
+		mutationFn: ( { addonId } ) =>
+			unwrap( api.post( `/billing/addons/${ addonId }/download-url` ) ),
 	} )
 }
