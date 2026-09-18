@@ -20,7 +20,7 @@
 - [ ] Convert remaining React interface strings to WordPress i18n calls and generate translation assets.
 - [ ] Complete the compatibility matrix. `Tested up to` is now 7.1, the version the development environment runs; confirm that is the newest version genuinely exercised.
 - [ ] Decide the real PHP floor. The header and `composer.json` declare 7.4, no runtime version check exists, and development runs on 8.4 — so 7.4 is declared but untested.
-- [ ] Reconcile every production dependency and bundled asset against `THIRD-PARTY-NOTICES.md`.
+- [ ] Reconcile every production dependency and bundled asset against `THIRD-PARTY-NOTICES.txt`.
 - [ ] Run and disposition unit, integration, lint, security, and Plugin Check results.
 - [ ] Inspect the generated ZIP and install that exact ZIP on a clean WordPress site — clean meaning no WooCommerce and no other plugin bundling Action Scheduler, since that is what masked the missing dependency. Confirm existing content is backfilled and the frontend crawl runs.
 - [ ] Decide whether to submit with Polaris after reviewing its license one final time. Current decision: retain it and accept possible rejection.

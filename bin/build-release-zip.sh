@@ -104,7 +104,7 @@ for required in \
   lingowp.php \
   readme.txt \
   LICENSE \
-  THIRD-PARTY-NOTICES.md \
+  THIRD-PARTY-NOTICES.txt \
   assets/admin/build/index.js \
   vendor/woocommerce/action-scheduler/action-scheduler.php
 do
