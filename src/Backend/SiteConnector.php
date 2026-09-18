@@ -59,10 +59,6 @@ final class SiteConnector
 
         $siteId = (string) ($data['site_id'] ?? '');
         $this->applyCredential($siteId, $licenseKey);
-        // An explicit connect (this method is never called by the automatic
-        // ensureValid() path while opted out — see there) is exactly the
-        // "reconnect" gesture, so it always re-enables future auto-connect.
-        $this->connection->setOptedOut(false);
 
         return ['ok' => true, 'error' => '', 'recoveryAvailable' => !empty($data['recovery_available'])];
     }
@@ -184,18 +180,19 @@ final class SiteConnector
     }
 
     /**
-     * The one place a stale — or entirely absent — local credential self-heals.
-     * A missing key (fresh/never-onboarded install), a 401 (unrecognised), a
-     * 402 (detached from its billing account), or a 410 (revoked) key are all
-     * fixed the same way: drop whatever's there and connect() again, which
-     * either issues a fresh working key synchronously or, for attach-website,
-     * waits on a confirm email. There is no more "leave it alone" case for any
-     * of those: domain no longer factors into auth at all.
+     * The one place a stale local credential self-heals. A 401 (unrecognised),
+     * a 402 (detached from its billing account), or a 410 (revoked) key are
+     * all fixed the same way: drop what's there and connect() again, which
+     * issues a fresh working key synchronously. That's repair of a key the
+     * admin already agreed to, not consent.
      *
-     * Never touches the backend at all once the admin has explicitly
-     * disconnected (Billing → Danger zone, ConnectionRepository::isOptedOut())
-     * — that flag is the one case genuinely left alone, until an explicit
-     * "Connect" click (connect() itself clears it).
+     * A *missing* key is never auto-connected: a fresh install, or one the
+     * admin disconnected (Billing → Danger zone), stays local until an
+     * explicit "Connect to LingoWP Cloud" click — onboarding's primary
+     * button, the workspace rail's QuotaCard, or the Billing page. This is
+     * what makes cloud connection opt-in; ConnectionStatus::refresh() also
+     * short-circuits without a key, so an unconnected site never contacts
+     * the backend on an admin page load.
      *
      * On a healthy key, this is also where the two out-of-band sync checks
      * run once per admin page load (see syncDomainIfChanged()/
@@ -206,14 +203,10 @@ final class SiteConnector
      */
     public function ensureValid(): array
     {
-        if ($this->connection->isOptedOut()) {
-            return ['available' => false, 'error' => 'ERR_NOT_CONNECTED'];
-        }
-
         $status = $this->status->refresh();
 
         $needsConnect = in_array($status['error'], [
-            'ERR_NOT_CONNECTED', 'ERR_INVALID_TOKEN', 'ERR_LICENSE_DETACHED', 'ERR_LICENSE_REVOKED',
+            'ERR_INVALID_TOKEN', 'ERR_LICENSE_DETACHED', 'ERR_LICENSE_REVOKED',
         ], true);
 
         if (!$needsConnect) {

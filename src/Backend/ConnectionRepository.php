@@ -17,7 +17,6 @@ final class ConnectionRepository
     public const OPTION_COMPLETED = 'lingowp_onboarding_completed';
     public const OPTION_OWNER_EMAIL = 'lingowp_owner_email';
     public const OPTION_SYNCED_ADMIN_EMAIL = 'lingowp_synced_admin_email';
-    public const OPTION_CLOUD_OPT_OUT = 'lingowp_cloud_opt_out';
 
     public function isConnected(): bool
     {
@@ -73,16 +72,14 @@ final class ConnectionRepository
     }
 
     /**
-     * Full wipe for the dev reset tool: credentials, the onboarding-completed
-     * flag, AND the cloud opt-out flag, so the site looks like a genuine first
-     * activation. Unlike clear() (a normal disconnect, which sets opt-out),
-     * nothing here is preserved.
+     * Full wipe for the dev reset tool: credentials AND the
+     * onboarding-completed flag, so the site looks like a genuine first
+     * activation. clear() alone is a normal disconnect.
      */
     public function forgetAll(): void
     {
         $this->clear();
         delete_option(self::OPTION_COMPLETED);
-        $this->setOptedOut(false);
     }
 
     public function isOnboardingComplete(): bool
@@ -127,26 +124,5 @@ final class ConnectionRepository
     public function storeSyncedAdminEmail(string $email): void
     {
         update_option(self::OPTION_SYNCED_ADMIN_EMAIL, $email);
-    }
-
-    /**
-     * Whether the admin has explicitly disconnected (Billing → Danger zone).
-     * Gates SiteConnector::ensureValid()'s auto-connect: an opted-out site is
-     * never contacted again on its own, only via an explicit "Connect" click,
-     * which clears this flag.
-     */
-    public function isOptedOut(): bool
-    {
-        return (bool) get_option(self::OPTION_CLOUD_OPT_OUT, false);
-    }
-
-    public function setOptedOut(bool $optedOut): void
-    {
-        if ($optedOut) {
-            update_option(self::OPTION_CLOUD_OPT_OUT, true);
-            return;
-        }
-
-        delete_option(self::OPTION_CLOUD_OPT_OUT);
     }
 }

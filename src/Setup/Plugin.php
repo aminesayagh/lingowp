@@ -60,6 +60,7 @@ use LingoWP\Backend\ConnectionRestController;
 use LingoWP\Backend\ProviderKeyRestController;
 use LingoWP\Backend\BillingEntitlementsService;
 use LingoWP\Backend\BillingRestController;
+use LingoWP\Backend\AddonSiteMatcher;
 use LingoWP\Language\LanguageRestController;
 use LingoWP\Board\CollectionsRestController;
 use LingoWP\Board\CollectionBoard;
@@ -358,9 +359,13 @@ class Plugin
 
         // REST API for the onboarding SPA (registers on rest_api_init).
         (new OnboardingRestController($connection, $languageRegistry, $connectionStatus))->register();
-        (new ConnectionRestController($connection, $connectionStatus, $siteConnector))->register();
+        (new ConnectionRestController($connection, $connectionStatus, $siteConnector, $backendClient))->register();
         (new ProviderKeyRestController($backendClient))->register();
-        (new BillingRestController($backendClient, $billingEntitlements, $connection))->register();
+        // Records third-party plugin activations / theme switches so the
+        // admin UI can toast "X detected — install the X add-on" once.
+        $addonMatcher = new AddonSiteMatcher();
+        $addonMatcher->register();
+        (new BillingRestController($backendClient, $billingEntitlements, $connection, $addonMatcher))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();

@@ -7,11 +7,19 @@ import {
 } from '@shopify/polaris'
 import { useState } from '@wordpress/element'
 import { errorMessage } from '../errors'
+import { useBackendPing, useConnect } from '../queries/connection'
 import { useConfigureOnboarding } from '../queries/onboarding'
+import CloudDisclosure from './CloudDisclosure'
 
 // Step 1 of 2. Source/default language is intentionally NOT shown here — it is
 // inherited from WordPress. Toggle defaults follow the wireframe (cookie +
 // browser detection on), not stored options, since this is first-run config.
+//
+// Cloud connection is opt-in and decided here, not in the background: when
+// the backend answers a ping the footer offers "Connect to LingoWP Cloud"
+// (connect first, then save) as the primary action and "Continue without
+// connecting" beside it; while the ping is pending or failed it's the plain
+// Continue, so a slow or dark backend never holds the form.
 export default function Configuration( {
 	recommendedPrefixDefaultLanguage,
 	defaultLanguageSlug,
@@ -25,8 +33,17 @@ export default function Configuration( {
 	const [ browser, setBrowser ] = useState( true )
 	const [ autoRedirect, setAutoRedirect ] = useState( false )
 	const configure = useConfigureOnboarding()
-	const submitting = configure.isPending
-	const error = configure.error?.code || ''
+	const connect = useConnect()
+	const pingQ = useBackendPing()
+	const cloudReachable = pingQ.data === true
+	// connect() resolves { ok:false, error } rather than throwing — see
+	// queries/connection.js — so its failure is kept here, not on the mutation.
+	const [ connectError, setConnectError ] = useState( '' )
+	// Which footer button is mid-flight, so only that one shows a spinner
+	// while the other is merely disabled.
+	const [ activeAction, setActiveAction ] = useState( null ) // 'connect' | 'manual' | null
+	const busy = configure.isPending || connect.isPending
+	const error = connectError || configure.error?.code || ''
 	// Advisory only — set when the user moves away from the recommended prefix
 	// value, cleared when they return to it. Continue is still the only thing
 	// that persists anything (see submit()).
@@ -66,7 +83,34 @@ export default function Configuration( {
 			onDone()
 		} catch {
 			// Failure is surfaced through configure.error (see `error` above).
+		} finally {
+			setActiveAction( null )
 		}
+	}
+
+	function submitManually() {
+		setActiveAction( 'manual' )
+		return submit()
+	}
+
+	// Connect first, then save — a failed connect leaves the form as it was,
+	// with both buttons still there, so the user can retry or continue
+	// without the cloud. Settings are only written once, by submit().
+	async function connectAndSubmit() {
+		setConnectError( '' )
+		setActiveAction( 'connect' )
+		let res
+		try {
+			res = await connect.mutateAsync()
+		} catch {
+			res = { ok: false, error: 'ERR_UNREACHABLE' }
+		}
+		if ( ! res.ok ) {
+			setConnectError( res.error || 'ERR_BACKEND' )
+			setActiveAction( null )
+			return
+		}
+		await submit()
 	}
 
 	return (
@@ -113,15 +157,37 @@ export default function Configuration( {
 				</Banner>
 			) }
 
-			<InlineStack align="end">
-				<Button
-					variant="primary"
-					loading={ submitting }
-					onClick={ submit }
-				>
-					Continue
-				</Button>
-			</InlineStack>
+			{ cloudReachable ? (
+				<InlineStack align="end" blockAlign="center" gap="300">
+					<CloudDisclosure />
+					<Button
+						variant="tertiary"
+						loading={ activeAction === 'manual' }
+						disabled={ busy }
+						onClick={ submitManually }
+					>
+						Continue without connecting
+					</Button>
+					<Button
+						variant="primary"
+						loading={ activeAction === 'connect' }
+						disabled={ busy }
+						onClick={ connectAndSubmit }
+					>
+						Connect to LingoWP Cloud
+					</Button>
+				</InlineStack>
+			) : (
+				<InlineStack align="end">
+					<Button
+						variant="primary"
+						loading={ busy }
+						onClick={ submitManually }
+					>
+						Continue
+					</Button>
+				</InlineStack>
+			) }
 		</BlockStack>
 	)
 }

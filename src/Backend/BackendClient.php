@@ -41,10 +41,10 @@ final class BackendClient implements TranslationBackendPort
         $this->connection = $connection;
     }
 
-    /** GET /health — reachability check, no auth. */
-    public function getHealth(): array
+    /** GET /health — reachability check, no auth. $timeout in seconds; onboarding's ping passes a short one. */
+    public function getHealth(?int $timeout = null): array
     {
-        return $this->request('GET', '/health');
+        return $this->request('GET', '/health', null, [], $timeout);
     }
 
     /**
@@ -217,10 +217,11 @@ final class BackendClient implements TranslationBackendPort
     }
 
     /**
-     * GET /billing/addons?lang= — bearer + domain. Paid content-integration
-     * add-on catalog (title/description/advantages localized to $lang, English
-     * fallback per field) plus a `coming_soon` array of informational-only
-     * entries with no price/version/owned fields.
+     * GET /billing/addons?lang= — bearer + domain. Tier-based add-on catalog:
+     * top-level `tier` (the licence's plan), each add-on with `tier` (lowest
+     * plan including it), `included` and `detects` (plugin basenames or
+     * "theme:<slug>"); title/description/advantages localized to $lang with
+     * English fallback per field.
      */
     public function getAddons(string $lang): array
     {
@@ -230,34 +231,12 @@ final class BackendClient implements TranslationBackendPort
     /**
      * GET /billing/addons/{id}/download — bearer + domain. The add-on plugin
      * zip; success `data` is the raw zip bytes, NOT JSON — every other status
-     * (402 addon_not_owned, 403 addon_revoked, 404 unknown_addon/artifact_missing)
+     * (402 upgrade_required, 404 unknown_addon/artifact_missing)
      * returns the usual JSON error body, decoded as normal.
      */
     public function downloadAddonZip(string $addonId): array
     {
         return $this->request('GET', '/billing/addons/' . rawurlencode($addonId) . '/download', null, $this->authHeaders(), null, false);
-    }
-
-    /**
-     * POST /billing/addons/order — buy a paid add-on (bearer + domain).
-     * Payload: { addon_id }. Success data: { order_id, approve_url } —
-     * redirect the browser, nothing is charged yet. 400 unknown_addon/free_addon,
-     * 409 addon_already_owned.
-     */
-    public function orderAddon(string $addonId): array
-    {
-        return $this->request('POST', '/billing/addons/order', ['addon_id' => $addonId], $this->authHeaders());
-    }
-
-    /**
-     * POST /billing/addons/orders/{order_id}/capture — confirm an add-on order
-     * after the PayPal approval redirect returns (bearer + domain). Success
-     * data: { status } — NOT proof of ownership; the verified webhook grants
-     * it, so the caller must keep polling GET /billing/addons afterward.
-     */
-    public function captureAddonOrder(string $orderId): array
-    {
-        return $this->request('POST', '/billing/addons/orders/' . rawurlencode($orderId) . '/capture', null, $this->authHeaders());
     }
 
     /** GET /me/entitlements — bearer + domain. Canonical read for all billing UI state. */
@@ -431,16 +410,10 @@ final class BackendClient implements TranslationBackendPort
                 return 'ERR_DOMAIN_CLAIMED';
             case $status === 403 && $detail === 'order_not_owned': // /billing/packs/order/{id}/capture
                 return 'ERR_ORDER_NOT_OWNED';
-            case $status === 400 && $detail === 'unknown_addon': // /billing/addons/order, /billing/addons/{id}/download
+            case $detail === 'unknown_addon': // /billing/addons/{id}/download — 404 now, was 400; status-agnostic on purpose
                 return 'ERR_UNKNOWN_ADDON';
-            case $status === 400 && $detail === 'free_addon': // /billing/addons/order — free SKUs have no checkout, install directly instead
-                return 'ERR_FREE_ADDON';
-            case $status === 409 && $detail === 'addon_already_owned': // /billing/addons/order
-                return 'ERR_ADDON_ALREADY_OWNED';
-            case $status === 402 && $detail === 'addon_not_owned': // /billing/addons/{id}/download
-                return 'ERR_ADDON_NOT_OWNED';
-            case $status === 403 && $detail === 'addon_revoked': // /billing/addons/{id}/download
-                return 'ERR_ADDON_REVOKED';
+            case $status === 402 && $detail === 'upgrade_required': // /billing/addons/{id}/download — licence tier below the add-on's tier
+                return 'ERR_ADDON_UPGRADE_REQUIRED';
             case $status === 404 && $detail === 'artifact_missing': // /billing/addons/{id}/download
                 return 'ERR_ADDON_ARTIFACT_MISSING';
             case $status === 402 && $detail === 'site_over_plan_limit': // /translations: over_slot asked for platform AI anyway

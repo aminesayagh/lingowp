@@ -8,6 +8,7 @@ import {
 } from '@shopify/polaris'
 import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
+import CloudDisclosure from './CloudDisclosure'
 
 const cfg = window.LingoWP || {}
 
@@ -18,36 +19,6 @@ const cfg = window.LingoWP || {}
 // are disabled.
 function unavailableCopy() {
 	return 'AI is off — reconnect LingoWP in Settings to enable AI translation.'
-}
-
-function CloudDisclosure() {
-	return (
-		<BlockStack gap="050">
-			{ ( cfg.cloud_terms_url || cfg.cloud_privacy_url ) && (
-				<Text as="span" tone="subdued" variant="bodySm">
-					{ cfg.cloud_terms_url && (
-						<a
-							href={ cfg.cloud_terms_url }
-							target="_blank"
-							rel="noreferrer"
-						>
-							Terms
-						</a>
-					) }
-					{ cfg.cloud_terms_url && cfg.cloud_privacy_url && ' · ' }
-					{ cfg.cloud_privacy_url && (
-						<a
-							href={ cfg.cloud_privacy_url }
-							target="_blank"
-							rel="noreferrer"
-						>
-							Privacy Policy
-						</a>
-					) }
-				</Text>
-			) }
-		</BlockStack>
-	)
 }
 
 export default function QuotaCard( {
@@ -99,11 +70,37 @@ export default function QuotaCard( {
 	}
 
 	if ( ! quota ) {
-		// Never connected at all (fresh install / wiped locally) is the one case
-		// with something to actually click — every other unavailable reason
-		// (detached, revoked-and-healing, backend down) is fixed elsewhere
-		// (Billing, or self-heals automatically on the next page load).
+		// Not connected (fresh install that skipped the cloud step, wiped
+		// locally, or explicitly disconnected) is the one case with something
+		// to actually click — cloud connection is opt-in, nothing connects on
+		// its own. Every other unavailable reason (detached, revoked-and-
+		// healing, backend down) is fixed elsewhere (Billing, or self-heals
+		// on the next page load).
 		const neverConnected = aiError === 'ERR_NOT_CONNECTED'
+
+		if ( neverConnected ) {
+			return (
+				<BlockStack gap="200">
+					{ recoveryNotice }
+					<Card>
+						<BlockStack gap="200">
+							<Text as="span" variant="headingSm">
+								Not connected
+							</Text>
+							<Text as="span" tone="subdued" variant="bodySm">
+								Connect to LingoWP Cloud to enable AI
+								translation. Plans and your word balance become
+								available in Billing once connected.
+							</Text>
+							<CloudDisclosure />
+							<Button variant="primary" onClick={ onConnect }>
+								Connect to LingoWP Cloud
+							</Button>
+						</BlockStack>
+					</Card>
+				</BlockStack>
+			)
+		}
 
 		return (
 			<BlockStack gap="200">
@@ -122,14 +119,6 @@ export default function QuotaCard( {
 								? 'Usage shown after connect'
 								: unavailableCopy() }
 						</Text>
-						{ neverConnected && (
-							<>
-								<CloudDisclosure />
-								<Button variant="primary" onClick={ onConnect }>
-									Connect to LingoWP Cloud
-								</Button>
-							</>
-						) }
 					</BlockStack>
 				</Card>
 			</BlockStack>

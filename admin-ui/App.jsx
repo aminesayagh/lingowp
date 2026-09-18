@@ -9,6 +9,7 @@ import Configuration from './screens/Configuration'
 import Dashboard from './screens/Dashboard'
 import AddLanguagesPicker from './screens/AddLanguagesPicker'
 import SupportBubble from './screens/SupportBubble'
+import AddonActivationToast from './screens/AddonActivationToast'
 
 // Gap between finishing onboarding and the "add your first language" step
 // appearing — the dialog itself never closes in between (see the Modal
@@ -195,6 +196,7 @@ function AppInner() {
 						) }
 					</Modal>
 					<SupportBubble />
+					<AddonActivationToast />
 				</Frame>
 			</PortalsManager>
 		</AppProvider>

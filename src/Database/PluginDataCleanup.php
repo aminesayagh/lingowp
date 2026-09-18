@@ -59,7 +59,7 @@ class PluginDataCleanup
         'lingowp_owner_email',
         'lingowp_synced_admin_email',
         'lingowp_api_origin',
-        'lingowp_cloud_opt_out',
+        'lingowp_pending_addon_activations',
         // WooCommerce add-on: translated strings kept as ordinary options.
         'lingowp_woo_attribute_labels',
         'lingowp_woo_tax_rate_names',

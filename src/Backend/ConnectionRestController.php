@@ -25,15 +25,18 @@ final class ConnectionRestController
     private ConnectionRepository $connection;
     private ConnectionStatus $status;
     private SiteConnector $siteConnector;
+    private BackendClient $backendClient;
 
     public function __construct(
         ConnectionRepository $connection,
         ConnectionStatus $status,
-        SiteConnector $siteConnector
+        SiteConnector $siteConnector,
+        BackendClient $backendClient
     ) {
         $this->connection    = $connection;
         $this->status        = $status;
         $this->siteConnector = $siteConnector;
+        $this->backendClient = $backendClient;
     }
 
     public function register(): void
@@ -46,6 +49,7 @@ final class ConnectionRestController
         $guard = ['permission_callback' => [$this, 'canManage']];
 
         register_rest_route(self::NS, '/connection/status', ['methods' => 'GET', 'callback' => [$this, 'status']] + $guard);
+        register_rest_route(self::NS, '/connection/ping', ['methods' => 'GET', 'callback' => [$this, 'ping']] + $guard);
         register_rest_route(self::NS, '/connection/check', ['methods' => 'POST', 'callback' => [$this, 'check']] + $guard);
         register_rest_route(self::NS, '/connection/connect', ['methods' => 'POST', 'callback' => [$this, 'connect']] + $guard);
         register_rest_route(self::NS, '/connection/confirm', ['methods' => 'POST', 'callback' => [$this, 'confirm']] + $guard);
@@ -61,6 +65,18 @@ final class ConnectionRestController
     public function status(): WP_REST_Response
     {
         return $this->respond(true, $this->status->current());
+    }
+
+    /**
+     * Is the backend reachable right now? Onboarding asks this once, before
+     * offering "Connect to LingoWP Cloud" as the primary action — when the
+     * cloud is dark the form falls back to a plain Continue. Unauthenticated
+     * (/health needs no key) and on a short timeout: a slow answer must not
+     * hold the form.
+     */
+    public function ping(): WP_REST_Response
+    {
+        return rest_ensure_response(['ok' => $this->backendClient->getHealth(5)['ok']]);
     }
 
     /**
@@ -153,16 +169,15 @@ final class ConnectionRestController
 
     /**
      * Billing page's "Disconnect from LingoWP Cloud" (Danger zone). Drops the
-     * local credential and records that this admin opted out, so
-     * SiteConnector::ensureValid() stops auto-connecting on every load — the
-     * one thing that action is otherwise for. Nothing is sent to the backend;
-     * there is no self-service "revoke this key" route, and there doesn't
-     * need to be — an unused key just sits there until reconnected.
+     * local credential. Nothing is sent to the backend; there is no
+     * self-service "revoke this key" route, and there doesn't need to be —
+     * an unused key just sits there until reconnected. A missing key is
+     * never auto-connected (SiteConnector::ensureValid()), so this stays
+     * disconnected until an explicit "Connect" click.
      */
     public function disconnect(): WP_REST_Response
     {
         $this->connection->clear();
-        $this->connection->setOptedOut(true);
         $this->status->clearCache();
 
         return $this->respond(false, ['available' => false, 'error' => 'ERR_NOT_CONNECTED']);

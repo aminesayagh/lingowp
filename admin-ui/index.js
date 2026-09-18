@@ -6,7 +6,6 @@ import './tailwind.css'
 import App from './App'
 import BillingApp from './BillingApp'
 import InsightsApp from './InsightsApp'
-import IntegrationsApp from './IntegrationsApp'
 
 const mount = document.getElementById( 'lingowp-app' )
 if ( mount ) {
@@ -31,15 +30,6 @@ if ( insightsMount ) {
 	createRoot( insightsMount ).render(
 		<NuqsAdapter>
 			<InsightsApp />
-		</NuqsAdapter>
-	)
-}
-
-const integrationsMount = document.getElementById( 'lingowp-integrations-app' )
-if ( integrationsMount ) {
-	createRoot( integrationsMount ).render(
-		<NuqsAdapter>
-			<IntegrationsApp />
 		</NuqsAdapter>
 	)
 }

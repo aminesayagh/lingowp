@@ -3,11 +3,16 @@
 ## LingoWP Cloud
 
 - Endpoint origin: `https://cloud.lingowp.com`.
-- Trigger: connects automatically on the first admin page load after
-  activation — no separate onboarding step or connection action required. An
-  administrator can fully disconnect at any time from Billing → Danger zone,
-  which stops all further requests to LingoWP Cloud until they reconnect
-  (an explicit "Connect" action, which re-enables automatic reconnection).
+- Trigger: an explicit administrator action only. The onboarding form
+  offers "Connect to LingoWP Cloud" (primary) and "Continue without
+  connecting"; the same connect button exists in the Workspace rail and on
+  the Billing page. Nothing connects on its own — `SiteConnector::ensureValid()`
+  only repairs a key that already exists and has become invalid, detached, or
+  revoked; a missing key is left alone. Before offering the connect button,
+  onboarding sends one unauthenticated `GET /health` reachability check that
+  carries no site data. An administrator can fully disconnect at any time from
+  Billing → Danger zone, which stops all further requests to LingoWP Cloud
+  until they explicitly reconnect.
 - Connection data: site domain and WordPress administrator email — the only
   two fields the connect request actually sends.
 - AI translation data: selected source text, source/target language identifiers,
@@ -46,8 +51,9 @@ filters remain in place for white-labelled deployments.
 
 ## Release blockers
 
-- The automatic connection described above is the open blocker. Guideline 7
-  requires informed consent before the first request, and today the first
-  request happens on the first admin page load. See `release-readiness.md`.
+- None known for consent: the first request carrying site data happens only
+  after the administrator clicks "Connect to LingoWP Cloud", next to the
+  Terms and Privacy Policy links. See `release-readiness.md` for the
+  remaining non-consent items.
 - Keep the URLs and data descriptions above in sync across `readme.txt`, the
   cloud connection UI, the service website, and `PrivacyPolicyContent`.

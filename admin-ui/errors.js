@@ -76,10 +76,8 @@ const MESSAGES = {
 		"You're out of AI words for this period. Buy a word pack to keep translating.",
 	ERR_UNKNOWN_ADDON:
 		"This add-on isn't available anymore. Refresh and try again.",
-	ERR_FREE_ADDON: 'This add-on is free — no checkout needed.',
-	ERR_ADDON_ALREADY_OWNED: 'You already have this add-on.',
-	ERR_ADDON_NOT_OWNED: 'Buy this add-on first, then install it.',
-	ERR_ADDON_REVOKED: "This add-on's access was revoked. Contact support.",
+	ERR_ADDON_UPGRADE_REQUIRED:
+		"Your plan doesn't include this add-on. Upgrade to install it.",
 	ERR_ADDON_ARTIFACT_MISSING:
 		"This add-on isn't available for download right now. Try again later.",
 	ERR_ADDON_INSTALL_FAILED:

@@ -21,6 +21,7 @@ import { errorMessage } from './errors'
 import { GhostKpiRow, Hero, TopicSection } from './screens/InsightsPreview'
 import { KPI_ROW, TOPICS } from './screens/insightsContent.mjs'
 import SupportBubble from './screens/SupportBubble'
+import AddonActivationToast from './screens/AddonActivationToast'
 
 const cfg = window.LingoWP || {}
 
@@ -211,6 +212,7 @@ function InsightsAppInner() {
 						</BlockStack>
 					</Page>
 					<SupportBubble />
+					<AddonActivationToast />
 				</Frame>
 			</PortalsManager>
 		</AppProvider>

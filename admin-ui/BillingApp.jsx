@@ -25,6 +25,8 @@ import BillingSubscription from './screens/BillingSubscription'
 import BillingUsage from './screens/BillingUsage'
 import BillingSites from './screens/BillingSites'
 import BillingToken from './screens/BillingToken'
+import BillingIntegrations from './screens/BillingIntegrations'
+import AddonActivationToast from './screens/AddonActivationToast'
 import OwnerEmailCard from './screens/OwnerEmailCard'
 import SupportBubble from './screens/SupportBubble'
 
@@ -36,6 +38,7 @@ const tabParser = parseAsStringLiteral( [
 	'subscription',
 	'usage',
 	'sites',
+	'integrations',
 	'token',
 ] ).withDefault( 'subscription' )
 
@@ -43,6 +46,7 @@ const TABS = [
 	{ id: 'subscription', label: 'Plan & billing' },
 	{ id: 'usage', label: 'Usage' },
 	{ id: 'sites', label: 'Sites' },
+	{ id: 'integrations', label: 'Integrations' },
 	{ id: 'token', label: 'API token' },
 ]
 
@@ -329,7 +333,13 @@ function BillingAppInner() {
 											{ connectionReady &&
 												connectionStatus?.connected &&
 												tab === 'subscription' && (
-													<BillingSubscription />
+													<BillingSubscription
+														onGoToIntegrations={ () =>
+															setTab(
+																'integrations'
+															)
+														}
+													/>
 												) }
 											{ connectionReady &&
 												connectionStatus?.connected &&
@@ -343,6 +353,17 @@ function BillingAppInner() {
 												) }
 											{ connectionReady &&
 												connectionStatus?.connected &&
+												tab === 'integrations' && (
+													<BillingIntegrations
+														onUpgrade={ () =>
+															setTab(
+																'subscription'
+															)
+														}
+													/>
+												) }
+											{ connectionReady &&
+												connectionStatus?.connected &&
 												tab === 'token' && (
 													<BillingToken />
 												) }
@@ -353,6 +374,7 @@ function BillingAppInner() {
 						</InlineStack>
 					</Page>
 					<SupportBubble />
+					<AddonActivationToast />
 				</Frame>
 			</PortalsManager>
 		</AppProvider>

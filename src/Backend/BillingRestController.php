@@ -22,15 +22,18 @@ final class BillingRestController
     private BackendClient $backendClient;
     private BillingEntitlementsService $entitlements;
     private ConnectionRepository $connection;
+    private AddonSiteMatcher $addonMatcher;
 
     public function __construct(
         BackendClient $backendClient,
         BillingEntitlementsService $entitlements,
-        ConnectionRepository $connection
+        ConnectionRepository $connection,
+        AddonSiteMatcher $addonMatcher
     ) {
         $this->backendClient = $backendClient;
         $this->entitlements  = $entitlements;
         $this->connection    = $connection;
+        $this->addonMatcher  = $addonMatcher;
     }
 
     public function register(): void
@@ -45,12 +48,6 @@ final class BillingRestController
         register_rest_route(self::NS, '/billing/plans', ['methods' => 'GET', 'callback' => [$this, 'plans']] + $guard);
         register_rest_route(self::NS, '/billing/packs', ['methods' => 'GET', 'callback' => [$this, 'packs']] + $guard);
         register_rest_route(self::NS, '/billing/addons', ['methods' => 'GET', 'callback' => [$this, 'addons']] + $guard);
-        register_rest_route(self::NS, '/billing/addons/order', ['methods' => 'POST', 'callback' => [$this, 'orderAddon']] + $guard);
-        register_rest_route(
-            self::NS,
-            '/billing/addons/orders/(?P<order_id>[^/]+)/capture',
-            ['methods' => 'POST', 'callback' => [$this, 'captureAddonOrder']] + $guard
-        );
         register_rest_route(
             self::NS,
             '/billing/addons/(?P<addon_id>[^/]+)/install',
@@ -102,7 +99,18 @@ final class BillingRestController
         return rest_ensure_response(['ok' => $result['ok'], 'packs' => $result['data']['packs'] ?? [], 'error' => $result['error']]);
     }
 
-    /** ?lang= falls back to this site's admin locale (base language, e.g. 'fr-CA' -> 'fr'). */
+    /**
+     * ?lang= falls back to this site's admin locale (base language, e.g.
+     * 'fr-CA' -> 'fr'). The catalog is tier-based: `tier` (top-level) is the
+     * licence's plan, each add-on carries `tier` (lowest plan including it)
+     * and `included`. This site adds the two facts only it can know —
+     * `relevant` (its `detects` list hits an active plugin/theme here) and
+     * `installed` (the lingowp-<product> plugin is active here) — plus
+     * `recently_activated`, the read-once list of third-party activations
+     * since the last LingoWP screen load, which drives the one-shot toast.
+     * `coming_soon` is deliberately not forwarded: migration add-ons are
+     * out of scope until their delivery is designed.
+     */
     public function addons(WP_REST_Request $request): WP_REST_Response
     {
         $lang = sanitize_text_field((string) $request->get_param('lang'));
@@ -112,50 +120,30 @@ final class BillingRestController
 
         $result = $this->backendClient->getAddons($lang);
 
-        return rest_ensure_response([
-            'ok'          => $result['ok'],
-            'categories'  => $result['data']['categories'] ?? [],
-            'addons'      => $result['data']['addons'] ?? [],
-            'coming_soon' => $result['data']['coming_soon'] ?? [],
-            'error'       => $result['error'],
-        ]);
-    }
-
-    /** Payload: { addon_id }. Success data: { order_id, approve_url } — redirect the browser, nothing charged yet. */
-    public function orderAddon(WP_REST_Request $request): WP_REST_Response
-    {
-        $addonId = sanitize_text_field((string) $request->get_param('addon_id'));
-        if ($addonId === '') {
-            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
+        $addons = [];
+        foreach ((array) ($result['data']['addons'] ?? []) as $addon) {
+            $addon['relevant']  = $this->addonMatcher->isRelevant((array) ($addon['detects'] ?? []));
+            $addon['installed'] = $this->addonMatcher->isInstalled((string) ($addon['product'] ?? ''));
+            $addons[]           = $addon;
         }
 
-        $result = $this->backendClient->orderAddon($addonId);
-
         return rest_ensure_response([
-            'ok'          => $result['ok'],
-            'order_id'    => $result['data']['order_id'] ?? null,
-            'approve_url' => $result['data']['approve_url'] ?? null,
-            'error'       => $result['error'],
+            'ok'                 => $result['ok'],
+            'tier'               => $result['data']['tier'] ?? null,
+            'categories'         => $result['data']['categories'] ?? [],
+            'addons'             => $addons,
+            'recently_activated' => $result['ok'] ? $this->addonMatcher->takePendingActivations() : [],
+            'error'              => $result['error'],
         ]);
-    }
-
-    /** Called after the PayPal approval redirect returns. `status` is NOT proof of ownership — the caller must keep polling GET /billing/addons. */
-    public function captureAddonOrder(WP_REST_Request $request): WP_REST_Response
-    {
-        $orderId = sanitize_text_field((string) $request->get_param('order_id'));
-        $result  = $this->backendClient->captureAddonOrder($orderId);
-
-        return rest_ensure_response(['ok' => $result['ok'], 'status' => $result['data']['status'] ?? null, 'error' => $result['error']]);
     }
 
     /**
      * Downloads the add-on zip and installs+activates it directly on this
-     * site — used both for a not-yet-owned free add-on ("Add now", which
-     * also claims ownership server-side on first download) and an owned
-     * add-on that isn't installed here yet ("Install now", e.g. ownership
-     * came from another site under the same license). `product` comes from
-     * the request body rather than re-resolving the catalog server-side —
-     * the frontend already has the full addon object from GET /billing/addons.
+     * site ("Install now" for an add-on the licence tier includes). The
+     * backend is the gate — 402 upgrade_required when the tier is too low.
+     * `product` comes from the request body rather than re-resolving the
+     * catalog server-side — the frontend already has the full addon object
+     * from GET /billing/addons.
      */
     public function installAddon(WP_REST_Request $request): WP_REST_Response
     {

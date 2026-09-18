@@ -2,7 +2,7 @@
 
 ## Implemented in the repository
 
-- [x] The cloud connection displays a data disclosure and can be fully undone from Billing → Danger zone.
+- [x] The cloud connection is opt-in: onboarding offers "Connect to LingoWP Cloud" or "Continue without connecting", the connect button always sits next to the Terms and Privacy Policy links, `SiteConnector::ensureValid()` never connects a site that has no key, and the connection can be fully undone from Billing → Danger zone. Covered by `tests/db/no_auto_connect_it.php`.
 - [x] Insights remains an intentional preview with a voluntary notification action.
 - [x] Privacy Policy Guide content describes local and optional-cloud processing.
 - [x] Deactivation and uninstall clean up known scheduled hooks and stored state.
@@ -14,7 +14,6 @@
 
 ## Blocking owner decisions and evidence
 
-- [ ] **Require explicit consent before the first cloud request.** A fresh install connects automatically today: `SiteConnector::ensureValid()` calls `connect()` when no valid credential exists, and the Dashboard and Billing screens reach it through `POST /connection/check` on mount. Opening a LingoWP admin page therefore sends the site domain and administrator email before the administrator has agreed to anything, which Guideline 7 does not permit. `readme.txt` and `external-services.md` describe this accurately; `compliance-audit.md` previously claimed it was already fixed and did not.
 - [ ] Confirm `LingoWP`, the `lingowp` slug, and `aminesayagh` contributor identity are available and final.
 - [ ] Make `https://github.com/aminesayagh/lingowp` public and publish the exact `v1.3.1` tag referenced by `readme.txt`. The archive ships no admin source, so this link is the only thing satisfying the human-readable-source requirement. The release script now refuses to build while it does not resolve. Note this plugin is its own repository, but its remote is named `aminesayagh/translangs` and it has no tags — so publishing means either renaming the repository to `lingowp` or pointing `readme.txt` at the `translangs` URL, then tagging.
 - [ ] Convert remaining React interface strings to WordPress i18n calls and generate translation assets.

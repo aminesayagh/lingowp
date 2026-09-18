@@ -9,7 +9,7 @@
 		"lint:js": "wp-scripts lint-js",
 		"start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build",
 		"watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch",
-		"test": "node tests/inline_chip_grouping_check.mjs"
+		"test": "node tests/inline_chip_grouping_check.mjs && node tests/addon_lists_check.mjs"
 	},
 	"devDependencies": {
 		"@tailwindcss/postcss": "^4.3.3",

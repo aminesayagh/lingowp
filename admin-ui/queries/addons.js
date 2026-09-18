@@ -2,25 +2,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '../queryKeys'
 import { api, unwrap } from './http'
 
-// The Integrations page's add-on marketplace. Served entirely by /billing/*.
+// The Billing page's Integrations tab. Served entirely by /billing/*.
 
-// GET /billing/addons — { addons, coming_soon, categories }.
+// GET /billing/addons — { tier, addons, categories, recently_activated }.
+// Each addon carries the backend's `tier`/`included`/`detects` plus two facts
+// only this site knows (computed in BillingRestController::addons()):
+// `relevant` (a `detects` entry is active here) and `installed` (the
+// lingowp-<product> plugin is active here). `recently_activated` is read-once
+// server-side — it only feeds the activation toast.
 export function useAddons( options = {} ) {
 	return useQuery( {
 		queryKey: qk.billing.addons(),
 		queryFn: ( { signal } ) =>
 			unwrap( api.get( '/billing/addons', { signal } ) ),
 		select: ( res ) => ( {
+			tier: res.tier ?? null,
 			addons: res.addons ?? [],
-			comingSoon: res.coming_soon ?? [],
 			categories: res.categories ?? [],
+			recentlyActivated: res.recently_activated ?? [],
 		} ),
 		...options,
 	} )
 }
 
-// POST /billing/addons/{addonId}/install — pass { addonId, product }. Used for
-// both "Install now" (owned) and "Add now" (free, not yet owned).
+// POST /billing/addons/{addonId}/install — pass { addonId, product }. The
+// backend gates by tier (402 upgrade_required); the refetch on success is
+// what flips the card's `installed`.
 export function useInstallAddon() {
 	const queryClient = useQueryClient()
 	return useMutation( {
@@ -30,38 +37,5 @@ export function useInstallAddon() {
 			),
 		onSuccess: () =>
 			queryClient.invalidateQueries( { queryKey: qk.billing.addons() } ),
-	} )
-}
-
-// POST /billing/addons/order — pass { addonId }. Returns { approve_url } to
-// redirect to; the page navigates away and the return handler polls.
-export function useBuyAddon() {
-	return useMutation( {
-		mutationFn: ( { addonId } ) =>
-			unwrap(
-				api.post( '/billing/addons/order', { addon_id: addonId } )
-			),
-	} )
-}
-
-// POST /billing/addons/orders/{orderId}/capture — finalize after the PayPal
-// return.
-export function useCaptureAddonOrder() {
-	const queryClient = useQueryClient()
-	return useMutation( {
-		mutationFn: ( orderId ) =>
-			unwrap( api.post( `/billing/addons/orders/${ orderId }/capture` ) ),
-		onSuccess: () =>
-			queryClient.invalidateQueries( { queryKey: qk.billing.addons() } ),
-	} )
-}
-
-// POST /billing/addons/coming-soon/{slug}/notify — register interest.
-export function useNotifyComingSoon() {
-	return useMutation( {
-		mutationFn: ( slug ) =>
-			unwrap(
-				api.post( `/billing/addons/coming-soon/${ slug }/notify` )
-			),
 	} )
 }

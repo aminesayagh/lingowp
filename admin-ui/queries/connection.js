@@ -49,6 +49,23 @@ export function useConnectionStatus( { verify = false, ...options } = {} ) {
 	} )
 }
 
+// GET /connection/ping — is the backend reachable right now? Onboarding asks
+// once per modal open to decide whether to offer "Connect to LingoWP Cloud"
+// as the primary action. `ok` is a real reachability flag.
+export function useBackendPing( options = {} ) {
+	return useQuery( {
+		queryKey: qk.backendPing(),
+		queryFn: ( { signal } ) =>
+			api
+				.get( '/connection/ping', { signal } )
+				.then( ( res ) => !! res.ok )
+				.catch( () => false ),
+		retry: false,
+		staleTime: Infinity,
+		...options,
+	} )
+}
+
 function useConnectionMutation( path ) {
 	const queryClient = useQueryClient()
 	return useMutation( {

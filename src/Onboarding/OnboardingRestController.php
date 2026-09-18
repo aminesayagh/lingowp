@@ -123,10 +123,11 @@ final class OnboardingRestController
         // cannot send the user back to the first configuration screen.
         $this->connection->markOnboardingComplete();
 
-        // Cloud connection is deliberately separate from onboarding. Manual
-        // translation remains fully local until an administrator explicitly
-        // chooses "Connect to LingoWP Cloud" in the Workspace or Billing UI.
-        // Keep the existing response fields for compatibility with older builds.
+        // Cloud connection is opt-in and never happens here: the onboarding
+        // form's "Connect to LingoWP Cloud" button calls /connection/connect
+        // itself *before* posting here, and "Continue without connecting"
+        // skips it. Nothing auto-connects later either (SiteConnector::
+        // ensureValid()). Response fields kept for compatibility with older builds.
         return rest_ensure_response([
             'ok'        => true,
             'next'      => 'onboarding_setting_up',

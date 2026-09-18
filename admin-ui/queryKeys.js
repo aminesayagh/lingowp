@@ -73,6 +73,9 @@ export const qk = {
 		all: [ 'connection' ],
 		status: () => [ 'connection', 'status' ],
 	},
+	// Deliberately outside connection.all: a successful connect invalidates
+	// that family, and re-pinging the backend right after is pointless.
+	backendPing: () => [ 'backend-ping' ],
 
 	providerKeys: () => [ 'provider-keys' ],
 

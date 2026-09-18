@@ -13,13 +13,18 @@ import {
 	ProgressBar,
 	Spinner,
 	Text,
+	Toast,
 } from '@shopify/polaris'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from '@wordpress/element'
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { PENDING_WORDS_KEY } from '../billingKeys'
 import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
+import { qk } from '../queryKeys'
+import { useAddons } from '../queries/addons'
+import { subscriptionToasts } from './addonLists.mjs'
 import {
 	useBuyWordPack,
 	useCapturePackOrder,
@@ -652,7 +657,7 @@ function ActiveState( {
 	)
 }
 
-export default function BillingSubscription() {
+export default function BillingSubscription( { onGoToIntegrations } ) {
 	const [ buyWordsOpen, setBuyWordsOpen ] = useState( false )
 	const [ buyError, setBuyError ] = useState( '' )
 	const [ actionError, setActionError ] = useState( '' )
@@ -663,6 +668,29 @@ export default function BillingSubscription() {
 	// for "a change is confirmed/scheduled", so ActiveState reads it directly.
 	const [ polling, setPolling ] = useState( null ) // { kind, attempts, gaveUp, before?, targetPlan? } | null
 	const [ noticeBanner, setNoticeBanner ] = useState( '' )
+	// "Your plan includes the X add-on" toast after a subscription settles.
+	// The add-on list is refetched once the new tier is live (not on
+	// change_plan — that tier only applies at the next renewal); every
+	// add-on the plan now covers and this site could use goes into one toast.
+	// `unlockCheck` is the ms timestamp the check started, so a list cached
+	// before the subscription (AddonActivationToast fetches it on load) is
+	// ignored until the invalidated refetch lands.
+	const [ unlockCheck, setUnlockCheck ] = useState( null )
+	const [ unlockToast, setUnlockToast ] = useState( null ) // addon[] | null
+	const queryClient = useQueryClient()
+	const unlockQ = useAddons( { enabled: unlockCheck !== null } )
+	useEffect( () => {
+		if (
+			unlockCheck === null ||
+			! unlockQ.data ||
+			unlockQ.dataUpdatedAt < unlockCheck
+		) {
+			return
+		}
+		const ready = subscriptionToasts( unlockQ.data.addons )
+		setUnlockToast( ready.length ? ready : null )
+		setUnlockCheck( null )
+	}, [ unlockCheck, unlockQ.data, unlockQ.dataUpdatedAt ] )
 
 	const [ status, setStatus ] = useQueryState(
 		'status',
@@ -831,6 +859,12 @@ export default function BillingSubscription() {
 			// forever with the backend down — never settling, never giving up.
 			if ( res.data && isPollSettled( polling, res.data ) ) {
 				setPolling( null )
+				if ( polling.kind === 'subscribe' ) {
+					setUnlockCheck( Date.now() )
+					queryClient.invalidateQueries( {
+						queryKey: qk.billing.addons(),
+					} )
+				}
 				return
 			}
 
@@ -842,7 +876,7 @@ export default function BillingSubscription() {
 		}, 3000 )
 
 		return () => clearTimeout( timer )
-	}, [ polling, refetchEnt ] )
+	}, [ polling, refetchEnt, queryClient ] )
 
 	async function doSubscribe( planKey ) {
 		setActionError( '' )
@@ -994,6 +1028,21 @@ export default function BillingSubscription() {
 				loading={ buyLoading }
 				error={ buyError }
 			/>
+			{ unlockToast && (
+				<Toast
+					content={ `Your plan includes the ${ unlockToast
+						.map( ( a ) => a.title )
+						.join( ', ' ) } add-on${
+						unlockToast.length > 1 ? 's' : ''
+					}.` }
+					duration={ 8000 }
+					action={ {
+						content: 'Install',
+						onAction: onGoToIntegrations,
+					} }
+					onDismiss={ () => setUnlockToast( null ) }
+				/>
+			) }
 		</BlockStack>
 	)
 }

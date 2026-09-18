@@ -14,7 +14,7 @@ Translate WordPress content locally, with optional AI-assisted translation throu
 
 LingoWP creates language-specific versions of WordPress content while keeping the original content as the source. Manual translation and frontend language selection work locally on your WordPress site.
 
-LingoWP connects to LingoWP Cloud automatically on first use to enable AI translation, provider-key management, licensing, billing, and account management. An administrator can fully disconnect at any time from the Billing page's Danger zone; disconnecting disables all cloud features until reconnected, and does not affect any manually translated content.
+Connecting to LingoWP Cloud is optional and never automatic. During setup, an administrator chooses "Connect to LingoWP Cloud" or "Continue without connecting"; the connection can also be made later from the Workspace or Billing page. Connecting enables AI translation, provider-key management, licensing, billing, and account management. An administrator can fully disconnect at any time from the Billing page's Danger zone; disconnecting disables all cloud features until reconnected, and does not affect any manually translated content.
 
 The Insights screen is an intentional preview of a possible future feature. Opening it does not submit demand data. For a connected site, its “Notify me at launch” button voluntarily submits the fixed product-interest code `feature_interest:translangs_insights` through the support suggestion service. The plugin does not include an email address in that request; the service associates it with the authenticated license owner, falling back to the site administrator email.
 
@@ -22,7 +22,7 @@ The Insights screen is an intentional preview of a possible future feature. Open
 
 LingoWP Cloud is hosted at https://cloud.lingowp.com and provides optional account, AI translation, provider-key, billing, and authenticated support-suggestion services.
 
-On first use, the site domain and WordPress administrator email address are sent automatically to create the site connection; this is the only data sent without a further administrator action. AI translation requests send the selected source text, source and target languages, and grouping identifiers, and only when an administrator explicitly requests AI translation. Provider keys entered by an administrator are sent for provider validation and encrypted storage. Billing and account actions send the information necessary to perform the requested action. Clicking “Notify me at launch” sends the legacy backend code `feature_interest:translangs_insights` with the site's existing authentication and domain headers. It does not send an email address in the request body. An administrator can disconnect entirely at any time from the Billing page's Danger zone, which stops all further requests to LingoWP Cloud until reconnected.
+When an administrator clicks "Connect to LingoWP Cloud", the site domain and WordPress administrator email address are sent to create the site connection. No request is made to LingoWP Cloud before that click, other than an unauthenticated reachability check during setup that sends no site data. AI translation requests send the selected source text, source and target languages, and grouping identifiers, and only when an administrator explicitly requests AI translation. Provider keys entered by an administrator are sent for provider validation and encrypted storage. Billing and account actions send the information necessary to perform the requested action. Clicking “Notify me at launch” sends the legacy backend code `feature_interest:translangs_insights` with the site's existing authentication and domain headers. It does not send an email address in the request body. An administrator can disconnect entirely at any time from the Billing page's Danger zone, which stops all further requests to LingoWP Cloud until reconnected.
 
 Local manual translation works fully without LingoWP Cloud; disconnecting does not affect it.
 
@@ -49,17 +49,17 @@ That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` 
 1. Upload the `lingowp` folder to `/wp-content/plugins/`, or install it through the WordPress Plugins screen.
 2. Activate LingoWP.
 3. Open LingoWP in wp-admin and choose the source and target languages.
-4. LingoWP connects to LingoWP Cloud automatically to enable AI translation, billing, and account features; translate manually if you prefer, or disconnect anytime from Billing → Danger zone.
+4. Choose whether to connect to LingoWP Cloud (for AI translation, billing, and account features) or continue without connecting. You can connect later from the Workspace or Billing page, and disconnect anytime from Billing → Danger zone.
 
 == Frequently Asked Questions ==
 
 = Does LingoWP require a cloud account? =
 
-No. Local manual translation works fully without using any LingoWP Cloud feature. The site does connect automatically in the background to make those features available when needed; an administrator can fully disconnect at any time from the Billing page.
+No. Local manual translation works fully without using any LingoWP Cloud feature. The site never connects on its own: an administrator chooses to connect during setup or later from the Workspace or Billing page, and can fully disconnect at any time from the Billing page.
 
 = When is content sent to LingoWP Cloud? =
 
-The site domain and administrator email are sent automatically on first use to establish the connection. Translation text is sent only when an administrator explicitly requests AI translation. An administrator can disconnect entirely at any time from the Billing page's Danger zone.
+The site domain and administrator email are sent only when an administrator clicks "Connect to LingoWP Cloud". Translation text is sent only when an administrator explicitly requests AI translation. An administrator can disconnect entirely at any time from the Billing page's Danger zone.
 
 = Does the Insights preview track visitors? =
 
