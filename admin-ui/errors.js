@@ -74,12 +74,6 @@ const MESSAGES = {
 	ERR_HOSTED_AI_UNAVAILABLE: 'Subscribe to a plan to use AI translation.',
 	ERR_INSUFFICIENT_AI_WORDS:
 		"You're out of AI words for this period. Buy a word pack to keep translating.",
-	ERR_UNKNOWN_ADDON:
-		"This add-on isn't available anymore. Refresh and try again.",
-	ERR_ADDON_UPGRADE_REQUIRED:
-		"Your plan doesn't include this add-on. Upgrade to install it.",
-	ERR_ADDON_ARTIFACT_MISSING:
-		"This add-on isn't available for download right now. Try again later.",
 }
 
 export function errorMessage( code ) {

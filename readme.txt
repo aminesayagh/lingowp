@@ -1,5 +1,5 @@
 === LingoWP ===
-Contributors: aminesayagh
+Contributors: masayagh
 Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
@@ -12,7 +12,20 @@ Translate WordPress content locally, with optional AI-assisted translation throu
 
 == Description ==
 
-LingoWP creates language-specific versions of WordPress content while keeping the original content as the source. Manual translation and frontend language selection work locally on your WordPress site.
+LingoWP makes a WordPress site multilingual without duplicating it. Your posts, pages, and settings stay exactly as they are — the single source of truth — and LingoWP stores each translation next to the original, then swaps it in when a visitor reads the site in another language. Everything below works entirely on your own server, with no account and no external service.
+
+= What makes LingoWP different =
+
+* **No duplicate posts.** Most multilingual plugins clone every post per language, so you end up managing three copies of every page, menu, and category. LingoWP keeps one canonical post and stores translations in its own tables keyed to the original text. Delete the original and its translations go with it; edit the original and the changed sentences are flagged for re-translation while the rest stay translated.
+* **Finds translatable text for you, across everything.** Instead of asking you to register strings, LingoWP discovers them: post titles and content (block by block, table cell by table cell), categories and tags, custom fields (including nested and repeater-style values), author bios, site title and tagline, widgets, theme customizer text, text stored inside block settings such as Search button labels and Navigation items, plus theme-rendered text that appears on the page but lives in no post at all. It all lands on one board, in one place.
+* **Plugin and theme strings included.** The text your theme and plugins output through WordPress's translation functions gets its own board. Fetch WordPress.org's existing language pack for a plugin and translate only the strings it missed, import and export standard PO files, and see how much of each plugin is still untranslated — no separate translation-editor plugin needed.
+* **An editor that cannot break your markup.** Links, bold text, and shortcodes inside a sentence become numbered placeholders while you translate, so word order is free but the tags and shortcodes are always rebuilt from the original. A translation with a missing or misplaced placeholder is rejected before it saves.
+* **Translate once, apply everywhere.** Translations are keyed to the text itself, so a sentence that appears in ten places is translated once.
+* **Language-aware frontend, done in the plugin.** Language-prefixed URLs, translated internal links, `hreflang` tags, the page's `lang` and `dir` attributes for RTL languages, localized dates and numbers, optional browser-language and cookie-based redirects, and a per-language fallback chain so a missing translation shows the next best language instead of nothing.
+* **A switcher you can drop anywhere.** A dropdown, inline, or list switcher with flag icons, available as a shortcode, a template function, and a filterable link array for building your own. The dropdown works without JavaScript.
+* **AI is optional and never required.** If you connect to LingoWP Cloud, you can translate with LingoWP's hosted models or bring your own OpenAI or Anthropic key. The plugin itself contains no translation engine and never contacts any service until an administrator chooses to connect.
+
+Add-ons for Elementor, WooCommerce, Advanced Custom Fields, and the major SEO plugins extend discovery to their content through public hooks; they are separate plugins, not bundled here.
 
 Connecting to LingoWP Cloud is optional and never automatic. During setup, an administrator chooses "Connect to LingoWP Cloud" or "Continue without connecting"; the connection can also be made later from the Workspace or Account page. Connecting enables AI translation, provider-key management, licensing, billing, and account management. An administrator can fully disconnect at any time from the Account page's Danger zone; disconnecting disables all cloud features until reconnected, and does not affect any manually translated content.
 
@@ -63,7 +76,7 @@ The site domain and administrator email are sent only when an administrator clic
 
 = How are LingoWP add-ons (Elementor, WooCommerce, ACF, SEO) installed? =
 
-By you, through WordPress's own uploader. Account → Integrations lists the add-ons your plan includes for the plugins active on your site and gives you a download link for each. Download the zip in your browser, then upload it under Plugins → Add New → Upload Plugin and activate it. LingoWP itself never downloads, installs, or updates any code.
+Like any other plugin, by you, through WordPress's own Plugins screen. Account → Integrations only shows which add-ons your plan includes for the plugins active on your site and which are already installed; it offers no download or install action. LingoWP itself never downloads, installs, or updates any code.
 
 = Does the Insights preview track visitors? =
 

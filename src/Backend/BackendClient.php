@@ -228,18 +228,6 @@ final class BackendClient implements TranslationBackendPort
         return $this->request('GET', '/billing/addons?' . http_build_query(['lang' => $lang]), null, $this->authHeaders());
     }
 
-    /**
-     * GET /billing/addons/{id}/download-url — bearer + domain. Success data:
-     * { url, expires_at } — a short-lived signed link the admin's browser
-     * fetches with no headers. 402 upgrade_required, 404
-     * unknown_addon/artifact_missing. The plugin never fetches the zip
-     * itself (WordPress.org Guideline 8).
-     */
-    public function getAddonDownloadUrl(string $addonId): array
-    {
-        return $this->request('GET', '/billing/addons/' . rawurlencode($addonId) . '/download-url', null, $this->authHeaders());
-    }
-
     /** GET /me/entitlements — bearer + domain. Canonical read for all billing UI state. */
     public function getEntitlements(): array
     {
@@ -405,12 +393,6 @@ final class BackendClient implements TranslationBackendPort
                 return 'ERR_DOMAIN_CLAIMED';
             case $status === 403 && $detail === 'order_not_owned': // /billing/packs/order/{id}/capture
                 return 'ERR_ORDER_NOT_OWNED';
-            case $detail === 'unknown_addon': // /billing/addons/{id}/download-url — 404 now, was 400; status-agnostic on purpose
-                return 'ERR_UNKNOWN_ADDON';
-            case $status === 402 && $detail === 'upgrade_required': // /billing/addons/{id}/download-url — licence tier below the add-on's tier
-                return 'ERR_ADDON_UPGRADE_REQUIRED';
-            case $status === 404 && $detail === 'artifact_missing': // /billing/addons/{id}/download-url
-                return 'ERR_ADDON_ARTIFACT_MISSING';
             case $status === 402 && $detail === 'site_over_plan_limit': // /translations: over_slot asked for platform AI anyway
                 return 'ERR_SITE_OVER_PLAN_LIMIT';
             case $status === 402 && $detail === 'hosted_ai_unavailable': // /translations: no active subscription

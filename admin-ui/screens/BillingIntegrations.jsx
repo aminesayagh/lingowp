@@ -6,12 +6,11 @@ import {
 	Card,
 	Divider,
 	InlineStack,
-	Link,
 	Spinner,
 	Text,
 } from '@shopify/polaris'
-import { Fragment, useState } from '@wordpress/element'
-import { useAddons, useAddonDownloadUrl } from '../queries/addons'
+import { Fragment } from '@wordpress/element'
+import { useAddons } from '../queries/addons'
 import ConnectionErrorCard from './ConnectionErrorCard'
 import { errorMessage } from '../errors'
 import { partitionAddons, tierLabel } from './addonLists.mjs'
@@ -68,48 +67,14 @@ function ActionButton( { label, loading, error, onClick } ) {
 // `variant` is which of the three lists the card sits in — decided once by
 // partitionAddons(), not re-derived per card.
 //   installed -> nothing to do
-//   ready     -> Get download link (plan covers it, plugin it targets is active)
+//   ready     -> nothing to do either: the plan covers it and the plugin it
+//                targets is active, but this screen deliberately offers no
+//                download or install action (WordPress.org Guideline 8 — the
+//                plugin must not distribute add-on code from outside
+//                WordPress.org). How add-ons are obtained is decided outside
+//                the plugin.
 //   upgrade   -> Upgrade to <tier> (plugin it targets is active, plan too low)
-//
-// The plugin never installs an add-on itself (WordPress.org Guideline 8):
-// "ready" mints a short-lived signed link, shown as a real <a> the admin
-// clicks, then uploads the zip through Plugins → Add New → Upload Plugin.
-// Two steps rather than auto-opening, because a link created after an async
-// request can't be opened without tripping popup blockers.
 function AddonAction( { addon, variant, actions } ) {
-	if ( variant === 'ready' ) {
-		const link = actions.downloadLinks[ addon.addon_id ]
-		if ( link ) {
-			// Links expire after ~10 minutes (backend-signed); the second
-			// button mints a fresh one without a reload.
-			return (
-				<BlockStack gap="100">
-					<Link url={ link } external>
-						Download { addon.title } add-on (.zip)
-					</Link>
-					<Text as="span" tone="subdued" variant="bodySm">
-						Upload it under Plugins → Add New → Upload Plugin and
-						activate it. This page updates once it&apos;s active.
-						The link expires in a few minutes.
-					</Text>
-					<ActionButton
-						label="Get a new link"
-						loading={ actions.linkingId === addon.addon_id }
-						error={ actions.linkErrors[ addon.addon_id ] }
-						onClick={ () => actions.onGetLink( addon ) }
-					/>
-				</BlockStack>
-			)
-		}
-		return (
-			<ActionButton
-				label="Get download link"
-				loading={ actions.linkingId === addon.addon_id }
-				error={ actions.linkErrors[ addon.addon_id ] }
-				onClick={ () => actions.onGetLink( addon ) }
-			/>
-		)
-	}
 	if ( variant === 'upgrade' ) {
 		return (
 			<ActionButton
@@ -206,11 +171,7 @@ function AddonSection( {
 // this site could use but the plan doesn't cover. `onUpgrade` switches to
 // the Plan & billing tab.
 export default function BillingIntegrations( { onUpgrade } ) {
-	const [ downloadLinks, setDownloadLinks ] = useState( {} ) // addon_id -> signed url
-	const [ linkErrors, setLinkErrors ] = useState( {} ) // addon_id -> ERR_* code
-
 	const addonsQ = useAddons()
-	const linkMut = useAddonDownloadUrl()
 
 	if ( addonsQ.data === undefined ) {
 		if ( addonsQ.isError ) {
@@ -234,29 +195,7 @@ export default function BillingIntegrations( { onUpgrade } ) {
 	const { addons, categories, tier } = addonsQ.data
 	const { installed, ready, upgrade } = partitionAddons( addons )
 
-	async function getDownloadLink( addon ) {
-		setLinkErrors( ( prev ) => ( { ...prev, [ addon.addon_id ]: '' } ) )
-		try {
-			const res = await linkMut.mutateAsync( { addonId: addon.addon_id } )
-			setDownloadLinks( ( prev ) => ( {
-				...prev,
-				[ addon.addon_id ]: res.url,
-			} ) )
-		} catch ( e ) {
-			setLinkErrors( ( prev ) => ( {
-				...prev,
-				[ addon.addon_id ]: e.code || 'ERR_UNREACHABLE',
-			} ) )
-		}
-	}
-
-	const actions = {
-		linkingId: linkMut.isPending ? linkMut.variables.addonId : null,
-		linkErrors,
-		downloadLinks,
-		onGetLink: getDownloadLink,
-		onUpgrade,
-	}
+	const actions = { onUpgrade }
 
 	// Empty lists are not rendered at all. Sections are separated by a
 	// divider only when there's a rendered section before them.
@@ -267,10 +206,10 @@ export default function BillingIntegrations( { onUpgrade } ) {
 			variant: 'installed',
 		},
 		{
-			title: 'Ready to install',
+			title: 'Included in your plan',
 			description: `Included in your ${ tierLabel(
 				tier
-			) } plan and matching plugins active on this site. Download the add-on, then upload it under Plugins → Add New → Upload Plugin.`,
+			) } plan and matching plugins active on this site.`,
 			addons: ready,
 			variant: 'ready',
 		},

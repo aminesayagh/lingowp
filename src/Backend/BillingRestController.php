@@ -50,11 +50,6 @@ final class BillingRestController
         register_rest_route(self::NS, '/billing/addons', ['methods' => 'GET', 'callback' => [$this, 'addons']] + $guard);
         register_rest_route(
             self::NS,
-            '/billing/addons/(?P<addon_id>[^/]+)/download-url',
-            ['methods' => 'POST', 'callback' => [$this, 'addonDownloadUrl']] + $guard
-        );
-        register_rest_route(
-            self::NS,
             '/billing/addons/coming-soon/(?P<slug>[^/]+)/notify',
             ['methods' => 'POST', 'callback' => [$this, 'notifyComingSoon']] + $guard
         );
@@ -134,32 +129,6 @@ final class BillingRestController
             'addons'             => $addons,
             'recently_activated' => $result['ok'] ? $this->addonMatcher->takePendingActivations() : [],
             'error'              => $result['error'],
-        ]);
-    }
-
-    /**
-     * Hands the admin a short-lived signed link to the add-on zip. The
-     * browser downloads it straight from LingoWP Cloud and the admin installs
-     * it through WordPress's own uploader (Plugins → Add New → Upload
-     * Plugin). This plugin never downloads or unpacks code itself —
-     * WordPress.org Guideline 8 forbids installing add-ons from any server
-     * but WordPress.org's, user-initiated or not. The backend is the tier
-     * gate: 402 upgrade_required when the licence's plan is too low.
-     */
-    public function addonDownloadUrl(WP_REST_Request $request): WP_REST_Response
-    {
-        $addonId = sanitize_text_field((string) $request->get_param('addon_id'));
-        if ($addonId === '') {
-            return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_PAYLOAD'], 200);
-        }
-
-        $result = $this->backendClient->getAddonDownloadUrl($addonId);
-        $url    = (string) ($result['data']['url'] ?? '');
-
-        return rest_ensure_response([
-            'ok'    => $result['ok'] && $url !== '',
-            'url'   => $url,
-            'error' => $result['ok'] && $url === '' ? 'ERR_BACKEND' : $result['error'],
         ]);
     }
 

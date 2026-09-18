@@ -150,6 +150,17 @@ for forbidden in node_modules admin-ui tests templates src/Admin/ResetPageContro
   fi
 done
 
+# WordPress.org does not accept plugins that download or install code from
+# anywhere but WordPress.org (Guideline 8, "not accepted plugins" list). An
+# add-on installer shipped once and was removed before the first submission;
+# this keeps it from coming back unnoticed. Only the plugin's own code is
+# checked — vendor/ is Composer's and Action Scheduler legitimately has none.
+echo "==> Checking for remote code installation"
+if grep -rnE '\b(unzip_file|activate_plugin)\s*\(' "$BUILD_DIR/src" "$BUILD_DIR/lingowp.php" "$BUILD_DIR/functions.php"; then
+  echo "Release contains remote-install primitives (see above). WordPress.org rejects these." >&2
+  exit 1
+fi
+
 # Runs last, after every removal, so it only ever sees files that actually ship,
 # and before the timestamp normalisation below so the archive stays reproducible.
 if [[ "$STRIP_COMMENTS" == "1" ]]; then

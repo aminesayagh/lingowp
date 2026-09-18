@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { qk } from '../queryKeys'
 import { api, unwrap } from './http'
 
@@ -22,18 +22,5 @@ export function useAddons( options = {} ) {
 			recentlyActivated: res.recently_activated ?? [],
 		} ),
 		...options,
-	} )
-}
-
-// POST /billing/addons/{addonId}/download-url — pass { addonId }. Resolves
-// { url } — a short-lived signed link the browser downloads straight from
-// LingoWP Cloud; the admin then installs it through Plugins → Add New →
-// Upload Plugin. The plugin never fetches or unpacks the zip itself
-// (WordPress.org Guideline 8). The backend gates by tier (402
-// upgrade_required). Not a query: every click must mint a fresh link.
-export function useAddonDownloadUrl() {
-	return useMutation( {
-		mutationFn: ( { addonId } ) =>
-			unwrap( api.post( `/billing/addons/${ addonId }/download-url` ) ),
 	} )
 }
