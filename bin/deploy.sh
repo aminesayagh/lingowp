@@ -16,7 +16,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ARTIFACT_DIR="/home/amine/projects/translangs/translangs_back/plugin"
+ARTIFACT_DIR="/home/amine/projects/translangs/backend/plugin"
 VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/lingowp.php" | head -n 1)"
 
 cd "$ROOT_DIR"
