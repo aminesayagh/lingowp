@@ -98,7 +98,7 @@ $overlay = test_mo_bytes(
     ['Language' => 'fr_BE', 'PO-Revision-Date' => 'overlay-date']
 );
 
-$langDir = WP_LANG_DIR . '/plugins';
+$langDir = \LingoWP\GettextDomains\GettextPoImporter::baseDir() . '/plugins';
 $before  = is_dir($langDir) ? scandir($langDir) : [];
 
 $mergedBytes = $mergeMo->invoke($fetcher, $base, $overlay);
@@ -123,7 +123,7 @@ test_ok('overlay header wins (Language)', ($mergedHeaders['Language'] ?? null) =
 test_ok('overlay header wins (PO-Revision-Date)', ($mergedHeaders['PO-Revision-Date'] ?? null) === 'overlay-date', 'got ' . json_encode($mergedHeaders['PO-Revision-Date'] ?? null));
 test_ok('base-only header survives', ($mergedHeaders['X-Base-Only'] ?? null) === 'yes', 'got ' . json_encode($mergedHeaders['X-Base-Only'] ?? null));
 
-test_ok('mergeMo() wrote nothing to WP_LANG_DIR/plugins', $before === $after,
+test_ok('mergeMo() wrote nothing to the lingowp/plugins folder', $before === $after,
     'added: ' . json_encode(array_values(array_diff($after, $before))));
 
 // ── pickPackages() ─────────────────────────────────────────────────────────

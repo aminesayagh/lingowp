@@ -198,7 +198,7 @@ $backend->pending = [
 ];
 $queue->collectOnce();
 
-$moPath = WP_LANG_DIR . '/plugins/' . $domain . '-fr_FR.mo';
+$moPath = \LingoWP\GettextDomains\GettextPoImporter::baseDir() . '/plugins/' . $domain . '-fr_FR.mo';
 $writtenMoFiles[] = $moPath;
 
 test_ok('.mo file written for fr_FR', file_exists($moPath), $moPath);
@@ -233,7 +233,7 @@ $backend->pending = [
 ];
 $queue->collectOnce();
 
-$enGbMoPath = WP_LANG_DIR . '/plugins/' . $domain . '-en_GB.mo';
+$enGbMoPath = \LingoWP\GettextDomains\GettextPoImporter::baseDir() . '/plugins/' . $domain . '-en_GB.mo';
 test_ok('.mo for en_GB was NOT created on failure', ! file_exists($enGbMoPath));
 
 $row = $wpdb->get_row($wpdb->prepare(
