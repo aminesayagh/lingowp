@@ -43,5 +43,7 @@ security-reports/*
 
 vendor/
 dist/
+# Public distribution repository — has its own .git (see bin/build-release-zip.sh)
+release/
 .VSCode/
 .senera/

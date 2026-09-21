@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       LingoWP
- * Plugin URI:        https://github.com/aminesayagh/lingowp
+ * Plugin URI:        https://www.lingowp.com/
  * Description:       Create multilingual WordPress sites with local manual translation and optional AI-assisted translation.
  * Version:           1.3.1
  * Requires at least: 6.2

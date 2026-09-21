@@ -48,14 +48,14 @@ LingoWP can also contact WordPress.org language-pack APIs when an administrator 
 
 = Human-readable source =
 
-Everything in `assets/admin/build/` is compiled output. The human-readable JavaScript and CSS source it is built from, for exactly this version, is published at https://github.com/aminesayagh/lingowp/tree/v1.3.1 — the `admin-ui/` directory, with `package.json`, `webpack.config.js`, and `postcss.config.js`.
+Everything in `assets/admin/build/` is compiled output. The human-readable JavaScript and CSS source it is built from ships in this package: the `admin-ui/` directory, together with `package.json`, `package-lock.json`, `webpack.config.js`, and `postcss.config.js`.
 
-To reproduce those files from that source, with Node.js 20 or newer:
+To reproduce the compiled files from that source, with Node.js 20 or newer, run from the plugin directory:
 
 `npm ci`
 `npm run build`
 
-That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` and writes the same bundles shipped here. The release script `bin/build-release-zip.sh` performs exactly these steps when packaging.
+That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` and writes the same bundles shipped here.
 
 == Installation ==
 
