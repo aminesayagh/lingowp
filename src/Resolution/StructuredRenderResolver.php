@@ -89,6 +89,12 @@ final class StructuredRenderResolver
     public function register(): void
     {
         add_filter('the_posts', [$this, 'preloadPosts'], 10, 2);
+        // Output escaping happens where a translation is substituted, per context
+        // (see hashValue() and content()): a plain value is run through
+        // wp_kses_post(), a content unit is rebuilt from the post's own markup
+        // with the translated text passed through htmlspecialchars() by the
+        // codec. The filter return values are therefore already escaped;
+        // escaping them again here would double-encode content.
         add_filter('the_title', [$this, 'title'], 10, 2);
         add_filter('the_content', [$this, 'content'], 10, 1);
         add_filter('render_block_data', [$this, 'blockAttributes'], 10, 1);
@@ -406,13 +412,28 @@ final class StructuredRenderResolver
 
     // ── internals ─────────────────────────────────────────────────────────────
 
-    /** Hash-link lookup: hash the original text, read the map, fall back to original. */
+    /**
+     * Hash-link lookup: hash the original text, read the map, fall back to original.
+     *
+     * The translation is sanitized here, at output, and not when it is saved:
+     * one stored row can serve both a title (printed raw by the_title()) and
+     * an identical paragraph (rebuilt by the codec, which htmlspecialchars()
+     * every text node). Sanitizing at save would be double-escaped by the
+     * codec; sanitizing at each plain output site is exact. wp_kses_post()
+     * is what WordPress itself applies to a post for a user without
+     * unfiltered_html — it keeps inline markup, drops scripts and event
+     * attributes, and entity-encodes a stray "<" instead of eating it. It
+     * also closes the one path where text arrives without a capability
+     * check: AI results written by applyQueueResult().
+     */
     private function hashValue(string $tableKey, string $original): string
     {
         $hash = TranslationKey::currentHash($original);
         $this->ensureHashLoaded($tableKey, [$hash]);
 
-        return $this->hashMap[$this->hashKey($tableKey, $hash)] ?? $original;
+        $key = $this->hashKey($tableKey, $hash);
+
+        return isset($this->hashMap[$key]) ? wp_kses_post($this->hashMap[$key]) : $original;
     }
 
     /**
@@ -438,10 +459,10 @@ final class StructuredRenderResolver
             $nameKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->name));
             $descKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->description));
             if (isset($this->hashMap[$nameKey])) {
-                $term->name = $this->hashMap[$nameKey];
+                $term->name = wp_kses_post($this->hashMap[$nameKey]); // plain output, see hashValue()
             }
             if (isset($this->hashMap[$descKey])) {
-                $term->description = $this->hashMap[$descKey];
+                $term->description = wp_kses_post($this->hashMap[$descKey]);
             }
         }
     }
@@ -517,7 +538,9 @@ final class StructuredRenderResolver
             $fetched = $this->repository->fetchMetaLeafTranslations($tableKey, array_values($remaining), $lang);
             foreach ($remaining as $key => $lookup) {
                 if (isset($fetched[$key])) {
-                    $this->metaLeafMap[$key] = $fetched[$key];
+                    // Every leaf is a plain value patched into the meta as-is
+                    // (no codec), so sanitize here once — see hashValue().
+                    $this->metaLeafMap[$key] = array_map('wp_kses_post', $fetched[$key]);
                     unset($remaining[$key]);
                 }
             }

@@ -66,7 +66,9 @@ final class OptionResolver
         // need to know the option row id.
         $hash = strtolower(bin2hex(TranslationKey::currentHash($output)));
 
-        return $this->map()[$hash] ?? $output;
+        // Plain value printed by bloginfo()/get_option() consumers — sanitize
+        // at output, same reasoning as StructuredRenderResolver::hashValue().
+        return isset($this->map()[$hash]) ? wp_kses_post($this->map()[$hash]) : $output;
     }
 
     /** @return array<string, string> */
