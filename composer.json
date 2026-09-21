@@ -1,0 +1,96 @@
+{
+	"name": "lingowp/lingowp",
+	"description": "Local manual translation and optional AI-assisted translation for WordPress.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"minimum-stability": "dev",
+	"prefer-stable": true,
+	"require": {
+		"php": ">=7.4",
+		"masterminds/html5": "^2.10",
+		"woocommerce/action-scheduler": "^3.9",
+		"10quality/gettext-wp-scanner": "^1.0"
+	},
+	"require-dev": {
+		"squizlabs/php_codesniffer": "^3.13",
+		"wp-coding-standards/wpcs": "^3.4",
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"phpcompatibility/phpcompatibility-wp": "^3.0@dev"
+	},
+	"autoload": {
+		"psr-4": {
+			"LingoWP\\": "src/"
+		}
+	},
+	"config": {
+		"optimize-autoloader": true,
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	},
+	"scripts": {
+		"test": [
+			"@php tests/normalizer_gate_check.php",
+			"@php tests/source_identity_check.php",
+			"@php tests/option_gate_check.php",
+			"@php tests/unit_structure_guard_check.php",
+			"@php tests/seo_var_guard_check.php",
+			"@php tests/ai_queue_config_check.php",
+			"@php tests/ai_queue_logic_check.php",
+			"@php tests/fallback_chain_check.php",
+			"@php tests/gettext_hash_check.php",
+			"@php tests/gettext_ai_hash_check.php",
+			"@php tests/support_payload_check.php",
+			"@php tests/split_field_check.php",
+			"@php tests/addon_site_matcher_check.php"
+		],
+		"test:db": [
+			"./wp eval-file tests/db/schema_constraints_it.php",
+			"./wp eval-file tests/db/section1_posts_pages_it.php",
+			"./wp eval-file tests/db/section2_taxonomies_it.php",
+			"./wp eval-file tests/db/section3_media_it.php",
+			"./wp eval-file tests/db/section21_traps_it.php",
+			"./wp eval-file tests/db/block_attribute_content_it.php",
+			"./wp eval-file tests/db/woocommerce_it.php",
+			"./wp eval-file tests/db/acf_it.php",
+			"./wp eval-file tests/db/elementor_it.php",
+			"./wp eval-file tests/db/option_pipeline_it.php",
+			"./wp eval-file tests/db/reconcile_it.php",
+			"./wp eval-file tests/db/board_search_it.php",
+			"./wp eval-file tests/db/orphan_sweep_it.php",
+			"./wp eval-file tests/db/fallback_language_it.php",
+			"./wp eval-file tests/db/hreflang_it.php",
+			"./wp eval-file tests/db/multilingual_redirects_it.php",
+			"./wp eval-file tests/db/language_url_it.php",
+			"./wp eval-file tests/db/ai_translate_scope_it.php",
+			"./wp eval-file tests/db/ai_pending_it.php",
+			"./wp eval-file tests/db/ai_result_applier_it.php",
+			"./wp eval-file tests/db/gettext_unit_it.php",
+			"./wp eval-file tests/db/gettext_merge_it.php",
+			"./wp eval-file tests/db/gettext_ai_it.php",
+			"./wp eval-file tests/db/no_auto_connect_it.php"
+		],
+		"security": "sh -c 'rc=0; for t in phpcs deps secrets semgrep semgrep-selftest; do echo \"--- $t ---\"; composer run --no-interaction security:$t || rc=1; done; exit $rc'",
+		"security:phpcs": "phpcs --report-summary --report-full=security-reports/phpcs-full.log --report-source=security-reports/phpcs-sniffs.log --report-json=security-reports/phpcs.json --no-colors",
+		"security:deps": "composer audit --locked",
+		"security:secrets": "docker run --rm --mount type=bind,src=.,dst=/repo,ro zricethezav/gitleaks:latest dir /repo --no-banner --redact --report-format=json --report-path=- > security-reports/gitleaks.json",
+		"security:semgrep": "docker run --rm --mount type=bind,src=.,dst=/src -w /src semgrep/semgrep semgrep scan --config=p/php --config=p/security-audit --config=.semgrep.yml --error --metrics=off --json-output=security-reports/semgrep.json --exclude=tests/fixtures --text-output=security-reports/semgrep.log",
+		"security:semgrep-selftest": "docker run --rm --mount type=bind,src=.,dst=/src,ro -w /src semgrep/semgrep semgrep scan --config=.semgrep.yml --metrics=off --no-git-ignore --json tests/fixtures/ | python3 -c \"import json,sys; n=len(json.load(sys.stdin)['results']); print('fixture findings:', n, '(expected 2)'); sys.exit(0 if n==2 else 1)\"",
+		"security:secrets-history": "docker run --rm --mount type=bind,src=.,dst=/repo zricethezav/gitleaks:latest git /repo --no-banner --redact --report-path=/repo/security-reports/gitleaks-history.json",
+		"security:plugin-check": "wp plugin check lingowp --categories=security --format=csv",
+		"compat:php": "phpcs --standard=phpcs-compat.xml.dist --report-summary --report-full=security-reports/phpcompat-full.log --report-json=security-reports/phpcompat.json --no-colors"
+	},
+	"scripts-descriptions": {
+		"test": "Pure checks — no WordPress, no database. Safe anywhere.",
+		"test:db": "Integration checks against the local dev DB, via ./wp (runs inside the Docker wordpress container) — works from any shell, WSL included.",
+		"security": "All static security scanners. Runs every one, exits non-zero if any failed. Excludes secrets-history (slow, git history) — CI runs that on the weekly schedule instead.",
+		"security:phpcs": "WPCS security sniffs (escaping, nonces, sanitizing, prepared SQL).",
+		"security:deps": "Known vulnerabilities in composer.lock.",
+		"security:secrets": "Gitleaks over the working tree. Needs Docker.",
+		"security:semgrep": "Semgrep PHP + security-audit rules, plus .semgrep.yml (custom wpdb SQL rule). Needs Docker.",
+		"security:semgrep-selftest": "Asserts the custom wpdb rule still catches exactly the 2 bad cases in tests/fixtures/.",
+		"security:secrets-history": "Gitleaks over full Git history. Slow — run before a release.",
+		"security:plugin-check": "WordPress Plugin Check. Needs a running site and wp-cli on PATH.",
+		"compat:php": "Cross-version PHP syntax check (phpcs-compat.xml.dist, testVersion=7.4-). Guards the composer.json php floor against regressions."
+	}
+}
