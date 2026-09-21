@@ -91,6 +91,7 @@ return array(
     'LingoWP\\GettextDomains\\GettextAiQueue' => $baseDir . '/src/GettextDomains/GettextAiQueue.php',
     'LingoWP\\GettextDomains\\GettextDomainRegistry' => $baseDir . '/src/GettextDomains/GettextDomainRegistry.php',
     'LingoWP\\GettextDomains\\GettextDomainRestController' => $baseDir . '/src/GettextDomains/GettextDomainRestController.php',
+    'LingoWP\\GettextDomains\\GettextMoFileLoader' => $baseDir . '/src/GettextDomains/GettextMoFileLoader.php',
     'LingoWP\\GettextDomains\\GettextOnlineTranslationFetcher' => $baseDir . '/src/GettextDomains/GettextOnlineTranslationFetcher.php',
     'LingoWP\\GettextDomains\\GettextPoImporter' => $baseDir . '/src/GettextDomains/GettextPoImporter.php',
     'LingoWP\\GettextDomains\\GettextTemplateGenerator' => $baseDir . '/src/GettextDomains/GettextTemplateGenerator.php',

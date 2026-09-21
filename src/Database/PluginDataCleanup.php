@@ -72,6 +72,25 @@ class PluginDataCleanup
         }
 
         self::deletePrefixedTransients($wpdb);
+        self::removeTranslationFiles();
+    }
+
+    private static function removeTranslationFiles(): void
+    {
+        $root = \LingoWP\GettextDomains\GettextPoImporter::baseDir();
+        if (!is_dir($root)) {
+            return;
+        }
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($files as $file) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions -- deleting the plugin's own files on uninstall
+            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
+        }
+        rmdir($root); // phpcs:ignore WordPress.WP.AlternativeFunctions
     }
 
     private static function cancelScheduledActions(): void

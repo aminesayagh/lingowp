@@ -46,11 +46,16 @@ final class GettextPoImporter
         return rename($staging, $target);
     }
 
+    public static function baseDir(): string
+    {
+        return WP_LANG_DIR . '/lingowp';
+    }
+
     public function targetPath(string $type, string $domain, string $locale): string
     {
         $sub = $type === 'theme' ? 'themes' : 'plugins';
 
-        return WP_LANG_DIR . '/' . $sub . '/' . $domain . '-' . $locale . '.mo';
+        return self::baseDir() . '/' . $sub . '/' . $domain . '-' . $locale . '.mo';
     }
 
     public function exportAsPo(string $path): ?\PO

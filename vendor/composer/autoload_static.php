@@ -140,6 +140,7 @@ class ComposerStaticInitb0c34989a15fd37a8c6be8d498264344
         'LingoWP\\GettextDomains\\GettextAiQueue' => __DIR__ . '/../..' . '/src/GettextDomains/GettextAiQueue.php',
         'LingoWP\\GettextDomains\\GettextDomainRegistry' => __DIR__ . '/../..' . '/src/GettextDomains/GettextDomainRegistry.php',
         'LingoWP\\GettextDomains\\GettextDomainRestController' => __DIR__ . '/../..' . '/src/GettextDomains/GettextDomainRestController.php',
+        'LingoWP\\GettextDomains\\GettextMoFileLoader' => __DIR__ . '/../..' . '/src/GettextDomains/GettextMoFileLoader.php',
         'LingoWP\\GettextDomains\\GettextOnlineTranslationFetcher' => __DIR__ . '/../..' . '/src/GettextDomains/GettextOnlineTranslationFetcher.php',
         'LingoWP\\GettextDomains\\GettextPoImporter' => __DIR__ . '/../..' . '/src/GettextDomains/GettextPoImporter.php',
         'LingoWP\\GettextDomains\\GettextTemplateGenerator' => __DIR__ . '/../..' . '/src/GettextDomains/GettextTemplateGenerator.php',
