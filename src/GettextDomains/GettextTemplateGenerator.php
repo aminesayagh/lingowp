@@ -8,12 +8,12 @@ use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use TenQuality\Gettext\Scanner\WPPhpScanner;
+use LingoWP\GettextDomains\Scanner\WordPressPhpScanner;
 use Throwable;
 
 /**
  * Scans a plugin/theme's own PHP source for gettext calls with a real
- * AST-based scanner (`10quality/gettext-wp-scanner`, wrapping
+ * AST-based scanner (vendored from `10quality/gettext-wp-scanner`, wrapping
  * `nikic/php-parser` — the same parser family WP-CLI's own i18n tooling uses).
  * No WP-CLI dependency, no shell-exec.
  *
@@ -39,7 +39,7 @@ final class GettextTemplateGenerator
 
         $translations = Translations::create($domain);
 
-        $scanner = new WPPhpScanner($translations);
+        $scanner = new WordPressPhpScanner($translations);
         $scanner->setDefaultDomain($domain);
         // A single malformed call site (e.g. a dynamic domain argument) must
         // not abort the whole scan.

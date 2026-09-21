@@ -9,7 +9,7 @@
 		"php": ">=7.4",
 		"masterminds/html5": "^2.10",
 		"woocommerce/action-scheduler": "^3.9",
-		"10quality/gettext-wp-scanner": "^1.0"
+		"gettext/php-scanner": "^2.0"
 	},
 	"require-dev": {
 		"squizlabs/php_codesniffer": "^3.13",

@@ -4,53 +4,8 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a97081be2885b0e4fef91ef9d7a0374c",
+    "content-hash": "b0c34989a15fd37a8c6be8d498264344",
     "packages": [
-        {
-            "name": "10quality/gettext-wp-scanner",
-            "version": "v1.0.2",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/10quality/gettext-wp-scanner.git",
-                "reference": "66e0c3ca5482c6b5bb9145be68d976bd42a959e6"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/10quality/gettext-wp-scanner/zipball/66e0c3ca5482c6b5bb9145be68d976bd42a959e6",
-                "reference": "66e0c3ca5482c6b5bb9145be68d976bd42a959e6",
-                "shasum": ""
-            },
-            "require": {
-                "gettext/gettext": "^5.7",
-                "gettext/js-scanner": "^1.1",
-                "gettext/php-scanner": "^2.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^12.0"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "TenQuality\\Gettext\\Scanner\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "10 Quality Studio",
-                    "email": "info@10quality.com"
-                }
-            ],
-            "description": "WordPress scanner for gettext.",
-            "support": {
-                "issues": "https://github.com/10quality/gettext-wp-scanner/issues",
-                "source": "https://github.com/10quality/gettext-wp-scanner/tree/v1.0.2"
-            },
-            "time": "2026-03-05T18:04:57+00:00"
-        },
         {
             "name": "gettext/gettext",
             "version": "v5.7.3",
@@ -124,67 +79,6 @@
                 }
             ],
             "time": "2024-12-01T10:18:08+00:00"
-        },
-        {
-            "name": "gettext/js-scanner",
-            "version": "v1.1.3",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/php-gettext/JS-Scanner.git",
-                "reference": "023878f7ddb4239188b17f80348562fcf607f7e5"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/php-gettext/JS-Scanner/zipball/023878f7ddb4239188b17f80348562fcf607f7e5",
-                "reference": "023878f7ddb4239188b17f80348562fcf607f7e5",
-                "shasum": ""
-            },
-            "require": {
-                "gettext/gettext": "^5.5.0",
-                "mck89/peast": "^1.9",
-                "php": "^7.2|^8.0"
-            },
-            "require-dev": {
-                "friendsofphp/php-cs-fixer": "^2.15",
-                "oscarotero/php-cs-fixer-config": "^1.0",
-                "phpstan/phpstan": "^1|^2",
-                "phpunit/phpunit": "^8.0",
-                "rector/rector": "^1|^2",
-                "squizlabs/php_codesniffer": "^3.0"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Gettext\\Scanner\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Oscar Otero",
-                    "email": "oom@oscarotero.com",
-                    "homepage": "http://oscarotero.com",
-                    "role": "Developer"
-                }
-            ],
-            "description": "Javascript scanner for gettext",
-            "homepage": "https://github.com/php-gettext/JS-Scanner",
-            "keywords": [
-                "gettext",
-                "i18n",
-                "javascript",
-                "scanner",
-                "translation"
-            ],
-            "support": {
-                "email": "oom@oscarotero.com",
-                "issues": "https://github.com/php-gettext/JS-Scanner/issues",
-                "source": "https://github.com/php-gettext/JS-Scanner/tree/v1.1.3"
-            },
-            "time": "2026-02-07T11:37:23+00:00"
         },
         {
             "name": "gettext/languages",
@@ -388,66 +282,17 @@
             "time": "2026-06-23T18:43:15+00:00"
         },
         {
-            "name": "mck89/peast",
-            "version": "v1.17.7",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/mck89/peast.git",
-                "reference": "89ee39f81e82cb7ed36cc5abaf2edd43cef71770"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/mck89/peast/zipball/89ee39f81e82cb7ed36cc5abaf2edd43cef71770",
-                "reference": "89ee39f81e82cb7ed36cc5abaf2edd43cef71770",
-                "shasum": ""
-            },
-            "require": {
-                "ext-mbstring": "*",
-                "php": ">=5.4.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^4.0 || ^5.0 || ^6.0 || ^7.0 || ^8.0 || ^9.0"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "1.17.7-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Peast\\": "lib/Peast/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "BSD-3-Clause"
-            ],
-            "authors": [
-                {
-                    "name": "Marco Marchiò",
-                    "email": "marco.mm89@gmail.com"
-                }
-            ],
-            "description": "Peast is PHP library that generates AST for JavaScript code",
-            "support": {
-                "issues": "https://github.com/mck89/peast/issues",
-                "source": "https://github.com/mck89/peast/tree/v1.17.7"
-            },
-            "time": "2026-07-21T11:56:06+00:00"
-        },
-        {
             "name": "nikic/php-parser",
-            "version": "v5.8.0",
+            "version": "v5.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nikic/PHP-Parser.git",
-                "reference": "044a6a392ff8ad0d61f14370a5fbbd0a0107152f"
+                "reference": "9e33da9553fe7786f0962b35f4e4ecf01be89def"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/044a6a392ff8ad0d61f14370a5fbbd0a0107152f",
-                "reference": "044a6a392ff8ad0d61f14370a5fbbd0a0107152f",
+                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/9e33da9553fe7786f0962b35f4e4ecf01be89def",
+                "reference": "9e33da9553fe7786f0962b35f4e4ecf01be89def",
                 "shasum": ""
             },
             "require": {
@@ -489,9 +334,9 @@
             ],
             "support": {
                 "issues": "https://github.com/nikic/PHP-Parser/issues",
-                "source": "https://github.com/nikic/PHP-Parser/tree/v5.8.0"
+                "source": "https://github.com/nikic/PHP-Parser/tree/v5.9.0"
             },
-            "time": "2026-07-04T14:30:18+00:00"
+            "time": "2026-09-13T18:51:52+00:00"
         },
         {
             "name": "woocommerce/action-scheduler",

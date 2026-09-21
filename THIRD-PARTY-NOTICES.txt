@@ -15,8 +15,9 @@ the human-readable source repository and its lockfile.
   plugin (WooCommerce most commonly) through Action Scheduler's own version
   negotiation.
 - Masterminds HTML5 — MIT license.
-- Gettext WordPress Scanner by 10 Quality and its Gettext scanner dependencies — MIT license.
-- Peast and PHP Parser — BSD-3-Clause license.
+- Gettext PHP Scanner, Gettext and Gettext Languages (php-gettext) — MIT license.
+- Two files from Gettext WordPress Scanner by 10 Quality, carried in src/GettextDomains/Scanner/ with their attribution — MIT license.
+- PHP Parser by Nikita Popov — BSD-3-Clause license.
 
 ## Admin application
 

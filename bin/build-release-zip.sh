@@ -87,6 +87,11 @@ echo "==> Installing production Composer dependencies"
 composer install --no-dev --optimize-autoloader --no-interaction \
   --working-dir="$BUILD_DIR" >/dev/null
 
+# Composer's bin proxies (php-parse, export-plural-rules, import-cldr-data) are
+# command-line tools nothing in WordPress ever loads. Executables in a plugin
+# archive draw questions from reviewers for no benefit.
+rm -rf "$BUILD_DIR"/vendor/bin
+
 echo "==> Removing development-only files"
 rm -rf "$BUILD_DIR"/.[!.]* "$BUILD_DIR"/..?*
 rm -rf \
@@ -112,12 +117,14 @@ rm -rf \
 #
 # The client archive drops them: it is served from the plugin's own backend, not
 # WordPress.org, and its mirror in release/ is a distribution repository.
+#
+# composer.json and composer.lock stay in both variants. They describe vendor/,
+# which ships everywhere, so a tree carrying nikic/, mck89/ and gettext/ with
+# no manifest saying why is exactly what a reader objects to.
 if [[ "$STRIP_COMMENTS" == "1" ]]; then
   echo "==> Removing the admin source (client archive)"
   rm -rf \
     "$BUILD_DIR"/admin-ui \
-    "$BUILD_DIR"/composer.json \
-    "$BUILD_DIR"/composer.lock \
     "$BUILD_DIR"/package.json \
     "$BUILD_DIR"/package-lock.json \
     "$BUILD_DIR"/postcss.config.js \
@@ -129,6 +136,8 @@ REQUIRED=(
   readme.txt
   LICENSE
   THIRD-PARTY-NOTICES.txt
+  composer.json
+  composer.lock
   assets/admin/build/index.js
   vendor/woocommerce/action-scheduler/action-scheduler.php
 )
@@ -142,7 +151,6 @@ if [[ "$STRIP_COMMENTS" != "1" ]]; then
     package-lock.json
     webpack.config.js
     postcss.config.js
-    composer.json
   )
 fi
 
