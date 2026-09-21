@@ -37,13 +37,11 @@ final class TranslationRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/translations', ['methods' => 'POST', 'callback' => [$this, 'save']] + $guard);
+        register_rest_route(self::NS, '/translations', ['methods' => 'POST', 'callback' => [$this, 'save'], 'permission_callback' => [$this, 'canManage']]);
         register_rest_route(
             self::NS,
             '/texts/(?P<ref>[^/]+)/status',
-            ['methods' => 'POST', 'callback' => [$this, 'status']] + $guard
+            ['methods' => 'POST', 'callback' => [$this, 'status'], 'permission_callback' => [$this, 'canManage']]
         );
     }
 
