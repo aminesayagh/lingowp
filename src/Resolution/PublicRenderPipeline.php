@@ -64,11 +64,27 @@ final class PublicRenderPipeline
 
         $this->targetLang = $translated ? $this->languageResolver->resolve() : null;
 
+        if (function_exists('wp_start_template_enhancement_output_buffer')) {
+            add_filter('wp_template_enhancement_output_buffer', [$this, 'finish'], 10, 1);
+            if (wp_should_output_buffer_template_for_enhancement()) {
+                return;
+            }
+            remove_filter('wp_template_enhancement_output_buffer', [$this, 'finish'], 10);
+        }
+
         ob_start(
             [$this, 'finish'],
             0,
             PHP_OUTPUT_HANDLER_STDFLAGS ^ PHP_OUTPUT_HANDLER_FLUSHABLE
         );
+        $level = ob_get_level();
+
+        add_action('shutdown', static function () use ($level): void {
+            // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            while (ob_get_level() >= $level && @ob_end_flush()) {
+                continue;
+            }
+        }, 0);
     }
 
     public function finish(string $html, int $phase = 0): string

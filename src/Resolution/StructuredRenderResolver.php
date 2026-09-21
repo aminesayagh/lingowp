@@ -277,7 +277,9 @@ final class StructuredRenderResolver
         $hash = TranslationKey::currentHash($original);
         $this->ensureHashLoaded($tableKey, [$hash]);
 
-        return $this->hashMap[$this->hashKey($tableKey, $hash)] ?? $original;
+        $key = $this->hashKey($tableKey, $hash);
+
+        return isset($this->hashMap[$key]) ? wp_kses_post($this->hashMap[$key]) : $original;
     }
 
     private function resolveTerms(array $terms): void
@@ -298,10 +300,10 @@ final class StructuredRenderResolver
             $nameKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->name));
             $descKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->description));
             if (isset($this->hashMap[$nameKey])) {
-                $term->name = $this->hashMap[$nameKey];
+                $term->name = wp_kses_post($this->hashMap[$nameKey]);
             }
             if (isset($this->hashMap[$descKey])) {
-                $term->description = $this->hashMap[$descKey];
+                $term->description = wp_kses_post($this->hashMap[$descKey]);
             }
         }
     }
@@ -362,7 +364,7 @@ final class StructuredRenderResolver
             $fetched = $this->repository->fetchMetaLeafTranslations($tableKey, array_values($remaining), $lang);
             foreach ($remaining as $key => $lookup) {
                 if (isset($fetched[$key])) {
-                    $this->metaLeafMap[$key] = $fetched[$key];
+                    $this->metaLeafMap[$key] = array_map('wp_kses_post', $fetched[$key]);
                     unset($remaining[$key]);
                 }
             }

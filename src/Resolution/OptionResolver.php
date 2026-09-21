@@ -46,7 +46,7 @@ final class OptionResolver
 
         $hash = strtolower(bin2hex(TranslationKey::currentHash($output)));
 
-        return $this->map()[$hash] ?? $output;
+        return isset($this->map()[$hash]) ? wp_kses_post($this->map()[$hash]) : $output;
     }
 
     private function map(): array
