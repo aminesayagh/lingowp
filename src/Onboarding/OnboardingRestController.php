@@ -39,12 +39,10 @@ final class OnboardingRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/onboarding/state', ['methods' => 'GET', 'callback' => [$this, 'state']] + $guard);
-        register_rest_route(self::NS, '/onboarding/configure', ['methods' => 'POST', 'callback' => [$this, 'configure']] + $guard);
-        register_rest_route(self::NS, '/onboarding/complete', ['methods' => 'POST', 'callback' => [$this, 'complete']] + $guard);
-        register_rest_route(self::NS, '/settings', ['methods' => 'POST', 'callback' => [$this, 'saveSettings']] + $guard);
+        register_rest_route(self::NS, '/onboarding/state', ['methods' => 'GET', 'callback' => [$this, 'state'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/onboarding/configure', ['methods' => 'POST', 'callback' => [$this, 'configure'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/onboarding/complete', ['methods' => 'POST', 'callback' => [$this, 'complete'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/settings', ['methods' => 'POST', 'callback' => [$this, 'saveSettings'], 'permission_callback' => [$this, 'canManage']]);
     }
 
     public function canManage(): bool

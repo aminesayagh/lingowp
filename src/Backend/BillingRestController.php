@@ -33,35 +33,33 @@ final class BillingRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/billing/plans', ['methods' => 'GET', 'callback' => [$this, 'plans']] + $guard);
-        register_rest_route(self::NS, '/billing/packs', ['methods' => 'GET', 'callback' => [$this, 'packs']] + $guard);
-        register_rest_route(self::NS, '/billing/addons', ['methods' => 'GET', 'callback' => [$this, 'addons']] + $guard);
+        register_rest_route(self::NS, '/billing/plans', ['methods' => 'GET', 'callback' => [$this, 'plans'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/packs', ['methods' => 'GET', 'callback' => [$this, 'packs'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/addons', ['methods' => 'GET', 'callback' => [$this, 'addons'], 'permission_callback' => [$this, 'canManage']]);
         register_rest_route(
             self::NS,
             '/billing/addons/coming-soon/(?P<slug>[^/]+)/notify',
-            ['methods' => 'POST', 'callback' => [$this, 'notifyComingSoon']] + $guard
+            ['methods' => 'POST', 'callback' => [$this, 'notifyComingSoon'], 'permission_callback' => [$this, 'canManage']]
         );
-        register_rest_route(self::NS, '/billing/entitlements', ['methods' => 'GET', 'callback' => [$this, 'entitlements']] + $guard);
-        register_rest_route(self::NS, '/billing/transactions', ['methods' => 'GET', 'callback' => [$this, 'transactions']] + $guard);
-        register_rest_route(self::NS, '/billing/usage', ['methods' => 'GET', 'callback' => [$this, 'usage']] + $guard);
-        register_rest_route(self::NS, '/billing/subscription', ['methods' => 'POST', 'callback' => [$this, 'subscribe']] + $guard);
-        register_rest_route(self::NS, '/billing/subscription/plan', ['methods' => 'POST', 'callback' => [$this, 'changePlan']] + $guard);
-        register_rest_route(self::NS, '/billing/packs/order', ['methods' => 'POST', 'callback' => [$this, 'orderPack']] + $guard);
+        register_rest_route(self::NS, '/billing/entitlements', ['methods' => 'GET', 'callback' => [$this, 'entitlements'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/transactions', ['methods' => 'GET', 'callback' => [$this, 'transactions'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/usage', ['methods' => 'GET', 'callback' => [$this, 'usage'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/subscription', ['methods' => 'POST', 'callback' => [$this, 'subscribe'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/subscription/plan', ['methods' => 'POST', 'callback' => [$this, 'changePlan'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/packs/order', ['methods' => 'POST', 'callback' => [$this, 'orderPack'], 'permission_callback' => [$this, 'canManage']]);
         register_rest_route(
             self::NS,
             '/billing/packs/order/(?P<order_id>[^/]+)/capture',
-            ['methods' => 'POST', 'callback' => [$this, 'captureOrder']] + $guard
+            ['methods' => 'POST', 'callback' => [$this, 'captureOrder'], 'permission_callback' => [$this, 'canManage']]
         );
-        register_rest_route(self::NS, '/billing/owner', ['methods' => 'GET', 'callback' => [$this, 'ownerStatus']] + $guard);
-        register_rest_route(self::NS, '/billing/owner', ['methods' => 'POST', 'callback' => [$this, 'assignOwner']] + $guard);
-        register_rest_route(self::NS, '/billing/websites', ['methods' => 'GET', 'callback' => [$this, 'listWebsites']] + $guard);
-        register_rest_route(self::NS, '/billing/websites', ['methods' => 'POST', 'callback' => [$this, 'addWebsite']] + $guard);
+        register_rest_route(self::NS, '/billing/owner', ['methods' => 'GET', 'callback' => [$this, 'ownerStatus'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/owner', ['methods' => 'POST', 'callback' => [$this, 'assignOwner'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/websites', ['methods' => 'GET', 'callback' => [$this, 'listWebsites'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/billing/websites', ['methods' => 'POST', 'callback' => [$this, 'addWebsite'], 'permission_callback' => [$this, 'canManage']]);
         register_rest_route(
             self::NS,
             '/billing/websites/(?P<uuid>[^/]+)',
-            ['methods' => 'DELETE', 'callback' => [$this, 'deleteWebsite']] + $guard
+            ['methods' => 'DELETE', 'callback' => [$this, 'deleteWebsite'], 'permission_callback' => [$this, 'canManage']]
         );
     }
 

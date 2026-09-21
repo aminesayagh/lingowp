@@ -35,17 +35,15 @@ final class LanguageRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/languages', ['methods' => 'GET', 'callback' => [$this, 'index']] + $guard);
-        register_rest_route(self::NS, '/languages', ['methods' => 'POST', 'callback' => [$this, 'create']] + $guard);
-        register_rest_route(self::NS, '/languages/bulk', ['methods' => 'POST', 'callback' => [$this, 'bulkCreate']] + $guard);
-        register_rest_route(self::NS, '/languages/catalog', ['methods' => 'GET', 'callback' => [$this, 'catalog']] + $guard);
-        register_rest_route(self::NS, '/languages/targets', ['methods' => 'GET', 'callback' => [$this, 'targets']] + $guard);
-        register_rest_route(self::NS, '/languages/ai-model', ['methods' => 'POST', 'callback' => [$this, 'updateAiModelForAll']] + $guard);
-        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update']] + $guard);
-        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
-        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)/use-fallback', ['methods' => 'POST', 'callback' => [$this, 'useFallback']] + $guard);
+        register_rest_route(self::NS, '/languages', ['methods' => 'GET', 'callback' => [$this, 'index'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages', ['methods' => 'POST', 'callback' => [$this, 'create'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages/bulk', ['methods' => 'POST', 'callback' => [$this, 'bulkCreate'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages/catalog', ['methods' => 'GET', 'callback' => [$this, 'catalog'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages/targets', ['methods' => 'GET', 'callback' => [$this, 'targets'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages/ai-model', ['methods' => 'POST', 'callback' => [$this, 'updateAiModelForAll'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'PATCH', 'callback' => [$this, 'update'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/languages/(?P<code>[a-zA-Z0-9_-]+)/use-fallback', ['methods' => 'POST', 'callback' => [$this, 'useFallback'], 'permission_callback' => [$this, 'canManage']]);
     }
 
     public function canManage(): bool

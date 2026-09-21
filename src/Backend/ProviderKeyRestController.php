@@ -25,11 +25,9 @@ final class ProviderKeyRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/provider-keys', ['methods' => 'GET', 'callback' => [$this, 'list']] + $guard);
-        register_rest_route(self::NS, '/provider-keys', ['methods' => 'POST', 'callback' => [$this, 'save']] + $guard);
-        register_rest_route(self::NS, '/provider-keys/(?P<provider>[a-z]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete']] + $guard);
+        register_rest_route(self::NS, '/provider-keys', ['methods' => 'GET', 'callback' => [$this, 'list'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/provider-keys', ['methods' => 'POST', 'callback' => [$this, 'save'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/provider-keys/(?P<provider>[a-z]+)', ['methods' => 'DELETE', 'callback' => [$this, 'delete'], 'permission_callback' => [$this, 'canManage']]);
     }
 
     public function canManage(): bool

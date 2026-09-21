@@ -46,9 +46,7 @@ final class AiTranslationController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/translate', ['methods' => 'POST', 'callback' => [$this, 'submit']] + $guard);
+        register_rest_route(self::NS, '/translate', ['methods' => 'POST', 'callback' => [$this, 'submit'], 'permission_callback' => [$this, 'canManage']]);
     }
 
     public function canManage(): bool

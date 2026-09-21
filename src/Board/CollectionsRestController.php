@@ -69,43 +69,41 @@ final class CollectionsRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/collections', ['methods' => 'GET', 'callback' => [$this, 'index']] + $guard);
+        register_rest_route(self::NS, '/collections', ['methods' => 'GET', 'callback' => [$this, 'index'], 'permission_callback' => [$this, 'canManage']]);
         register_rest_route(
             self::NS,
             '/collections/text-order',
-            ['methods' => 'GET', 'callback' => [$this, 'textOrder']] + $guard
+            ['methods' => 'GET', 'callback' => [$this, 'textOrder'], 'permission_callback' => [$this, 'canManage']]
         );
         register_rest_route(
             self::NS,
             '/collections/(?P<id>[^/]+)/texts',
-            ['methods' => 'GET', 'callback' => [$this, 'texts']] + $guard
+            ['methods' => 'GET', 'callback' => [$this, 'texts'], 'permission_callback' => [$this, 'canManage']]
         );
         register_rest_route(
             self::NS,
             '/collections/(?P<id>[^/]+)/ignore',
-            ['methods' => 'POST', 'callback' => [$this, 'ignoreAll']] + $guard
+            ['methods' => 'POST', 'callback' => [$this, 'ignoreAll'], 'permission_callback' => [$this, 'canManage']]
         );
         register_rest_route(
             self::NS,
             '/collections/(?P<id>[^/]+)/clear',
-            ['methods' => 'POST', 'callback' => [$this, 'clearAll']] + $guard
+            ['methods' => 'POST', 'callback' => [$this, 'clearAll'], 'permission_callback' => [$this, 'canManage']]
         );
         register_rest_route(
             self::NS,
             '/collections/(?P<id>[^/]+)/approve',
-            ['methods' => 'POST', 'callback' => [$this, 'approveAll']] + $guard
+            ['methods' => 'POST', 'callback' => [$this, 'approveAll'], 'permission_callback' => [$this, 'canManage']]
         );
         register_rest_route(
             self::NS,
             '/collections/(?P<id>[^/]+)/stale',
-            ['methods' => 'GET', 'callback' => [$this, 'staleTexts']] + $guard
+            ['methods' => 'GET', 'callback' => [$this, 'staleTexts'], 'permission_callback' => [$this, 'canManage']]
         );
         register_rest_route(
             self::NS,
             '/collections/(?P<id>[^/]+)/delete-stale',
-            ['methods' => 'POST', 'callback' => [$this, 'deleteStale']] + $guard
+            ['methods' => 'POST', 'callback' => [$this, 'deleteStale'], 'permission_callback' => [$this, 'canManage']]
         );
     }
 

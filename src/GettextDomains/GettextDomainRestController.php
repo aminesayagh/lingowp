@@ -66,19 +66,17 @@ final class GettextDomainRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/gettext-domains', ['methods' => 'GET', 'callback' => [$this, 'list']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/percent', ['methods' => 'GET', 'callback' => [$this, 'percent']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/find-online', ['methods' => 'POST', 'callback' => [$this, 'findOnline']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/import', ['methods' => 'POST', 'callback' => [$this, 'import']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/download', ['methods' => 'GET', 'callback' => [$this, 'download']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/units', ['methods' => 'GET', 'callback' => [$this, 'units']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/scan', ['methods' => 'POST', 'callback' => [$this, 'scan']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/translate', ['methods' => 'POST', 'callback' => [$this, 'translate']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/refresh', ['methods' => 'POST', 'callback' => [$this, 'refresh']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/save-unit', ['methods' => 'POST', 'callback' => [$this, 'saveUnit']] + $guard);
-        register_rest_route(self::NS, '/gettext-domains/ignore-unit', ['methods' => 'POST', 'callback' => [$this, 'ignoreUnit']] + $guard);
+        register_rest_route(self::NS, '/gettext-domains', ['methods' => 'GET', 'callback' => [$this, 'list'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/percent', ['methods' => 'GET', 'callback' => [$this, 'percent'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/find-online', ['methods' => 'POST', 'callback' => [$this, 'findOnline'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/import', ['methods' => 'POST', 'callback' => [$this, 'import'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/download', ['methods' => 'GET', 'callback' => [$this, 'download'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/units', ['methods' => 'GET', 'callback' => [$this, 'units'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/scan', ['methods' => 'POST', 'callback' => [$this, 'scan'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/translate', ['methods' => 'POST', 'callback' => [$this, 'translate'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/refresh', ['methods' => 'POST', 'callback' => [$this, 'refresh'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/save-unit', ['methods' => 'POST', 'callback' => [$this, 'saveUnit'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/gettext-domains/ignore-unit', ['methods' => 'POST', 'callback' => [$this, 'ignoreUnit'], 'permission_callback' => [$this, 'canManage']]);
     }
 
     public function canManage(): bool

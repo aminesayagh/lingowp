@@ -36,15 +36,13 @@ final class ConnectionRestController
 
     public function registerRoutes(): void
     {
-        $guard = ['permission_callback' => [$this, 'canManage']];
-
-        register_rest_route(self::NS, '/connection/status', ['methods' => 'GET', 'callback' => [$this, 'status']] + $guard);
-        register_rest_route(self::NS, '/connection/ping', ['methods' => 'GET', 'callback' => [$this, 'ping']] + $guard);
-        register_rest_route(self::NS, '/connection/check', ['methods' => 'POST', 'callback' => [$this, 'check']] + $guard);
-        register_rest_route(self::NS, '/connection/connect', ['methods' => 'POST', 'callback' => [$this, 'connect']] + $guard);
-        register_rest_route(self::NS, '/connection/confirm', ['methods' => 'POST', 'callback' => [$this, 'confirm']] + $guard);
-        register_rest_route(self::NS, '/connection/recover', ['methods' => 'POST', 'callback' => [$this, 'recover']] + $guard);
-        register_rest_route(self::NS, '/connection/disconnect', ['methods' => 'POST', 'callback' => [$this, 'disconnect']] + $guard);
+        register_rest_route(self::NS, '/connection/status', ['methods' => 'GET', 'callback' => [$this, 'status'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/connection/ping', ['methods' => 'GET', 'callback' => [$this, 'ping'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/connection/check', ['methods' => 'POST', 'callback' => [$this, 'check'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/connection/connect', ['methods' => 'POST', 'callback' => [$this, 'connect'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/connection/confirm', ['methods' => 'POST', 'callback' => [$this, 'confirm'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/connection/recover', ['methods' => 'POST', 'callback' => [$this, 'recover'], 'permission_callback' => [$this, 'canManage']]);
+        register_rest_route(self::NS, '/connection/disconnect', ['methods' => 'POST', 'callback' => [$this, 'disconnect'], 'permission_callback' => [$this, 'canManage']]);
     }
 
     public function canManage(): bool
