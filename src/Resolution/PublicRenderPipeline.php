@@ -15,6 +15,14 @@ use LingoWP\Resolution\Seo\SeoHeadTranslator;
  * already translated by the hooks before the buffer closes; here we only rewrite
  * internal links to their localized URLs on a translated request.
  *
+ * On WordPress 6.9+ the buffer is core's own template enhancement output buffer
+ * (wp_start_template_enhancement_output_buffer()), which hands the finished
+ * HTML to the wp_template_enhancement_output_buffer filter and is opened and
+ * closed by core. On 6.2–6.8, and on 6.9+ when another plugin has vetoed
+ * core's buffer (Elementor does), maybeStart() opens an identical buffer
+ * itself — same callback signature, chunk size and flags as core's — and
+ * closes it on shutdown one priority ahead of core's wp_ob_end_flush_all().
+ *
  * The same buffer also powers MARKING MODE: an editor loads a frontend page in the
  * SOURCE language with ?lingowp_mark, and every block-level unit not already
  * owned by a structured source is minted as a html parent. It runs on the
@@ -77,11 +85,42 @@ final class PublicRenderPipeline
 
         $this->targetLang = $translated ? $this->languageResolver->resolve() : null;
 
+        // 6.9+: core opens one shared buffer around the template (see class
+        // doc) and runs this filter on the complete HTML. Registering the
+        // filter is what makes core decide to open it — but that decision is
+        // itself filterable, and Elementor vetoes it unconditionally on 6.9+
+        // (includes/frontend.php, __return_false). So ask core for its final
+        // answer, and only rely on it when the answer is yes.
+        if (function_exists('wp_start_template_enhancement_output_buffer')) {
+            add_filter('wp_template_enhancement_output_buffer', [$this, 'finish'], 10, 1);
+            if (wp_should_output_buffer_template_for_enhancement()) {
+                return;
+            }
+            remove_filter('wp_template_enhancement_output_buffer', [$this, 'finish'], 10);
+        }
+
+        // 6.2–6.8, or 6.9+ with core's buffer vetoed: the same buffer, opened
+        // here. Not flushable, so ob_flush() from a theme cannot split the
+        // document across two callback runs; removable, so it can be closed
+        // before the object cache shuts down.
         ob_start(
             [$this, 'finish'],
             0,
             PHP_OUTPUT_HANDLER_STDFLAGS ^ PHP_OUTPUT_HANDLER_FLUSHABLE
         );
+        $level = ob_get_level();
+
+        // Explicit close, one priority ahead of core's own wp_ob_end_flush_all()
+        // (shutdown, 1). Flushes any buffer opened after ours first, so nesting
+        // stays intact, and stops at ours. Same loop as core's, hence the same
+        // silenced call: a handler that refuses to flush must end the loop, not
+        // raise a notice into the response.
+        add_action('shutdown', static function () use ($level): void {
+            // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            while (ob_get_level() >= $level && @ob_end_flush()) {
+                continue;
+            }
+        }, 0);
     }
 
     public function finish(string $html, int $phase = 0): string
