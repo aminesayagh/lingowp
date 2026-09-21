@@ -4,17 +4,12 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
+class ComposerStaticInitb0c34989a15fd37a8c6be8d498264344
 {
     public static $prefixLengthsPsr4 = array (
-        'T' =>
-        array (
-            'TenQuality\\Gettext\\Scanner\\' => 27,
-        ),
         'P' =>
         array (
             'PhpParser\\' => 10,
-            'Peast\\' => 6,
         ),
         'M' =>
         array (
@@ -33,17 +28,9 @@ class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
     );
 
     public static $prefixDirsPsr4 = array (
-        'TenQuality\\Gettext\\Scanner\\' =>
-        array (
-            0 => __DIR__ . '/..' . '/10quality/gettext-wp-scanner/src',
-        ),
         'PhpParser\\' =>
         array (
             0 => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser',
-        ),
-        'Peast\\' =>
-        array (
-            0 => __DIR__ . '/..' . '/mck89/peast/lib/Peast',
         ),
         'Masterminds\\' =>
         array (
@@ -56,7 +43,6 @@ class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
         'Gettext\\Scanner\\' =>
         array (
             0 => __DIR__ . '/..' . '/gettext/php-scanner/src',
-            1 => __DIR__ . '/..' . '/gettext/js-scanner/src',
         ),
         'Gettext\\Languages\\' =>
         array (
@@ -99,9 +85,6 @@ class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
         'Gettext\\Scanner\\CodeScanner' => __DIR__ . '/..' . '/gettext/gettext/src/Scanner/CodeScanner.php',
         'Gettext\\Scanner\\FunctionsHandlersTrait' => __DIR__ . '/..' . '/gettext/gettext/src/Scanner/FunctionsHandlersTrait.php',
         'Gettext\\Scanner\\FunctionsScannerInterface' => __DIR__ . '/..' . '/gettext/gettext/src/Scanner/FunctionsScannerInterface.php',
-        'Gettext\\Scanner\\JsFunctionsScanner' => __DIR__ . '/..' . '/gettext/js-scanner/src/JsFunctionsScanner.php',
-        'Gettext\\Scanner\\JsNodeVisitor' => __DIR__ . '/..' . '/gettext/js-scanner/src/JsNodeVisitor.php',
-        'Gettext\\Scanner\\JsScanner' => __DIR__ . '/..' . '/gettext/js-scanner/src/JsScanner.php',
         'Gettext\\Scanner\\ParsedFunction' => __DIR__ . '/..' . '/gettext/gettext/src/Scanner/ParsedFunction.php',
         'Gettext\\Scanner\\PhpFunctionsScanner' => __DIR__ . '/..' . '/gettext/php-scanner/src/PhpFunctionsScanner.php',
         'Gettext\\Scanner\\PhpNodeVisitor' => __DIR__ . '/..' . '/gettext/php-scanner/src/PhpNodeVisitor.php',
@@ -164,6 +147,8 @@ class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
         'LingoWP\\GettextDomains\\GettextTranslationUnitsService' => __DIR__ . '/../..' . '/src/GettextDomains/GettextTranslationUnitsService.php',
         'LingoWP\\GettextDomains\\GettextUnitRepository' => __DIR__ . '/../..' . '/src/GettextDomains/GettextUnitRepository.php',
         'LingoWP\\GettextDomains\\InstalledGettextComponentDiscovery' => __DIR__ . '/../..' . '/src/GettextDomains/InstalledGettextComponentDiscovery.php',
+        'LingoWP\\GettextDomains\\Scanner\\WordPressFunctionHandlers' => __DIR__ . '/../..' . '/src/GettextDomains/Scanner/WordPressFunctionHandlers.php',
+        'LingoWP\\GettextDomains\\Scanner\\WordPressPhpScanner' => __DIR__ . '/../..' . '/src/GettextDomains/Scanner/WordPressPhpScanner.php',
         'LingoWP\\Insights\\InsightsRestController' => __DIR__ . '/../..' . '/src/Insights/InsightsRestController.php',
         'LingoWP\\Insights\\NotifyEmailResolver' => __DIR__ . '/../..' . '/src/Insights/NotifyEmailResolver.php',
         'LingoWP\\Language\\Application\\ResolveRequestLanguage' => __DIR__ . '/../..' . '/src/Language/Application/ResolveRequestLanguage.php',
@@ -253,160 +238,6 @@ class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
         'Masterminds\\HTML5\\Serializer\\OutputRules' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Serializer/OutputRules.php',
         'Masterminds\\HTML5\\Serializer\\RulesInterface' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Serializer/RulesInterface.php',
         'Masterminds\\HTML5\\Serializer\\Traverser' => __DIR__ . '/..' . '/masterminds/html5/src/HTML5/Serializer/Traverser.php',
-        'Peast\\Formatter\\Base' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Formatter/Base.php',
-        'Peast\\Formatter\\Compact' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Formatter/Compact.php',
-        'Peast\\Formatter\\Expanded' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Formatter/Expanded.php',
-        'Peast\\Formatter\\PrettyPrint' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Formatter/PrettyPrint.php',
-        'Peast\\Peast' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Peast.php',
-        'Peast\\Query' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Query.php',
-        'Peast\\Renderer' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Renderer.php',
-        'Peast\\Selector\\Exception' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Exception.php',
-        'Peast\\Selector\\Matches' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Matches.php',
-        'Peast\\Selector\\Node\\Combinator' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Combinator.php',
-        'Peast\\Selector\\Node\\Group' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Group.php',
-        'Peast\\Selector\\Node\\Part\\Attribute' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Part/Attribute.php',
-        'Peast\\Selector\\Node\\Part\\Part' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Part/Part.php',
-        'Peast\\Selector\\Node\\Part\\Pseudo' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Part/Pseudo.php',
-        'Peast\\Selector\\Node\\Part\\PseudoIndex' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Part/PseudoIndex.php',
-        'Peast\\Selector\\Node\\Part\\PseudoSelector' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Part/PseudoSelector.php',
-        'Peast\\Selector\\Node\\Part\\PseudoSimple' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Part/PseudoSimple.php',
-        'Peast\\Selector\\Node\\Part\\Type' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Part/Type.php',
-        'Peast\\Selector\\Node\\Selector' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Node/Selector.php',
-        'Peast\\Selector\\Parser' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Selector/Parser.php',
-        'Peast\\Syntax\\CommentsRegistry' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/CommentsRegistry.php',
-        'Peast\\Syntax\\ES2015\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2015/Features.php',
-        'Peast\\Syntax\\ES2016\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2016/Features.php',
-        'Peast\\Syntax\\ES2017\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2017/Features.php',
-        'Peast\\Syntax\\ES2018\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2018/Features.php',
-        'Peast\\Syntax\\ES2019\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2019/Features.php',
-        'Peast\\Syntax\\ES2020\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2020/Features.php',
-        'Peast\\Syntax\\ES2021\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2021/Features.php',
-        'Peast\\Syntax\\ES2022\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2022/Features.php',
-        'Peast\\Syntax\\ES2023\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2023/Features.php',
-        'Peast\\Syntax\\ES2024\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2024/Features.php',
-        'Peast\\Syntax\\ES2025\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ES2025/Features.php',
-        'Peast\\Syntax\\EncodingException' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/EncodingException.php',
-        'Peast\\Syntax\\EventsEmitter' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/EventsEmitter.php',
-        'Peast\\Syntax\\Exception' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Exception.php',
-        'Peast\\Syntax\\Features' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Features.php',
-        'Peast\\Syntax\\JSX\\Parser' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/JSX/Parser.php',
-        'Peast\\Syntax\\JSX\\Scanner' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/JSX/Scanner.php',
-        'Peast\\Syntax\\LSM' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/LSM.php',
-        'Peast\\Syntax\\Node\\ArrayExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ArrayExpression.php',
-        'Peast\\Syntax\\Node\\ArrayPattern' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ArrayPattern.php',
-        'Peast\\Syntax\\Node\\ArrowFunctionExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ArrowFunctionExpression.php',
-        'Peast\\Syntax\\Node\\AssignmentExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/AssignmentExpression.php',
-        'Peast\\Syntax\\Node\\AssignmentPattern' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/AssignmentPattern.php',
-        'Peast\\Syntax\\Node\\AssignmentProperty' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/AssignmentProperty.php',
-        'Peast\\Syntax\\Node\\AwaitExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/AwaitExpression.php',
-        'Peast\\Syntax\\Node\\BigIntLiteral' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/BigIntLiteral.php',
-        'Peast\\Syntax\\Node\\BinaryExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/BinaryExpression.php',
-        'Peast\\Syntax\\Node\\BlockStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/BlockStatement.php',
-        'Peast\\Syntax\\Node\\BooleanLiteral' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/BooleanLiteral.php',
-        'Peast\\Syntax\\Node\\BreakStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/BreakStatement.php',
-        'Peast\\Syntax\\Node\\CallExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/CallExpression.php',
-        'Peast\\Syntax\\Node\\CatchClause' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/CatchClause.php',
-        'Peast\\Syntax\\Node\\ChainElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ChainElement.php',
-        'Peast\\Syntax\\Node\\ChainExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ChainExpression.php',
-        'Peast\\Syntax\\Node\\ClassBody' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ClassBody.php',
-        'Peast\\Syntax\\Node\\ClassDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ClassDeclaration.php',
-        'Peast\\Syntax\\Node\\ClassExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ClassExpression.php',
-        'Peast\\Syntax\\Node\\Class_' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Class_.php',
-        'Peast\\Syntax\\Node\\Comment' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Comment.php',
-        'Peast\\Syntax\\Node\\ConditionalExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ConditionalExpression.php',
-        'Peast\\Syntax\\Node\\ContinueStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ContinueStatement.php',
-        'Peast\\Syntax\\Node\\DebuggerStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/DebuggerStatement.php',
-        'Peast\\Syntax\\Node\\Declaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Declaration.php',
-        'Peast\\Syntax\\Node\\DoWhileStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/DoWhileStatement.php',
-        'Peast\\Syntax\\Node\\EmptyStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/EmptyStatement.php',
-        'Peast\\Syntax\\Node\\ExportAllDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ExportAllDeclaration.php',
-        'Peast\\Syntax\\Node\\ExportDefaultDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ExportDefaultDeclaration.php',
-        'Peast\\Syntax\\Node\\ExportNamedDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ExportNamedDeclaration.php',
-        'Peast\\Syntax\\Node\\ExportSpecifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ExportSpecifier.php',
-        'Peast\\Syntax\\Node\\Expression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Expression.php',
-        'Peast\\Syntax\\Node\\ExpressionStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ExpressionStatement.php',
-        'Peast\\Syntax\\Node\\ForInStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ForInStatement.php',
-        'Peast\\Syntax\\Node\\ForOfStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ForOfStatement.php',
-        'Peast\\Syntax\\Node\\ForStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ForStatement.php',
-        'Peast\\Syntax\\Node\\FunctionDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/FunctionDeclaration.php',
-        'Peast\\Syntax\\Node\\FunctionExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/FunctionExpression.php',
-        'Peast\\Syntax\\Node\\Function_' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Function_.php',
-        'Peast\\Syntax\\Node\\Identifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Identifier.php',
-        'Peast\\Syntax\\Node\\IfStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/IfStatement.php',
-        'Peast\\Syntax\\Node\\ImportAttribute' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ImportAttribute.php',
-        'Peast\\Syntax\\Node\\ImportDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ImportDeclaration.php',
-        'Peast\\Syntax\\Node\\ImportDefaultSpecifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ImportDefaultSpecifier.php',
-        'Peast\\Syntax\\Node\\ImportExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ImportExpression.php',
-        'Peast\\Syntax\\Node\\ImportNamespaceSpecifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ImportNamespaceSpecifier.php',
-        'Peast\\Syntax\\Node\\ImportSpecifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ImportSpecifier.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXAttribute' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXAttribute.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXBoundaryElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXBoundaryElement.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXClosingElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXClosingElement.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXClosingFragment' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXClosingFragment.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXElement.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXEmptyExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXEmptyExpression.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXExpressionContainer' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXExpressionContainer.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXFragment' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXFragment.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXIdentifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXIdentifier.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXMemberExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXMemberExpression.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXNamespacedName' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXNamespacedName.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXOpeningElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXOpeningElement.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXOpeningFragment' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXOpeningFragment.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXSpreadAttribute' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXSpreadAttribute.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXSpreadChild' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXSpreadChild.php',
-        'Peast\\Syntax\\Node\\JSX\\JSXText' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/JSX/JSXText.php',
-        'Peast\\Syntax\\Node\\LabeledStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/LabeledStatement.php',
-        'Peast\\Syntax\\Node\\Literal' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Literal.php',
-        'Peast\\Syntax\\Node\\LogicalExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/LogicalExpression.php',
-        'Peast\\Syntax\\Node\\MemberExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/MemberExpression.php',
-        'Peast\\Syntax\\Node\\MetaProperty' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/MetaProperty.php',
-        'Peast\\Syntax\\Node\\MethodDefinition' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/MethodDefinition.php',
-        'Peast\\Syntax\\Node\\ModuleDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ModuleDeclaration.php',
-        'Peast\\Syntax\\Node\\ModuleSpecifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ModuleSpecifier.php',
-        'Peast\\Syntax\\Node\\NewExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/NewExpression.php',
-        'Peast\\Syntax\\Node\\Node' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Node.php',
-        'Peast\\Syntax\\Node\\NullLiteral' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/NullLiteral.php',
-        'Peast\\Syntax\\Node\\NumericLiteral' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/NumericLiteral.php',
-        'Peast\\Syntax\\Node\\ObjectExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ObjectExpression.php',
-        'Peast\\Syntax\\Node\\ObjectPattern' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ObjectPattern.php',
-        'Peast\\Syntax\\Node\\ParenthesizedExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ParenthesizedExpression.php',
-        'Peast\\Syntax\\Node\\Pattern' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Pattern.php',
-        'Peast\\Syntax\\Node\\PrivateIdentifier' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/PrivateIdentifier.php',
-        'Peast\\Syntax\\Node\\Program' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Program.php',
-        'Peast\\Syntax\\Node\\Property' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Property.php',
-        'Peast\\Syntax\\Node\\PropertyDefinition' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/PropertyDefinition.php',
-        'Peast\\Syntax\\Node\\RegExpLiteral' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/RegExpLiteral.php',
-        'Peast\\Syntax\\Node\\RestElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/RestElement.php',
-        'Peast\\Syntax\\Node\\ReturnStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ReturnStatement.php',
-        'Peast\\Syntax\\Node\\SequenceExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/SequenceExpression.php',
-        'Peast\\Syntax\\Node\\SpreadElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/SpreadElement.php',
-        'Peast\\Syntax\\Node\\Statement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Statement.php',
-        'Peast\\Syntax\\Node\\StaticBlock' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/StaticBlock.php',
-        'Peast\\Syntax\\Node\\StringLiteral' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/StringLiteral.php',
-        'Peast\\Syntax\\Node\\Super' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/Super.php',
-        'Peast\\Syntax\\Node\\SwitchCase' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/SwitchCase.php',
-        'Peast\\Syntax\\Node\\SwitchStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/SwitchStatement.php',
-        'Peast\\Syntax\\Node\\TaggedTemplateExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/TaggedTemplateExpression.php',
-        'Peast\\Syntax\\Node\\TemplateElement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/TemplateElement.php',
-        'Peast\\Syntax\\Node\\TemplateLiteral' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/TemplateLiteral.php',
-        'Peast\\Syntax\\Node\\ThisExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ThisExpression.php',
-        'Peast\\Syntax\\Node\\ThrowStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/ThrowStatement.php',
-        'Peast\\Syntax\\Node\\TryStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/TryStatement.php',
-        'Peast\\Syntax\\Node\\UnaryExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/UnaryExpression.php',
-        'Peast\\Syntax\\Node\\UpdateExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/UpdateExpression.php',
-        'Peast\\Syntax\\Node\\VariableDeclaration' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/VariableDeclaration.php',
-        'Peast\\Syntax\\Node\\VariableDeclarator' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/VariableDeclarator.php',
-        'Peast\\Syntax\\Node\\WhileStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/WhileStatement.php',
-        'Peast\\Syntax\\Node\\WithStatement' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/WithStatement.php',
-        'Peast\\Syntax\\Node\\YieldExpression' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Node/YieldExpression.php',
-        'Peast\\Syntax\\Parser' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Parser.php',
-        'Peast\\Syntax\\ParserAbstract' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/ParserAbstract.php',
-        'Peast\\Syntax\\Position' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Position.php',
-        'Peast\\Syntax\\Scanner' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Scanner.php',
-        'Peast\\Syntax\\SourceLocation' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/SourceLocation.php',
-        'Peast\\Syntax\\Token' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Token.php',
-        'Peast\\Syntax\\Utils' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Syntax/Utils.php',
-        'Peast\\Traverser' => __DIR__ . '/..' . '/mck89/peast/lib/Peast/Traverser.php',
         'PhpParser\\Builder' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Builder.php',
         'PhpParser\\BuilderFactory' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/BuilderFactory.php',
         'PhpParser\\BuilderHelpers' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/BuilderHelpers.php',
@@ -475,6 +306,7 @@ class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
         'PhpParser\\NodeVisitor\\NodeConnectingVisitor' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/NodeVisitor/NodeConnectingVisitor.php',
         'PhpParser\\NodeVisitor\\ParentConnectingVisitor' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/NodeVisitor/ParentConnectingVisitor.php',
         'PhpParser\\Node\\Arg' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Node/Arg.php',
+        'PhpParser\\Node\\ArgPlaceholder' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Node/ArgPlaceholder.php',
         'PhpParser\\Node\\ArrayItem' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Node/ArrayItem.php',
         'PhpParser\\Node\\Attribute' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Node/Attribute.php',
         'PhpParser\\Node\\AttributeGroup' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Node/AttributeGroup.php',
@@ -676,17 +508,14 @@ class ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c
         'PhpParser\\PrettyPrinterAbstract' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/PrettyPrinterAbstract.php',
         'PhpParser\\PrettyPrinter\\Standard' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/PrettyPrinter/Standard.php',
         'PhpParser\\Token' => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser/Token.php',
-        'TenQuality\\Gettext\\Scanner\\WPFunctionsHandlersTrait' => __DIR__ . '/..' . '/10quality/gettext-wp-scanner/src/WPFunctionsHandlersTrait.php',
-        'TenQuality\\Gettext\\Scanner\\WPJsScanner' => __DIR__ . '/..' . '/10quality/gettext-wp-scanner/src/WPJsScanner.php',
-        'TenQuality\\Gettext\\Scanner\\WPPhpScanner' => __DIR__ . '/..' . '/10quality/gettext-wp-scanner/src/WPPhpScanner.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInita97081be2885b0e4fef91ef9d7a0374c::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInitb0c34989a15fd37a8c6be8d498264344::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInitb0c34989a15fd37a8c6be8d498264344::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInitb0c34989a15fd37a8c6be8d498264344::$classMap;
 
         }, null, ClassLoader::class);
     }

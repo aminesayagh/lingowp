@@ -8,7 +8,7 @@ use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use TenQuality\Gettext\Scanner\WPPhpScanner;
+use LingoWP\GettextDomains\Scanner\WordPressPhpScanner;
 use Throwable;
 
 final class GettextTemplateGenerator
@@ -25,7 +25,7 @@ final class GettextTemplateGenerator
 
         $translations = Translations::create($domain);
 
-        $scanner = new WPPhpScanner($translations);
+        $scanner = new WordPressPhpScanner($translations);
         $scanner->setDefaultDomain($domain);
         $scanner->ignoreInvalidFunctions(true);
 

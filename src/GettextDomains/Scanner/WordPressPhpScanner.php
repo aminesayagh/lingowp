@@ -1,30 +1,16 @@
 <?php
 
-namespace TenQuality\Gettext\Scanner;
+namespace LingoWP\GettextDomains\Scanner;
 
 use Gettext\Translation;
 use Gettext\Scanner\CodeScanner;
 use Gettext\Scanner\PhpFunctionsScanner;
 use Gettext\Scanner\FunctionsScannerInterface;
 
-/**
- * WordPress PHP scanner class.
- * 
- * @author 10 Quality Studio <http://www.10quality.com>
- * @package 10quality/gettext-wp-scanner
- * @license MIT
- * @version 1.0.0
- */
-class WPPhpScanner extends CodeScanner
+class WordPressPhpScanner extends CodeScanner
 {
-    use WPFunctionsHandlersTrait;
+    use WordPressFunctionHandlers;
 
-    /**
-     * Functions to scan in code.
-     * @since 1.0.0
-     * 
-     * @var array
-     */
     protected $functions = [
         '__' => 'wpgettext',
         '_e' => 'wpgettext',
@@ -41,28 +27,11 @@ class WPPhpScanner extends CodeScanner
         'esc_html_x' => 'wpxgettext',
     ];
 
-    /**
-     * Return the functions scanner for this php file scanner.
-     * @since 1.0.0
-     * 
-     * @return \Gettext\Scanner\FunctionsScannerInterface
-     */
     public function getFunctionsScanner(): FunctionsScannerInterface
     {
         return new PhpFunctionsScanner(array_keys($this->functions));
     }
 
-    /**
-     * Saves translation.
-     * @since 1.0.0
-     * 
-     * @param null|string $domain
-     * @param null|string $domain
-     * @param string      $original
-     * @param string      $string
-     * 
-     * @return \Gettext\Translation
-     */
     protected function saveTranslation(
         ?string $domain,
         ?string $context,
@@ -74,9 +43,7 @@ class WPPhpScanner extends CodeScanner
             return null;
         }
         $original = $translation->getOriginal();
-        //Check if it includes a sprintf
         if (strpos($original, '%') !== false) {
-            // %[argnum$][flags][width][.precision]specifier
             if (preg_match('/%(\d+\$)?([\-\+\s0]|\'.)?(\d+)?(\.\d+)?[bcdeEfFgGhHosuxX]/', $original)) {
                 $translation->getFlags()->add('php-format');
             }
