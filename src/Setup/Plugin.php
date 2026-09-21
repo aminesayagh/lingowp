@@ -75,6 +75,7 @@ use LingoWP\GettextDomains\GettextDomainRestController;
 use LingoWP\GettextDomains\GettextDomainRegistry;
 use LingoWP\GettextDomains\GettextUnitRepository;
 use LingoWP\GettextDomains\GettextOnlineTranslationFetcher;
+use LingoWP\GettextDomains\GettextMoFileLoader;
 use LingoWP\GettextDomains\GettextPoImporter;
 use LingoWP\GettextDomains\GettextTemplateGenerator;
 use LingoWP\GettextDomains\GettextTranslatedPercentCache;
@@ -384,6 +385,7 @@ class Plugin
         (new SupportRestController($backendClient, $connection))->register();
 
         $gettextImporter          = new GettextPoImporter();
+        (new GettextMoFileLoader())->register();
         $gettextRegistry          = new GettextDomainRegistry();
         $gettextTranslationUnits  = new GettextTranslationUnitsService(new GettextTemplateGenerator(), $gettextImporter, new GettextUnitRepository($wpdb));
         $gettextPercentCache      = new GettextTranslatedPercentCache();

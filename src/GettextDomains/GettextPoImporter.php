@@ -8,11 +8,10 @@ namespace LingoWP\GettextDomains;
  * classes (`wp-includes/pomo/po.php`, `mo.php`) — no PO-parsing dependency
  * of our own.
  *
- * Accepted, explicit trade-off: writing to the standard
- * `wp-content/languages/{plugins,themes}/` path means a future WordPress
- * translation update can overwrite this file (confirmed via
- * `Language_Pack_Upgrader::clear_destination()`, which targets exactly this
- * path). The admin UI surfaces this so it's a known choice, not a silent one.
+ * Files land under LingoWP's own `wp-content/languages/lingowp/` (see
+ * baseDir()), never in the shared `wp-content/languages/{plugins,themes}/`
+ * that core's Language_Pack_Upgrader overwrites on every translation update.
+ * GettextMoFileLoader tells WordPress to look there.
  */
 final class GettextPoImporter
 {
@@ -64,12 +63,23 @@ final class GettextPoImporter
         return rename($staging, $target);
     }
 
+    /**
+     * Root of every `.mo` LingoWP writes. A subfolder of WP_LANG_DIR because
+     * that is the directory WordPress reads translations from and the one its
+     * own installer writes to; a subfolder of it because that is the only way
+     * to never collide with a file core owns. Removed whole on uninstall.
+     */
+    public static function baseDir(): string
+    {
+        return WP_LANG_DIR . '/lingowp';
+    }
+
     /** @param 'plugin'|'theme' $type */
     public function targetPath(string $type, string $domain, string $locale): string
     {
         $sub = $type === 'theme' ? 'themes' : 'plugins';
 
-        return WP_LANG_DIR . '/' . $sub . '/' . $domain . '-' . $locale . '.mo';
+        return self::baseDir() . '/' . $sub . '/' . $domain . '-' . $locale . '.mo';
     }
 
     /** The currently installed `.mo` at $path, re-exported as a `.po`, or null if it doesn't exist. */
