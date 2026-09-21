@@ -1,0 +1,4 @@
+# The archive is attached to a GitHub release, not committed — a binary of this
+# size in every commit would outgrow the source it ships within a few releases.
+*.zip
+*.sha256

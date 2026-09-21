@@ -1,0 +1,285 @@
+/**
+ * LingoWP language switcher.
+ *
+ * Everything is driven by custom properties so a theme can restyle without
+ * fighting specificity. Override on .lingowp-switcher (or a wrapper).
+ */
+.lingowp-switcher {
+	--lingowp-switcher-gap: 0.5rem;
+	--lingowp-switcher-font-size: inherit;
+	--lingowp-switcher-color: inherit;
+	--lingowp-switcher-color-current: inherit;
+	--lingowp-switcher-bg: #fff;
+	--lingowp-switcher-border: 1px solid rgba(0, 0, 0, 0.15);
+	--lingowp-switcher-radius: 4px;
+	--lingowp-switcher-padding: 0.35rem 0.6rem;
+	--lingowp-switcher-z: 9999; /* dropdown popover stacking */
+
+	/* Size scale — 'lg' defaults; overridden by .lingowp-switcher--md / --sm. */
+	--lingowp-switcher-h: 56px;
+	--lingowp-switcher-text: 15px;
+	--lingowp-switcher-pad-y: 12px;
+	--lingowp-switcher-pad-l: 14px;
+	--lingowp-switcher-pad-r: 16px;
+	--lingowp-switcher-trigger-radius: 12px;
+	--lingowp-switcher-trigger-gap: 12px;
+	--lingowp-switcher-flag: 24px;
+	--lingowp-switcher-item-h: 48px;
+	--lingowp-switcher-item-pad-y: 10px;
+	--lingowp-switcher-item-pad-x: 12px;
+	--lingowp-switcher-item-gap: 14px;
+	--lingowp-switcher-item-radius: 9px;
+
+	display: inline-block;
+	font-size: var(--lingowp-switcher-font-size);
+	line-height: 1.3;
+
+	/* It's a control, not copy — don't let the labels select like a paragraph. */
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.lingowp-switcher--md {
+	--lingowp-switcher-h: 44px;
+	--lingowp-switcher-text: 14px;
+	--lingowp-switcher-pad-y: 9px;
+	--lingowp-switcher-pad-l: 12px;
+	--lingowp-switcher-pad-r: 14px;
+	--lingowp-switcher-trigger-radius: 10px;
+	--lingowp-switcher-trigger-gap: 10px;
+	--lingowp-switcher-flag: 22px;
+	--lingowp-switcher-item-h: 40px;
+	--lingowp-switcher-item-pad-y: 8px;
+	--lingowp-switcher-item-pad-x: 10px;
+	--lingowp-switcher-item-gap: 12px;
+	--lingowp-switcher-item-radius: 8px;
+}
+
+.lingowp-switcher--sm {
+	--lingowp-switcher-h: 36px;
+	--lingowp-switcher-text: 12.5px;
+	--lingowp-switcher-pad-y: 6px;
+	--lingowp-switcher-pad-l: 10px;
+	--lingowp-switcher-pad-r: 12px;
+	--lingowp-switcher-trigger-radius: 8px;
+	--lingowp-switcher-trigger-gap: 8px;
+	--lingowp-switcher-flag: 20px;
+	--lingowp-switcher-item-h: 34px;
+	--lingowp-switcher-item-pad-y: 6px;
+	--lingowp-switcher-item-pad-x: 10px;
+	--lingowp-switcher-item-gap: 10px;
+	--lingowp-switcher-item-radius: 7px;
+}
+
+.lingowp-switcher__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.lingowp-switcher__link,
+.lingowp-switcher__current {
+	color: var(--lingowp-switcher-color);
+	text-decoration: none;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: inherit;
+}
+
+/* Flag + label sit on one line in every layout. */
+.lingowp-switcher__link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+}
+
+.lingowp-switcher__flag {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.lingowp-switcher__flag-img {
+	display: block;
+	/* Square + circular: object-fit crops the 4:3 flag to a 1:1 disc. */
+	width: var(--lingowp-switcher-flag);
+	height: var(--lingowp-switcher-flag);
+	object-fit: cover;
+	border-radius: 50%;
+	border: 1px solid rgba(0, 0, 0, 0.15);
+	box-sizing: border-box;
+}
+
+.lingowp-switcher__globe {
+	width: 1em;
+	height: 1em;
+	opacity: 0.65;
+}
+
+/* code fallback (no flag available for this language). */
+.lingowp-switcher__flag--code {
+	font-size: 0.75em;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	opacity: 0.7;
+}
+
+/* Visible only to screen readers — used by flags="only". */
+.lingowp-switcher__sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+.lingowp-switcher__item.is-current .lingowp-switcher__link {
+	color: var(--lingowp-switcher-color-current);
+	font-weight: 600;
+}
+
+/* Menu items keep a keyboard focus ring; the trigger does not (see below). */
+.lingowp-switcher__link:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+/* No focus ring on the dropdown trigger — it reads as an unwanted border. */
+.lingowp-switcher__current:focus,
+.lingowp-switcher__current:focus-visible {
+	outline: none;
+}
+
+/* Inline: languages on one row, separated by a gap. */
+.lingowp-switcher--inline .lingowp-switcher__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--lingowp-switcher-gap);
+}
+
+/* List: stacked. */
+.lingowp-switcher--list .lingowp-switcher__item + .lingowp-switcher__item {
+	margin-top: var(--lingowp-switcher-gap);
+	font-size: var(--lingowp-switcher-font-size);
+	font-family: inherit;
+}
+
+/* Dropdown: <details>/<summary>, no JS needed. */
+.lingowp-switcher--dropdown .lingowp-switcher__details {
+	position: relative;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__current {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--lingowp-switcher-trigger-gap);
+	box-sizing: border-box;
+	min-height: var(--lingowp-switcher-h);
+	font-size: var(--lingowp-switcher-text);
+	padding: var(--lingowp-switcher-pad-y) var(--lingowp-switcher-pad-r)
+		var(--lingowp-switcher-pad-y) var(--lingowp-switcher-pad-l);
+	border: 1px solid #d9d9d9;
+	border-radius: var(--lingowp-switcher-trigger-radius);
+	background: var(--lingowp-switcher-bg);
+	list-style: none;
+}
+
+/* shadow="true" (default): subtle drop shadow on the control. */
+.lingowp-switcher--shadow .lingowp-switcher__current {
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__current::-webkit-details-marker {
+	display: none;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__current::after {
+	content: "";
+	width: 0.3em;
+	height: 0.3em;
+	border-right: 2px solid currentColor;
+	border-bottom: 2px solid currentColor;
+	/* The rotated square leaves dead space on its leading edge; pull it back so
+	   the text↔caret gap looks the same as the flag↔text gap. */
+	margin-inline-start: 0.2em;
+	/* Tiny upward nudge so the rotated square's point sits on the text's optical
+	   centre. Same value in both states so it doesn't hop on toggle. */
+	transform: translateY(-1px) rotate(45deg);
+	transition: transform 0.12s ease;
+}
+
+/* Caret points up while the menu is open (native and enhanced states). */
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__current::after,
+.lingowp-switcher--dropdown .lingowp-switcher__current[aria-expanded="true"]::after {
+	transform: translateY(-1px) rotate(-135deg);
+}
+
+.lingowp-switcher--dropdown[open] .lingowp-switcher__details,
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] {
+	z-index: var(--lingowp-switcher-z);
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__list {
+	position: absolute;
+	z-index: var(--lingowp-switcher-z);
+	top: calc(100% + 2px);
+	inset-inline-start: 0;
+	min-width: 100%;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 2px; /* gap_between_items */
+	padding: 8px;
+	background: var(--lingowp-switcher-bg);
+	border: 1px solid #e2e2e2;
+	border-radius: 12px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__link {
+	display: flex;
+	align-items: center;
+	gap: var(--lingowp-switcher-item-gap); /* flag ↔ label */
+	min-height: var(--lingowp-switcher-item-h);
+	font-size: var(--lingowp-switcher-text);
+	box-sizing: border-box;
+	padding: var(--lingowp-switcher-item-pad-y) var(--lingowp-switcher-item-pad-x);
+	border-radius: var(--lingowp-switcher-item-radius);
+	white-space: nowrap;
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__link:hover,
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__link:focus {
+	background: rgba(0, 0, 0, 0.06);
+}
+
+/* Selected row: light neutral fill covering the whole row + a subtle
+   right-aligned checkmark. Weight stays inherited, not bold. */
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__item.is-current .lingowp-switcher__link {
+	font-weight: inherit;
+	background: #f4f5f7;
+	border-radius: var(--lingowp-switcher-item-radius);
+}
+
+.lingowp-switcher--dropdown .lingowp-switcher__details[open] .lingowp-switcher__item.is-current .lingowp-switcher__link::after {
+	content: "";
+	flex-shrink: 0;
+	width: 0.5em;
+	height: 0.28em;
+	margin-inline-start: auto;
+	border-left: 2px solid currentColor;
+	border-bottom: 2px solid currentColor;
+	transform: translateY(-0.15em) rotate(-45deg);
+	opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.lingowp-switcher--dropdown .lingowp-switcher__list {
+		transition: opacity 0.12s ease;
+	}
+}

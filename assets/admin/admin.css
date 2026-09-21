@@ -1,0 +1,545 @@
+/**
+ * LingoWP centralized admin styles.
+ *
+ * One stylesheet, loaded only on plugin admin pages. Everything pulls from the
+ * design tokens below, so changing one variable updates the whole UI.
+ *
+ * Component classes provided:
+ *   .lingowp-page        page shell
+ *   .lingowp-navbar      top tab navigation
+ *   .lingowp-card        panel/section container
+ *   .lingowp-form        form layout (label + field rows)
+ *   .lingowp-table       data table
+ *   .lingowp-drawer      slide-in side panel
+ *   .lingowp-badge       status pills
+ */
+
+/* ----------------------------------------------------------------------
+   Design tokens
+---------------------------------------------------------------------- */
+.lingowp-page {
+    --lingowp-color-primary: #2271b1;        /* WP admin blue */
+    --lingowp-color-primary-hover: #135e96;
+    --lingowp-color-text: #1d2327;
+    --lingowp-color-muted: #646970;
+    --lingowp-color-border: #c3c4c7;
+    --lingowp-color-bg: #fff;
+    --lingowp-color-bg-alt: #f6f7f7;
+    --lingowp-color-success: #00a32a;
+    --lingowp-color-warning: #dba617;
+    --lingowp-color-danger: #d63638;
+
+    --lingowp-radius: 4px;
+    --lingowp-space: 16px;
+    --lingowp-space-sm: 8px;
+    --lingowp-space-lg: 24px;
+    --lingowp-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --lingowp-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --lingowp-drawer-width: 420px;
+}
+
+/* ----------------------------------------------------------------------
+   Page shell
+---------------------------------------------------------------------- */
+.lingowp-page {
+    font-family: var(--lingowp-font);
+    color: var(--lingowp-color-text);
+    max-width: 980px;
+}
+
+.lingowp-page__title {
+    font-size: 23px;
+    font-weight: 400;
+    margin: 0 0 var(--lingowp-space) 0;
+}
+
+/* ----------------------------------------------------------------------
+   Navbar (tabs)
+---------------------------------------------------------------------- */
+.lingowp-navbar {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--lingowp-color-border);
+    margin-bottom: var(--lingowp-space-lg);
+}
+
+.lingowp-navbar__item {
+    padding: 10px 16px;
+    text-decoration: none;
+    color: var(--lingowp-color-muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: var(--lingowp-radius) var(--lingowp-radius) 0 0;
+    font-weight: 500;
+}
+
+.lingowp-navbar__item:hover {
+    color: var(--lingowp-color-primary);
+}
+
+.lingowp-navbar__item.is-active {
+    color: var(--lingowp-color-text);
+    background: var(--lingowp-color-bg);
+    border-color: var(--lingowp-color-border);
+    margin-bottom: -1px;
+}
+
+/* ----------------------------------------------------------------------
+   Card
+---------------------------------------------------------------------- */
+.lingowp-card {
+    background: var(--lingowp-color-bg);
+    border: 1px solid var(--lingowp-color-border);
+    border-radius: var(--lingowp-radius);
+    box-shadow: var(--lingowp-shadow);
+    padding: var(--lingowp-space-lg);
+    margin-bottom: var(--lingowp-space-lg);
+}
+
+.lingowp-card__title {
+    margin: 0 0 var(--lingowp-space) 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.lingowp-card__desc {
+    color: var(--lingowp-color-muted);
+    margin: -8px 0 var(--lingowp-space) 0;
+    font-size: 13px;
+}
+
+.lingowp-list-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--lingowp-space);
+    margin-bottom: var(--lingowp-space);
+}
+
+.lingowp-list-header .lingowp-card__desc {
+    margin-bottom: 0;
+}
+
+.lingowp-list-count {
+    color: var(--lingowp-color-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.lingowp-page-actions {
+    margin: 0 0 var(--lingowp-space-lg) 0;
+}
+
+.lingowp-icon-button {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    width: 28px !important;
+    height: 28px !important;
+}
+
+.lingowp-icon-button .dashicons {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.lingowp-icon-button.is-busy {
+    cursor: progress;
+    opacity: 0.7;
+}
+
+.lingowp-ignore-button {
+    color: var(--lingowp-color-danger) !important;
+    border-color: var(--lingowp-color-danger) !important;
+    opacity: 0.6;
+}
+
+.lingowp-ignore-button:hover,
+.lingowp-ignore-button:focus {
+    color: var(--lingowp-color-danger) !important;
+    border-color: var(--lingowp-color-danger) !important;
+    opacity: 1;
+}
+
+.lingowp-ignore-button .dashicons {
+    color: inherit;
+}
+
+/* ----------------------------------------------------------------------
+   Form
+---------------------------------------------------------------------- */
+
+.lingowp-filters {
+    display: flex;
+    align-items: center;
+    gap: var(--lingowp-space-sm);
+}
+.lingowp-form__row {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--lingowp-space);
+    align-items: start;
+    padding: var(--lingowp-space) 0;
+    border-bottom: 1px solid var(--lingowp-color-bg-alt);
+}
+
+.lingowp-form__row:last-child {
+    border-bottom: none;
+}
+
+.lingowp-form__label {
+    font-weight: 600;
+    padding-top: 4px;
+}
+
+.lingowp-form__hint {
+    display: block;
+    color: var(--lingowp-color-muted);
+    font-size: 12px;
+    font-weight: 400;
+    margin-top: 4px;
+}
+
+.lingowp-form__field input[type="text"],
+.lingowp-form__field select {
+    min-width: 260px;
+}
+
+.lingowp-form__field--toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--lingowp-space-sm);
+}
+
+/* Checkbox list for enabled languages */
+.lingowp-checklist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lingowp-space-sm) var(--lingowp-space-lg);
+    margin: 0;
+}
+
+.lingowp-checklist label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ----------------------------------------------------------------------
+   Table
+---------------------------------------------------------------------- */
+.lingowp-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    background: var(--lingowp-color-bg);
+    border: 1px solid var(--lingowp-color-border);
+    border-radius: var(--lingowp-radius);
+    overflow: hidden;
+}
+
+.lingowp-table__col--text {
+    width: 31%;
+}
+
+.lingowp-table__col--status {
+    width: 10%;
+}
+
+.lingowp-table__col--actions {
+    width: 21%;
+}
+
+.lingowp-table th,
+.lingowp-table td {
+    text-align: left;
+    vertical-align: top;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--lingowp-color-bg-alt);
+    overflow-wrap: anywhere;
+}
+
+.lingowp-table th {
+    background: var(--lingowp-color-bg-alt);
+    font-weight: 600;
+}
+
+.lingowp-table tr:last-child td {
+    border-bottom: none;
+}
+
+.lingowp-table tr:hover td {
+    background: var(--lingowp-color-bg-alt);
+}
+
+.lingowp-status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lingowp-status-icon .dashicons {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--lingowp-color-primary);
+}
+
+.lingowp-translation-field {
+    overflow: hidden;
+    resize: none;
+}
+
+/* ----------------------------------------------------------------------
+   Drawer (slide-in panel)
+---------------------------------------------------------------------- */
+.lingowp-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: var(--lingowp-drawer-width);
+    max-width: 90vw;
+    height: 100vh;
+    background: var(--lingowp-color-bg);
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+}
+
+.lingowp-drawer.is-open {
+    transform: translateX(0);
+}
+
+.lingowp-drawer__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--lingowp-space);
+    border-bottom: 1px solid var(--lingowp-color-border);
+}
+
+.lingowp-drawer__body {
+    padding: var(--lingowp-space);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.lingowp-drawer__footer {
+    padding: var(--lingowp-space);
+    border-top: 1px solid var(--lingowp-color-border);
+}
+
+.lingowp-drawer__overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.lingowp-drawer__overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ----------------------------------------------------------------------
+   Badge (status pills)
+---------------------------------------------------------------------- */
+.lingowp-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.lingowp-badge--discovered { background: #f0f0f1; color: var(--lingowp-color-muted); }
+.lingowp-badge--machine    { background: #e5f0fb; color: var(--lingowp-color-primary); }
+.lingowp-badge--reviewed   { background: #edfaef; color: var(--lingowp-color-success); }
+.lingowp-badge--review     { background: #fcf6e1; color: var(--lingowp-color-warning); }
+.lingowp-badge--ignored    { background: #f0f0f1; color: var(--lingowp-color-muted); text-decoration: line-through; }
+
+/* ----------------------------------------------------------------------
+   Source-type tabs
+---------------------------------------------------------------------- */
+.lingowp-source-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 16px 0;
+    border-bottom: 1px solid var(--lingowp-color-border);
+}
+
+.lingowp-source-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    text-decoration: none;
+    color: var(--lingowp-color-muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    margin-bottom: -1px;
+}
+
+.lingowp-source-tab:hover {
+    color: var(--lingowp-color-primary);
+    background: var(--lingowp-color-bg-alt);
+}
+
+.lingowp-source-tab.is-active {
+    color: var(--lingowp-color-text);
+    background: var(--lingowp-color-bg);
+    border-color: var(--lingowp-color-border);
+    font-weight: 600;
+}
+
+.lingowp-source-tab__count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 6px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    color: var(--lingowp-color-muted);
+    background: #f0f0f1;
+    border-radius: 999px;
+}
+
+.lingowp-source-tab.is-active .lingowp-source-tab__count {
+    color: var(--lingowp-color-primary);
+    background: #e5f0fb;
+}
+
+.lingowp-empty {
+    text-align: center;
+    color: var(--lingowp-color-muted);
+}
+
+.lingowp-empty__hint {
+    font-size: 12px;
+}
+
+/* ----------------------------------------------------------------------
+   Multi-language drawer contents
+---------------------------------------------------------------------- */
+.lingowp-drawer__original-label {
+    margin: 0 0 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lingowp-color-muted);
+}
+
+.lingowp-drawer__original {
+    margin: 0 0 16px;
+    padding: 8px 10px;
+    background: var(--lingowp-color-bg-alt);
+    border-radius: 4px;
+    color: var(--lingowp-color-text);
+}
+
+.lingowp-drawer__lang {
+    margin-bottom: 14px;
+}
+
+.lingowp-drawer__lang-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.lingowp-drawer__status {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--lingowp-color-muted);
+    background: #f0f0f1;
+    padding: 1px 8px;
+    border-radius: 999px;
+}
+
+.lingowp-drawer__close {
+    cursor: pointer;
+}
+
+/* ----------------------------------------------------------------------
+   Attachment thumbnail column
+---------------------------------------------------------------------- */
+.lingowp-table__col--image {
+    width: 64px;
+}
+
+.lingowp-thumb {
+    vertical-align: middle;
+}
+
+.lingowp-thumb img {
+    display: block;
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--lingowp-color-border);
+}
+
+/* ----------------------------------------------------------------------
+   Source/context sub-label under the original string
+---------------------------------------------------------------------- */
+.lingowp-source-label {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--lingowp-color-muted);
+}
+
+/* ----------------------------------------------------------------------
+   Long-text clamp / expand
+---------------------------------------------------------------------- */
+.lingowp-original.is-clamped .lingowp-original__text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lingowp-original__toggle {
+    margin-top: 4px;
+    padding: 0;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+/* ----------------------------------------------------------------------
+   Pagination
+---------------------------------------------------------------------- */
+.lingowp-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 12px;
+}
+
+.lingowp-pagination__gap {
+    padding: 0 4px;
+    color: var(--lingowp-color-muted);
+}
+
+.lingowp-put-review-button {
+    padding-top: 2.5px !important;
+    padding-bottom: 2.5px !important;
+}
