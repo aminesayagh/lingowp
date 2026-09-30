@@ -16,7 +16,7 @@
 ## Blocking owner decisions and evidence
 
 - [ ] Confirm `LingoWP`, the `lingowp` slug, and `aminesayagh` contributor identity are available and final.
-- [ ] Make `https://github.com/aminesayagh/lingowp` public and publish the exact `v1.3.1` tag referenced by `readme.txt`. The archive ships no admin source, so this link is the only thing satisfying the human-readable-source requirement. The release script now refuses to build while it does not resolve. Note this plugin is its own repository, but its remote is named `aminesayagh/translangs` and it has no tags — so publishing means either renaming the repository to `lingowp` or pointing `readme.txt` at the `translangs` URL, then tagging.
+- [x] Human-readable source no longer depends on any URL: the WordPress.org archive ships `admin-ui/` plus `package.json`, `package-lock.json`, `webpack.config.js` and `postcss.config.js`, and the release script's required-file check refuses to package without them. The old link-resolves check and its `LINGOWP_ALLOW_UNPUBLISHED_SOURCE` bypass are gone. The client archive in `release/` deliberately excludes the admin source; it is not distributed by WordPress.org.
 - [ ] Convert remaining React interface strings to WordPress i18n calls and generate translation assets.
 - [ ] Complete the compatibility matrix. `Tested up to` is now 7.1, the version the development environment runs; confirm that is the newest version genuinely exercised.
 - [ ] Decide the real PHP floor. The header and `composer.json` declare 7.4, no runtime version check exists, and development runs on 8.4 — so 7.4 is declared but untested.

@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.4.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,16 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 LingoWP adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.4.1 =
+
+* Connecting to LingoWP Cloud is now an explicit choice during setup. The plugin contacts no external service until an administrator connects.
+* Plugin and theme translations are written to their own `wp-content/languages/lingowp/` folder, so a WordPress language-pack update can no longer overwrite them. They are removed when the plugin is deleted.
+* Translated text is now sanitised on output in every context, matching what WordPress applies to post content.
+* Uses WordPress 6.9's template enhancement output buffer where it is available, falling back to the plugin's own buffer otherwise.
+* Add-ons are no longer downloaded or installed by the plugin. The Integrations tab lists what a plan includes; add-ons are installed like any other plugin.
+* The admin interface source and the build configuration now ship inside the package.
+* Removed an unused JavaScript scanner and its parser, about 1.1 MB.
 
 = 1.3.1 =
 
