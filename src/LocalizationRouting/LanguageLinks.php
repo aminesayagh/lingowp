@@ -145,24 +145,19 @@ class LanguageLinks
             }
         }
 
-        // Trailing-slash shape is read from the raw request path — stripPrefix()
-        // drops it when it removes a language segment ('/fr/about/' -> '/about').
-        $rawPath = $this->currentPath();
-        $slash   = substr($rawPath, -1) === '/';
-        $path    = $this->prefixer->stripPrefix($rawPath);
+        $path    = $this->prefixer->stripPrefix($this->currentPath());
         $query   = $this->currentQuery();
         $origin  = $this->origin();
 
         $rows = [];
         foreach ($ordered as $code) {
+            // Trailing-slash shape is settled inside the builder now: it is
+            // preserved through stripPrefix()/addPrefix() for every path, and
+            // for the language home it follows the site's permalink structure.
+            // The fix-up that used to live here forced the request's own shape,
+            // which on a site without trailing slashes produced the redirect it
+            // was added to avoid.
             $localized = $this->prefixer->addPrefix($path, $code);
-
-            // addPrefix() collapses the bare home path ('/' -> '/fr'); keep the
-            // request's own trailing-slash shape so the link doesn't cost a
-            // canonical-redirect hop.
-            if ($slash && substr($localized, -1) !== '/') {
-                $localized .= '/';
-            }
 
             $rows[] = [
                 'code'         => $code,

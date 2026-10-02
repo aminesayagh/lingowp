@@ -104,6 +104,46 @@ test_ok(
     ($tags['x-default'] ?? '(missing)') . ' vs ' . ($tags[$defaultHreflang] ?? '(missing)')
 );
 
+// ── 1b. Trailing-slash shape: every target must be the canonical URL ────────
+//
+// Regression guard. stripPrefix() used to drop the trailing slash when it
+// removed a language segment, and addPrefix() dropped it again when building a
+// language home, so on a trailing-slash site EVERY hreflang target on EVERY
+// translated page was a URL WordPress answers with a 301. Search engines treat
+// an hreflang cluster whose members disagree on canonical form as unreliable,
+// and crawlers report each one as an error.
+
+test_section('renderHreflangTags: canonical trailing-slash shape');
+
+$slashShaped = static fn(string $url): bool
+    => str_ends_with((string) wp_parse_url($url, PHP_URL_PATH), '/');
+
+foreach ($tags as $hl => $href) {
+    test_ok("alternate $hl keeps the request's trailing slash", $slashShaped($href), $href);
+}
+
+// The language HOME is the one path with no shape of its own to carry (its
+// leading and trailing slash are the same character), so it is built from the
+// site's permalink structure instead.
+$_SERVER['REQUEST_URI'] = '/zz/';
+ob_start();
+$presenter->renderHreflangTags();
+$homeTags = test_parse_hreflang_tags((string) ob_get_clean());
+
+test_ok(
+    'language-home alternate is /zz/, not /zz (which core 301s)',
+    isset($homeTags['zz-ZZ']) && str_ends_with((string) wp_parse_url($homeTags['zz-ZZ'], PHP_URL_PATH), '/zz/'),
+    $homeTags['zz-ZZ'] ?? '(missing)'
+);
+
+test_ok(
+    'source-language home alternate keeps its slash too',
+    isset($homeTags[$defaultHreflang]) && wp_parse_url($homeTags[$defaultHreflang], PHP_URL_PATH) === '/',
+    $homeTags[$defaultHreflang] ?? '(missing)'
+);
+
+$_SERVER['REQUEST_URI'] = '/lingowp-test-hreflang-page/';
+
 // ── 2. "Prefix default language" option changes the default's own alternate ──
 
 test_section('renderHreflangTags: lingowp_prefix_default_language option');

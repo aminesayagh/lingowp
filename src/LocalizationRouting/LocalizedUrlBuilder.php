@@ -62,8 +62,15 @@ class LocalizedUrlBuilder
     }
 
     /**
-     * Remove any leading language segment from a path.
-     * "/fr/about" => "/about",  "/about" => "/about"
+     * Remove any leading language segment from a path, keeping its
+     * trailing-slash shape.
+     *   "/fr/about/" => "/about/",  "/fr/about" => "/about"
+     *   "/about"     => "/about",   "/fr/"      => "/"
+     *
+     * The shape matters: whatever this returns is handed to addPrefix() to be
+     * re-prefixed, and the result is published as an hreflang target, a
+     * switcher href or a redirect location. Dropping the slash here made every
+     * one of those point at a URL that WordPress answers with a 301.
      */
     public function stripPrefix(string $path): string
     {
@@ -79,8 +86,13 @@ class LocalizedUrlBuilder
 
         $rest = implode('/', $parts);
 
-        // Preserve a leading slash; keep root as "/".
-        return '/' . $rest;
+        if ($rest === '') {
+            return '/'; // a bare language home ('/fr', '/fr/') strips to root
+        }
+
+        // trim() above took both ends, so the trailing slash has to be put
+        // back deliberately — the leading one is re-added either way.
+        return '/' . $rest . (substr($path, -1) === '/' ? '/' : '');
     }
 
     /**
@@ -88,8 +100,18 @@ class LocalizedUrlBuilder
      *
      * For a non-prefixed language (e.g. the default), returns the bare path.
      *   addPrefix("/about", "fr")        => "/fr/about"
+     *   addPrefix("/about/", "fr")       => "/fr/about/"  (shape preserved)
      *   addPrefix("/es/about", "fr")     => "/fr/about"
      *   addPrefix("/fr/about", "en")     => "/about"   (en not prefixed)
+     *   addPrefix("/", "fr")             => "/fr/"     (or "/fr" — see below)
+     *
+     * Every path but the root carries its own trailing-slash shape through
+     * untouched. The root is the one case with no shape to carry: its leading
+     * and trailing slash are the same character, so the language home has to
+     * be built. Which form is canonical depends on the site's permalink
+     * structure, so ask WordPress rather than guess — user_trailingslashit()
+     * reads $wp_rewrite->use_trailing_slashes and adds or removes to match.
+     * Guessing wrong costs a 301 on the most-linked page of the site.
      */
     public function addPrefix(string $path, string $lang): string
     {
@@ -103,6 +125,15 @@ class LocalizedUrlBuilder
 
         $slug = $this->resolver->slugForLanguage($lang);
 
-        return $bare === '/' ? '/' . $slug : '/' . $slug . $bare;
+        if ($bare !== '/') {
+            return '/' . $slug . $bare;
+        }
+
+        $home = '/' . $slug;
+
+        // function_exists(): this class is constructible without WordPress.
+        // The root path never carries a file extension, so the helper cannot
+        // mangle one here the way it would on "/sitemap.xml".
+        return function_exists('user_trailingslashit') ? user_trailingslashit($home) : $home . '/';
     }
 }

@@ -146,16 +146,23 @@ test_ok(
     test_redirects($registry, $context)->preserveLanguagePrefix('/zz', 301) === '/zz'
 );
 
-// LocalizedUrlBuilder::stripPrefix() drops the trailing slash when it strips
-// an EXISTING prefix (trim() takes both ends, the rebuild only re-adds a
-// leading slash) — unlike the no-existing-prefix case above, which preserves
-// it (ltrim() only touches the leading side). That's pre-existing behavior in
-// shared infrastructure this fix reuses as-is, not something to change here;
-// the real-world case (wp_old_slug_redirect()'s $link from get_permalink())
-// is always the no-existing-prefix path anyway.
+// LocalizedUrlBuilder::stripPrefix() used to drop the trailing slash when it
+// stripped an EXISTING prefix (trim() takes both ends, the rebuild only re-added
+// a leading slash). It no longer does: the shape is preserved on both sides, and
+// the language home follows the site's permalink structure. That had leaked into
+// every hreflang target on a translated page as a 301, and is the same root cause
+// the guard clause in MultilingualRedirects::preserveLanguagePrefix() works
+// around — that guard is now belt-and-braces rather than load-bearing.
 test_ok(
     'idempotent against an existing different (but real, enabled) prefix — no double-prefixing',
-    test_redirects($registry, $context)->preserveLanguagePrefix('/yy/lingowp-test-old-slug/', 301) === '/zz/lingowp-test-old-slug'
+    test_redirects($registry, $context)->preserveLanguagePrefix('/yy/lingowp-test-old-slug/', 301) === '/zz/lingowp-test-old-slug/',
+    test_redirects($registry, $context)->preserveLanguagePrefix('/yy/lingowp-test-old-slug/', 301)
+);
+
+test_ok(
+    'the swapped prefix keeps the shape it arrived with (no extra canonical hop)',
+    test_redirects($registry, $context)->preserveLanguagePrefix('/yy/lingowp-test-old-slug', 301) === '/zz/lingowp-test-old-slug',
+    test_redirects($registry, $context)->preserveLanguagePrefix('/yy/lingowp-test-old-slug', 301)
 );
 
 // ── 4. Off-site and admin/login destinations: never touched ──────────────────
