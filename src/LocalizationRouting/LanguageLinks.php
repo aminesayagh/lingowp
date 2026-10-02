@@ -102,19 +102,13 @@ class LanguageLinks
             }
         }
 
-        $rawPath = $this->currentPath();
-        $slash   = substr($rawPath, -1) === '/';
-        $path    = $this->prefixer->stripPrefix($rawPath);
+        $path    = $this->prefixer->stripPrefix($this->currentPath());
         $query   = $this->currentQuery();
         $origin  = $this->origin();
 
         $rows = [];
         foreach ($ordered as $code) {
             $localized = $this->prefixer->addPrefix($path, $code);
-
-            if ($slash && substr($localized, -1) !== '/') {
-                $localized .= '/';
-            }
 
             $rows[] = [
                 'code'         => $code,

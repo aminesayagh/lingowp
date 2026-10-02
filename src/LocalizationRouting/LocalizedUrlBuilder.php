@@ -58,7 +58,11 @@ class LocalizedUrlBuilder
 
         $rest = implode('/', $parts);
 
-        return '/' . $rest;
+        if ($rest === '') {
+            return '/';
+        }
+
+        return '/' . $rest . (substr($path, -1) === '/' ? '/' : '');
     }
 
     public function addPrefix(string $path, string $lang): string
@@ -73,6 +77,12 @@ class LocalizedUrlBuilder
 
         $slug = $this->resolver->slugForLanguage($lang);
 
-        return $bare === '/' ? '/' . $slug : '/' . $slug . $bare;
+        if ($bare !== '/') {
+            return '/' . $slug . $bare;
+        }
+
+        $home = '/' . $slug;
+
+        return function_exists('user_trailingslashit') ? user_trailingslashit($home) : $home . '/';
     }
 }
