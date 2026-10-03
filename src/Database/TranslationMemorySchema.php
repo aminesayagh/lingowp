@@ -371,6 +371,7 @@ class TranslationMemorySchema
         add_option('lingowp_cookie_preference', true);
         add_option('lingowp_browser_detection', false);
         add_option('lingowp_auto_redirect', false);
+        add_option(\LingoWP\LocalizationRouting\SlugMap::OPTION_ENABLED, false);
 
         // Onboarding: not yet completed. Credentials (token/site_id) are written on
         // connect with autoload=false and are deliberately not seeded here.

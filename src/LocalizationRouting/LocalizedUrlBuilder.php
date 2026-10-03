@@ -10,14 +10,35 @@ use LingoWP\Language\Application\ResolveRequestLanguage;
  * LanguageRouteRegistrar uses this for incoming prefixed URLs. Future public
  * link rewriting should use the same builder so incoming and outgoing URL
  * rules stay aligned.
+ *
+ * With a SlugMap attached it also translates the path's own segments, giving
+ * the two methods below one invariant each:
+ *
+ *   stripPrefix() returns a SOURCE-LANGUAGE path — prefix gone, segments
+ *                 normalized back to their source slugs.
+ *   addPrefix()   returns a path fully expressed in the target language —
+ *                 prefix added, segments localized.
+ *
+ * Callers already pair them that way (LanguageLinks::links(),
+ * HreflangPresenter::currentBasePath() both strip then add), so slug
+ * translation reaches every public URL surface without a single caller change.
  */
 class LocalizedUrlBuilder
 {
     private ResolveRequestLanguage $resolver;
 
-    public function __construct(ResolveRequestLanguage $resolver)
+    /**
+     * Optional on purpose: this class is constructible without WordPress (it is
+     * unit-tested that way, and LanguageLinks::instance() builds a bare one as
+     * a pre-boot fallback). Absent, every path below behaves exactly as it did
+     * before slug translation existed.
+     */
+    private ?SlugMap $slugs;
+
+    public function __construct(ResolveRequestLanguage $resolver, ?SlugMap $slugs = null)
     {
         $this->resolver = $resolver;
+        $this->slugs    = $slugs;
     }
 
     /**
@@ -92,7 +113,13 @@ class LocalizedUrlBuilder
 
         // trim() above took both ends, so the trailing slash has to be put
         // back deliberately — the leading one is re-added either way.
-        return '/' . $rest . (substr($path, -1) === '/' ? '/' : '');
+        $bare = '/' . $rest . (substr($path, -1) === '/' ? '/' : '');
+
+        // The prefix told us which language the segments are written in, so
+        // this is the only place that can undo slug translation. Everything
+        // downstream — hreflang alternates, the switcher, a redirect target —
+        // gets a source-language path it can re-localize to any language.
+        return $this->slugs === null ? $bare : $this->slugs->toSource($bare, $prefix);
     }
 
     /**
@@ -122,6 +149,14 @@ class LocalizedUrlBuilder
         }
 
         $bare = '/' . ltrim($bare, '/');
+
+        // Source-language path in (stripPrefix() guarantees it), target-language
+        // path out. Only reached for a prefixed — therefore published —
+        // language; SlugMap refuses the default language and any unpublished
+        // one on its own account.
+        if ($this->slugs !== null) {
+            $bare = $this->slugs->localize($bare, $lang);
+        }
 
         $slug = $this->resolver->slugForLanguage($lang);
 

@@ -11,6 +11,7 @@ use LingoWP\Shared\Text\TranslatableText;
 use LingoWP\Shared\Source\TranslationStatus;
 use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
 use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\LocalizationRouting\SlugMap;
 
 /**
  * $wpdb persistence for the per-type content tables — the sole implementation
@@ -1054,6 +1055,47 @@ final class WpDbSourceRepository
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+
+        // The one writer a manual save, an AI queue delivery and a bulk apply
+        // all pass through for the hash-link tables, so this is where an edited
+        // title reaches the URL instead of waiting out the map's cache.
+        $this->bumpSlugMapForHash($tableKey, $hashHex);
+    }
+
+    /**
+     * Invalidate the slug map, but only when this hash belongs to a
+     * post_title / term name row — the only translations a URL slug is derived
+     * from.
+     *
+     * Keyed on the FIELD, not the table: the post table also holds every
+     * post_content fragment and every excerpt, so a table-level check made
+     * translating one long article invalidate every language's map once per
+     * fragment. idx_hash makes the check an index lookup.
+     */
+    private function bumpSlugMapForHash(string $tableKey, ?string $hashHex): void
+    {
+        if ($hashHex === null) {
+            return;
+        }
+
+        $field = ['post' => 'post_title', 'term' => 'name'][$tableKey] ?? null;
+        if ($field === null) {
+            return;
+        }
+
+        $parent = $this->parent($tableKey);
+
+        $owns = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "SELECT EXISTS(SELECT 1 FROM {$parent} WHERE original_hash = UNHEX(%s) AND field = %s)",
+                $hashHex,
+                $field
+            )
+        );
+
+        if ((int) $owns === 1) {
+            SlugMap::bumpVersion();
+        }
     }
 
     // ── AI translate-all queue ──────────────────────────────────────────────────
@@ -1288,6 +1330,8 @@ final class WpDbSourceRepository
                     $langCode
                 )
             );
+            // A removed title translation must stop producing a URL slug.
+            $this->bumpSlugMapForHash($tableKey, $hashHex);
             $this->flushHtmlCache($ref, $langCode);
             return;
         }
@@ -1419,6 +1463,14 @@ final class WpDbSourceRepository
             $count += max(0, (int) $result);
         }
 
+        // AFTER the writes, never before. Bulk INSERT..SELECT across every
+        // table at once, so there is no single hash to test and the bump is
+        // unconditional — but bumping first let a concurrent request build the
+        // NEW version's slug map from half-copied rows and cache that for the
+        // whole TTL. Every other invalidation in this class already follows
+        // its write; this one was the exception.
+        SlugMap::bumpVersion();
+
         return $count;
     }
 
@@ -1504,6 +1556,8 @@ final class WpDbSourceRepository
                     $this->wpdb->prepare("DELETE FROM {$child} WHERE original_hash = UNHEX(%s)", $hashHex)
                 );
             }
+            // status = -1 drops the parent out of the slug map's candidates.
+            $this->bumpSlugMapForHash($tableKey, $hashHex);
             return;
         }
 
@@ -1535,6 +1589,14 @@ final class WpDbSourceRepository
                 TranslationStatus::SOURCE_IGNORED,
                 ...$ids
             ));
+
+            // Restoring puts a title back among the slug map's candidates, the
+            // exact mirror of ignoreSource() taking it out — which already
+            // invalidates. Without this the translated URL stayed missing for
+            // the whole TTL.
+            if ($tableKey === 'post' || $tableKey === 'term') {
+                SlugMap::bumpVersion();
+            }
         }
     }
 

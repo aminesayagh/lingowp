@@ -1,14 +1,6 @@
-import {
-	Banner,
-	BlockStack,
-	Button,
-	Card,
-	ProgressBar,
-	Text,
-} from '@shopify/polaris'
+import { BlockStack, Button, Card, ProgressBar, Text } from '@shopify/polaris'
 import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
-import CloudDisclosure from './CloudDisclosure'
 
 const cfg = window.LingoWP || {}
 
@@ -27,101 +19,62 @@ export default function QuotaCard( {
 	aiError,
 	billingBlocked,
 	overSlot,
-	recoveryAvailable,
-	onDismissRecoveryNotice,
-	onConnect,
 } ) {
-	// A fresh connect may have also found an older licence and emailed its
-	// verified owner a reclaim link — this can be true regardless of which
-	// card state below is showing (a brand-new free-tier connect very
-	// quickly becomes billingBlocked once entitlements load), so it's
-	// rendered above every branch rather than folded into just one of them.
-	const recoveryNotice = recoveryAvailable && (
-		<Banner tone="info" onDismiss={ onDismissRecoveryNotice }>
-			We found an existing LingoWP account for this site — check your
-			owner email to move its subscription and word balance here.
-		</Banner>
-	)
+	// Never connected: render nothing at all.
+	//
+	// Connecting is onboarding's question to ask (Configuration.jsx offers
+	// "Connect to LingoWP Cloud" / "Continue without connecting"), and the
+	// Dashboard renders *behind* that modal rather than instead of it — see
+	// App.jsx. A connect card in the rail therefore puts the same decision on
+	// screen twice, in the one place it cannot be answered. After onboarding
+	// the same applies: Settings owns the connection, so the rail has nothing
+	// to meter and nothing useful to say.
+	if ( ! quota && aiError === 'ERR_NOT_CONNECTED' ) {
+		return null
+	}
 
 	// Connected, but nothing to meter — either no active plan, or this site
 	// specifically is past its plan's site-slot allowance (overSlot: still
 	// subscribed, just not this site) — either way, skip the progress
-	// display and point straight at the two ways to unblock AI translation,
-	// same copy as the row buttons' billingBlocked toast (Dashboard's
-	// handleAiBlocked).
+	// display and point at the one place that unblocks it, same copy as the
+	// row buttons' billingBlocked toast (Dashboard's handleAiBlocked).
 	if ( quota && billingBlocked ) {
 		return (
-			<BlockStack gap="200">
-				{ recoveryNotice }
-				<Card>
-					<BlockStack gap="100">
-						<Text as="span" variant="bodySm">
-							{ overSlot
-								? errorMessage( 'ERR_SITE_OVER_PLAN_LIMIT' )
-								: errorMessage( 'ERR_HOSTED_AI_UNAVAILABLE' ) }
-						</Text>
-						<Button variant="secondary" url={ cfg.account_url }>
-							Go to Account
-						</Button>
-					</BlockStack>
-				</Card>
-			</BlockStack>
+			<Card>
+				<BlockStack gap="100">
+					<Text as="span" variant="bodySm">
+						{ overSlot
+							? errorMessage( 'ERR_SITE_OVER_PLAN_LIMIT' )
+							: errorMessage( 'ERR_HOSTED_AI_UNAVAILABLE' ) }
+					</Text>
+					<Button variant="secondary" url={ cfg.account_url }>
+						Go to Account
+					</Button>
+				</BlockStack>
+			</Card>
 		)
 	}
 
+	// Connected, entitlements not in yet, or AI unavailable for a reason that
+	// is fixed elsewhere (detached, revoked-and-healing, backend down).
 	if ( ! quota ) {
-		// Not connected (fresh install that skipped the cloud step, wiped
-		// locally, or explicitly disconnected) is the one case with something
-		// to actually click — cloud connection is opt-in, nothing connects on
-		// its own. Every other unavailable reason (detached, revoked-and-
-		// healing, backend down) is fixed elsewhere (Billing, or self-heals
-		// on the next page load).
-		const neverConnected = aiError === 'ERR_NOT_CONNECTED'
-
-		if ( neverConnected ) {
-			return (
-				<BlockStack gap="200">
-					{ recoveryNotice }
-					<Card>
-						<BlockStack gap="200">
-							<Text as="span" variant="headingSm">
-								Not connected
-							</Text>
-							<Text as="span" tone="subdued" variant="bodySm">
-								Connect to LingoWP Cloud to enable AI
-								translation. Plans and your word balance become
-								available on the Account page once connected.
-							</Text>
-							<CloudDisclosure />
-							<Button variant="primary" onClick={ onConnect }>
-								Connect to LingoWP Cloud
-							</Button>
-						</BlockStack>
-					</Card>
-				</BlockStack>
-			)
-		}
-
 		return (
-			<BlockStack gap="200">
-				{ recoveryNotice }
-				<Card>
-					<BlockStack gap="100">
-						<Text as="span" variant="bodySm">
-							Free plan
-						</Text>
-						<Text
-							as="span"
-							tone={ aiAvailable ? 'subdued' : 'caution' }
-							variant="bodySm"
-						>
-							{ aiAvailable
-								? 'Usage shown after connect'
-								: unavailableCopy() }
-						</Text>
-					</BlockStack>
-				</Card>
-			</BlockStack>
+			<Card>
+				<BlockStack gap="100">
+					<Text as="span" variant="bodySm">
+						Free plan
+					</Text>
+					<Text
+						as="span"
+						tone={ aiAvailable ? 'subdued' : 'caution' }
+						variant="bodySm"
+					>
+						{ aiAvailable
+							? 'Usage shown after connect'
+							: unavailableCopy() }
+					</Text>
+				</BlockStack>
+			</Card>
 		)
 	}
 
@@ -138,32 +91,29 @@ export default function QuotaCard( {
 	const nearLimit = allowance > 0 && consumed / allowance >= 0.85
 
 	return (
-		<BlockStack gap="200">
-			{ recoveryNotice }
-			<Card>
-				<BlockStack gap="200">
-					<Text as="span" variant="headingSm">
-						{ plan ? formatPlanKey( plan ) : 'Plan & usage' }
+		<Card>
+			<BlockStack gap="200">
+				<Text as="span" variant="headingSm">
+					{ plan ? formatPlanKey( plan ) : 'Plan & usage' }
+				</Text>
+				<Text as="span" variant="bodySm">
+					{ consumed.toLocaleString() } /{ ' ' }
+					{ ( allowance ?? 0 ).toLocaleString() } words
+				</Text>
+				<ProgressBar
+					progress={ pct }
+					size="small"
+					tone={ nearLimit ? 'critical' : 'primary' }
+				/>
+				{ nearLimit && (
+					<Text as="span" tone="critical" variant="bodySm">
+						Near limit — upgrade to keep translating.
 					</Text>
-					<Text as="span" variant="bodySm">
-						{ consumed.toLocaleString() } /{ ' ' }
-						{ ( allowance ?? 0 ).toLocaleString() } words
-					</Text>
-					<ProgressBar
-						progress={ pct }
-						size="small"
-						tone={ nearLimit ? 'critical' : 'primary' }
-					/>
-					{ nearLimit && (
-						<Text as="span" tone="critical" variant="bodySm">
-							Near limit — upgrade to keep translating.
-						</Text>
-					) }
-					<Button variant="secondary" url={ cfg.account_url }>
-						Upgrade plan
-					</Button>
-				</BlockStack>
-			</Card>
-		</BlockStack>
+				) }
+				<Button variant="secondary" url={ cfg.account_url }>
+					Upgrade plan
+				</Button>
+			</BlockStack>
+		</Card>
 	)
 }

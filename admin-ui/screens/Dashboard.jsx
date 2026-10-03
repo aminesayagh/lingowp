@@ -60,7 +60,6 @@ import { useTranslateGettext } from '../queries/gettext'
 import { useEntitlements } from '../queries/billing'
 import {
 	useConfirmConnection,
-	useConnect,
 	useConnectionStatus,
 } from '../queries/connection'
 import {
@@ -351,7 +350,6 @@ export default function Dashboard( {
 	const connected = !! connectionQ.data?.connected
 	const entitlementsQ = useEntitlements( { enabled: connected } )
 	const providerKeysQ = useProviderKeys( { enabled: connected } )
-	const connectMut = useConnect()
 	const confirmConnectionMut = useConfirmConnection()
 	const patchLangMut = usePatchLanguage()
 	const deleteLangMut = useDeleteLanguage()
@@ -462,10 +460,6 @@ export default function Dashboard( {
 	const [ applyingProvider, setApplyingProvider ] = useState( null )
 	// True while the settings-popover "publish the ready ones" run is in flight.
 	const [ publishingReady, setPublishingReady ] = useState( false )
-	// A fresh connect also found a matching older licence and emailed its
-	// verified owner a reclaim link — this site already works either way,
-	// it's a non-blocking bonus notice, not a gate.
-	const [ recoveryAvailable, setRecoveryAvailable ] = useState( false )
 	// Optimistically false until entitlements load, so the AI buttons don't
 	// flash into their blocked state on first paint. Covers two distinct
 	// reasons platform AI is unusable (no subscription, or this site is past
@@ -803,26 +797,6 @@ export default function Dashboard( {
 			.catch( () => setConfirmToken( null ) )
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
 	}, [] )
-
-	// Explicit, user-initiated connect/reconnect — connect() never blocks or
-	// emails anything itself now: every success carries a working key. The
-	// mutation's onSuccess invalidates connection + entitlements + provider
-	// keys, so those re-sync on their own.
-	function handleConnect() {
-		connectMut.mutate( undefined, {
-			onSuccess: ( res ) => {
-				if ( res.ok ) {
-					setAi( { available: res.available, error: '' } )
-					setRecoveryAvailable( res.recoveryAvailable )
-					return
-				}
-				showToast(
-					'warning',
-					errorMessage( res.error || 'ERR_BACKEND' )
-				)
-			},
-		} )
-	}
 
 	// Row AI buttons route here instead of translating when billingBlocked —
 	// a toast the user can click straight through to Billing, rather than a
@@ -2515,11 +2489,6 @@ export default function Dashboard( {
 							aiError={ ai.error }
 							billingBlocked={ billingBlocked }
 							overSlot={ overSlot }
-							recoveryAvailable={ recoveryAvailable }
-							onDismissRecoveryNotice={ () =>
-								setRecoveryAvailable( false )
-							}
-							onConnect={ handleConnect }
 						/>
 					</div>
 				</div>

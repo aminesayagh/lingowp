@@ -43,6 +43,8 @@ class PluginDataCleanup
         'lingowp_cookie_preference',
         'lingowp_browser_detection',
         'lingowp_auto_redirect',
+        'lingowp_translate_slugs',
+        'lingowp_slug_map_version',
         // Source / target language state.
         'lingowp_source_locale',
         'lingowp_source_language',
@@ -82,6 +84,7 @@ class PluginDataCleanup
     private const TRANSIENT_PREFIXES = [
         'lingowp_gettext_percent_',
         'lingowp_gettext_pack_',
+        'lingowp_slug_map_',
     ];
 
     public static function run(\wpdb $wpdb): void

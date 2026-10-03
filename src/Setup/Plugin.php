@@ -24,6 +24,7 @@ use LingoWP\LocalizationRouting\LanguageLinks;
 use LingoWP\LocalizationRouting\LanguageSwitcherShortcode;
 use LingoWP\LocalizationRouting\SwitcherRenderer;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\LocalizationRouting\SlugMap;
 use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
 use LingoWP\Admin\PermalinkNotice;
 use LingoWP\Resolution\PublicLinkRewriter;
@@ -100,8 +101,8 @@ class Plugin
 
         (new PrivacyPolicyContent())->register();
 
-        [$languageRegistry, $languageResolver, $urlBuilder, $context] = $this->bootLanguage($wpdb);
-        $this->bootLocalizationRouting($languageResolver, $urlBuilder);
+        [$languageRegistry, $languageResolver, $urlBuilder, $context, $slugMap] = $this->bootLanguage($wpdb);
+        $this->bootLocalizationRouting($languageResolver, $urlBuilder, $slugMap);
 
         // Per-type repository over the parent/child tables.
         $sourceRepository = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
@@ -154,7 +155,8 @@ class Plugin
      * Language registry, the frozen-source-locale transition, and the
      * per-request resolver/url-builder/context every later phase depends on.
      *
-     * @return array{0: OptionLanguageRegistry, 1: ResolveRequestLanguage, 2: LocalizedUrlBuilder, 3: RequestContext}
+     * @return array{0: OptionLanguageRegistry, 1: ResolveRequestLanguage, 2: LocalizedUrlBuilder,
+     *   3: RequestContext, 4: SlugMap}
      */
     private function bootLanguage(\wpdb $wpdb): array
     {
@@ -176,19 +178,29 @@ class Plugin
         ))->register();
 
         $languageResolver = new ResolveRequestLanguage($languageRegistry);
-        $urlBuilder       = new LocalizedUrlBuilder($languageResolver);
+
+        // Translated path segments (/fr/a-propos/). Handed to the url builder,
+        // which gives every outgoing URL surface slug translation at once, and
+        // to LanguageRouteRegistrar for the incoming direction.
+        $slugMap = new SlugMap($wpdb, $languageRegistry);
+        $slugMap->register();
+
+        $urlBuilder       = new LocalizedUrlBuilder($languageResolver, $slugMap);
         $context          = new RequestContext();
 
-        return [$languageRegistry, $languageResolver, $urlBuilder, $context];
+        return [$languageRegistry, $languageResolver, $urlBuilder, $context, $slugMap];
     }
 
     /**
      * Language-prefixed permalinks, the language-links API (lingowp_get_language_links()),
      * the bundled switcher renderer, and the [lingowp_language_switcher] shortcode.
      */
-    private function bootLocalizationRouting(ResolveRequestLanguage $languageResolver, LocalizedUrlBuilder $urlBuilder): void
-    {
-        (new LanguageRouteRegistrar($languageResolver))->register();
+    private function bootLocalizationRouting(
+        ResolveRequestLanguage $languageResolver,
+        LocalizedUrlBuilder $urlBuilder,
+        SlugMap $slugMap
+    ): void {
+        (new LanguageRouteRegistrar($languageResolver, $slugMap))->register();
 
         // One producer of per-language link data, shared by the shortcode, the
         // renderer, and any theme calling the public functions.

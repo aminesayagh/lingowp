@@ -157,16 +157,20 @@ export default function Configuration( {
 				</Banner>
 			) }
 
+			{ /* Reads with the form, not with the buttons: the disclosure is
+			     something to take in while deciding, and the action row stays
+			     two plain choices. Only shown when connecting is on offer. */ }
+			{ cloudReachable && <CloudDisclosure /> }
+
 			{ cloudReachable ? (
 				<InlineStack align="end" blockAlign="center" gap="300">
-					<CloudDisclosure />
 					<Button
 						variant="tertiary"
 						loading={ activeAction === 'manual' }
 						disabled={ busy }
 						onClick={ submitManually }
 					>
-						Continue without connecting
+						Not now
 					</Button>
 					<Button
 						variant="primary"
@@ -174,7 +178,7 @@ export default function Configuration( {
 						disabled={ busy }
 						onClick={ connectAndSubmit }
 					>
-						Connect to LingoWP Cloud
+						Connect to LingoWP AI
 					</Button>
 				</InlineStack>
 			) : (

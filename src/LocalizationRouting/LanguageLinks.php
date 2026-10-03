@@ -119,8 +119,20 @@ class LanguageLinks
     private function baseRows(): array
     {
         $active = $this->resolver->resolve();
-        $uri    = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
-        $key    = md5($uri . '|' . $active);
+        // esc_url_raw, NOT sanitize_text_field: that one strips every
+        // percent-encoded octet in a loop (see wp-includes/formatting.php), so
+        // a non-Latin slug like /ar/%D8%B9%D9%86/ collapsed to /ar/-/ and every
+        // switcher href, hreflang target and redirect built from it pointed at
+        // the site root. esc_url_raw keeps %XX and still satisfies the input
+        // sanitization sniff.
+        $uri    = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+
+        // The slug-map generation is part of the key: these rows embed
+        // translated slugs, so a translation saved mid-request (or a batch
+        // process that saves and re-renders) would otherwise keep serving URLs
+        // built before the change. SlugMap's own memo is already generation-
+        // keyed; this cache sits in front of it and has to agree.
+        $key    = md5($uri . '|' . $active . '|' . SlugMap::version());
 
         if (isset($this->baseCache[$key])) {
             return $this->baseCache[$key];
@@ -203,7 +215,7 @@ class LanguageLinks
 
     private function currentPath(): string
     {
-        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
+        $uri  = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         return $path === '' ? '/' : $path;
@@ -211,7 +223,7 @@ class LanguageLinks
 
     private function currentQuery(): string
     {
-        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $uri   = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';

@@ -2,9 +2,9 @@ import { BlockStack, Text } from '@shopify/polaris'
 
 const cfg = window.LingoWP || {}
 
-// Terms · Privacy links that sit next to every "Connect to LingoWP Cloud"
-// button (onboarding, the workspace rail's QuotaCard). Connecting sends site
-// metadata to the cloud, so the disclosure travels with the button.
+// Terms · Privacy links for the one screen that offers to connect: onboarding
+// (Configuration.jsx). Connecting sends site metadata to the cloud, so the
+// disclosure travels with the offer — in the body, above the action row.
 export default function CloudDisclosure() {
 	if ( ! cfg.cloud_terms_url && ! cfg.cloud_privacy_url ) {
 		return null

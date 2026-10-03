@@ -38,17 +38,51 @@ class MultilingualRedirects
     public function register(): void
     {
         add_filter('wp_redirect', [$this, 'preserveLanguagePrefix'], 10, 2);
+
+        // Same transformation, one step earlier — see preserveLanguagePrefix()'s
+        // doc for why redirect_canonical needs it BEFORE wp_redirect does.
+        add_filter('redirect_canonical', [$this, 'preserveLanguagePrefix'], 10, 2);
+
         add_action('template_redirect', [$this, 'redirectMiscasedPrefix'], -10);
     }
 
     /**
+     * Re-express a same-site redirect target in the active language.
+     *
+     * Hooked on BOTH 'wp_redirect' and 'redirect_canonical', because the two
+     * are the same question asked at different moments and the answer — "this
+     * path, with the current language prefix" — is identical. Neither hook's
+     * second argument is used (a status code, and the requested URL).
+     *
+     * On 'redirect_canonical' this is not a cosmetic improvement, it fixes an
+     * infinite redirect loop. A paginated singular under a language prefix
+     * (/fr/my-post/2/, any post with a Page Break block) reaches
+     * canonical.php's "Post paging" branch, where core rebuilds the target from
+     * get_permalink() — which knows nothing about the prefix, this plugin
+     * having no post_link filter. Core compares its unprefixed /my-post/2/
+     * against the requested /fr/my-post/2/, finds them different, and redirects
+     * to a URL that the 'wp_redirect' pass below then turns back into
+     * /fr/my-post/2/: a 301 to the page we are already on, forever. Archive
+     * paging escapes it only because that branch rebuilds from the requested
+     * path, prefix included.
+     *
+     * Filtering the canonical URL itself ends it: core re-checks the filtered
+     * value against the requested URL ("Yes, again -- in case the filter
+     * aborted the request") and cancels when they match, which is exactly what
+     * a correctly-prefixed rebuild produces. A genuine canonicalization — a
+     * trailing slash, ?p=123, www enforcement — still proceeds, now with the
+     * prefix already right instead of patched afterwards.
+     *
+     * Idempotent, so running on both hooks in one request costs nothing: an
+     * already-correctly-prefixed path returns untouched.
+     *
      * @param mixed $location
-     * @param mixed $status
+     * @param mixed $unused    Status code (wp_redirect) or requested URL (redirect_canonical).
      * @return mixed
      */
-    public function preserveLanguagePrefix($location, $status)
+    public function preserveLanguagePrefix($location, $unused)
     {
-        unset($status);
+        unset($unused);
 
         if (!is_string($location) || $location === '') {
             return $location;
@@ -117,7 +151,13 @@ class MultilingualRedirects
             return;
         }
 
-        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        // esc_url_raw, NOT sanitize_text_field: that one strips every
+        // percent-encoded octet in a loop (see wp-includes/formatting.php), so
+        // a non-Latin slug like /ar/%D8%B9%D9%86/ collapsed to /ar/-/ and every
+        // switcher href, hreflang target and redirect built from it pointed at
+        // the site root. esc_url_raw keeps %XX and still satisfies the input
+        // sanitization sniff.
+        $uri  = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
         $trimmed = trim($path, '/');
         if ($trimmed === '') {

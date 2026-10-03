@@ -87,6 +87,10 @@ test_ok(
     'preserveLanguagePrefix is registered on wp_redirect',
     has_filter('wp_redirect', [$redirects, 'preserveLanguagePrefix']) !== false
 );
+test_ok(
+    'preserveLanguagePrefix is registered on redirect_canonical too',
+    has_filter('redirect_canonical', [$redirects, 'preserveLanguagePrefix']) !== false
+);
 
 // ── 2. Non-string input / default-language request: untouched ────────────────
 
@@ -228,5 +232,141 @@ test_ok(
     'a prefix that is not any enabled language at all needs no correction (null — normal 404 stands)',
     $plain->correctedPrefixSlug('xx') === null
 );
+
+// ── 7. redirect_canonical(): the paged-singular loop ─────────────────────────
+// The one case in this file that DOES drive core's own function, because the
+// bug being guarded is core's behavior, not ours: redirect_canonical() is
+// called with $do_redirect = false, so it returns its target instead of
+// exiting, which makes the loop observable without an HTTP round trip.
+//
+// The bug: a paginated singular under a language prefix (/zz/<slug>/2/, i.e.
+// any post with a Page Break block) reaches canonical.php's "Post paging"
+// branch, where core rebuilds the target from get_permalink() — prefix-blind,
+// since this plugin has no post_link filter. Core compares its unprefixed
+// /<slug>/2/ against the requested /zz/<slug>/2/, finds them different, and
+// redirects; the wp_redirect filter tested above then puts the prefix back,
+// producing a 301 to the page we are already on. Forever.
+//
+// Archive paging never had this: that branch rebuilds from the requested path,
+// prefix included (covered by language_url_it.php's '/zz/blog/page/3/').
+
+test_section('redirect_canonical(): paged singular under a prefix must not loop');
+
+global $wpdb, $wp_query;
+
+$pagedId = test_insert($wpdb->posts, [
+    'post_author'       => 1,
+    'post_date'         => current_time('mysql'),
+    'post_date_gmt'     => current_time('mysql'),
+    'post_content'      => 'page one<!--nextpage-->page two',
+    'post_title'        => 'Lingowp Test Paged',
+    'post_excerpt'      => '',
+    'post_status'       => 'publish',
+    'comment_status'    => 'closed',
+    'ping_status'       => 'closed',
+    'post_name'         => 'lingowp-test-paged',
+    'post_modified'     => current_time('mysql'),
+    'post_modified_gmt' => current_time('mysql'),
+    'post_parent'       => 0,
+    'guid'              => '',
+    'menu_order'        => 0,
+    'post_type'         => 'post',
+    'comment_count'     => 0,
+]);
+
+// Page 2 of that post, as the rewrite rules would have parsed it. Built from
+// get_permalink() rather than hardcoded, so the case holds under any
+// permalink structure.
+$permalinkPath = (string) wp_parse_url(get_permalink($pagedId), PHP_URL_PATH);
+$pagedPath     = trailingslashit($permalinkPath) . user_trailingslashit(2, 'single_paged');
+
+$prefixer      = new LocalizedUrlBuilder(new ResolveRequestLanguage($registry));
+$requestedUrl  = home_url($prefixer->addPrefix($pagedPath, 'zz_ZZ'));
+
+$restoreQuery           = $wp_query;
+$restoreUri             = $_SERVER['REQUEST_URI'] ?? '';
+$_SERVER['REQUEST_URI'] = (string) wp_parse_url($requestedUrl, PHP_URL_PATH);
+
+// Main-query state the "Post paging" branch keys off: a found singular with
+// get_query_var('page') set.
+$wp_query            = new WP_Query(['p' => $pagedId, 'page' => 2]);
+$GLOBALS['wp_query'] = $wp_query;
+
+// AFTER installing the query, not before: set_query_var() writes into the
+// global $wp_query, so replacing that object would discard the language var
+// that ResolveRequestLanguage::isTranslatedRequest() reads.
+set_query_var('lingowp_lang', 'zz_ZZ');
+
+test_ok(
+    'fixture is a found, paginated singular',
+    $wp_query->is_singular() && (int) get_query_var('page') === 2 && get_queried_object_id() === $pagedId,
+    'singular=' . var_export($wp_query->is_singular(), true)
+        . ' page=' . var_export(get_query_var('page'), true)
+        . ' id=' . get_queried_object_id() . ' expected=' . $pagedId
+);
+
+// First, core ALONE: detach every redirect_canonical callback, the plugin's own
+// included — Plugin::boot() registers one on every request, this WP-CLI process
+// among them, so removing only a locally-built instance would leave the real
+// one answering and the "unfiltered" baseline would silently measure the fix
+// instead of the bug. This half is the regression guard: if core ever stops
+// dropping the prefix here, the fix below is dead weight and should be
+// revisited.
+$savedHook = $GLOBALS['wp_filter']['redirect_canonical'] ?? null;
+unset($GLOBALS['wp_filter']['redirect_canonical']);
+
+$unfiltered = redirect_canonical($requestedUrl, false);
+
+if ($savedHook !== null) {
+    $GLOBALS['wp_filter']['redirect_canonical'] = $savedHook;
+}
+
+test_ok(
+    'core alone wants to redirect away from the prefixed URL',
+    is_string($unfiltered) && $unfiltered !== $requestedUrl,
+    var_export($unfiltered, true)
+);
+test_ok(
+    "core's target has lost the /zz/ prefix (this is the loop)",
+    is_string($unfiltered) && !str_contains($unfiltered, '/zz/'),
+    var_export($unfiltered, true)
+);
+
+// Now with the filter restored — the one register() actually wired at boot, not
+// a test-local copy: the rebuilt target equals the requested URL, so core
+// cancels the redirect itself ("Yes, again -- in case the filter aborted the
+// request") and the page renders.
+
+test_ok(
+    'with the filter, no redirect is issued at all',
+    redirect_canonical($requestedUrl, false) === null,
+    var_export(redirect_canonical($requestedUrl, false), true)
+);
+
+// And the fix must not disable canonicalization wholesale: a genuinely
+// non-canonical URL (page 2 without its trailing slash, on a trailing-slash
+// permalink structure) still redirects — now with the prefix intact.
+if (substr($pagedPath, -1) === '/') {
+    $unslashedUrl = home_url(untrailingslashit($prefixer->addPrefix($pagedPath, 'zz_ZZ')));
+    $_SERVER['REQUEST_URI'] = (string) wp_parse_url($unslashedUrl, PHP_URL_PATH);
+
+    $fixedUp = redirect_canonical($unslashedUrl, false);
+
+    test_ok(
+        'a real canonicalization still happens',
+        is_string($fixedUp) && $fixedUp !== $unslashedUrl,
+        var_export($fixedUp, true)
+    );
+    test_ok(
+        'and it keeps the /zz/ prefix',
+        is_string($fixedUp) && str_contains($fixedUp, '/zz/'),
+        var_export($fixedUp, true)
+    );
+}
+
+$wp_query               = $restoreQuery;
+$GLOBALS['wp_query']    = $restoreQuery;
+$_SERVER['REQUEST_URI'] = $restoreUri;
+set_query_var('lingowp_lang', '');
 
 test_done();

@@ -160,7 +160,13 @@ class HreflangPresenter
      */
     private function currentBasePath(): string
     {
-        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
+        // esc_url_raw, NOT sanitize_text_field: that one strips every
+        // percent-encoded octet in a loop (see wp-includes/formatting.php), so
+        // a non-Latin slug like /ar/%D8%B9%D9%86/ collapsed to /ar/-/ and every
+        // switcher href, hreflang target and redirect built from it pointed at
+        // the site root. esc_url_raw keeps %XX and still satisfies the input
+        // sanitization sniff.
+        $uri  = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         if ($path === '') {
@@ -172,7 +178,7 @@ class HreflangPresenter
 
     private function currentQuery(): string
     {
-        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $uri   = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';
