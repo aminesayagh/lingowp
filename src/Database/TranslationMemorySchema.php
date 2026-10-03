@@ -1,33 +1,45 @@
 <?php
 
-namespace TransLangs\Database;
+namespace LingoWP\Database;
 
-use TransLangs\Database\ConstraintVerifier;
-use TransLangs\Database\SchemaFailure;
-use TransLangs\Database\TableDefinitions;
+use LingoWP\Database\ConstraintVerifier;
+use LingoWP\Database\SchemaFailure;
+use LingoWP\Database\TableDefinitions;
 
 /**
- * Schema orchestrator — install, verify, and version-gate the v5 TransLangs tables.
+ * Schema orchestrator — install, verify, and version-gate the LingoWP tables.
  *
- * v5 splits the single packed table into ten content tables: five readable
- * PARENT source tables and five CHILD per-language translation tables. Created
- * with raw DDL — never dbDelta() (D13). Parent engines are checked first (§10)
- * and every FK is verified after creation; version is bumped only once
- * verification passes. There is no data migration here: pre-existing tables are
- * assumed dropped out of band, and CREATE TABLE IF NOT EXISTS is idempotent.
+ * Fourteen content tables: seven readable PARENT source tables and seven CHILD
+ * per-language translation tables. Created with raw DDL — never dbDelta().
+ * Parent engines are checked first, and every FK is verified after creation;
+ * version is bumped only once verification passes. There is no data migration
+ * here: pre-existing tables are assumed dropped out of band, and
+ * CREATE TABLE IF NOT EXISTS is idempotent.
+ *
+ * A fifteenth table, gettext_unit, is created alongside these but is
+ * deliberately NOT part of the fourteen-table parent/child model above: no
+ * FK, no per-language child (translated text stays in `.mo` files), and not
+ * registered in HASH_LINK_CHILDREN/PARENT_ID_CHILD_FKS, so it stays invisible
+ * to those two constants' generic child-table-creation loops and to
+ * WpDbBoardQueries::languageProgress()'s summation over them. See
+ * TableDefinitions::gettextUnit()'s own doc.
  */
 class TranslationMemorySchema
 {
-    public const DB_VERSION        = '23';
-    public const OPTION_DB_VERSION = 'translangs_db_version';
+    public const DB_VERSION        = '6';
+    public const OPTION_DB_VERSION = 'lingowp_db_version';
 
-    /** Hash-link children (post/term/html/option): keyed (original_hash, lang_code), no FK. */
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
-    public const HASH_LINK_CHILDREN = ['tl_post', 'tl_term', 'tl_html', 'tl_option'];
+    public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option', 'user'];
 
-    /** parent_id children (meta): FK constraint name => parent table key. */
-    private const PARENT_ID_CHILD_FKS = [
-        'fk_meta_tr_parent' => 'tl_meta',
+    /**
+     * parent_id children (meta, term_meta): FK constraint name => parent table key.
+     * Public (like HASH_LINK_CHILDREN): WpDbSourceRepository loops over its values
+     * to stay generic across every parent_id table, not just 'meta'.
+     */
+    public const PARENT_ID_CHILD_FKS = [
+        'fk_meta_tr_parent'      => 'meta',
+        'fk_term_meta_tr_parent' => 'term_meta',
     ];
 
     public static function maybeUpgrade(): void
@@ -43,11 +55,11 @@ class TranslationMemorySchema
     }
 
     /**
-     * Full install: verify parent engines → create five parents → create five
-     * children → verify every FK → bump version.
+     * Full install: verify parent engines → create seven parents → create
+     * seven children → verify every FK → bump version.
      *
      * @throws SchemaFailure if a WordPress parent table is not InnoDB, or if any
-     *                       FK constraint is absent after creation. Created v5
+     *                       FK constraint is absent after creation. Created
      *                       tables are dropped before throwing on FK failure.
      */
     public static function install(): void
@@ -55,30 +67,27 @@ class TranslationMemorySchema
         global $wpdb;
 
         self::assertParentTablesAreInnoDB();
-        self::dropStaleOptionTables();
 
         $cc = $wpdb->get_charset_collate();
         $p  = self::parentTables();
 
-        // 1. Create the five parent tables first — they are the child FK targets.
-        // wp_tl_static_text / wp_tl_static_plural_text are deliberately NOT created
-        // here anymore: gettext is now resolved from WordPress-native translation
-        // files (see GettextResolver), and those two tables are legacy — kept
-        // as-is (not dropped) on sites that already have them, never created fresh.
-        $wpdb->query(TableDefinitions::post($p['tl_post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::meta($p['tl_meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::term($p['tl_term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::html($p['tl_html'], $cc));                                       // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::option($p['tl_option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
+        // 1. Create the seven parent tables first — they are the child FK targets.
+        $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::html($p['html'], $cc));                                       // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::user($p['user'], $wpdb->users, $cc));                         // phpcs:ignore WordPress.DB
+        $wpdb->query(TableDefinitions::termMeta($p['term_meta'], $wpdb->terms, $cc));                // phpcs:ignore WordPress.DB
 
-        // 2a. Hash-link children (post/term/html): keyed by original_hash, no FK.
+        // 2a. Hash-link children (post/term/html/option/user): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::hashLinkTranslation($p[$parentKey] . '_translation', $cc)
             );
         }
 
-        // 2b. parent_id children (meta): FK'd back to their parent id.
+        // 2b. parent_id children (meta, term_meta): FK'd back to their parent id.
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::parentIdTranslation(
@@ -90,17 +99,10 @@ class TranslationMemorySchema
             );
         }
 
-        // 2c. Upgrade path: an existing wp_tl_html (pre-v21) lacks last_seen_at.
-        self::migrateHtmlLastSeenAt();
-
-        // 2d. Upgrade path: an existing wp_tl_html (pre-v22) is keyed
-        // (selector_hash, original_hash) instead of original_hash alone.
-        self::migrateHtmlIdentityToHashOnly();
-
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
         $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
 
-        // 4. On any missing FK: drop v5 tables (children first), then fail.
+        // 4. On any missing FK: drop the tables (children first), then fail.
         if ($missing !== []) {
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
                 $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
@@ -112,8 +114,186 @@ class TranslationMemorySchema
             throw SchemaFailure::missingForeignKeys($missing);
         }
 
-        // 5. Version is written only after verification passes.
+        // 5. Gettext source-string tracking (Plugins & Themes board) — no FK,
+        // no per-language child, deliberately outside the FK chain verified
+        // above so it never participates in that rollback. On the < 6 upgrade
+        // the table is dropped and rebuilt (adds the ai_* columns); manual
+        // ignores are snapshotted and re-seeded there. Then fold any
+        // pre-existing ignored-units option data into it, once.
+        self::migrateGettextUnitV6($cc);
+        $wpdb->query(TableDefinitions::gettextUnit(self::gettextUnitTable(), $cc)); // phpcs:ignore WordPress.DB
+        self::migrateGettextIgnoredUnits();
+
+        // 6. Version is written only after verification passes.
         update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
+    }
+
+    /**
+     * One-time, idempotent fold of the old per-locale JSON option
+     * (lingowp_gettext_ignored_units, written by the now-removed
+     * GettextIgnoredUnitsStore) into gettext_unit rows. Reads the option
+     * directly rather than depending on that deleted class.
+     *
+     * Ignore status is global per string in the new table (not per locale,
+     * see gettextUnit()'s doc), so entries for the same string ignored in
+     * different locales are unioned — a one-way migration should never
+     * silently un-hide something a translator explicitly hid.
+     *
+     * Runs before any real source scan for these domains: unit_hash matches
+     * the old store's own key format exactly (context."\x04".msgid, or bare
+     * msgid), so a later scan's ON DUPLICATE KEY UPDATE (which never touches
+     * status) finds these rows by hash and leaves them ignored.
+     */
+    /**
+     * DB_VERSION 5 → 6: the gettext_unit table grew ai_* / norm_hash columns
+     * for the async "Translate All" queue. This codebase has no ALTER TABLE
+     * path (schema changes are drop + recreate), so the table is dropped and
+     * TableDefinitions::gettextUnit() (with the new columns) recreates it in
+     * step 5. Two things must survive the drop:
+     *   - manual ignores (status = -1) — after the v5 migration these live
+     *     ONLY in this table, so they are snapshotted by hash and re-seeded
+     *     (the first real rescan's ON DUPLICATE KEY UPDATE fills in msgid and
+     *     leaves status = -1, same trick migrateGettextIgnoredUnits() uses);
+     *   - the "which domains were scanned" option is cleared so every
+     *     component re-scans its now-empty source rows on the next board read.
+     * No-ops on a fresh install (table absent) or once already on 6+.
+     */
+    private static function migrateGettextUnitV6(string $charsetCollate): void
+    {
+        global $wpdb;
+
+        if (version_compare((string) get_option(self::OPTION_DB_VERSION, '0'), '6', '>=')) {
+            return;
+        }
+
+        $table = self::gettextUnitTable();
+
+        $exists = (bool) $wpdb->get_var($wpdb->prepare(
+            'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s',
+            DB_NAME,
+            $table
+        ));
+        if (! $exists) {
+            return;
+        }
+
+        $hasNormHash = (bool) $wpdb->get_var($wpdb->prepare(
+            'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s',
+            DB_NAME,
+            $table,
+            'norm_hash'
+        ));
+        if ($hasNormHash) {
+            return;
+        }
+
+        // msgid/context are snapshotted too, not just the hash — bulkUpsert()'s
+        // later ON DUPLICATE KEY UPDATE only ever touches last_seen_at/updated_at
+        // (deliberately, so a real rescan never overwrites status), so a blank
+        // msgid inserted here would stay blank forever instead of being filled
+        // in by that rescan.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery -- table name only, from the schema map
+        $ignored = (array) $wpdb->get_results("SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM {$table} WHERE status = -1", ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
+
+        // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
+        $wpdb->query("DROP TABLE IF EXISTS {$table}"); // phpcs:ignore WordPress.DB -- table name only
+        $wpdb->query(TableDefinitions::gettextUnit($table, $charsetCollate)); // phpcs:ignore WordPress.DB
+
+        $now = current_time('mysql', true);
+        foreach ($ignored as $row) {
+            if (! isset($row['type'], $row['domain'], $row['h'])) {
+                continue;
+            }
+            $context = $row['context'] !== null && $row['context'] !== '' ? (string) $row['context'] : null;
+            // %s can't carry a real NULL through wpdb::prepare() (it casts to
+            // ''), so — same as bulkUpsert() above — the column is a literal
+            // NULL in the SQL text when there's no context, never a bound arg.
+            $args = [(string) $row['type'], (string) $row['domain'], (string) $row['h'], (string) $row['msgid']];
+            if ($context !== null) {
+                $args[] = $context;
+            }
+            $args[] = $now;
+            $args[] = $now;
+            $wpdb->query($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name only
+                "INSERT INTO {$table} (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
+                 VALUES (%s, %s, UNHEX(%s), %s, " . ($context === null ? 'NULL' : '%s') . ", -1, %s, %s)
+                 ON DUPLICATE KEY UPDATE status = -1",
+                ...$args
+            ));
+        }
+
+        delete_option('lingowp_gettext_scanned_domains');
+    }
+
+    private static function migrateGettextIgnoredUnits(): void
+    {
+        global $wpdb;
+
+        $raw = json_decode((string) get_option('lingowp_gettext_ignored_units', '{}'), true);
+        if (! is_array($raw) || $raw === []) {
+            delete_option('lingowp_gettext_ignored_units');
+            return;
+        }
+
+        $table = self::gettextUnitTable();
+        $now   = current_time('mysql', true);
+
+        // Union across locales: type:domain => Set of unitKey (bare msgid, or
+        // context."\x04".msgid — same shape the old store used).
+        $unioned = [];
+        foreach ($raw as $groupKey => $unitKeys) {
+            $parts = explode(':', (string) $groupKey, 3);
+            if (count($parts) !== 3 || ! is_array($unitKeys)) {
+                continue;
+            }
+            [$type, $domain] = $parts;
+            $unioned[$type . ':' . $domain] ??= [];
+            foreach ($unitKeys as $unitKey) {
+                $unioned[$type . ':' . $domain][(string) $unitKey] = true;
+            }
+        }
+
+        foreach ($unioned as $typeDomain => $unitKeys) {
+            [$type, $domain] = explode(':', $typeDomain, 2);
+
+            foreach (array_keys($unitKeys) as $unitKey) {
+                $sep = strpos($unitKey, "\x04");
+                if ($sep === false) {
+                    $msgid   = $unitKey;
+                    $context = null;
+                } else {
+                    $context = substr($unitKey, 0, $sep);
+                    $msgid   = substr($unitKey, $sep + 1);
+                }
+
+                $hash = hash('sha256', $context !== null && $context !== ''
+                    ? $context . "\x04" . $msgid
+                    : $msgid, true);
+
+                // Same NULL-literal-vs-placeholder convention as
+                // WpDbSourceRepository::saveTranslationByHash() — $wpdb->prepare()
+                // has no clean way to bind a literal SQL NULL through %s.
+                $contextExpr = $context === null ? 'NULL' : '%s';
+                $args        = [$type, $domain, bin2hex($hash), $msgid];
+                if ($context !== null) {
+                    $args[] = $context;
+                }
+                $args[] = $now;
+                $args[] = $now;
+
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+                $wpdb->query($wpdb->prepare(
+                    "INSERT INTO {$table}
+                        (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
+                     VALUES (%s, %s, UNHEX(%s), %s, {$contextExpr}, -1, %s, %s)
+                     ON DUPLICATE KEY UPDATE status = -1, updated_at = VALUES(updated_at)",
+                    ...$args
+                ));
+            }
+        }
+
+        delete_option('lingowp_gettext_ignored_units');
     }
 
     /**
@@ -126,10 +306,12 @@ class TranslationMemorySchema
     {
         $p        = self::parentTables();
         $expected = [
-            'fk_post_owner'   => $p['tl_post'],
-            'fk_meta_owner'   => $p['tl_meta'],
-            'fk_term_owner'   => $p['tl_term'],
-            'fk_option_owner' => $p['tl_option'],
+            'fk_post_owner'      => $p['post'],
+            'fk_meta_owner'      => $p['meta'],
+            'fk_term_owner'      => $p['term'],
+            'fk_option_owner'    => $p['option'],
+            'fk_user_owner'      => $p['user'],
+            'fk_term_meta_owner' => $p['term_meta'],
         ];
 
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
@@ -140,127 +322,22 @@ class TranslationMemorySchema
     }
 
     /**
-     * Abort before creating tables if wp_posts, wp_term_taxonomy or wp_options
-     * is not InnoDB — the FK chain that makes translation orphans impossible
-     * cannot be built otherwise (§10). Throws a human-readable SchemaFailure.
+     * Abort before creating tables if wp_posts, wp_term_taxonomy, wp_options,
+     * wp_users or wp_terms is not InnoDB — the FK chain that makes translation
+     * orphans impossible cannot be built otherwise (§10). Throws a
+     * human-readable SchemaFailure.
      */
     private static function assertParentTablesAreInnoDB(): void
     {
         global $wpdb;
 
-        foreach ([$wpdb->posts, $wpdb->term_taxonomy, $wpdb->options] as $table) {
+        foreach ([$wpdb->posts, $wpdb->term_taxonomy, $wpdb->options, $wpdb->users, $wpdb->terms] as $table) {
             $engine = self::engineOf($table);
 
             if ($engine !== null && strtoupper($engine) !== 'INNODB') {
                 throw SchemaFailure::parentNotInnoDB($table, $engine);
             }
         }
-    }
-
-    /**
-     * One-time migration: tl_option's child switched from the parent_id model to
-     * hash-link. CREATE TABLE IF NOT EXISTS cannot reshape an existing table, so
-     * if the child still carries the old `parent_id` column, drop both option
-     * tables (child first for the FK) and let the install recreate them in the
-     * current hash-link shape. Guarded — it never touches a correct table.
-     */
-    private static function dropStaleOptionTables(): void
-    {
-        global $wpdb;
-
-        $child = $wpdb->prefix . 'tl_option_translation';
-
-        $hasParentId = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'parent_id'",
-                $child
-            )
-        );
-
-        if ($hasParentId === 'parent_id') {
-            $wpdb->query('DROP TABLE IF EXISTS ' . $child);                       // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'tl_option');  // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-        }
-    }
-
-    /**
-     * Add last_seen_at to an existing wp_tl_html (pre-v21). Guarded by an
-     * information_schema column check so it never re-runs or touches a freshly
-     * created table (which already has the column via TableDefinitions::html()).
-     * Existing rows get NULL, which the staleness query never matches — nothing
-     * is retroactively flagged stale on upgrade day (see HtmlDiscovery, the html
-     * repository staleness methods).
-     */
-    private static function migrateHtmlLastSeenAt(): void
-    {
-        global $wpdb;
-
-        $table = self::parentTables()['tl_html'];
-
-        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'last_seen_at'",
-                $table
-            )
-        );
-
-        if ($hasColumn === 'last_seen_at') {
-            return;
-        }
-
-        $wpdb->query("ALTER TABLE {$table} ADD COLUMN last_seen_at datetime NULL"); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-    }
-
-    /**
-     * Collapse an existing wp_tl_html (pre-v22) from identity
-     * (selector_hash, original_hash) to original_hash alone. The same text at
-     * two DOM locations used to mint two parent rows sharing one translation
-     * (the child table was always keyed by original_hash alone) — cluttering
-     * the flat html:all board without ever producing a second translation, so
-     * collapsing the parent identity loses nothing translation-wise.
-     *
-     * Guarded by an information_schema column check so it never re-runs or
-     * touches a freshly created table (which is already original_hash-only
-     * via TableDefinitions::html()). Existing duplicates are deduped — lowest
-     * id per original_hash kept — before the unique key is rebuilt, since
-     * MySQL would otherwise reject a UNIQUE KEY the current duplicate rows
-     * already violate.
-     */
-    private static function migrateHtmlIdentityToHashOnly(): void
-    {
-        global $wpdb;
-
-        $table = self::parentTables()['tl_html'];
-
-        $hasColumn = $wpdb->get_var( // phpcs:ignore WordPress.DB
-            $wpdb->prepare(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'selector_hash'",
-                $table
-            )
-        );
-
-        if ($hasColumn !== 'selector_hash') {
-            return;
-        }
-
-        // Keep the earliest row per original_hash; later duplicates are pure
-        // location clutter now that the parent identity is hash-only.
-        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            "DELETE p1 FROM {$table} p1
-                INNER JOIN {$table} p2
-                    ON p2.original_hash = p1.original_hash AND p2.id < p1.id"
-        );
-
-        $wpdb->query( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            "ALTER TABLE {$table}
-                DROP INDEX uniq_source,
-                DROP INDEX idx_hash,
-                DROP COLUMN selector_hash,
-                ADD UNIQUE KEY uniq_source (original_hash)"
-        );
     }
 
     /** Storage engine of one table per information_schema, or null if unknown. */
@@ -281,82 +358,59 @@ class TranslationMemorySchema
 
     /**
      * Set behavior options on first activation only (add_option is a no-op if they exist).
-     * The source language is captured ONCE here (v5 §1.1): the normalized site
-     * locale is frozen into translangs_source_locale so runtime never reads the
+     * The reciprocal delete lives in PluginDataCleanup::OPTIONS (shared by
+     * uninstall.php and the reset button).
+     * The source language is captured ONCE here: the normalized site
+     * locale is frozen into lingowp_source_locale so runtime never reads the
      * filtered, mid-request-switchable get_locale().
      */
     public static function setDefaultOptions(): void
     {
-        add_option('translangs_enabled_languages', []);
-        add_option('translangs_prefix_default_language', false);
-        add_option('translangs_cookie_preference', true);
-        add_option('translangs_browser_detection', false);
-        add_option('translangs_auto_redirect', false);
+        add_option('lingowp_enabled_languages', []);
+        add_option('lingowp_prefix_default_language', false);
+        add_option('lingowp_cookie_preference', true);
+        add_option('lingowp_browser_detection', false);
+        add_option('lingowp_auto_redirect', false);
+        add_option(\LingoWP\LocalizationRouting\SlugMap::OPTION_ENABLED, false);
 
         // Onboarding: not yet completed. Credentials (token/site_id) are written on
         // connect with autoload=false and are deliberately not seeded here.
-        add_option(\TransLangs\Api\ConnectionRepository::OPTION_COMPLETED, false);
-        add_option(\TransLangs\Api\SiteMetadataProvider::OPTION_CATEGORIES, []);
-        add_option(\TransLangs\Language\Infrastructure\LanguageMetadataStore::OPTION, []);
+        add_option(\LingoWP\Backend\ConnectionRepository::OPTION_COMPLETED, false);
+        add_option(\LingoWP\Backend\SiteMetadataProvider::OPTION_CATEGORIES, []);
+        add_option(\LingoWP\Language\Infrastructure\LanguageMetadataStore::OPTION, []);
 
         add_option(
-            \TransLangs\Language\Infrastructure\OptionLanguageRegistry::OPTION_SOURCE_LOCALE,
-            \TransLangs\Language\Domain\LocaleNormalizer::current()
+            \LingoWP\Language\Infrastructure\OptionLanguageRegistry::OPTION_SOURCE_LOCALE,
+            \LingoWP\Language\Domain\LocaleNormalizer::current()
         );
 
         // Capture a stable, readable label alongside the frozen source locale.
         // The workspace can continue displaying the original language correctly
         // even if WordPress's WPLANG option changes later.
-        (new \TransLangs\Language\Infrastructure\OptionLanguageRegistry())
+        (new \LingoWP\Language\Infrastructure\OptionLanguageRegistry())
             ->getDefaultLanguageDetails();
     }
 
     // ── Table name helpers ────────────────────────────────────────────────────
 
-    /** The five prefixed parent table names, keyed by their unprefixed suffix. */
+    /** The seven prefixed parent table names, keyed by their unprefixed suffix. */
     public static function parentTables(): array
     {
         global $wpdb;
 
         return [
-            'tl_post'   => $wpdb->prefix . 'tl_post',
-            'tl_meta'   => $wpdb->prefix . 'tl_meta',
-            'tl_term'   => $wpdb->prefix . 'tl_term',
-            'tl_html'   => $wpdb->prefix . 'tl_html',
-            'tl_option' => $wpdb->prefix . 'tl_option',
+            'post'      => $wpdb->prefix . 'lingowp_post',
+            'meta'      => $wpdb->prefix . 'lingowp_meta',
+            'term'      => $wpdb->prefix . 'lingowp_term',
+            'html'      => $wpdb->prefix . 'lingowp_html',
+            'option'    => $wpdb->prefix . 'lingowp_option',
+            'user'      => $wpdb->prefix . 'lingowp_user',
+            'term_meta' => $wpdb->prefix . 'lingowp_term_meta',
         ];
     }
 
-    /**
-     * wp_tl_static_text — the gettext source table. No longer created for
-     * fresh installs (gettext is resolved from WordPress-native translation
-     * files now, see GettextResolver) and kept OUT of parentTables(): it is
-     * not part of the managed/verified schema anymore. This name-only helper
-     * exists purely for legacy reads (the Plugins & Themes board, still
-     * showing whatever was captured before the pivot) and the dev-only reset
-     * tool — both must still be able to name the table without it being
-     * created, verified, or migrated.
-     */
-    public static function legacyStaticTextTable(): string
-    {
-        global $wpdb;
 
-        return $wpdb->prefix . 'tl_static_text';
-    }
-
-    /**
-     * The gettext plural parent table (wp_tl_static_plural_text). Same legacy
-     * status as legacyStaticTextTable() — kept OUT of parentTables() and no
-     * longer created/verified, name-only helper for the dev reset tool.
-     */
-    public static function pluralTable(): string
-    {
-        global $wpdb;
-
-        return $wpdb->prefix . 'tl_static_plural_text';
-    }
-
-    /** The five prefixed child (translation) table names, keyed by parent suffix. */
+    /** The seven prefixed child (translation) table names, keyed by parent suffix. */
     public static function childTables(): array
     {
         $children = [];
@@ -366,4 +420,41 @@ class TranslationMemorySchema
 
         return $children;
     }
+
+    /**
+     * The gettext_unit table name — kept out of parentTables()/childTables()
+     * on purpose, since those two maps exist to drive the generic hash-link/
+     * parent_id child-table machinery this table deliberately isn't part of.
+     */
+    public static function gettextUnitTable(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'lingowp_gettext_unit';
+    }
+
+    /**
+     * Reset-button tool: drop every LingoWP table, children before parents
+     * (FK-safe, same order as uninstall.php's DROP), plus gettext_unit (no
+     * FK, so its position relative to the rest doesn't matter).
+     */
+    public static function dropAllTables(\wpdb $wpdb): void
+    {
+        // array_values: childTables() and parentTables() share the same string
+        // keys (post, meta, …), so unpacking them directly makes the parent
+        // entries overwrite the children and no *_translation table is ever
+        // dropped — plus the two parent_id parents then survive on their child
+        // FK. Re-index to plain lists first.
+        $tables = [
+            ...array_values(self::childTables()),
+            ...array_values(self::parentTables()),
+            self::gettextUnitTable(),
+        ];
+
+        foreach ($tables as $table) {
+            // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
+            $wpdb->query('DROP TABLE IF EXISTS ' . $table);
+        }
+    }
+
 }

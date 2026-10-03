@@ -1,0 +1,84 @@
+<?php
+
+namespace LingoWP\Shared\Source\Type;
+use LingoWP\Shared\Source\SourceRecord;
+
+use InvalidArgumentException;
+
+/**
+ * User source: an arbitrary translatable user field, keyed by (user_id, field).
+ * `description` (the author bio) is the only default field; an add-on extends
+ * this via the `lingowp_user_source_fields` filter — kept as a filterable
+ * list (rather than folded into the identity shape) so a second field could
+ * be added later without a schema change.
+ *
+ * A caller adding a field here must also make sure it's actually discovered:
+ * StructuredSourceScanner::refreshUser() loops allowedFields() and reconciles
+ * them all together in one reconcileUser() call, since that call scopes by
+ * user_id alone (not per field) — an independent reconcile for just one
+ * field would silently delete every other field's translation.
+ */
+final class UserSource extends SourceRecord
+{
+    private const FIELDS = ['description'];
+
+    private int    $userId;
+    private string $field;
+    private string $text;
+
+    public function __construct(
+        int    $userId,
+        string $field,
+        string $text
+    ) {
+        $this->userId = $userId;
+        $this->field  = $field;
+        $this->text   = $text;
+
+        if ($userId <= 0) {
+            throw new InvalidArgumentException('UserSource: user_id must be positive.');
+        }
+        if (!in_array($field, self::allowedFields(), true)) {
+            throw new InvalidArgumentException("UserSource: unsupported field '{$field}'.");
+        }
+    }
+
+    /**
+     * @return string[]
+     */
+    public static function allowedFields(): array
+    {
+        $fields = function_exists('apply_filters')
+            ? apply_filters('lingowp_user_source_fields', self::FIELDS)
+            : self::FIELDS;
+
+        return array_values(array_filter(
+            array_map('strval', is_array($fields) ? $fields : self::FIELDS),
+            static fn(string $field): bool => $field !== ''
+        ));
+    }
+
+    public function field(): string
+    {
+        return $this->field;
+    }
+
+    public function table(): string
+    {
+        return 'user';
+    }
+
+    public function originalText(): string
+    {
+        return $this->text;
+    }
+
+    public function identity(): array
+    {
+        return [
+            'user_id'       => $this->userId,
+            'field'         => $this->field,
+            'original_hash' => $this->originalHash(),
+        ];
+    }
+}

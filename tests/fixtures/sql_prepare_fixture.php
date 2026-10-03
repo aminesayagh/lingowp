@@ -53,7 +53,7 @@ class TlSemgrepSqlFixture
 }
 
 // GOOD: global $wpdb, the form used by tests/db/*.php.
-function tl_fixture_global_prepared(string $schema): mixed
+function test_fixture_global_prepared(string $schema): mixed
 {
     global $wpdb;
 
@@ -64,7 +64,7 @@ function tl_fixture_global_prepared(string $schema): mixed
 }
 
 // GOOD: global $wpdb, multi-arg prepare with a concatenated placeholder value.
-function tl_fixture_global_prepared_concat(string $schema): mixed
+function test_fixture_global_prepared_concat(string $schema): mixed
 {
     global $wpdb;
 

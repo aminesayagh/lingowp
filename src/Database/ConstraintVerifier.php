@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Database;
+namespace LingoWP\Database;
 
 /**
  * Verifies that FK constraints actually exist in information_schema after table creation.
@@ -11,7 +11,12 @@ namespace TransLangs\Database;
  */
 final class ConstraintVerifier
 {
-    public function __construct(private \wpdb $wpdb) {}
+    private \wpdb $wpdb;
+
+    public function __construct(\wpdb $wpdb)
+    {
+        $this->wpdb = $wpdb;
+    }
 
     /**
      * Returns constraint names from $expected that are absent in information_schema.
@@ -40,14 +45,6 @@ final class ConstraintVerifier
             ARRAY_A
         );
 
-        $found = [];
-        foreach ($rows as $row) {
-            $found[(string) $row['CONSTRAINT_NAME']] = true;
-        }
-
-        return array_values(array_filter(
-            array_keys($expected),
-            fn(string $name): bool => !isset($found[$name])
-        ));
+        return array_values(array_diff(array_keys($expected), array_column($rows, 'CONSTRAINT_NAME')));
     }
 }

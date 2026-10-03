@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<ruleset name="TransLangs Security">
+<ruleset name="LingoWP Security">
 	<description>Security sniffs only. Style/formatting is deliberately out of scope.</description>
 
-	<file>translangs.php</file>
+	<file>lingowp.php</file>
 	<file>uninstall.php</file>
 	<file>src</file>
 	<file>templates</file>

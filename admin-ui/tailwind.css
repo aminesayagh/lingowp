@@ -4,3 +4,97 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 @source './';
+
+/* Blurs the backdrop behind the "finish onboarding" modal only — scoped via
+   a body class App.jsx toggles while that specific modal is open, not a
+   blanket rule on every Polaris Modal's .Polaris-Backdrop in the app.
+   Overrides Polaris's default rgba(0,0,0,0.5) tint with the blur alone —
+   this is the requested look, not an oversight. */
+body.lingowp-onboarding-modal-open .Polaris-Backdrop {
+	background-color: #00000070;
+}
+
+/* That modal is deliberately not dismissible except via "Continue" — Polaris
+   has no prop to omit its title-bar close button, so hide it with CSS,
+   scoped the same way as the blur above. */
+body.lingowp-onboarding-modal-open
+	.Polaris-Modal-Dialog
+	button[aria-label='Close'] {
+	display: none;
+}
+
+/* AI-translate shimmer sweep. Three invariants — breaking any one produces
+   a visible defect:
+   1. The keyframe start position (200%) must equal background-size's width
+      (200%) — together they define exactly one tile-shift per cycle.
+   2. Timing must stay linear — any easing changes speed at the loop
+      boundary and reintroduces a stutter/snap at the seam.
+   3. background-repeat must stay repeat-x — with no-repeat the clipped
+      text goes transparent for most of the cycle instead of showing a
+      moving band. */
+@keyframes lingowp-shimmer-sweep {
+	from { background-position: 200% 0; }
+	to   { background-position: 0% 0; }
+}
+.lingowp-shimmer {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	pointer-events: none;
+	background-image: linear-gradient(105deg,
+		#9ca3af 0%, #9ca3af 36%, #eef1f5 50%, #9ca3af 64%, #9ca3af 100%);
+	background-size: 200% 100%;
+	background-repeat: repeat-x;
+	background-clip: text;
+	-webkit-background-clip: text;
+	color: transparent;
+	animation: lingowp-shimmer-sweep 1.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+	.lingowp-shimmer {
+		animation: none;
+		background-image: none;
+		-webkit-background-clip: initial;
+		background-clip: initial;
+		color: #9ca3af;
+	}
+}
+
+/* Same sweep, applied as an ordinary background instead of a text clip — for
+   opaque skeleton shapes (ghost bars/slabs) rather than shimmering text. */
+.lingowp-ghost-shimmer {
+	background-image: linear-gradient(105deg,
+		#d5dae1 0%, #d5dae1 36%, #eef1f5 50%, #d5dae1 64%, #d5dae1 100%);
+	background-size: 200% 100%;
+	background-repeat: repeat-x;
+	animation: lingowp-shimmer-sweep 1.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+	.lingowp-ghost-shimmer {
+		animation: none;
+		background-image: none;
+		background-color: #d5dae1;
+	}
+}
+
+/* Language row (LanguageList.jsx): the ⋯ actions button swaps in for the "%"
+   on hover. Deliberately plain CSS, not Tailwind's `hidden` / `group-hover:*`
+   utilities — those live in @layer utilities, and wp-admin's own unlayered
+   `.hidden { display: none }` beats any layered rule regardless of
+   specificity, so the button stayed invisible forever. Hover is CSS rather
+   than a React `hover` state because a JS mouseleave never fires when a modal
+   opens over the cursor or the list scrolls under it — the ⋯ then stuck on. */
+.lingowp-row-actions {
+	display: none;
+}
+.lingowp-row--has-menu:hover .lingowp-row-actions,
+.lingowp-row--has-menu:focus-within .lingowp-row-actions,
+.lingowp-row--menu-open .lingowp-row-actions {
+	display: inline-flex;
+}
+.lingowp-row--has-menu:hover .lingowp-row-percent,
+.lingowp-row--has-menu:focus-within .lingowp-row-percent,
+.lingowp-row--menu-open .lingowp-row-percent {
+	display: none;
+}

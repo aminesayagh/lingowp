@@ -5,17 +5,43 @@
  * Run: php tests/seo_var_guard_check.php
  * Exits non-zero if any case fails. Mirrors the §2 test table of
  * plan-seo-integration-layer.md.
+ *
+ * SeoTemplateVariables is now an empty generic engine in core — Yoast/Rank
+ * Math/AIOSEO's own grammar/descriptor data lives in the lingowp-seo add-on
+ * and is normally supplied via apply_filters(). There's no WordPress
+ * bootstrap here, so this defines a minimal local apply_filters() shim (only
+ * if not already defined) that hands back the add-on's data for those two
+ * filter tags — exercising the exact same filter-based extension point end
+ * to end, without pulling in a WordPress bootstrap.
  */
 
-require __DIR__ . '/../src/Core/Parsing/UnitStructureGuard.php';
-require __DIR__ . '/../src/Core/Parsing/SeoTemplateVariables.php';
-require __DIR__ . '/../src/Core/Parsing/TranslationSubmissionGuard.php';
+require __DIR__ . '/../src/Shared/Parsing/UnitStructureGuard.php';
+require __DIR__ . '/../src/Shared/Parsing/ShortcodeGuard.php';
+require __DIR__ . '/../src/Shared/Parsing/SeoTemplateVariables.php';
+require __DIR__ . '/../src/Shared/Parsing/TranslationSubmissionGuard.php';
+require __DIR__ . '/../../lingowp-seo/src/SeoTemplateData.php';
 
-use TransLangs\Core\Parsing\SeoTemplateVariables;
-use TransLangs\Core\Parsing\TranslationSubmissionGuard;
+use LingoWP\Shared\Parsing\SeoTemplateVariables;
+use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
+use LingoWPSeo\SeoTemplateData;
+
+if (!function_exists('apply_filters')) {
+    function apply_filters(string $tag, $value)
+    {
+        if ($tag === 'lingowp_seo_template_descriptors') {
+            return SeoTemplateData::DESCRIPTORS;
+        }
+        if ($tag === 'lingowp_seo_template_grammars') {
+            return SeoTemplateData::GRAMMARS;
+        }
+
+        return $value;
+    }
+}
 
 $YT = '_yoast_wpseo_title';
 $RT = 'rank_math_title';
+$AT = '_aioseo_title';
 
 $failed = 0;
 
@@ -52,10 +78,21 @@ check('rankmath broad plain var',       SeoTemplateVariables::extract($RT, 'A %f
 check('unsupported key',     SeoTemplateVariables::extract('_wc_product_short_description', 'Buy %%title%%'), []);
 check('repeats preserved',   SeoTemplateVariables::extract($YT, '%%title%% | %%title%%'), ['%%title%%', '%%title%%']);
 
+// AIOSEO's grammar matches only its own fixed, enumerated tag-id list — NOT
+// an arbitrary #word — so a genuine hashtag in prose is never mistaken for a
+// template variable (app/Common/Utils/Tags.php: Tags::replaceTags() loops a
+// known-tag list and exact-matches each one, it doesn't accept any #word).
+check('aioseo tokens',                SeoTemplateVariables::extract($AT, 'Buy #post_title on #site_title'), ['#post_title', '#site_title']);
+check('aioseo custom field opaque',   SeoTemplateVariables::extract($AT, 'A #custom_field-my_key B'),        ['#custom_field-my_key']);
+check('aioseo unknown tag not a token', SeoTemplateVariables::extract($AT, 'A #WordPress hashtag'),          []);
+check('aioseo prefix tag not confused with suffix', SeoTemplateVariables::extract($AT, '#author_link_alt'),  ['#author_link_alt']);
+
 // ── pure-template detection (discovery skip) ─────────────────────────────────
 check('pure template skipped',      SeoTemplateVariables::hasTranslatableProse($YT, '%%title%% %%sep%% %%sitename%%'), false);
 check('pure rankmath skipped',      SeoTemplateVariables::hasTranslatableProse($RT, '%title% %sep% %sitename%'),       false);
+check('pure aioseo skipped',        SeoTemplateVariables::hasTranslatableProse($AT, '#post_title | #site_title'),      false);
 check('mixed prose kept',           SeoTemplateVariables::hasTranslatableProse($YT, 'Buy %%title%% online'),           true);
+check('mixed aioseo prose kept',    SeoTemplateVariables::hasTranslatableProse($AT, 'Special Offer: #post_title'),     true);
 check('plain prose kept',           SeoTemplateVariables::hasTranslatableProse($YT, 'About our company'),              true);
 check('unsupported key untouched',  SeoTemplateVariables::hasTranslatableProse('_wc_product_short_description', '%%x%%'), true);
 
@@ -90,6 +127,7 @@ function caps(string $key, string $template, string $rendered): string {
 
 check('yoast shape recovers value',     caps($YT, 'Buy %%title%% online', 'Buy Product Name online'),               '{"v0":["%%title%%","Product Name"]}');
 check('rankmath shape recovers value',  caps($RT, 'Achetez %title% en ligne', 'Achetez Product Name en ligne'),     '{"v0":["%title%","Product Name"]}');
+check('aioseo shape recovers value',    caps($AT, 'Special Offer: #post_title', 'Special Offer: Widgets'),          '{"v0":["#post_title","Widgets"]}');
 check('leading variable ok',            caps($YT, '%%title%% online', 'Widgets online'),                            '{"v0":["%%title%%","Widgets"]}');
 check('anchored — partial fails',       caps($YT, 'Buy %%title%% online', 'Buy Product Name online now'),           'NO_MATCH');
 check('adjacent variables bail',        caps($YT, '%%title%%%%sitename%%', 'anything'),                             'BAIL');

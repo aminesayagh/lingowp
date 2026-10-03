@@ -1,24 +1,24 @@
 <?php
 
-namespace TransLangs\Language\Infrastructure;
+namespace LingoWP\Language\Infrastructure;
 
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
 /**
- * Local source of truth for target-language metadata (v1 §P3).
+ * Local source of truth for target-language metadata.
  *
- * A single JSON option `translangs_languages` holds a map keyed by language code.
+ * A single JSON option `lingowp_languages` holds a map keyed by language code.
  * Each entry carries the display/routing metadata the SPA and workspace need:
  *   { code, language, locale, region, name, display_name, slug, fallback_language,
  *     ai_style, direction, created_at, updated_at }
  *
  * Active/enabled runtime state is deliberately NOT stored here — that stays in
- * OptionLanguageRegistry (translangs_active_lang). The legacy code lists remain a
+ * OptionLanguageRegistry (lingowp_active_lang). The legacy code lists remain a
  * migration bridge; this map is the metadata authority.
  */
 final class LanguageMetadataStore
 {
-    public const OPTION = 'translangs_languages';
+    public const OPTION = 'lingowp_languages';
 
     /** @return array<string, array<string, mixed>> */
     public function all(): array
@@ -82,6 +82,46 @@ final class LanguageMetadataStore
     }
 
 
+    /**
+     * Point every configured language at one AI model and writing style in a
+     * single option write, refreshing updated_at on the ones that change. A
+     * per-language PATCH loop from the client races itself — each PATCH is a
+     * read-modify-write of this same option, so concurrent requests clobber
+     * each other's change. This is the atomic bulk path. $style of null
+     * leaves each language's own style untouched (model-only bulk change);
+     * an empty string clears it. Returns how many entries actually changed.
+     */
+    public function setAiConfigForAll(string $model, ?string $style = null): int
+    {
+        $map = $this->all();
+        $now     = current_time('mysql', true);
+        $changed = 0;
+
+        foreach ($map as $code => $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $modelChanged = (string) ($entry['ai_model'] ?? '') !== $model;
+            $styleChanged = $style !== null && (string) ($entry['ai_style'] ?? '') !== $style;
+            if (! $modelChanged && ! $styleChanged) {
+                continue;
+            }
+            $entry['ai_model'] = $model;
+            if ($style !== null) {
+                $entry['ai_style'] = $style;
+            }
+            $entry['updated_at'] = $now;
+            $map[$code]          = $entry;
+            $changed++;
+        }
+
+        if ($changed > 0) {
+            update_option(self::OPTION, $map);
+        }
+
+        return $changed;
+    }
+
     /** Remove one language's metadata entry. No-op if absent. */
     public function remove(string $code): void
     {
@@ -92,5 +132,46 @@ final class LanguageMetadataStore
             unset($map[$code]);
             update_option(self::OPTION, $map);
         }
+    }
+
+    /** Dev-only reset tool: drop every language's metadata. */
+    public function reset(): void
+    {
+        delete_option(self::OPTION);
+    }
+
+    /**
+     * The backend's per-target-language config block — a REQUIRED field on
+     * both /translations and /translations/tasks (Pydantic "field required"
+     * 422 if omitted; every AI-translate call site must send it). Provider
+     * resolves from ai_model (openai/anthropic pass through, anything else —
+     * including the default 'auto' — becomes 'platform'); writing_style is
+     * included only when set AND provider is 'platform' (it's a
+     * subscription-model feature — see the guard below).
+     *
+     * @param string[] $langs
+     * @return array<string, array{provider: string, writing_style?: string}>
+     */
+    public function providerConfig(array $langs): array
+    {
+        $map = [];
+        foreach ($langs as $lang) {
+            $meta     = $this->get($lang) ?? [];
+            $model    = (string) ($meta['ai_model'] ?? '');
+            $provider = in_array($model, ['openai', 'anthropic'], true) ? $model : 'platform';
+
+            $entry = ['provider' => $provider];
+            // Writing style is a subscription-model feature: a BYOK
+            // (openai/anthropic) language never sends it, even if an older
+            // ai_style value is still stored. The settings form disables the
+            // field for these languages too.
+            $style = trim((string) ($meta['ai_style'] ?? ''));
+            if ($provider === 'platform' && $style !== '') {
+                $entry['writing_style'] = $style;
+            }
+            $map[$lang] = $entry;
+        }
+
+        return $map;
     }
 }

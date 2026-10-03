@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<ruleset name="LingoWP PHP Compatibility">
+	<description>Cross-version PHP syntax/API checks only — is the code actually usable down to the floor below, and up through current PHP? Style/security are out of scope (see phpcs.xml.dist for security).</description>
+
+	<file>lingowp.php</file>
+	<file>uninstall.php</file>
+	<file>src</file>
+	<file>templates</file>
+
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/assets/*</exclude-pattern>
+	<exclude-pattern>*/security-reports/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="basepath" value="."/>
+	<arg name="parallel" value="8"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<!-- Matches composer.json's "php" floor. No upper bound: also flags
+	     anything deprecated on current PHP. -->
+	<config name="testVersion" value="7.4-"/>
+
+	<!-- WP-aware: knows which PHP 8-only functions (str_contains(), etc.)
+	     WordPress itself polyfills, so those don't false-positive here. -->
+	<rule ref="PHPCompatibilityWP"/>
+</ruleset>

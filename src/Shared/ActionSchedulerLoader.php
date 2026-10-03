@@ -1,6 +1,6 @@
 <?php
 
-namespace TransLangs\Shared;
+namespace LingoWP\Shared;
 
 final class ActionSchedulerLoader
 {

@@ -1,23 +1,28 @@
 {
-  "name": "translangs-admin",
-  "version": "0.1.0",
-  "private": true,
-  "description": "TransLangs admin board (React, @wordpress/scripts).",
-  "scripts": {
-    "build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build",
-    "start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build",
-    "watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch",
-    "test": "node tests/inline_chip_grouping_check.mjs"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
-    "@wordpress/scripts": "^30.0.0",
-    "tailwindcss": "^4.3.3"
-  },
-  "dependencies": {
-    "@shopify/polaris": "^13.9.5",
-    "@tanstack/react-query": "5.101.4",
-    "@tanstack/react-virtual": "3.14.8",
-    "motion": "^12.0.0"
-  }
+	"name": "lingowp-admin",
+	"version": "1.4.1",
+	"private": true,
+	"description": "LingoWP admin board (React, @wordpress/scripts).",
+	"scripts": {
+		"build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build",
+		"format": "wp-scripts format",
+		"lint:js": "wp-scripts lint-js",
+		"start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build",
+		"watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch",
+		"test": "node tests/inline_chip_grouping_check.mjs && node tests/addon_lists_check.mjs"
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "^4.3.3",
+		"@wordpress/scripts": "^30.0.0",
+		"flag-icons": "^7.5.0",
+		"tailwindcss": "^4.3.3"
+	},
+	"dependencies": {
+		"@shopify/polaris": "^13.9.5",
+		"@shopify/polaris-icons": "^9.3.1",
+		"@tanstack/react-query": "5.101.4",
+		"@tanstack/react-virtual": "3.14.8",
+		"motion": "^12.0.0",
+		"nuqs": "^2.9.5"
+	}
 }

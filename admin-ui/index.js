@@ -1,10 +1,35 @@
-import { createRoot } from '@wordpress/element';
-import '@shopify/polaris/build/esm/styles.css';
-import './wp-admin-reset.css'; // strip wp-admin form-style bleed from Polaris inputs
-import './tailwind.css';
-import App from './App';
+import { createRoot } from '@wordpress/element'
+import { NuqsAdapter } from 'nuqs/adapters/react'
+import '@shopify/polaris/build/esm/styles.css'
+import './wp-admin-reset.css' // strip wp-admin form-style bleed from Polaris inputs
+import './tailwind.css'
+import App from './App'
+import AccountApp from './AccountApp'
+import InsightsApp from './InsightsApp'
 
-const mount = document.getElementById( 'translangs-app' );
+const mount = document.getElementById( 'lingowp-app' )
 if ( mount ) {
-	createRoot( mount ).render( <App /> );
+	createRoot( mount ).render(
+		<NuqsAdapter>
+			<App />
+		</NuqsAdapter>
+	)
+}
+
+const accountMount = document.getElementById( 'lingowp-account-app' )
+if ( accountMount ) {
+	createRoot( accountMount ).render(
+		<NuqsAdapter>
+			<AccountApp />
+		</NuqsAdapter>
+	)
+}
+
+const insightsMount = document.getElementById( 'lingowp-insights-app' )
+if ( insightsMount ) {
+	createRoot( insightsMount ).render(
+		<NuqsAdapter>
+			<InsightsApp />
+		</NuqsAdapter>
+	)
 }

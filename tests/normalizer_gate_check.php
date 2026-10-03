@@ -10,13 +10,13 @@
  * If this file fails, every assertion in the DB integration scripts is lying.
  */
 
-require __DIR__ . '/../src/Core/Text/StringNormalizer.php';
-require __DIR__ . '/../src/Core/Text/TL_Key.php';
-require __DIR__ . '/../src/Core/Text/TranslatableText.php';
+require __DIR__ . '/../src/Shared/Text/StringNormalizer.php';
+require __DIR__ . '/../src/Shared/Text/TranslationKey.php';
+require __DIR__ . '/../src/Shared/Text/TranslatableText.php';
 
-use TransLangs\Core\Text\StringNormalizer;
-use TransLangs\Core\Text\TL_Key;
-use TransLangs\Core\Text\TranslatableText;
+use LingoWP\Shared\Text\StringNormalizer;
+use LingoWP\Shared\Text\TranslationKey;
+use LingoWP\Shared\Text\TranslatableText;
 
 $failed = 0;
 $total  = 0;
@@ -101,24 +101,24 @@ ok('case folded (OU === ou)',       StringNormalizer::normalize('OU') === String
 $nbsp = StringNormalizer::normalize("a\u{00A0}b");
 ok('NBSP is not collapsed (no /u modifier)', $nbsp === "a\u{00A0}b", 'got ' . json_encode($nbsp));
 
-// ── B. TL_Key::currentHash ───────────────────────────────────────────────────
+// ── B. TranslationKey::currentHash ───────────────────────────────────────────────────
 
-echo "\nTL_Key::currentHash:\n";
+echo "\nTranslationKey::currentHash:\n";
 
-ok('raw 32 bytes', strlen(TL_Key::currentHash('About Us')) === 32);
+ok('raw 32 bytes', strlen(TranslationKey::currentHash('About Us')) === 32);
 ok(
     'is sha256 of the normalized form',
-    TL_Key::currentHash('About Us') === hash('sha256', StringNormalizer::normalize('About Us'), true)
+    TranslationKey::currentHash('About Us') === hash('sha256', StringNormalizer::normalize('About Us'), true)
 );
 ok(
     'normalization collides as expected',
-    TL_Key::currentHash('About Us') === TL_Key::currentHash("  about\r\nus ")
+    TranslationKey::currentHash('About Us') === TranslationKey::currentHash("  about\r\nus ")
 );
 ok(
     'accents do not collide',
-    TL_Key::currentHash('Où') !== TL_Key::currentHash('Ou')
+    TranslationKey::currentHash('Où') !== TranslationKey::currentHash('Ou')
 );
-ok('TL_Key::normalize delegates', TL_Key::normalize('  A B  ') === StringNormalizer::normalize('  A B  '));
+ok('TranslationKey::normalize delegates', TranslationKey::normalize('  A B  ') === StringNormalizer::normalize('  A B  '));
 
 // ── C. TranslatableText::isTranslatable — the discovery gate ─────────────────
 // A gate, never a transformer. Applied AFTER normalization. Anchored full-string
@@ -140,6 +140,17 @@ $gateCases = [
     ['whole-string email rejected',      'a@b.com',                 false],
     ['filename rejected',                'photo.jpg',               false],
     ['dotted filename rejected',         'my.file.name.pdf',        false],
+
+    // Checklist §5/6 finding: BlockContentAttributes can hand this filter a
+    // Post Date block's manual date-override value (its "datetime" attribute
+    // is role=content per WordPress's own schema) — the standard ISO 8601
+    // machine timestamp, unlike a plain digit-date, has a literal "T"
+    // separator (a real letter), so the no-letter rule alone would miss it.
+    ['ISO timestamp with T rejected',       '2024-01-01T00:00:00',        false],
+    ['ISO timestamp with Z rejected',       '2024-01-01T00:00:00Z',       false],
+    ['ISO timestamp with millis rejected',  '2024-01-01T00:00:00.123Z',   false],
+    ['ISO timestamp with offset rejected',  '2024-01-01T00:00:00+02:00',  false],
+    ['space-separated timestamp rejected',  '2024-01-01 00:00:00',        false],
 
     ['prose containing a url kept',      'Visit https://x.com/a today', true],
     ['prose containing an email kept',   'Mail us at a@b.com now',      true],

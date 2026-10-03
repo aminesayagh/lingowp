@@ -1,9 +1,10 @@
 <?php
 
-namespace TransLangs\Language\Application;
+namespace LingoWP\Language\Application;
 
-use TransLangs\Language\Domain\LanguageRegistry;
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LanguageRegistry;
+use LingoWP\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Infrastructure\LanguageMetadataStore;
 
 /**
  * Decides the active language for the current request.
@@ -28,7 +29,12 @@ class ResolveRequestLanguage
 
     private ?string $resolved = null;
 
-    public function __construct(private LanguageRegistry $registry) {}
+    private LanguageRegistry $registry;
+
+    public function __construct(LanguageRegistry $registry)
+    {
+        $this->registry = $registry;
+    }
 
     /**
      * Resolve and memoize the active language for this request.
@@ -89,12 +95,12 @@ class ResolveRequestLanguage
 
     private function cookieEnabled(): bool
     {
-        return (bool) get_option('translangs_cookie_preference', true);
+        return (bool) get_option('lingowp_cookie_preference', true);
     }
 
     private function browserDetectionEnabled(): bool
     {
-        return (bool) get_option('translangs_browser_detection', false);
+        return (bool) get_option('lingowp_browser_detection', false);
     }
 
     // ------------------------------------------------------------------
@@ -106,20 +112,23 @@ class ResolveRequestLanguage
      */
     private function resolveFromUrl(): ?string
     {
-        $lang = get_query_var('translangs_lang');
+        $lang = get_query_var('lingowp_lang');
 
         return $this->validate(is_string($lang) ? $lang : '');
     }
 
     /**
      * 1b. Admin "Preview on site" param: a logged-in editor can view any page in
-     *     a target language via ?translangs_preview=<lang>. Editor-gated so a bare
-     *     URL never switches a public visitor's language.
+     *     a target language via ?lingowp_preview=<lang>. Editor-gated so a bare
+     *     URL never switches a public visitor's language. Unlike the other
+     *     resolution steps, this also accepts a draft (not-yet-published) target
+     *     language — the whole point of previewing is to check a translation
+     *     before publishing it.
      */
     private function resolveFromPreview(): ?string
     {
         // phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only language preview, gated on edit_posts; it changes no state, so a nonce would only break shareable preview URLs.
-        if (empty($_GET['translangs_preview'])) {
+        if (empty($_GET['lingowp_preview'])) {
             return null;
         }
 
@@ -127,7 +136,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        return $this->validate(sanitize_text_field(wp_unslash($_GET['translangs_preview'])));
+        return $this->validatePreviewable(sanitize_text_field(wp_unslash($_GET['lingowp_preview'])));
         // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
@@ -138,7 +147,7 @@ class ResolveRequestLanguage
      */
     private function resolveFromUnprefixedDefaultUrl(): ?string
     {
-        if ((bool) get_option('translangs_prefix_default_language', false)) {
+        if ((bool) get_option('lingowp_prefix_default_language', false)) {
             return null;
         }
 
@@ -213,6 +222,29 @@ class ResolveRequestLanguage
         $lang = LocaleNormalizer::normalize($lang);
 
         return ($lang !== '' && $this->isEnabledLanguage($lang)) ? $lang : null;
+    }
+
+    /**
+     * Same as validate(), but also accepts a draft target language — used only
+     * by resolveFromPreview(), which is already gated on edit_posts.
+     *
+     * A never-published draft lives in the language metadata option only: it is
+     * added to the active/existing rosters (isEnabledLanguage/existingLanguages)
+     * only when published, so previewing one needs the metadata check too —
+     * that's the whole point of the preview URL.
+     */
+    private function validatePreviewable(string $lang): ?string
+    {
+        $lang = LocaleNormalizer::normalize($lang);
+        if ($lang === '') {
+            return null;
+        }
+
+        return $this->isEnabledLanguage($lang)
+            || in_array($lang, $this->registry->existingLanguages(), true)
+            || (new LanguageMetadataStore())->has($lang)
+            ? $lang
+            : null;
     }
 
     private function isNonPublicRequest(): bool

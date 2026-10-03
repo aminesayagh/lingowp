@@ -1,50 +1,63 @@
 name: Security
 
 on:
-  pull_request:
-  push:
-    branches: [master, dev]
-  workflow_dispatch:
-    inputs:
-      tool:
-        description: Scanner to run
-        type: choice
-        default: all
-        options: [all, phpcs, deps, secrets, semgrep, secrets-history]
-  schedule:
-    - cron: '0 4 * * 1'
+    pull_request:
+    push:
+        branches: [master, dev]
+    workflow_dispatch:
+        inputs:
+            tool:
+                description: Scanner to run
+                type: choice
+                default: all
+                options: [all, phpcs, deps, secrets, semgrep, secrets-history]
+    schedule:
+        - cron: '0 4 * * 1'
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: security-${{ github.ref }}
-  cancel-in-progress: true
+    group: security-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  scan:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0 # gitleaks history scan needs it
+    scan:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0 # gitleaks history scan needs it
 
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          coverage: none
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.1'
+                  coverage: none
 
-      - run: composer install --no-interaction --no-progress
+            - run: composer install --no-interaction --no-progress
 
-      - name: Run scanners
-        run: composer run --no-interaction "$TARGET"
-        env:
-          TARGET: ${{ (inputs.tool == '' || inputs.tool == 'all') && 'security' || format('security:{0}', inputs.tool) }}
+            - name: Run scanners
+              run: composer run --no-interaction "$TARGET"
+              env:
+                  TARGET: ${{ (inputs.tool == '' || inputs.tool == 'all') && 'security' || format('security:{0}', inputs.tool) }}
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: security-reports-${{ github.run_id }}
-          path: security-reports/
-          retention-days: 30
+            # Guards the composer.json php floor. Not a scanner, so it sits
+            # outside the `security` aggregate's security:* naming loop.
+            - name: PHP cross-version compatibility
+              if: ${{ inputs.tool == '' || inputs.tool == 'all' }}
+              run: composer run --no-interaction compat:php
+
+            # Slow (full git history), so it is not in the `security` aggregate
+            # that PRs and pushes run. Weekly is enough to catch a committed
+            # secret; workflow_dispatch can still run it on demand.
+            - name: Secrets in git history
+              if: ${{ github.event_name == 'schedule' }}
+              run: composer run --no-interaction security:secrets-history
+
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: security-reports-${{ github.run_id }}
+                  path: security-reports/
+                  retention-days: 30

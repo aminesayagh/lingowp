@@ -1,26 +1,88 @@
 // Maps stable ERR_* codes from PHP to user-facing copy. This is the single place
 // the SPA owns error wording (localizable later); PHP never sends sentences.
-// Copy sourced from design-ux-onboarding-copy.md.
+// Voice: copywrite-profile-voice.md — concise, neutral-casual, state what failed
+// and what the user can do next.
 
 const MESSAGES = {
-	ERR_UNREACHABLE: 'We could not connect Translangs right now. Please try again in a moment.',
-	ERR_ORIGIN_NOT_CONFIGURED: 'We could not connect Translangs right now. Please try again in a moment.',
-	ERR_BACKEND: 'We could not connect Translangs right now. Please try again in a moment.',
-	ERR_INVALID_TOKEN: 'Translangs could not validate this connection. Please contact support.',
-	ERR_NOT_FOUND: 'Translangs could not validate this connection. Please contact support.',
-	ERR_INVALID_PAYLOAD: 'Translangs could not validate this connection. Please contact support.',
+	ERR_UNREACHABLE: "Couldn't connect to LingoWP. Try again in a moment.",
+	// WordPress-level failures, mapped in api.js — the plugin's REST routes
+	// never registered, the admin session lapsed, or PHP died mid-request.
+	ERR_ROUTE_MISSING:
+		"This part of LingoWP isn't responding. Deactivate and reactivate the plugin, then reload this page.",
+	ERR_SESSION_EXPIRED: 'Your session expired. Reload the page and try again.',
+	ERR_FORBIDDEN:
+		"You don't have permission to do that. Ask an administrator.",
+	ERR_HTTP_500:
+		'Your site hit an error handling that request. Check the PHP error log.',
+	ERR_ORIGIN_NOT_CONFIGURED:
+		"Couldn't connect to LingoWP. Try again in a moment.",
+	ERR_BACKEND: "Couldn't connect to LingoWP. Try again in a moment.",
+	ERR_INVALID_TOKEN: "Couldn't validate this connection. Contact support.",
+	ERR_NOT_FOUND: 'Not found. Refresh and try again.',
+	ERR_INVALID_PAYLOAD: "That request wasn't valid. Refresh and try again.",
 	ERR_INVALID_INPUT: 'Select at least one category to continue.',
-	ERR_NOT_CONNECTED: 'Translangs is not connected. Please finish setup first.',
-	ERR_INVALID_STATUS: 'Unknown status filter. Please refresh and try again.',
-};
+	ERR_SLUG_TAKEN:
+		'This URL slug is already used by another language. Choose a different one.',
+	ERR_NO_LANGUAGES_ADDED:
+		'None of the selected languages could be added — they may already exist or their web address is taken.',
+	ERR_NOT_CONNECTED: 'Not connected. Finish setup to continue.',
+	ERR_INVALID_STATUS: 'Unknown status filter. Refresh and try again.',
+	ERR_LICENSE_DETACHED:
+		"This site's license isn't attached to a plan. Open the Account page to finish setup.",
+	ERR_LICENSE_REVOKED: 'This license was revoked. Reconnecting…',
+	ERR_INVALID_CONFIRM_TOKEN:
+		'This link has expired or was already used. Request a new one and try again.',
+	ERR_RATE_LIMITED: 'Too many attempts. Wait a moment and try again.',
+	ERR_RECLAIM_TARGET_GONE:
+		"This reclaim link's target no longer exists. Request a new one.",
+	ERR_REBIND_COOLDOWN:
+		'You can only reconnect a domain once per day. Try again later.',
+	ERR_DOMAIN_NOT_ALLOWED:
+		"This domain isn't eligible to connect. Contact support.",
+	ERR_DOMAIN_UNREACHABLE:
+		"We couldn't reach this domain to verify it. Make sure your site is publicly accessible.",
+	ERR_SITE_NOT_FOUND:
+		"We couldn't find a site matching this license and domain.",
+	ERR_INVALID_API_KEY:
+		'This key was rejected by the provider. Double-check it and try again.',
+	ERR_PROVIDER_UNREACHABLE:
+		"Couldn't reach the provider to validate this key. Try again in a moment.",
+	ERR_UNKNOWN_PLAN:
+		"That plan isn't available anymore. Refresh and try again.",
+	ERR_ALREADY_SUBSCRIBED: 'You already have an active subscription.',
+	ERR_NO_ACTIVE_SUBSCRIPTION:
+		"You don't have an active subscription to change.",
+	ERR_ALREADY_ON_PLAN: "You're already on this plan.",
+	ERR_BILLING_CYCLE_CHANGE_NOT_SUPPORTED:
+		"Switching between monthly and yearly billing isn't supported yet. Refresh and try again.",
+	ERR_PLAN_CHANGE_PENDING:
+		'You already have a plan change scheduled for your next billing date.',
+	ERR_SUBSCRIPTION_REQUIRED: 'Subscribe to a plan before buying extra words.',
+	ERR_OWNER_EMAIL_TAKEN:
+		'That address already owns another LingoWP licence. Use a different one, or add this site from that account instead.',
+	ERR_OWNER_EMAIL_REQUIRED:
+		'Set up an account owner before adding another site.',
+	ERR_SITES_LIMIT_REACHED: "You've used all the site slots on your plan.",
+	ERR_DOMAIN_CLAIMED:
+		'This domain is already registered on another LingoWP account. Contact support.',
+	ERR_ORDER_NOT_OWNED:
+		"This order doesn't belong to this site. Contact support.",
+	ERR_UNKNOWN_PACK:
+		"That word pack isn't available anymore. Refresh and try again.",
+	ERR_SITE_OVER_PLAN_LIMIT:
+		"This site is over your plan's site limit. Free a slot or upgrade from the LingoWP dashboard on one of your other sites.",
+	ERR_HOSTED_AI_UNAVAILABLE: 'Subscribe to a plan to use AI translation.',
+	ERR_INSUFFICIENT_AI_WORDS:
+		"You're out of AI words for this period. Buy a word pack to keep translating.",
+}
 
 export function errorMessage( code ) {
-	return MESSAGES[ code ] || 'Something went wrong. Please try again.';
+	return MESSAGES[ code ] || 'Something went wrong. Try again.'
 }
 
 // A query cancelled because a newer one superseded it (language/search/status
 // changed, or the row scrolled out of view) — never a real failure, so callers
 // use this to skip showing a notice for it.
 export function isAbortError( err ) {
-	return err?.name === 'AbortError';
+	return err?.name === 'AbortError'
 }

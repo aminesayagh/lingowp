@@ -1,136 +1,136 @@
 /**
- * TransLangs centralized admin styles.
+ * LingoWP centralized admin styles.
  *
  * One stylesheet, loaded only on plugin admin pages. Everything pulls from the
  * design tokens below, so changing one variable updates the whole UI.
  *
  * Component classes provided:
- *   .translangs-page        page shell
- *   .translangs-navbar      top tab navigation
- *   .translangs-card        panel/section container
- *   .translangs-form        form layout (label + field rows)
- *   .translangs-table       data table
- *   .translangs-drawer      slide-in side panel
- *   .translangs-badge       status pills
+ *   .lingowp-page        page shell
+ *   .lingowp-navbar      top tab navigation
+ *   .lingowp-card        panel/section container
+ *   .lingowp-form        form layout (label + field rows)
+ *   .lingowp-table       data table
+ *   .lingowp-drawer      slide-in side panel
+ *   .lingowp-badge       status pills
  */
 
 /* ----------------------------------------------------------------------
    Design tokens
 ---------------------------------------------------------------------- */
-.translangs-page {
-    --tl-color-primary: #2271b1;        /* WP admin blue */
-    --tl-color-primary-hover: #135e96;
-    --tl-color-text: #1d2327;
-    --tl-color-muted: #646970;
-    --tl-color-border: #c3c4c7;
-    --tl-color-bg: #fff;
-    --tl-color-bg-alt: #f6f7f7;
-    --tl-color-success: #00a32a;
-    --tl-color-warning: #dba617;
-    --tl-color-danger: #d63638;
+.lingowp-page {
+    --lingowp-color-primary: #2271b1;        /* WP admin blue */
+    --lingowp-color-primary-hover: #135e96;
+    --lingowp-color-text: #1d2327;
+    --lingowp-color-muted: #646970;
+    --lingowp-color-border: #c3c4c7;
+    --lingowp-color-bg: #fff;
+    --lingowp-color-bg-alt: #f6f7f7;
+    --lingowp-color-success: #00a32a;
+    --lingowp-color-warning: #dba617;
+    --lingowp-color-danger: #d63638;
 
-    --tl-radius: 4px;
-    --tl-space: 16px;
-    --tl-space-sm: 8px;
-    --tl-space-lg: 24px;
-    --tl-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --tl-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --tl-drawer-width: 420px;
+    --lingowp-radius: 4px;
+    --lingowp-space: 16px;
+    --lingowp-space-sm: 8px;
+    --lingowp-space-lg: 24px;
+    --lingowp-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --lingowp-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --lingowp-drawer-width: 420px;
 }
 
 /* ----------------------------------------------------------------------
    Page shell
 ---------------------------------------------------------------------- */
-.translangs-page {
-    font-family: var(--tl-font);
-    color: var(--tl-color-text);
+.lingowp-page {
+    font-family: var(--lingowp-font);
+    color: var(--lingowp-color-text);
     max-width: 980px;
 }
 
-.translangs-page__title {
+.lingowp-page__title {
     font-size: 23px;
     font-weight: 400;
-    margin: 0 0 var(--tl-space) 0;
+    margin: 0 0 var(--lingowp-space) 0;
 }
 
 /* ----------------------------------------------------------------------
    Navbar (tabs)
 ---------------------------------------------------------------------- */
-.translangs-navbar {
+.lingowp-navbar {
     display: flex;
     gap: 2px;
-    border-bottom: 1px solid var(--tl-color-border);
-    margin-bottom: var(--tl-space-lg);
+    border-bottom: 1px solid var(--lingowp-color-border);
+    margin-bottom: var(--lingowp-space-lg);
 }
 
-.translangs-navbar__item {
+.lingowp-navbar__item {
     padding: 10px 16px;
     text-decoration: none;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
     border: 1px solid transparent;
     border-bottom: none;
-    border-radius: var(--tl-radius) var(--tl-radius) 0 0;
+    border-radius: var(--lingowp-radius) var(--lingowp-radius) 0 0;
     font-weight: 500;
 }
 
-.translangs-navbar__item:hover {
-    color: var(--tl-color-primary);
+.lingowp-navbar__item:hover {
+    color: var(--lingowp-color-primary);
 }
 
-.translangs-navbar__item.is-active {
-    color: var(--tl-color-text);
-    background: var(--tl-color-bg);
-    border-color: var(--tl-color-border);
+.lingowp-navbar__item.is-active {
+    color: var(--lingowp-color-text);
+    background: var(--lingowp-color-bg);
+    border-color: var(--lingowp-color-border);
     margin-bottom: -1px;
 }
 
 /* ----------------------------------------------------------------------
    Card
 ---------------------------------------------------------------------- */
-.translangs-card {
-    background: var(--tl-color-bg);
-    border: 1px solid var(--tl-color-border);
-    border-radius: var(--tl-radius);
-    box-shadow: var(--tl-shadow);
-    padding: var(--tl-space-lg);
-    margin-bottom: var(--tl-space-lg);
+.lingowp-card {
+    background: var(--lingowp-color-bg);
+    border: 1px solid var(--lingowp-color-border);
+    border-radius: var(--lingowp-radius);
+    box-shadow: var(--lingowp-shadow);
+    padding: var(--lingowp-space-lg);
+    margin-bottom: var(--lingowp-space-lg);
 }
 
-.translangs-card__title {
-    margin: 0 0 var(--tl-space) 0;
+.lingowp-card__title {
+    margin: 0 0 var(--lingowp-space) 0;
     font-size: 16px;
     font-weight: 600;
 }
 
-.translangs-card__desc {
-    color: var(--tl-color-muted);
-    margin: -8px 0 var(--tl-space) 0;
+.lingowp-card__desc {
+    color: var(--lingowp-color-muted);
+    margin: -8px 0 var(--lingowp-space) 0;
     font-size: 13px;
 }
 
-.translangs-list-header {
+.lingowp-list-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: var(--tl-space);
-    margin-bottom: var(--tl-space);
+    gap: var(--lingowp-space);
+    margin-bottom: var(--lingowp-space);
 }
 
-.translangs-list-header .translangs-card__desc {
+.lingowp-list-header .lingowp-card__desc {
     margin-bottom: 0;
 }
 
-.translangs-list-count {
-    color: var(--tl-color-muted);
+.lingowp-list-count {
+    color: var(--lingowp-color-muted);
     font-size: 12px;
     white-space: nowrap;
 }
 
-.translangs-page-actions {
-    margin: 0 0 var(--tl-space-lg) 0;
+.lingowp-page-actions {
+    margin: 0 0 var(--lingowp-space-lg) 0;
 }
 
-.translangs-icon-button {
+.lingowp-icon-button {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
@@ -139,32 +139,32 @@
     height: 28px !important;
 }
 
-.translangs-icon-button .dashicons {
+.lingowp-icon-button .dashicons {
     width: 18px;
     height: 18px;
     font-size: 18px;
     line-height: 1;
 }
 
-.translangs-icon-button.is-busy {
+.lingowp-icon-button.is-busy {
     cursor: progress;
     opacity: 0.7;
 }
 
-.translangs-ignore-button {
-    color: var(--tl-color-danger) !important;
-    border-color: var(--tl-color-danger) !important;
+.lingowp-ignore-button {
+    color: var(--lingowp-color-danger) !important;
+    border-color: var(--lingowp-color-danger) !important;
     opacity: 0.6;
 }
 
-.translangs-ignore-button:hover,
-.translangs-ignore-button:focus {
-    color: var(--tl-color-danger) !important;
-    border-color: var(--tl-color-danger) !important;
+.lingowp-ignore-button:hover,
+.lingowp-ignore-button:focus {
+    color: var(--lingowp-color-danger) !important;
+    border-color: var(--lingowp-color-danger) !important;
     opacity: 1;
 }
 
-.translangs-ignore-button .dashicons {
+.lingowp-ignore-button .dashicons {
     color: inherit;
 }
 
@@ -172,57 +172,57 @@
    Form
 ---------------------------------------------------------------------- */
 
-.translangs-filters {
+.lingowp-filters {
     display: flex;
     align-items: center;
-    gap: var(--tl-space-sm);
+    gap: var(--lingowp-space-sm);
 }
-.translangs-form__row {
+.lingowp-form__row {
     display: grid;
     grid-template-columns: 220px 1fr;
-    gap: var(--tl-space);
+    gap: var(--lingowp-space);
     align-items: start;
-    padding: var(--tl-space) 0;
-    border-bottom: 1px solid var(--tl-color-bg-alt);
+    padding: var(--lingowp-space) 0;
+    border-bottom: 1px solid var(--lingowp-color-bg-alt);
 }
 
-.translangs-form__row:last-child {
+.lingowp-form__row:last-child {
     border-bottom: none;
 }
 
-.translangs-form__label {
+.lingowp-form__label {
     font-weight: 600;
     padding-top: 4px;
 }
 
-.translangs-form__hint {
+.lingowp-form__hint {
     display: block;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
     font-size: 12px;
     font-weight: 400;
     margin-top: 4px;
 }
 
-.translangs-form__field input[type="text"],
-.translangs-form__field select {
+.lingowp-form__field input[type="text"],
+.lingowp-form__field select {
     min-width: 260px;
 }
 
-.translangs-form__field--toggle {
+.lingowp-form__field--toggle {
     display: flex;
     align-items: center;
-    gap: var(--tl-space-sm);
+    gap: var(--lingowp-space-sm);
 }
 
 /* Checkbox list for enabled languages */
-.translangs-checklist {
+.lingowp-checklist {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--tl-space-sm) var(--tl-space-lg);
+    gap: var(--lingowp-space-sm) var(--lingowp-space-lg);
     margin: 0;
 }
 
-.translangs-checklist label {
+.lingowp-checklist label {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -231,65 +231,65 @@
 /* ----------------------------------------------------------------------
    Table
 ---------------------------------------------------------------------- */
-.translangs-table {
+.lingowp-table {
     width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
-    background: var(--tl-color-bg);
-    border: 1px solid var(--tl-color-border);
-    border-radius: var(--tl-radius);
+    background: var(--lingowp-color-bg);
+    border: 1px solid var(--lingowp-color-border);
+    border-radius: var(--lingowp-radius);
     overflow: hidden;
 }
 
-.translangs-table__col--text {
+.lingowp-table__col--text {
     width: 31%;
 }
 
-.translangs-table__col--status {
+.lingowp-table__col--status {
     width: 10%;
 }
 
-.translangs-table__col--actions {
+.lingowp-table__col--actions {
     width: 21%;
 }
 
-.translangs-table th,
-.translangs-table td {
+.lingowp-table th,
+.lingowp-table td {
     text-align: left;
     vertical-align: top;
     padding: 10px 12px;
-    border-bottom: 1px solid var(--tl-color-bg-alt);
+    border-bottom: 1px solid var(--lingowp-color-bg-alt);
     overflow-wrap: anywhere;
 }
 
-.translangs-table th {
-    background: var(--tl-color-bg-alt);
+.lingowp-table th {
+    background: var(--lingowp-color-bg-alt);
     font-weight: 600;
 }
 
-.translangs-table tr:last-child td {
+.lingowp-table tr:last-child td {
     border-bottom: none;
 }
 
-.translangs-table tr:hover td {
-    background: var(--tl-color-bg-alt);
+.lingowp-table tr:hover td {
+    background: var(--lingowp-color-bg-alt);
 }
 
-.translangs-status-icon {
+.lingowp-status-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 
-.translangs-status-icon .dashicons {
+.lingowp-status-icon .dashicons {
     width: 18px;
     height: 18px;
     font-size: 18px;
     line-height: 1;
-    color: var(--tl-color-primary);
+    color: var(--lingowp-color-primary);
 }
 
-.translangs-translation-field {
+.lingowp-translation-field {
     overflow: hidden;
     resize: none;
 }
@@ -297,14 +297,14 @@
 /* ----------------------------------------------------------------------
    Drawer (slide-in panel)
 ---------------------------------------------------------------------- */
-.translangs-drawer {
+.lingowp-drawer {
     position: fixed;
     top: 0;
     right: 0;
-    width: var(--tl-drawer-width);
+    width: var(--lingowp-drawer-width);
     max-width: 90vw;
     height: 100vh;
-    background: var(--tl-color-bg);
+    background: var(--lingowp-color-bg);
     box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
     transform: translateX(100%);
     transition: transform 0.2s ease;
@@ -313,30 +313,30 @@
     flex-direction: column;
 }
 
-.translangs-drawer.is-open {
+.lingowp-drawer.is-open {
     transform: translateX(0);
 }
 
-.translangs-drawer__header {
+.lingowp-drawer__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--tl-space);
-    border-bottom: 1px solid var(--tl-color-border);
+    padding: var(--lingowp-space);
+    border-bottom: 1px solid var(--lingowp-color-border);
 }
 
-.translangs-drawer__body {
-    padding: var(--tl-space);
+.lingowp-drawer__body {
+    padding: var(--lingowp-space);
     overflow-y: auto;
     flex: 1;
 }
 
-.translangs-drawer__footer {
-    padding: var(--tl-space);
-    border-top: 1px solid var(--tl-color-border);
+.lingowp-drawer__footer {
+    padding: var(--lingowp-space);
+    border-top: 1px solid var(--lingowp-color-border);
 }
 
-.translangs-drawer__overlay {
+.lingowp-drawer__overlay {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.4);
@@ -346,7 +346,7 @@
     transition: opacity 0.2s ease;
 }
 
-.translangs-drawer__overlay.is-open {
+.lingowp-drawer__overlay.is-open {
     opacity: 1;
     pointer-events: auto;
 }
@@ -354,7 +354,7 @@
 /* ----------------------------------------------------------------------
    Badge (status pills)
 ---------------------------------------------------------------------- */
-.translangs-badge {
+.lingowp-badge {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 999px;
@@ -363,49 +363,49 @@
     line-height: 1.6;
 }
 
-.translangs-badge--discovered { background: #f0f0f1; color: var(--tl-color-muted); }
-.translangs-badge--machine    { background: #e5f0fb; color: var(--tl-color-primary); }
-.translangs-badge--reviewed   { background: #edfaef; color: var(--tl-color-success); }
-.translangs-badge--review     { background: #fcf6e1; color: var(--tl-color-warning); }
-.translangs-badge--ignored    { background: #f0f0f1; color: var(--tl-color-muted); text-decoration: line-through; }
+.lingowp-badge--discovered { background: #f0f0f1; color: var(--lingowp-color-muted); }
+.lingowp-badge--machine    { background: #e5f0fb; color: var(--lingowp-color-primary); }
+.lingowp-badge--reviewed   { background: #edfaef; color: var(--lingowp-color-success); }
+.lingowp-badge--review     { background: #fcf6e1; color: var(--lingowp-color-warning); }
+.lingowp-badge--ignored    { background: #f0f0f1; color: var(--lingowp-color-muted); text-decoration: line-through; }
 
 /* ----------------------------------------------------------------------
    Source-type tabs
 ---------------------------------------------------------------------- */
-.translangs-source-tabs {
+.lingowp-source-tabs {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     margin: 16px 0;
-    border-bottom: 1px solid var(--tl-color-border);
+    border-bottom: 1px solid var(--lingowp-color-border);
 }
 
-.translangs-source-tab {
+.lingowp-source-tab {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 8px 14px;
     text-decoration: none;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
     border: 1px solid transparent;
     border-bottom: none;
     border-radius: 4px 4px 0 0;
     margin-bottom: -1px;
 }
 
-.translangs-source-tab:hover {
-    color: var(--tl-color-primary);
-    background: var(--tl-color-bg-alt);
+.lingowp-source-tab:hover {
+    color: var(--lingowp-color-primary);
+    background: var(--lingowp-color-bg-alt);
 }
 
-.translangs-source-tab.is-active {
-    color: var(--tl-color-text);
-    background: var(--tl-color-bg);
-    border-color: var(--tl-color-border);
+.lingowp-source-tab.is-active {
+    color: var(--lingowp-color-text);
+    background: var(--lingowp-color-bg);
+    border-color: var(--lingowp-color-border);
     font-weight: 600;
 }
 
-.translangs-source-tab__count {
+.lingowp-source-tab__count {
     display: inline-block;
     min-width: 18px;
     padding: 0 6px;
@@ -413,49 +413,49 @@
     font-size: 11px;
     font-weight: 600;
     line-height: 18px;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
     background: #f0f0f1;
     border-radius: 999px;
 }
 
-.translangs-source-tab.is-active .translangs-source-tab__count {
-    color: var(--tl-color-primary);
+.lingowp-source-tab.is-active .lingowp-source-tab__count {
+    color: var(--lingowp-color-primary);
     background: #e5f0fb;
 }
 
-.translangs-empty {
+.lingowp-empty {
     text-align: center;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
 }
 
-.translangs-empty__hint {
+.lingowp-empty__hint {
     font-size: 12px;
 }
 
 /* ----------------------------------------------------------------------
    Multi-language drawer contents
 ---------------------------------------------------------------------- */
-.translangs-drawer__original-label {
+.lingowp-drawer__original-label {
     margin: 0 0 4px;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
 }
 
-.translangs-drawer__original {
+.lingowp-drawer__original {
     margin: 0 0 16px;
     padding: 8px 10px;
-    background: var(--tl-color-bg-alt);
+    background: var(--lingowp-color-bg-alt);
     border-radius: 4px;
-    color: var(--tl-color-text);
+    color: var(--lingowp-color-text);
 }
 
-.translangs-drawer__lang {
+.lingowp-drawer__lang {
     margin-bottom: 14px;
 }
 
-.translangs-drawer__lang-label {
+.lingowp-drawer__lang-label {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -463,60 +463,60 @@
     font-weight: 600;
 }
 
-.translangs-drawer__status {
+.lingowp-drawer__status {
     font-size: 11px;
     font-weight: 600;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
     background: #f0f0f1;
     padding: 1px 8px;
     border-radius: 999px;
 }
 
-.translangs-drawer__close {
+.lingowp-drawer__close {
     cursor: pointer;
 }
 
 /* ----------------------------------------------------------------------
    Attachment thumbnail column
 ---------------------------------------------------------------------- */
-.translangs-table__col--image {
+.lingowp-table__col--image {
     width: 64px;
 }
 
-.translangs-thumb {
+.lingowp-thumb {
     vertical-align: middle;
 }
 
-.translangs-thumb img {
+.lingowp-thumb img {
     display: block;
     width: 48px;
     height: 48px;
     object-fit: cover;
     border-radius: 4px;
-    border: 1px solid var(--tl-color-border);
+    border: 1px solid var(--lingowp-color-border);
 }
 
 /* ----------------------------------------------------------------------
    Source/context sub-label under the original string
 ---------------------------------------------------------------------- */
-.translangs-source-label {
+.lingowp-source-label {
     display: block;
     margin-top: 4px;
     font-size: 11px;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
 }
 
 /* ----------------------------------------------------------------------
    Long-text clamp / expand
 ---------------------------------------------------------------------- */
-.translangs-original.is-clamped .translangs-original__text {
+.lingowp-original.is-clamped .lingowp-original__text {
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
-.translangs-original__toggle {
+.lingowp-original__toggle {
     margin-top: 4px;
     padding: 0;
     font-size: 11px;
@@ -526,7 +526,7 @@
 /* ----------------------------------------------------------------------
    Pagination
 ---------------------------------------------------------------------- */
-.translangs-pagination {
+.lingowp-pagination {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -534,12 +534,12 @@
     margin-top: 12px;
 }
 
-.translangs-pagination__gap {
+.lingowp-pagination__gap {
     padding: 0 4px;
-    color: var(--tl-color-muted);
+    color: var(--lingowp-color-muted);
 }
 
-.translangs-put-review-button {
+.lingowp-put-review-button {
     padding-top: 2.5px !important;
     padding-bottom: 2.5px !important;
 }

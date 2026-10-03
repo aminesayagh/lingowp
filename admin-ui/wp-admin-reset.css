@@ -1,4 +1,20 @@
 /*
+ * Disable native scroll anchoring for the page. The sticky header's filter
+ * row height-animates open/closed while scrolling (Dashboard.jsx) — that's a
+ * layout shift above whatever the browser picked as the scroll anchor (a
+ * visible row further down the virtualized list). Left enabled, the browser
+ * silently adjusts window.scrollY to keep that anchor visually still; our own
+ * scroll-direction tracking (useScroll/useMotionValueEvent) can't tell that
+ * synthetic adjustment apart from a real scroll, reads it as the opposite
+ * direction, and re-triggers the other animation — a self-sustaining loop the
+ * instant the user reverses direction mid-animation. This stylesheet loads
+ * only on the LingoWP screen, so the page-level selector is scoped by that.
+ */
+html {
+	overflow-anchor: none;
+}
+
+/*
  * Neutralize WordPress admin's global form styles where they bleed into Polaris.
  *
  * wp-admin's forms.css styles every input/select/textarea with its own border,
@@ -9,7 +25,7 @@
  *
  * Targets Polaris input classes only (not the mount) so it also covers fields in
  * Modals, which render in a portal at <body>. This stylesheet is enqueued only on
- * the Translangs SPA screen, so the legacy settings form and the rest of wp-admin
+ * the LingoWP SPA screen, so the legacy settings form and the rest of wp-admin
  * are unaffected. !important is needed to beat wp-admin's `input[type=text]`.
  */
 .Polaris-TextField__Input,
@@ -34,54 +50,117 @@
 }
 
 /*
- * Full-width Translangs screen: strip wp-admin's .wrap left/right margin and
+ * Full-width LingoWP screen: strip wp-admin's .wrap left/right margin and
  * Polaris Page's inline padding + max-width so the dashboard spans the whole
- * content area. Scoped to our screen (only .wrap that holds #translangs-app).
+ * content area. Scoped to our screen (only .wrap that holds #lingowp-app).
  */
-.wrap:has(> #translangs-app) {
+.wrap:has(> #lingowp-app) {
 	margin: 0 !important;
 }
-#translangs-app .Polaris-Page {
-	padding-inline: 0 !important;
+#lingowp-app .Polaris-Page {
+	padding-inline-start: 0 !important;
+	padding-inline-end: 12px !important;
+	max-width: none !important;
+}
+
+/* Same full-width treatment for the Account screen's own mount root. */
+.wrap:has(> #lingowp-account-app) {
+	margin: 0 !important;
+}
+#lingowp-account-app .Polaris-Page {
+	padding-inline-start: 0 !important;
+	padding-inline-end: 12px !important;
+	max-width: none !important;
+}
+
+/* Same full-width treatment for the Insights screen's own mount root. */
+.wrap:has(> #lingowp-insights-app) {
+	margin: 0 !important;
+}
+#lingowp-insights-app .Polaris-Page {
+	padding-inline-start: 0 !important;
+	padding-inline-end: 12px !important;
 	max-width: none !important;
 }
 
 /*
- * Minimal filter row: Polaris Filters draws its own divider/box-shadow to
- * separate itself from a list. We embed it in the header, so strip that chrome
- * (container level only — filter pills keep their own borders).
+ * Applied-filter pills (Dashboard.jsx's own Tag, not Polaris's <Filters> bar
+ * — that's gone) get the same "clearly a filter, not a status badge" look
+ * Polaris's own FilterPill had: white fill, a dashed border, and enough
+ * height not to look cramped next to the "Untranslated only" Button.
  */
-#translangs-app .tl-filters .Polaris-Filters,
-#translangs-app .tl-filters .Polaris-Filters__Container,
-#translangs-app .tl-filters .Polaris-Filters__FiltersWrapper,
-#translangs-app .tl-filters .Polaris-Filters__FiltersInner,
-#translangs-app .tl-filters .Polaris-Filters__FiltersStickyArea {
-	border-block-end: 0 !important;
-	padding: 0 !important;
+#lingowp-app .lingowp-filters .Polaris-Tag {
+	background-color: var(--p-color-bg-surface, #fff);
+	border: 1px dashed var(--p-color-border, #8a8a8a);
+	padding-block: 3.6px;
 }
-#translangs-app .tl-filters > .Polaris-Box {
-	border-block-end: 0 !important;
+
+/*
+ * The amber "Review" badge (TextUnitRow) is click-to-confirm. A bare Polaris
+ * Badge reads as static, so give it an interactive affordance on hover and on
+ * keyboard focus: a ring in the warning tone plus a small lift. inline-flex is
+ * needed for the transform to take (the span is otherwise a raw inline box);
+ * transform is composited, so the lift costs no layout.
+ */
+#lingowp-app .lingowp-review-toggle {
+	display: inline-flex;
+	transition: box-shadow 120ms ease, transform 120ms ease;
+}
+#lingowp-app .lingowp-review-toggle:hover,
+#lingowp-app .lingowp-review-toggle:focus-visible {
+	outline: none;
+	transform: translateY(-1px);
 }
 
 /*
  * Widen the language-manager (Configuration) modal beyond Polaris "large".
- * Scoped via :has() to the dialog that contains our .tl-wide-modal marker, so
+ * Scoped via :has() to the dialog that contains our .lingowp-wide-modal marker, so
  * other large modals keep their default width.
  */
-.Polaris-Modal-Dialog__Modal.Polaris-Modal-Dialog--sizeLarge:has(.tl-wide-modal) {
-	max-width: min(1100px, 92vw);
-	width: min(1100px, 92vw);
+.Polaris-Modal-Dialog__Modal.Polaris-Modal-Dialog--sizeLarge:has(.lingowp-wide-modal) {
+	max-width: min(800px, 92vw);
+	width: min(800px, 92vw);
 }
 
 /*
  * wp-admin's common.css sets `dd, li { margin-bottom: 6px; }` globally, which
  * bleeds into Polaris lists. Neutralize it on both our mount and the body-level
- * portal root (#translangs-portals, where Popover/ActionList/dropdown <li> render
+ * portal root (#lingowp-portals, where Popover/ActionList/dropdown <li> render
  * via App.jsx) — both are ours, so the rest of wp-admin keeps its spacing.
  */
-#translangs-app dd,
-#translangs-app li,
-#translangs-portals dd,
-#translangs-portals li {
+#lingowp-app dd,
+#lingowp-app li,
+#lingowp-portals dd,
+#lingowp-portals li {
 	margin-bottom: 0;
+}
+
+/*
+ * Polaris <Frame> integration (Frame wraps the whole app — see App.jsx — to
+ * enable Toast/Loading/ContextualSaveBar later). Frame is used with no
+ * topBar/navigation, so two of its unconditional styles need neutralizing:
+ *
+ * 1. .Polaris-Frame forces min-height: 100vh/100svh — reserved for a
+ *    top bar/nav we don't have. Without this, short screens (e.g. onboarding's
+ *    centered card) pad out to a full viewport, pushing WP's admin footer down.
+ * 2. .Polaris-Frame__Main draws a permanent border-inline-end, meant to
+ *    separate content from a sidebar — with no sidebar it's a stray 1px line.
+ */
+#lingowp-app .Polaris-Frame {
+	min-height: 0;
+}
+#lingowp-app .Polaris-Frame__Main {
+	border-inline-end: none;
+}
+#lingowp-account-app .Polaris-Frame {
+	min-height: 0;
+}
+#lingowp-account-app .Polaris-Frame__Main {
+	border-inline-end: none;
+}
+#lingowp-insights-app .Polaris-Frame {
+	min-height: 0;
+}
+#lingowp-insights-app .Polaris-Frame__Main {
+	border-inline-end: none;
 }

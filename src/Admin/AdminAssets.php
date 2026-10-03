@@ -1,12 +1,12 @@
 <?php
 
-namespace TransLangs\Admin;
+namespace LingoWP\Admin;
 
 /**
- * Loads the centralized admin stylesheet, but only on TransLangs screens.
+ * Loads the centralized admin stylesheet, but only on LingoWP screens.
  *
- * Every plugin admin page hook is prefixed "translangs_page_" by WordPress,
- * plus the top-level "toplevel_page_translangs". We match those so the CSS
+ * Every plugin admin page hook is prefixed "lingowp_page_" by WordPress,
+ * plus the top-level "toplevel_page_lingowp". We match those so the CSS
  * never leaks onto other admin pages.
  */
 class AdminAssets
@@ -23,16 +23,16 @@ class AdminAssets
         }
 
         wp_enqueue_style(
-            'translangs-admin',
-            TRANSLANGS_URL . 'assets/admin/admin.css',
+            'lingowp-admin',
+            LINGOWP_URL . 'assets/admin/admin.css',
             [],
-            TRANSLANGS_VERSION
+            LINGOWP_VERSION
         );
     }
 
     private function isPluginScreen(string $hook): bool
     {
-        return $hook === 'toplevel_page_translangs'
-            || strpos($hook, 'translangs_page_') === 0;
+        return $hook === 'toplevel_page_lingowp'
+            || strpos($hook, 'lingowp_page_') === 0;
     }
 }

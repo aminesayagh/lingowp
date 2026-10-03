@@ -2,71 +2,35 @@
 /**
  * Runs only when the plugin is deleted from the WordPress admin.
  *
- * This is where destructive cleanup belongs (not deactivation).
- * Tables are dropped in FK-safe order: child tables first, parent last.
+ * This is where destructive cleanup belongs (not deactivation). The actual
+ * work — dropping tables, deleting options and transients, cancelling
+ * scheduled work — lives in PluginDataCleanup so the WP_DEBUG-only reset
+ * button (ResetPageController) runs the exact same purge and the two can
+ * never drift apart.
  *
- * @package TransLangs
+ * @package LingoWP
  */
 
 if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
+// The plugin is not booted during uninstall, so load the autoloader here.
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+} else {
+    spl_autoload_register(static function (string $class): void {
+        $prefix = 'LingoWP\\';
+        if (strpos($class, $prefix) !== 0) {
+            return;
+        }
+        $file = __DIR__ . '/src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+        if (file_exists($file)) {
+            require_once $file;
+        }
+    });
+}
+
 global $wpdb;
 
-// Drop tables in FK-safe order: children before the parents they reference.
-$tables = [
-    // v5 children
-    $wpdb->prefix . 'tl_post_translation',
-    $wpdb->prefix . 'tl_meta_translation',
-    $wpdb->prefix . 'tl_term_translation',
-    $wpdb->prefix . 'tl_html_translation',
-    $wpdb->prefix . 'tl_option_translation',
-    // v5 parents
-    $wpdb->prefix . 'tl_post',
-    $wpdb->prefix . 'tl_meta',
-    $wpdb->prefix . 'tl_term',
-    $wpdb->prefix . 'tl_html',
-    $wpdb->prefix . 'tl_option',
-    // tl_static_text / tl_static_plural_text / tl_static_text_translation are
-    // deliberately NOT dropped here: gettext is now resolved from WordPress-
-    // native translation files, but existing captured data is left in place
-    // rather than destroyed.
-];
-
-foreach ($tables as $table) {
-    $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the hardcoded $tables list above; no values interpolated
-}
-
-// Delete all plugin options.
-$options = [
-    'translangs_db_version',
-    'translangs_active_lang',
-    'translangs_existing_lang',
-    'translangs_source_locale',
-    'translangs_default_language',
-    'translangs_enabled_languages',
-    'translangs_prefix_default_language',
-    'translangs_cookie_preference',
-    'translangs_browser_detection',
-    'translangs_auto_redirect',
-    'translangs_rewrite_rules_version',
-    'translangs_age_out_last_run',
-    'translangs_needs_initial_scan',
-    'translangs_needs_html_crawl',
-    // Onboarding / backend connection.
-    'translangs_languages',
-    'translangs_categories',
-    'translangs_onboarding_completed',
-    'translangs_api_token',
-    'translangs_site_id',
-    'translangs_api_origin',
-];
-
-foreach ($options as $option) {
-    delete_option($option);
-}
-
-// Onboarding transients (if present).
-delete_transient('translangs_last_site_sync_error');
-delete_transient('translangs_backend_status');
+\LingoWP\Database\PluginDataCleanup::run($wpdb);

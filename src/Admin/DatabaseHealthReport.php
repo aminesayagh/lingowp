@@ -1,31 +1,34 @@
 <?php
 
-namespace TransLangs\Admin;
+namespace LingoWP\Admin;
 
-use TransLangs\Database\ConstraintVerifier;
-use TransLangs\Database\OrphanTranslationSweep;
-use TransLangs\Database\TranslationMemorySchema;
+use LingoWP\Database\DatabaseHealthCheck;
+use LingoWP\Database\TranslationMemorySchema;
 
 /**
- * Site Health diagnostic panel for the v4 schema (architecture §10, D23).
+ * Site Health diagnostic panel for the schema.
  *
  * FK/engine breakage by hosts and migration plugins is a "when", not an "if";
  * self-service diagnosis saves support hours. This reports, in Tools → Site
  * Health:
  *   - wp_posts / wp_term_taxonomy storage engines
- *   - the three v4 foreign keys (fk_src_post, fk_src_tt, fk_tr_source)
- *   - deferred-index suggestion with the current translation row count (§7)
- *   - last type 4-5 orphan sweep run (§8.2)
+ *   - the five foreign keys (fk_post_owner, fk_meta_owner, fk_term_owner, fk_option_owner, fk_meta_tr_parent)
+ *   - deferred-index suggestion with the current translation row count
+ *   - last orphan sweep run
  *
  * Surfaces both as an Info section (debug_information) and a pass/fail status
- * test (site_status_tests). Read-only — it never alters the schema.
+ * test (site_status_tests). Read-only — it never alters the schema. The
+ * integrity state itself is computed by Database\DatabaseHealthCheck; this
+ * class only knows how to label and present it.
  */
 final class DatabaseHealthReport
 {
-    /** Translation row count past which the deferred large-site indexes are suggested (§7, D21). */
-    private const DEFERRED_INDEX_ROW_THRESHOLD = 500000;
+    private DatabaseHealthCheck $check;
 
-    public function __construct(private \wpdb $wpdb) {}
+    public function __construct(DatabaseHealthCheck $check)
+    {
+        $this->check = $check;
+    }
 
     public function register(): void
     {
@@ -34,8 +37,6 @@ final class DatabaseHealthReport
     }
 
     /**
-     * Compute the current integrity state in one pass.
-     *
      * @return array{
      *     posts_engine: ?string,
      *     tt_engine: ?string,
@@ -47,27 +48,11 @@ final class DatabaseHealthReport
      */
     public function gather(): array
     {
-        $missing = (new ConstraintVerifier($this->wpdb))->findMissing(
-            TranslationMemorySchema::expectedForeignKeys()
-        );
-
-        $rows = 0;
-        foreach (TranslationMemorySchema::childTables() as $table) {
-            $rows += (int) $this->wpdb->get_var('SELECT COUNT(*) FROM ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-        }
-
-        return [
-            'posts_engine'               => $this->engineOf($this->wpdb->posts),
-            'tt_engine'                  => $this->engineOf($this->wpdb->term_taxonomy),
-            'missing_fks'                => $missing,
-            'translation_rows'           => $rows,
-            'deferred_indexes_suggested' => $rows > self::DEFERRED_INDEX_ROW_THRESHOLD,
-            'last_sweep'                 => (string) get_option(OrphanTranslationSweep::OPTION_LAST_RUN, ''),
-        ];
+        return $this->check->gather();
     }
 
     /**
-     * Add the "TransLangs DB integrity" section to Tools → Site Health → Info.
+     * Add the "LingoWP DB integrity" section to Tools → Site Health → Info.
      *
      * @param array<string, mixed> $info
      * @return array<string, mixed>
@@ -94,22 +79,22 @@ final class DatabaseHealthReport
             ];
         }
 
-        $info['translangs_db'] = [
-            'label'       => __('TransLangs DB integrity', 'translangs'),
-            'description' => __('Storage engines, foreign keys, and maintenance state for the TransLangs translation tables.', 'translangs'),
+        $info['lingowp_db'] = [
+            'label'       => __('LingoWP DB integrity', 'lingowp'),
+            'description' => __('Storage engines, foreign keys, and maintenance state for the LingoWP translation tables.', 'lingowp'),
             'fields'      => $fields + [
                 'deferred_indexes' => [
-                    'label' => __('Deferred indexes', 'translangs'),
+                    'label' => __('Deferred indexes', 'lingowp'),
                     'value' => $state['deferred_indexes_suggested']
                         /* translators: %s: translation row count. */
-                        ? sprintf(__('suggested (row count: %s)', 'translangs'), number_format_i18n($state['translation_rows']))
-                        : __('not needed', 'translangs'),
+                        ? sprintf(__('suggested (row count: %s)', 'lingowp'), number_format_i18n($state['translation_rows']))
+                        : __('not needed', 'lingowp'),
                 ],
                 'orphan_sweep' => [
-                    'label' => __('Orphan sweep (types 4-5)', 'translangs'),
+                    'label' => __('Orphan sweep (types 4-5)', 'lingowp'),
                     'value' => $state['last_sweep'] !== ''
                         ? $state['last_sweep']
-                        : __('never run', 'translangs'),
+                        : __('never run', 'lingowp'),
                 ],
             ],
         ];
@@ -125,8 +110,8 @@ final class DatabaseHealthReport
      */
     public function addStatusTest(array $tests): array
     {
-        $tests['direct']['translangs_db_integrity'] = [
-            'label' => __('TransLangs database integrity', 'translangs'),
+        $tests['direct']['lingowp_db_integrity'] = [
+            'label' => __('LingoWP database integrity', 'lingowp'),
             'test'  => [$this, 'runIntegrityTest'],
         ];
 
@@ -146,38 +131,38 @@ final class DatabaseHealthReport
         $critical = $myisam !== [] || $state['missing_fks'] !== [];
 
         $result = [
-            'label'       => __('TransLangs translation tables are healthy', 'translangs'),
+            'label'       => __('LingoWP translation tables are healthy', 'lingowp'),
             'status'      => 'good',
             'badge'       => [
-                'label' => __('TransLangs', 'translangs'),
+                'label' => __('LingoWP', 'lingowp'),
                 'color' => 'blue',
             ],
-            'description' => '<p>' . esc_html__('Parent tables are InnoDB and all foreign keys are present.', 'translangs') . '</p>',
+            'description' => '<p>' . esc_html__('Parent tables are InnoDB and all foreign keys are present.', 'lingowp') . '</p>',
             'actions'     => '',
-            'test'        => 'translangs_db_integrity',
+            'test'        => 'lingowp_db_integrity',
         ];
 
         if ($critical) {
             $problems = [];
             foreach ($myisam as $table => $engine) {
                 /* translators: 1: table name, 2: storage engine. */
-                $problems[] = sprintf(esc_html__('%1$s uses %2$s instead of InnoDB.', 'translangs'), esc_html($table), esc_html((string) $engine));
+                $problems[] = sprintf(esc_html__('%1$s uses %2$s instead of InnoDB.', 'lingowp'), esc_html($table), esc_html((string) $engine));
             }
             if ($state['missing_fks'] !== []) {
                 /* translators: %s: comma-separated list of foreign key names. */
-                $problems[] = sprintf(esc_html__('Missing foreign keys: %s.', 'translangs'), esc_html(implode(', ', $state['missing_fks'])));
+                $problems[] = sprintf(esc_html__('Missing foreign keys: %s.', 'lingowp'), esc_html(implode(', ', $state['missing_fks'])));
             }
 
             $result['status']        = 'critical';
-            $result['label']         = __('TransLangs translation tables have integrity problems', 'translangs');
+            $result['label']         = __('LingoWP translation tables have integrity problems', 'lingowp');
             $result['description']   = '<p>' . implode('<br>', $problems) . '</p>';
             $result['badge']['color'] = 'red';
         } elseif ($state['deferred_indexes_suggested']) {
             $result['status']      = 'recommended';
-            $result['label']       = __('TransLangs large-site indexes are recommended', 'translangs');
+            $result['label']       = __('LingoWP large-site indexes are recommended', 'lingowp');
             $result['description'] = '<p>' . sprintf(
                 /* translators: %s: translation row count. */
-                esc_html__('Your translation table has %s rows; enabling the deferred large-site indexes will keep admin screens fast.', 'translangs'),
+                esc_html__('Your translation table has %s rows; enabling the deferred large-site indexes will keep admin screens fast.', 'lingowp'),
                 esc_html(number_format_i18n($state['translation_rows']))
             ) . '</p>';
         }
@@ -188,7 +173,7 @@ final class DatabaseHealthReport
     private function engineLabel(?string $engine): string
     {
         if ($engine === null) {
-            return __('unknown', 'translangs');
+            return __('unknown', 'lingowp');
         }
 
         return strtoupper($engine) === 'INNODB' ? 'InnoDB ✔' : $engine . ' ✘';
@@ -197,19 +182,6 @@ final class DatabaseHealthReport
     /** @param string[] $missing */
     private function fkLabel(string $fk, array $missing): string
     {
-        return in_array($fk, $missing, true) ? __('missing ✘', 'translangs') : __('exists ✔', 'translangs');
-    }
-
-    private function engineOf(string $table): ?string
-    {
-        $engine = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare(
-                "SELECT ENGINE FROM information_schema.TABLES
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
-                $table
-            )
-        );
-
-        return is_string($engine) ? $engine : null;
+        return in_array($fk, $missing, true) ? __('missing ✘', 'lingowp') : __('exists ✔', 'lingowp');
     }
 }

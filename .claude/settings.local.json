@@ -37,7 +37,11 @@
       "Bash(gh api *)",
       "mcp__code-review-graph__query_graph_tool",
       "Bash(php -l src/Core/Source/Type/TranslatableMetaKeys.php)",
-      "Bash(php -l src/Admin/Rest/CollectionRestController.php)"
+      "Bash(php -l src/Admin/Rest/CollectionRestController.php)",
+      "Read(//home/amine/projects/wordpress/sites/translangs/**)",
+      "Bash(./bin/wp action-scheduler *)",
+      "Bash(./bin/wp db *)",
+      "Bash(ps -p 366403 -o pid,lstart,cmd --no-headers)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -1,33 +1,35 @@
 import {
-  ActionList,
-  Button,
-  ButtonGroup,
-  Icon,
-  InlineStack,
-  Modal,
-  Popover,
-  Text,
-  Tooltip,
-} from "@shopify/polaris";
+	ActionList,
+	Button,
+	ButtonGroup,
+	Icon,
+	InlineStack,
+	Modal,
+	Popover,
+	Text,
+	Tooltip,
+} from '@shopify/polaris'
 import {
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  DuplicateIcon,
-  MagicIcon,
-  MenuHorizontalIcon,
-} from "@shopify/polaris-icons";
+	CheckIcon,
+	ChevronDownIcon,
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	DuplicateIcon,
+	MenuHorizontalIcon,
+} from '@shopify/polaris-icons'
+import { useCallback, useEffect, useRef, useState } from '@wordpress/element'
+import { AnimatePresence, motion } from 'motion/react'
+import { useSaveTranslation } from '../queries/board'
+import { AiIcon } from './AiIcon'
+import { flagIconUrl, FlagIcon } from './FlagIcon'
 import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "@wordpress/element";
-import { api } from "../api";
-import { flagEmoji } from "./LanguageList";
-import { ChipField, SourceChips, hasMarkers, stripMarkers } from "./TranslationUnitEditor";
-import { lengthWarningMessage } from "./lengthWarning.mjs";
+	ChipField,
+	SourceChips,
+	hasMarkers,
+	stripMarkers,
+} from './TranslationUnitEditor'
+import { errorMessage } from '../errors'
+import { lengthWarningMessage } from './lengthWarning.mjs'
 
 /*
  * Text-editor overlay (DSL: overlay#text_editor) — one shell for both variants:
@@ -39,415 +41,696 @@ import { lengthWarningMessage } from "./lengthWarning.mjs";
  * be typed or mangled.
  */
 
-const AUTOSAVE_DEBOUNCE_MS = 800;
-const PANE_HEIGHT = "min(62vh, 620px)";
+const AUTOSAVE_DEBOUNCE_MS = 800
+// The AI submit can resolve before the shimmer sweep (1.2s loop, see
+// .lingowp-shimmer) has visibly run. Once it starts (on click), hold it at
+// least this long so a fast backend doesn't make it flash and vanish.
+const MIN_SHIMMER_MS = 1000
+const PANE_HEIGHT = 'min(62vh, 620px)'
 // Polaris' Modal dialog sits at a z-index (519) above a Tooltip's own portal
 // (400) — inside a Modal a Tooltip renders but paints behind it unless
 // explicitly overridden higher than the dialog.
-const TOOLTIP_Z_INDEX = 1000;
+const TOOLTIP_Z_INDEX = 1000
 
-const PANE_CLASS = "flex-1 min-w-0 flex flex-col gap-2 px-4 py-3";
+const PANE_CLASS = 'flex-1 min-w-0 flex flex-col gap-2 px-4 py-3'
 
-const textareaStyle = (muted) => ({
-  all: "unset",
-  boxSizing: "border-box",
-  flex: 1,
-  minHeight: 0,
-  overflowY: "auto",
-  whiteSpace: "pre-wrap",
-  padding: "8px 4px",
-  fontSize: "13px",
-  lineHeight: "22px",
-  color: muted ? "var(--p-color-text-subdued)" : "var(--p-color-text)",
-});
+const textareaStyle = ( muted ) => ( {
+	all: 'unset',
+	boxSizing: 'border-box',
+	flex: 1,
+	minHeight: 0,
+	overflowY: 'auto',
+	whiteSpace: 'pre-wrap',
+	padding: '8px 4px',
+	fontSize: '13px',
+	lineHeight: '22px',
+	color: muted ? 'var(--p-color-text-subdued)' : 'var(--p-color-text)',
+} )
 
-function PaneHeader({ left, right }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        alignItems: "center",
-        height: "24px",
-        minHeight: "24px",
-        flex: "0 0 24px",
-        "--p-height-700": "24px",
-        "--p-width-700": "24px",
-      }}
-    >
-      <InlineStack
-        align="space-between"
-        blockAlign="center"
-        gap="200"
-        wrap={false}
-      >
-        {left}
-        {right}
-      </InlineStack>
-    </div>
-  );
+function PaneHeader( { left, right } ) {
+	return (
+		<div
+			style={ {
+				display: 'grid',
+				alignItems: 'center',
+				height: '24px',
+				minHeight: '24px',
+				flex: '0 0 24px',
+				'--p-height-700': '24px',
+				'--p-width-700': '24px',
+			} }
+		>
+			<InlineStack
+				align="space-between"
+				blockAlign="center"
+				gap="200"
+				wrap={ false }
+			>
+				{ left }
+				{ right }
+			</InlineStack>
+		</div>
+	)
 }
 
-export default function CompareOverlay({
-  open,
-  unit,
-  fieldLabel,
-  language,
-  collectionId,
-  languages = [],
-  sourceLabel = "Original",
-  sourceFlag = "",
-  targetDir = "ltr",
-  aiAvailable,
-  onAiTranslate,
-  onPickLanguage,
-  onOpenPreview,
-  onClose,
-  onSaved,
-  onLengthWarning,
-  onPrev,
-  onNext,
-  hasPrev,
-  hasNext,
-}) {
-  const [text, setText] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [savedTick, setSavedTick] = useState(0);
-  const [error, setError] = useState("");
-  const [translating, setTranslating] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [langOpen, setLangOpen] = useState(false);
-  const [filled, setFilled] = useState(false);
+export default function CompareOverlay( {
+	open,
+	unit,
+	language,
+	collectionId,
+	languages = [],
+	sourceLabel = 'Original',
+	sourceFlag = '',
+	targetDir = 'ltr',
+	aiAvailable,
+	onAiTranslate,
+	onPickLanguage,
+	onOpenPreview,
+	onClose,
+	onSaved,
+	onLengthWarning,
+	onPrev,
+	onNext,
+	hasPrev,
+	hasNext,
+} ) {
+	const [ text, setText ] = useState( '' )
+	const [ saving, setSaving ] = useState( false )
+	const [ savedTick, setSavedTick ] = useState( 0 )
+	const { mutateAsync: saveTranslation } = useSaveTranslation()
+	const [ error, setError ] = useState( '' )
+	const [ submitting, setSubmitting ] = useState( false )
+	const [ menuOpen, setMenuOpen ] = useState( false )
+	const [ langOpen, setLangOpen ] = useState( false )
+	const [ filled, setFilled ] = useState( false )
 
-  const savedRef = useRef(""); // last value known to be persisted
-  const validRef = useRef(true); // chip-structure validity (composed only)
-  const pendingRef = useRef(null); // value waiting on the debounce
-  const timerRef = useRef(null);
+	const savedRef = useRef( '' ) // last value known to be persisted
+	const validRef = useRef( true ) // chip-structure validity (composed only)
+	const pendingRef = useRef( null ) // value waiting on the debounce
+	const timerRef = useRef( null )
+	const copyButtonRef = useRef( null ) // focus target once Translate unmounts
 
-  const composed = !!unit && hasMarkers(unit.original || "");
-  const unitId = unit?.id;
-  // A composed unit with no translation yet starts from the original so every
-  // formatting chip is present; the translator edits the words in place. This is
-  // only a starting draft — autosave still fires only once the value changes.
-  const incoming =
-    unit?.translated ?? (composed ? unit?.original ?? "" : "");
+	// `submitting` covers the optimistic window between click and the queue
+	// invalidation it triggers; `unit.status === 'pending'` covers the rest
+	// of the async wait, cleared only once the overlay's own poll
+	// (overlayTextsQ's pollWhilePending, in Dashboard.jsx) sees the real
+	// result land -- a submit response no longer carries the translation
+	// itself (see AiTranslationController::submit).
+	const translating = submitting || unit?.status === 'pending'
 
-  const save = useCallback(
-    async (value) => {
-      if (!unitId || value === savedRef.current) {
-        return;
-      }
-      if (composed && !validRef.current) {
-        return; // broken tag structure never reaches the server
-      }
-      setSaving(true);
-      const res = await api.post("/translations", {
-        text_unit_id: unitId,
-        language,
-        text: value,
-        collection_id: collectionId,
-      });
-      setSaving(false);
-      if (res.ok) {
-        savedRef.current = value;
-        setError("");
-        setSavedTick((t) => t + 1);
-        onSaved(res);
-        const originalForCompare = composed
-          ? stripMarkers(unit.original || "")
-          : unit.original || "";
-        const translatedForCompare = composed ? stripMarkers(value) : value;
-        const warning = lengthWarningMessage(originalForCompare, translatedForCompare);
-        if (warning) {
-          onLengthWarning(warning);
-        }
-        return;
-      }
-      setError(
-        res.error === "ERR_TAG_STRUCTURE"
-          ? "Tag structure is invalid — fix the highlighted tags."
-          : "Could not save. Please try again."
-      );
-    },
-    [unitId, language, composed, collectionId, onSaved, unit, onLengthWarning]
-  );
+	const composed = !! unit && hasMarkers( unit.original || '' )
+	const unitId = unit?.id
+	// A composed unit with no translation yet starts from the original so every
+	// formatting chip is present; the translator edits the words in place. This is
+	// only a starting draft — autosave still fires only once the value changes.
+	const incoming =
+		unit?.translated ?? ( composed ? unit?.original ?? '' : '' )
 
-  const flush = useCallback(() => {
-    clearTimeout(timerRef.current);
-    const value = pendingRef.current;
-    pendingRef.current = null;
-    return value === null ? Promise.resolve() : save(value);
-  }, [save]);
+	const save = useCallback(
+		async ( value ) => {
+			if ( ! unitId || value === savedRef.current ) {
+				return
+			}
+			if ( composed && ! validRef.current ) {
+				return // broken tag structure never reaches the server
+			}
+			setSaving( true )
+			const res = await saveTranslation( {
+				text_unit_id: unitId,
+				language,
+				text: value,
+				collection_id: collectionId,
+			} )
+			setSaving( false )
+			if ( res.ok ) {
+				savedRef.current = value
+				setError( '' )
+				setSavedTick( ( t ) => t + 1 )
+				onSaved( res )
+				const originalForCompare = composed
+					? stripMarkers( unit.original || '' )
+					: unit.original || ''
+				const translatedForCompare = composed
+					? stripMarkers( value )
+					: value
+				const warning = lengthWarningMessage(
+					originalForCompare,
+					translatedForCompare
+				)
+				if ( warning ) {
+					onLengthWarning( warning )
+				}
+				return
+			}
+			setError(
+				res.error === 'ERR_TAG_STRUCTURE'
+					? 'Tag structure is invalid — fix the highlighted tags.'
+					: errorMessage( res.error )
+			)
+		},
+		[
+			unitId,
+			language,
+			composed,
+			collectionId,
+			onSaved,
+			unit,
+			onLengthWarning,
+			saveTranslation,
+		]
+	)
 
-  const schedule = useCallback(
-    (value) => {
-      pendingRef.current = value;
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(flush, AUTOSAVE_DEBOUNCE_MS);
-    },
-    [flush]
-  );
+	const flush = useCallback( () => {
+		clearTimeout( timerRef.current )
+		const value = pendingRef.current
+		pendingRef.current = null
+		return value === null ? Promise.resolve() : save( value )
+	}, [ save ] )
 
-  // Switching unit or language starts a clean draft — never carry one over.
-  useEffect(() => {
-    if (!open || !unitId) {
-      return;
-    }
-    clearTimeout(timerRef.current);
-    pendingRef.current = null;
-    savedRef.current = incoming;
-    validRef.current = true;
-    setText(incoming);
-    setError("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, unitId, language]);
+	const schedule = useCallback(
+		( value ) => {
+			pendingRef.current = value
+			clearTimeout( timerRef.current )
+			timerRef.current = setTimeout( flush, AUTOSAVE_DEBOUNCE_MS )
+		},
+		[ flush ]
+	)
 
-  // Adopt a value that changed server-side (AI translate, a refetch elsewhere).
-  useEffect(() => {
-    if (open && incoming !== savedRef.current) {
-      savedRef.current = incoming;
-      setText(incoming);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incoming]);
+	// Switching unit or language starts a clean draft — never carry one over.
+	useEffect( () => {
+		if ( ! open || ! unitId ) {
+			return
+		}
+		clearTimeout( timerRef.current )
+		pendingRef.current = null
+		savedRef.current = incoming
+		validRef.current = true
+		setText( incoming )
+		setError( '' )
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ open, unitId, language ] )
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+	// Adopt a value that changed server-side (AI translate, a refetch elsewhere).
+	useEffect( () => {
+		if ( open && incoming !== savedRef.current ) {
+			savedRef.current = incoming
+			setText( incoming )
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ incoming ] )
 
-  if (!unit) {
-    return null;
-  }
+	useEffect( () => () => clearTimeout( timerRef.current ), [] )
 
-  const setDraft = (value, isValid = true) => {
-    validRef.current = isValid;
-    setText(value);
-    schedule(value);
-  };
+	if ( ! unit ) {
+		return null
+	}
 
-  async function withFlush(fn) {
-    await flush();
-    fn();
-  }
+	const setDraft = ( value, isValid = true ) => {
+		validRef.current = isValid
+		setText( value )
+		schedule( value )
+	}
 
-  async function translate() {
-    setTranslating(true);
-    await flush();
-    await onAiTranslate("text", { ref: unit.id, collection_id: collectionId });
-    setTranslating(false);
-  }
+	async function withFlush( fn ) {
+		await flush()
+		fn()
+	}
 
-  function fillFromOriginal() {
-    setDraft(unit.original ?? "");
-    setFilled(true);
-    setTimeout(() => setFilled(false), 1500);
-  }
+	// Translates this one text into EVERY configured language (not just the pane
+	// currently shown) in a single request — `languages` is already every target
+	// language the site has (draft + active; the source language isn't in this
+	// list), and `unit.id` is the source ref, which is the same regardless of
+	// target language. The submit resolves before translation actually
+	// happens (async queue); the real text lands via overlayTextsQ's poll,
+	// which the `text` sync effect above picks up once `unit.translated`
+	// changes for this pane's language.
+	async function translate() {
+		setSubmitting( true )
+		const startedAt = Date.now()
+		await flush()
+		await onAiTranslate( 'text', {
+			ref: unit.id,
+			collection_id: collectionId,
+			languages: languages.map( ( l ) => l.code ),
+		} )
+		// Keep the shimmer up for at least one sweep even when the API beat it.
+		const remaining = MIN_SHIMMER_MS - ( Date.now() - startedAt )
+		if ( remaining > 0 ) {
+			await new Promise( ( resolve ) => setTimeout( resolve, remaining ) )
+		}
+		setSubmitting( false )
+	}
 
-  const targetLang = languages.find((l) => l.code === language);
-  const targetLabel =
-    targetLang?.display_name || targetLang?.name || language || "Translation";
-  const targetFlag = flagEmoji(targetLang || { code: language, locale: language });
-  const matchesOriginal = text === (unit.original ?? "");
+	// The Translate button unmounts while generating (AnimatePresence) — move
+	// focus to the adjacent Copy button first so a keyboard user never loses
+	// focus to <body>.
+	function handleTranslateClick() {
+		copyButtonRef.current?.querySelector( 'button' )?.focus()
+		translate()
+	}
 
-  const header = (
-    <InlineStack align="center" gap="300" blockAlign="center" wrap={false}>
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <ButtonGroup variant="segmented">
-          <Button
-            icon={ChevronLeftIcon}
-            disabled={!hasPrev}
-            onClick={() => withFlush(onPrev)}
-            accessibilityLabel="Before text"
-          />
-          <Button
-            icon={ChevronRightIcon}
-            disabled={!hasNext}
-            onClick={() => withFlush(onNext)}
-            accessibilityLabel="Next text"
-          />
-        </ButtonGroup>
-      </div>
-      {unit.preview_url && (
-        <div style={{ display: "flex", alignItems: "center", marginTop: "5px" }}>
-          <Popover
-            active={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            activator={
-              <Button
-                variant="tertiary"
-                icon={MenuHorizontalIcon}
-                onClick={() => setMenuOpen((o) => !o)}
-                accessibilityLabel="More actions"
-              />
-            }
-          >
-            <ActionList
-              items={[{
-                content: unit.preview_target === "frontend"
-                  ? "Preview on website"
-                  : "Edit in WordPress",
-                onAction: () => withFlush(() => {
-                  setMenuOpen(false);
-                  onOpenPreview(
-                    unit.preview_url,
-                    unit.preview_target,
-                    stripMarkers(text || unit.original || ""),
-                  );
-                }),
-              }]}
-            />
-          </Popover>
-        </div>
-      )}
-    </InlineStack>
-  );
+	function fillFromOriginal() {
+		setDraft( unit.original ?? '' )
+		setFilled( true )
+		setTimeout( () => setFilled( false ), 1500 )
+	}
 
-  return (
-    <Modal
-      open={open}
-      onClose={() => withFlush(onClose)}
-      title={header}
-      size="large"
-      noScroll
-    >
-      <div
-        style={{
-          display: "flex",
-          height: PANE_HEIGHT,
-          alignItems: "stretch",
-        }}
-      >
-        {/* ---- original (read only) ---- */}
-        <div className={PANE_CLASS}>
-          <PaneHeader
-            left={
-              <InlineStack gap="150" blockAlign="center" wrap={false}>
-                <span className="text-base leading-none">{sourceFlag}</span>
-                <Text as="span" variant="headingXs" tone="subdued">
-                  {sourceLabel}
-                </Text>
-              </InlineStack>
-            }
-            right={
-              <InlineStack gap="100" blockAlign="center" wrap={false}>
-                <Tooltip
-                  zIndexOverride={TOOLTIP_Z_INDEX}
-                  content={aiAvailable ? "Translate with AI" : "AI translation is not available"}
-                >
-                  <Button
-                    size="micro"
-                    icon={MagicIcon}
-                    disabled={!aiAvailable}
-                    loading={translating}
-                    onClick={translate}
-                  >
-                    Translate
-                  </Button>
-                </Tooltip>
-                <Tooltip
-                  zIndexOverride={TOOLTIP_Z_INDEX}
-                  content={
-                    filled
-                      ? "Copied!"
-                      : matchesOriginal
-                        ? "Translation already matches the original"
-                        : "Copy the original into the translation"
-                  }
-                >
-                  <Button
-                    size="micro"
-                    variant="tertiary"
-                    icon={filled ? CheckIcon : DuplicateIcon}
-                    disabled={matchesOriginal}
-                    accessibilityLabel="Copy the original into the translation"
-                    onClick={fillFromOriginal}
-                  />
-                </Tooltip>
-              </InlineStack>
-            }
-          />
-          {composed ? (
-            <SourceChips unit={unit.original} tags={unit.tags} />
-          ) : (
-            <div style={textareaStyle(false)}>{unit.original}</div>
-          )}
-        </div>
+	const targetLang = languages.find( ( l ) => l.code === language )
+	const targetLabel =
+		targetLang?.display_name ||
+		targetLang?.native_display ||
+		targetLang?.name ||
+		language ||
+		'Translation'
+	const targetFlag = flagIconUrl(
+		targetLang || { code: language, locale: language }
+	)
+	const matchesOriginal = text === ( unit.original ?? '' )
+	// Shown by the shimmer while generating — whatever this pane already
+	// displays (the in-progress draft, or its fallback), never a loading label.
+	const shimmerText = composed
+		? stripMarkers( text || unit.original || '' )
+		: text || unit.fallback || unit.original || ''
+	let copyTooltipContent = 'Copy the original into the translation'
+	if ( matchesOriginal ) {
+		copyTooltipContent = 'Translation already matches the original'
+	}
+	if ( filled ) {
+		copyTooltipContent = 'Copied!'
+	}
 
-        <div style={{ width: 1, background: "var(--p-color-border)" }} />
+	let saveStatus = ''
+	if ( saving ) {
+		saveStatus = 'Saving…'
+	} else if ( savedTick > 0 ) {
+		saveStatus = 'Saved'
+	}
 
-        {/* ---- translation (editable) ---- */}
-        <div className={PANE_CLASS}>
-          <PaneHeader
-            left={
-              <Popover
-                active={langOpen}
-                onClose={() => setLangOpen(false)}
-                activator={
-                  <button
-                    type="button"
-                    onClick={() => setLangOpen((o) => !o)}
-                    style={{
-                      all: "unset",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span className="text-base leading-none">{targetFlag}</span>
-                    <Text as="span" variant="headingXs" tone="subdued">
-                      {targetLabel}
-                    </Text>
-                    <span className="w-3.5 h-3.5">
-                      <Icon source={ChevronDownIcon} tone="subdued" />
-                    </span>
-                  </button>
-                }
-              >
-                <ActionList
-                  items={languages.map((l) => ({
-                    content: l.display_name || l.name || l.code,
-                    active: l.code === language,
-                    onAction: () =>
-                      withFlush(() => {
-                        setLangOpen(false);
-                        onPickLanguage(l.code);
-                      }),
-                  }))}
-                />
-              </Popover>
-            }
-            right={
-              <Text as="span" variant="bodyXs" tone="subdued">
-                {saving ? "Saving…" : savedTick > 0 ? "Saved" : ""}
-              </Text>
-            }
-          />
+	const header = (
+		<InlineStack
+			align="center"
+			gap="300"
+			blockAlign="center"
+			wrap={ false }
+		>
+			<div style={ { display: 'flex', alignItems: 'center' } }>
+				<ButtonGroup variant="segmented">
+					<Button
+						icon={ ChevronLeftIcon }
+						disabled={ ! hasPrev }
+						onClick={ () => withFlush( onPrev ) }
+						accessibilityLabel="Before text"
+					/>
+					<Button
+						icon={ ChevronRightIcon }
+						disabled={ ! hasNext }
+						onClick={ () => withFlush( onNext ) }
+						accessibilityLabel="Next text"
+					/>
+				</ButtonGroup>
+			</div>
+			{ unit.preview_url && (
+				<div
+					style={ {
+						display: 'flex',
+						alignItems: 'center',
+						marginTop: '5px',
+					} }
+				>
+					<Popover
+						active={ menuOpen }
+						onClose={ () => setMenuOpen( false ) }
+						activator={
+							<Button
+								variant="tertiary"
+								icon={ MenuHorizontalIcon }
+								onClick={ () => setMenuOpen( ( o ) => ! o ) }
+								accessibilityLabel="Preview options"
+							/>
+						}
+					>
+						<ActionList
+							items={ [
+								{
+									content:
+										unit.preview_target === 'frontend'
+											? 'Preview on website'
+											: 'Edit in WordPress',
+									onAction: () =>
+										withFlush( () => {
+											setMenuOpen( false )
+											onOpenPreview(
+												unit.preview_url,
+												unit.preview_target,
+												stripMarkers(
+													text || unit.original || ''
+												)
+											)
+										} ),
+								},
+							] }
+						/>
+					</Popover>
+				</div>
+			) }
+		</InlineStack>
+	)
 
-          {composed ? (
-            <ChipField
-              sourceUnit={unit.original}
-              value={text}
-              tags={unit.tags}
-              dir={targetDir}
-              onChange={setDraft}
-            />
-          ) : (
-            <textarea
-              dir={targetDir}
-              value={text}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={flush}
-              placeholder={unit.fallback || unit.original || ""}
-              aria-label="Translation"
-              style={{ ...textareaStyle(false), resize: "none" }}
-            />
-          )}
+	return (
+		<Modal
+			open={ open }
+			onClose={ () => withFlush( onClose ) }
+			title={ header }
+			size="large"
+			noScroll
+		>
+			<div
+				style={ {
+					display: 'flex',
+					height: PANE_HEIGHT,
+					alignItems: 'stretch',
+				} }
+			>
+				{ /* ---- original (read only) ---- */ }
+				<div className={ PANE_CLASS }>
+					<PaneHeader
+						left={
+							<InlineStack
+								gap="150"
+								blockAlign="center"
+								wrap={ false }
+							>
+								<FlagIcon src={ sourceFlag } />
+								<Text
+									as="span"
+									variant="headingXs"
+									tone="subdued"
+								>
+									{ sourceLabel }
+								</Text>
+							</InlineStack>
+						}
+						right={
+							<InlineStack
+								gap="100"
+								blockAlign="center"
+								wrap={ false }
+							>
+								<div style={ { position: 'relative' } }>
+									{ /* Invisible ghost, same markup as the real
+									button below — reserves its exact footprint
+									so the slot never shifts when the real
+									button mounts/unmounts. */ }
+									<div
+										aria-hidden="true"
+										style={ { visibility: 'hidden' } }
+									>
+										<Button
+											size="micro"
+											variant="tertiary"
+											icon={ ( props ) => (
+												<AiIcon
+													{ ...props }
+													size={ 12 }
+												/>
+											) }
+										>
+											Translate
+										</Button>
+									</div>
+									<AnimatePresence initial={ false }>
+										{ ! translating && (
+											<motion.div
+												key="translate"
+												initial={ {
+													opacity: 0,
+													scale: 0.92,
+												} }
+												animate={ {
+													opacity: 1,
+													scale: 1,
+												} }
+												exit={ {
+													opacity: 0,
+													scale: 0.92,
+												} }
+												transition={ {
+													duration: 0.2,
+													ease: [ 0.4, 0, 0.2, 1 ],
+												} }
+												style={ {
+													position: 'absolute',
+													inset: 0,
+												} }
+											>
+												<Tooltip
+													zIndexOverride={
+														TOOLTIP_Z_INDEX
+													}
+													content={
+														aiAvailable
+															? 'Translate with AI (all languages)'
+															: 'AI translation is not available'
+													}
+												>
+													<Button
+														size="micro"
+														variant="tertiary"
+														icon={ ( props ) => (
+															<AiIcon
+																{ ...props }
+																size={ 12 }
+															/>
+														) }
+														disabled={
+															! aiAvailable
+														}
+														onClick={
+															handleTranslateClick
+														}
+													>
+														Translate
+													</Button>
+												</Tooltip>
+											</motion.div>
+										) }
+									</AnimatePresence>
+								</div>
+								<span
+									ref={ copyButtonRef }
+									style={ { display: 'contents' } }
+								>
+									<Tooltip
+										zIndexOverride={ TOOLTIP_Z_INDEX }
+										content={ copyTooltipContent }
+									>
+										<Button
+											size="micro"
+											variant="tertiary"
+											icon={
+												filled
+													? CheckIcon
+													: DuplicateIcon
+											}
+											disabled={ matchesOriginal }
+											accessibilityLabel="Copy the original into the translation"
+											onClick={ fillFromOriginal }
+										/>
+									</Tooltip>
+								</span>
+							</InlineStack>
+						}
+					/>
+					{ composed ? (
+						<div
+							style={ {
+								flex: 1,
+								minHeight: 0,
+								display: 'flex',
+								flexDirection: 'column',
+							} }
+						>
+							<SourceChips
+								unit={ unit.original }
+								tags={ unit.tags }
+							/>
+							<div
+								style={ {
+									height: 1,
+									background: 'var(--p-color-border)',
+								} }
+							/>
+							{ /* Same original, tags stripped — a quick, noise-free
+							read of the plain copy alongside the tagged one. */ }
+							<div style={ textareaStyle( true ) }>
+								{ stripMarkers( unit.original ) }
+							</div>
+						</div>
+					) : (
+						<div style={ textareaStyle( false ) }>
+							{ unit.original }
+						</div>
+					) }
+				</div>
 
-          {error && (
-            <Text as="p" tone="critical" variant="bodySm">
-              {error}
-            </Text>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
+				<div
+					style={ { width: 1, background: 'var(--p-color-border)' } }
+				/>
+
+				{ /* ---- translation (editable) ---- */ }
+				<div className={ PANE_CLASS }>
+					<PaneHeader
+						left={
+							<Popover
+								active={ langOpen }
+								onClose={ () => setLangOpen( false ) }
+								activator={
+									<button
+										type="button"
+										onClick={ () =>
+											setLangOpen( ( o ) => ! o )
+										}
+										style={ {
+											all: 'unset',
+											cursor: 'pointer',
+											display: 'inline-flex',
+											alignItems: 'center',
+											gap: '6px',
+										} }
+									>
+										<FlagIcon src={ targetFlag } />
+										<Text
+											as="span"
+											variant="headingXs"
+											tone="subdued"
+										>
+											{ targetLabel }
+										</Text>
+										<span className="w-3.5 h-3.5">
+											<Icon
+												source={ ChevronDownIcon }
+												tone="subdued"
+											/>
+										</span>
+									</button>
+								}
+							>
+								<ActionList
+									items={ languages.map( ( l ) => ( {
+										content:
+											l.display_name ||
+											l.native_display ||
+											l.name ||
+											l.code,
+										active: l.code === language,
+										onAction: () =>
+											withFlush( () => {
+												setLangOpen( false )
+												onPickLanguage( l.code )
+											} ),
+									} ) ) }
+								/>
+							</Popover>
+						}
+						right={
+							<Text as="span" variant="bodyXs" tone="subdued">
+								{ saveStatus }
+							</Text>
+						}
+					/>
+
+					<div
+						style={ {
+							position: 'relative',
+							flex: 1,
+							minHeight: 0,
+							display: 'flex',
+							flexDirection: 'column',
+						} }
+					>
+						{ composed ? (
+							<motion.div
+								animate={ {
+									opacity: translating ? 0 : 1,
+								} }
+								transition={ { duration: 0.15 } }
+								style={ {
+									flex: 1,
+									minHeight: 0,
+									display: 'flex',
+								} }
+							>
+								<ChipField
+									sourceUnit={ unit.original }
+									value={ text }
+									tags={ unit.tags }
+									dir={ targetDir }
+									onChange={ setDraft }
+								/>
+							</motion.div>
+						) : (
+							<motion.textarea
+								dir={ targetDir }
+								value={ text }
+								onChange={ ( e ) => setDraft( e.target.value ) }
+								onBlur={ flush }
+								placeholder={
+									unit.fallback || unit.original || ''
+								}
+								aria-label="Translation"
+								animate={ {
+									opacity: translating ? 0 : 1,
+								} }
+								transition={ { duration: 0.15 } }
+								style={ {
+									...textareaStyle( false ),
+									resize: 'none',
+								} }
+							/>
+						) }
+						{ /* No AnimatePresence here on purpose — an exit
+						transition would keep this mounted over the just-
+						arrived real text and read as a stall. It gets an
+						enter fade only; completion removes it instantly. */ }
+						{ translating && (
+							<motion.span
+								aria-hidden="true"
+								className="lingowp-shimmer"
+								initial={ { opacity: 0 } }
+								animate={ { opacity: 1 } }
+								transition={ { duration: 0.15 } }
+								dir={ targetDir }
+								style={ {
+									// .lingowp-shimmer's display:flex + align-items:
+									// center is tuned for a single-line table
+									// cell — this is a wrapped paragraph, so
+									// override both back to a plain top-aligned
+									// text block.
+									display: 'block',
+									alignItems: 'unset',
+									whiteSpace: 'pre-wrap',
+									overflow: 'hidden',
+									padding: '8px 4px',
+									fontSize: '13px',
+									lineHeight: '22px',
+									animationDirection:
+										targetDir === 'rtl'
+											? 'reverse'
+											: 'normal',
+								} }
+							>
+								{ shimmerText }
+							</motion.span>
+						) }
+					</div>
+
+					{ error && (
+						<Text as="p" tone="critical" variant="bodySm">
+							{ error }
+						</Text>
+					) }
+				</div>
+			</div>
+		</Modal>
+	)
 }

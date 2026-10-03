@@ -7,9 +7,9 @@
  * plan-inline-tag-editor-v1-backend.md.
  */
 
-require __DIR__ . '/../src/Core/Parsing/UnitStructureGuard.php';
+require __DIR__ . '/../src/Shared/Parsing/UnitStructureGuard.php';
 
-use TransLangs\Core\Parsing\UnitStructureGuard;
+use LingoWP\Shared\Parsing\UnitStructureGuard;
 
 $cases = [
     // [label, source, submission, expected errors (sorted)]

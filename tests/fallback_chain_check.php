@@ -14,28 +14,28 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use TransLangs\Language\Infrastructure\OptionLanguageRegistry;
+use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 
 // ── get_option() stub ────────────────────────────────────────────────────────
 // LanguageMetadataStore::all()/get() and OptionLanguageRegistry::getDefaultLanguage()
 // only ever READ options in the code paths fallbackChain() touches, so a bare
 // in-memory map is enough — no update_option()/current_time() stub needed.
 
-$GLOBALS['tl_test_options'] = [
-    'translangs_source_locale' => 'en_US',
-    'translangs_languages'     => [],
+$GLOBALS['test_test_options'] = [
+    'lingowp_source_locale' => 'en_US',
+    'lingowp_languages'     => [],
 ];
 
 function get_option(string $name, $default = false)
 {
-    return $GLOBALS['tl_test_options'][$name] ?? $default;
+    return $GLOBALS['test_test_options'][$name] ?? $default;
 }
 
 /** Seed one language's metadata entry directly (bypassing LanguageMetadataStore::save(),
  *  which needs current_time()/update_option() — this test only reads). */
 function seed_language(string $code, string $fallback): void
 {
-    $GLOBALS['tl_test_options']['translangs_languages'][$code] = [
+    $GLOBALS['test_test_options']['lingowp_languages'][$code] = [
         'code'              => $code,
         'fallback_language' => $fallback,
     ];

@@ -1,10 +1,10 @@
 <?php
 
-namespace TransLangs\Language\Infrastructure;
+namespace LingoWP\Language\Infrastructure;
 
-use TransLangs\Language\Domain\LocaleNormalizer;
+use LingoWP\Language\Domain\LocaleNormalizer;
 
-/** WordPress core's Site Language catalog, shaped for the TransLangs UI. */
+/** WordPress core's Site Language catalog, shaped for the LingoWP UI. */
 final class WordPressLanguageCatalog
 {
     /** @var array<string, array<string, string>>|null */
@@ -18,7 +18,7 @@ final class WordPressLanguageCatalog
         }
 
         // WordPress stores the Site Language catalog in this network-level
-        // transient. Reading it directly keeps the TransLangs REST request
+        // transient. Reading it directly keeps the LingoWP REST request
         // local: wp_get_available_translations() may perform a synchronous
         // WordPress.org request when the transient is cold, which must never
         // hold the workspace response open.
@@ -87,6 +87,7 @@ final class WordPressLanguageCatalog
                 'region_name' => self::displayRegion($locale, $region),
                 'variant_name' => $variant === '' ? '' : ucwords(str_replace(['-', '_'], ' ', $variant)),
                 'english_name' => $english, 'native_name' => $native,
+                'native_display' => self::nativeDisplay($locale, $native),
                 'direction' => self::direction($language),
             ];
         }
@@ -100,6 +101,39 @@ final class WordPressLanguageCatalog
     {
         $locale = LocaleNormalizer::normalize($locale);
         return self::all()[$locale] ?? null;
+    }
+
+    /**
+     * The language's own name for itself, plus its region written in that same
+     * language: "Português (Brasil)", "Français (Canada)", "日本語". This is the
+     * canonical label every language-name surface shows — the front-end
+     * switcher, the admin language list, the pickers. A user-typed workspace
+     * name is a separate thing and never replaces this.
+     *
+     * Built from PHP's ICU data so the region word is in the language itself
+     * ("Brasil", not "Brazil") — it needs only the locale string, never the
+     * WordPress catalog, so it is safe on a cold front-end request. Without the
+     * intl extension it returns $fallback (WordPress's native_name, which
+     * already carries a region for many locales, e.g. "Français du Canada").
+     */
+    public static function nativeDisplay(string $locale, string $fallback = ''): string
+    {
+        if (!class_exists(\Locale::class)) {
+            return $fallback;
+        }
+
+        $language = (string) \Locale::getDisplayLanguage(LocaleNormalizer::language($locale), $locale);
+        if ($language === '') {
+            return $fallback;
+        }
+        // ICU lowercases language names in French, Portuguese, Spanish, …
+        // ("français"); every surface here wants it capitalized. Non-cased
+        // scripts (Japanese, Arabic) are unaffected.
+        $language = mb_strtoupper(mb_substr($language, 0, 1)) . mb_substr($language, 1);
+
+        $regionName = (string) \Locale::getDisplayRegion($locale, $locale);
+
+        return $regionName !== '' ? $language . ' (' . $regionName . ')' : $language;
     }
 
     private static function displayLanguage(string $locale, string $fallback): string

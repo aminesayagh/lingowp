@@ -83,4 +83,10 @@ These instructions extend the base context above and take priority where they co
 - Avoid adding generic infrastructure, service containers, registries, factories, or orchestration layers unless they solve a concrete business problem in this plugin. Do not introduce indirection just to satisfy an abstract pattern.
 - Adding explicit fields, dependencies, or straightforward methods to an existing class is acceptable when it keeps the flow easier to read.
 - In plans and explanations, use natural language about the product behavior and implementation intent. Avoid framing proposals around coding-tool jargon or abstractions when a direct explanation is clearer.
+
+### Admin UI data fetching
+
+- Every REST call from `admin-ui/` goes through a React Query hook (or the shared `fetchBoard` / `fetchGettext` helpers) in `admin-ui/queries/**`. The raw client `admin-ui/api.js` may only be imported from that folder — an ESLint rule (`no-restricted-imports` in `.eslintrc.js`) fails the build otherwise.
+- Reads are `useQuery` / `useInfiniteQuery`; writes are `useMutation`. A mutation's `onSuccess` invalidates the affected `qk.*` keys (see `admin-ui/queryKeys.js`) so views refresh themselves — don't re-fetch by hand.
+- The content board and gettext board keep their list queries' `queryKey` arrays inline at the call site (they're predicate-invalidated on `queryKey[0]`); everything else names its key through `qk`.
 <!-- END project-additions -->
