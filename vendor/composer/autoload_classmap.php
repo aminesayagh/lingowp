@@ -118,6 +118,8 @@ return array(
     'LingoWP\\LocalizationRouting\\LanguageSwitcherShortcode' => $baseDir . '/src/LocalizationRouting/LanguageSwitcherShortcode.php',
     'LingoWP\\LocalizationRouting\\LocalizedUrlBuilder' => $baseDir . '/src/LocalizationRouting/LocalizedUrlBuilder.php',
     'LingoWP\\LocalizationRouting\\MultilingualRedirects' => $baseDir . '/src/LocalizationRouting/MultilingualRedirects.php',
+    'LingoWP\\LocalizationRouting\\RouteSlugSpans' => $baseDir . '/src/LocalizationRouting/RouteSlugSpans.php',
+    'LingoWP\\LocalizationRouting\\SlugMap' => $baseDir . '/src/LocalizationRouting/SlugMap.php',
     'LingoWP\\LocalizationRouting\\SwitcherRenderer' => $baseDir . '/src/LocalizationRouting/SwitcherRenderer.php',
     'LingoWP\\Onboarding\\OnboardingPageController' => $baseDir . '/src/Onboarding/OnboardingPageController.php',
     'LingoWP\\Onboarding\\OnboardingRestController' => $baseDir . '/src/Onboarding/OnboardingRestController.php',

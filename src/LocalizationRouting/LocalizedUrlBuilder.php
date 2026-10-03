@@ -8,9 +8,12 @@ class LocalizedUrlBuilder
 {
     private ResolveRequestLanguage $resolver;
 
-    public function __construct(ResolveRequestLanguage $resolver)
+    private ?SlugMap $slugs;
+
+    public function __construct(ResolveRequestLanguage $resolver, ?SlugMap $slugs = null)
     {
         $this->resolver = $resolver;
+        $this->slugs    = $slugs;
     }
 
     public function prefixedLanguages(): array
@@ -62,7 +65,9 @@ class LocalizedUrlBuilder
             return '/';
         }
 
-        return '/' . $rest . (substr($path, -1) === '/' ? '/' : '');
+        $bare = '/' . $rest . (substr($path, -1) === '/' ? '/' : '');
+
+        return $this->slugs === null ? $bare : $this->slugs->toSource($bare, $prefix);
     }
 
     public function addPrefix(string $path, string $lang): string
@@ -74,6 +79,10 @@ class LocalizedUrlBuilder
         }
 
         $bare = '/' . ltrim($bare, '/');
+
+        if ($this->slugs !== null) {
+            $bare = $this->slugs->localize($bare, $lang);
+        }
 
         $slug = $this->resolver->slugForLanguage($lang);
 

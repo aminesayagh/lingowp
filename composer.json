@@ -42,6 +42,7 @@
 			"@php tests/gettext_ai_hash_check.php",
 			"@php tests/support_payload_check.php",
 			"@php tests/split_field_check.php",
+			"@php tests/slug_map_check.php",
 			"@php tests/addon_site_matcher_check.php"
 		],
 		"test:db": [
@@ -62,6 +63,9 @@
 			"./wp eval-file tests/db/hreflang_it.php",
 			"./wp eval-file tests/db/multilingual_redirects_it.php",
 			"./wp eval-file tests/db/language_url_it.php",
+			"./wp eval-file tests/db/slug_translation_it.php",
+			"./wp eval-file tests/db/slug_routing_bugs_it.php",
+			"./wp eval-file tests/db/slug_open_findings_it.php",
 			"./wp eval-file tests/db/ai_translate_scope_it.php",
 			"./wp eval-file tests/db/ai_pending_it.php",
 			"./wp eval-file tests/db/ai_result_applier_it.php",

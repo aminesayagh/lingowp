@@ -262,6 +262,7 @@ class TranslationMemorySchema
         add_option('lingowp_cookie_preference', true);
         add_option('lingowp_browser_detection', false);
         add_option('lingowp_auto_redirect', false);
+        add_option(\LingoWP\LocalizationRouting\SlugMap::OPTION_ENABLED, false);
 
         add_option(\LingoWP\Backend\ConnectionRepository::OPTION_COMPLETED, false);
         add_option(\LingoWP\Backend\SiteMetadataProvider::OPTION_CATEGORIES, []);

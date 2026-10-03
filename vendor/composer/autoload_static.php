@@ -167,6 +167,8 @@ class ComposerStaticInitb0c34989a15fd37a8c6be8d498264344
         'LingoWP\\LocalizationRouting\\LanguageSwitcherShortcode' => __DIR__ . '/../..' . '/src/LocalizationRouting/LanguageSwitcherShortcode.php',
         'LingoWP\\LocalizationRouting\\LocalizedUrlBuilder' => __DIR__ . '/../..' . '/src/LocalizationRouting/LocalizedUrlBuilder.php',
         'LingoWP\\LocalizationRouting\\MultilingualRedirects' => __DIR__ . '/../..' . '/src/LocalizationRouting/MultilingualRedirects.php',
+        'LingoWP\\LocalizationRouting\\RouteSlugSpans' => __DIR__ . '/../..' . '/src/LocalizationRouting/RouteSlugSpans.php',
+        'LingoWP\\LocalizationRouting\\SlugMap' => __DIR__ . '/../..' . '/src/LocalizationRouting/SlugMap.php',
         'LingoWP\\LocalizationRouting\\SwitcherRenderer' => __DIR__ . '/../..' . '/src/LocalizationRouting/SwitcherRenderer.php',
         'LingoWP\\Onboarding\\OnboardingPageController' => __DIR__ . '/../..' . '/src/Onboarding/OnboardingPageController.php',
         'LingoWP\\Onboarding\\OnboardingRestController' => __DIR__ . '/../..' . '/src/Onboarding/OnboardingRestController.php',

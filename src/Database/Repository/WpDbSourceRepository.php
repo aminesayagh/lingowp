@@ -11,6 +11,7 @@ use LingoWP\Shared\Text\TranslatableText;
 use LingoWP\Shared\Source\TranslationStatus;
 use LingoWP\Shared\Parsing\TranslationSubmissionGuard;
 use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\LocalizationRouting\SlugMap;
 
 final class WpDbSourceRepository
 {
@@ -668,6 +669,34 @@ final class WpDbSourceRepository
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
         $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+
+        $this->bumpSlugMapForHash($tableKey, $hashHex);
+    }
+
+    private function bumpSlugMapForHash(string $tableKey, ?string $hashHex): void
+    {
+        if ($hashHex === null) {
+            return;
+        }
+
+        $field = ['post' => 'post_title', 'term' => 'name'][$tableKey] ?? null;
+        if ($field === null) {
+            return;
+        }
+
+        $parent = $this->parent($tableKey);
+
+        $owns = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "SELECT EXISTS(SELECT 1 FROM {$parent} WHERE original_hash = UNHEX(%s) AND field = %s)",
+                $hashHex,
+                $field
+            )
+        );
+
+        if ((int) $owns === 1) {
+            SlugMap::bumpVersion();
+        }
     }
 
     public function hasAnyPending(): bool
@@ -844,6 +873,7 @@ final class WpDbSourceRepository
                     $langCode
                 )
             );
+            $this->bumpSlugMapForHash($tableKey, $hashHex);
             $this->flushHtmlCache($ref, $langCode);
             return;
         }
@@ -949,6 +979,8 @@ final class WpDbSourceRepository
             $count += max(0, (int) $result);
         }
 
+        SlugMap::bumpVersion();
+
         return $count;
     }
 
@@ -1017,6 +1049,7 @@ final class WpDbSourceRepository
                     $this->wpdb->prepare("DELETE FROM {$child} WHERE original_hash = UNHEX(%s)", $hashHex)
                 );
             }
+            $this->bumpSlugMapForHash($tableKey, $hashHex);
             return;
         }
 
@@ -1042,6 +1075,10 @@ final class WpDbSourceRepository
                 TranslationStatus::SOURCE_IGNORED,
                 ...$ids
             ));
+
+            if ($tableKey === 'post' || $tableKey === 'term') {
+                SlugMap::bumpVersion();
+            }
         }
     }
 

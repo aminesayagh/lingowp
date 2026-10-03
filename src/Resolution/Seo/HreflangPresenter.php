@@ -119,7 +119,7 @@ class HreflangPresenter
 
     private function currentBasePath(): string
     {
-        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
+        $uri  = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         if ($path === '') {
@@ -131,7 +131,7 @@ class HreflangPresenter
 
     private function currentQuery(): string
     {
-        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $uri   = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';

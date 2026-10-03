@@ -14,9 +14,15 @@ class LanguageRouteRegistrar
 
     private ResolveRequestLanguage $resolver;
 
-    public function __construct(ResolveRequestLanguage $resolver)
+    private ?SlugMap $slugs;
+
+    private ?string $originalRequestUri = null;
+    private ?string $originalPathInfo = null;
+
+    public function __construct(ResolveRequestLanguage $resolver, ?SlugMap $slugs = null)
     {
         $this->resolver = $resolver;
+        $this->slugs    = $slugs;
     }
 
     public function register(): void
@@ -25,6 +31,10 @@ class LanguageRouteRegistrar
         $this->registerRewriteRulesFilter();
         add_action('init', [$this, 'maybeRefreshRewriteRules'], self::REWRITE_RULES_FILTER_PRIORITY);
         add_filter('request', [$this, 'filterRequest']);
+
+        add_filter('do_parse_request', [$this, 'normalizeRequestPath'], 10, 1);
+        add_action('parse_request', [$this, 'restoreRequestPath'], 0);
+        add_action('wp', [$this, 'restoreRequestPath'], 0);
     }
 
     public function registerRewriteRulesFilter(): void
@@ -69,6 +79,84 @@ class LanguageRouteRegistrar
         }
 
         return $vars;
+    }
+
+    public function normalizeRequestPath($continue = true)
+    {
+        if ($this->slugs === null || is_admin() || $continue === false) {
+            return $continue;
+        }
+
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- restored verbatim; normalizeOne() reads a sanitized copy for every decision.
+        $rawUri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $newUri = $rawUri === '' ? null : $this->normalizeOne($rawUri);
+
+        if ($newUri !== null) {
+            $this->originalRequestUri = $rawUri;
+            $_SERVER['REQUEST_URI']   = $newUri;
+        }
+
+        if (isset($_SERVER['PATH_INFO'])) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- same raw/restore contract as REQUEST_URI above.
+            $rawPathInfo = (string) $_SERVER['PATH_INFO'];
+            $newPathInfo = $rawPathInfo === '' ? null : $this->normalizeOne($rawPathInfo);
+
+            if ($newPathInfo !== null) {
+                $this->originalPathInfo = $rawPathInfo;
+                $_SERVER['PATH_INFO']   = $newPathInfo;
+            }
+        }
+
+        return $continue;
+    }
+
+    private function normalizeOne(string $raw): ?string
+    {
+        $cut     = strcspn($raw, '?#');
+        $rawPath = substr($raw, 0, $cut);
+        $suffix  = substr($raw, $cut);
+
+        if (esc_url_raw(wp_unslash($rawPath)) !== $rawPath) {
+            return null;
+        }
+
+        $trimmed = trim($rawPath, '/');
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $segments = explode('/', $trimmed);
+        $prefix   = array_shift($segments);
+        $lang     = $this->resolver->languageForSlug(rawurldecode($prefix));
+        if ($lang === null) {
+            return null;
+        }
+
+        $rest = implode('/', $segments);
+        if ($rest === '') {
+            return null;
+        }
+
+        $restPath   = '/' . $rest . (substr($rawPath, -1) === '/' ? '/' : '');
+        $sourceRest = $this->slugs->toSource($restPath, $lang);
+        if ($sourceRest === $restPath) {
+            return null;
+        }
+
+        return '/' . $prefix . $sourceRest . $suffix;
+    }
+
+    public function restoreRequestPath(): void
+    {
+        if ($this->originalRequestUri !== null) {
+            $_SERVER['REQUEST_URI'] = $this->originalRequestUri;
+            $this->originalRequestUri = null;
+        }
+
+        if ($this->originalPathInfo !== null) {
+            $_SERVER['PATH_INFO'] = $this->originalPathInfo;
+            $this->originalPathInfo = null;
+        }
     }
 
     private function normalizeWooCommerceEndpointVars(array $vars): array

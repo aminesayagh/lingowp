@@ -24,6 +24,7 @@ use LingoWP\LocalizationRouting\LanguageLinks;
 use LingoWP\LocalizationRouting\LanguageSwitcherShortcode;
 use LingoWP\LocalizationRouting\SwitcherRenderer;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
+use LingoWP\LocalizationRouting\SlugMap;
 use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
 use LingoWP\Admin\PermalinkNotice;
 use LingoWP\Resolution\PublicLinkRewriter;
@@ -93,8 +94,8 @@ class Plugin
 
         (new PrivacyPolicyContent())->register();
 
-        [$languageRegistry, $languageResolver, $urlBuilder, $context] = $this->bootLanguage($wpdb);
-        $this->bootLocalizationRouting($languageResolver, $urlBuilder);
+        [$languageRegistry, $languageResolver, $urlBuilder, $context, $slugMap] = $this->bootLanguage($wpdb);
+        $this->bootLocalizationRouting($languageResolver, $urlBuilder, $slugMap);
 
         $sourceRepository = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
         WpDbSourceRepository::prime($sourceRepository);
@@ -141,15 +142,22 @@ class Plugin
         ))->register();
 
         $languageResolver = new ResolveRequestLanguage($languageRegistry);
-        $urlBuilder       = new LocalizedUrlBuilder($languageResolver);
+
+        $slugMap = new SlugMap($wpdb, $languageRegistry);
+        $slugMap->register();
+
+        $urlBuilder       = new LocalizedUrlBuilder($languageResolver, $slugMap);
         $context          = new RequestContext();
 
-        return [$languageRegistry, $languageResolver, $urlBuilder, $context];
+        return [$languageRegistry, $languageResolver, $urlBuilder, $context, $slugMap];
     }
 
-    private function bootLocalizationRouting(ResolveRequestLanguage $languageResolver, LocalizedUrlBuilder $urlBuilder): void
-    {
-        (new LanguageRouteRegistrar($languageResolver))->register();
+    private function bootLocalizationRouting(
+        ResolveRequestLanguage $languageResolver,
+        LocalizedUrlBuilder $urlBuilder,
+        SlugMap $slugMap
+    ): void {
+        (new LanguageRouteRegistrar($languageResolver, $slugMap))->register();
 
         $languageLinks = new LanguageLinks(
             $languageResolver,

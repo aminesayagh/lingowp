@@ -79,8 +79,9 @@ class LanguageLinks
     private function baseRows(): array
     {
         $active = $this->resolver->resolve();
-        $uri    = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
-        $key    = md5($uri . '|' . $active);
+        $uri    = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+
+        $key    = md5($uri . '|' . $active . '|' . SlugMap::version());
 
         if (isset($this->baseCache[$key])) {
             return $this->baseCache[$key];
@@ -147,7 +148,7 @@ class LanguageLinks
 
     private function currentPath(): string
     {
-        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
+        $uri  = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? '/'));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
 
         return $path === '' ? '/' : $path;
@@ -155,7 +156,7 @@ class LanguageLinks
 
     private function currentQuery(): string
     {
-        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $uri   = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';

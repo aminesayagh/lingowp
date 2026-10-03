@@ -16277,11 +16277,11 @@ html {
 	max-width: none !important;
 }
 
-/* Same full-width treatment for the Billing screen's own mount root. */
-.wrap:has(> #lingowp-billing-app) {
+/* Same full-width treatment for the Account screen's own mount root. */
+.wrap:has(> #lingowp-account-app) {
 	margin: 0 !important;
 }
-#lingowp-billing-app .Polaris-Page {
+#lingowp-account-app .Polaris-Page {
 	padding-inline-start: 0 !important;
 	padding-inline-end: 12px !important;
 	max-width: none !important;
@@ -16292,16 +16292,6 @@ html {
 	margin: 0 !important;
 }
 #lingowp-insights-app .Polaris-Page {
-	padding-inline-start: 0 !important;
-	padding-inline-end: 12px !important;
-	max-width: none !important;
-}
-
-/* Same full-width treatment for the Integrations screen's own mount root. */
-.wrap:has(> #lingowp-integrations-app) {
-	margin: 0 !important;
-}
-#lingowp-integrations-app .Polaris-Page {
 	padding-inline-start: 0 !important;
 	padding-inline-end: 12px !important;
 	max-width: none !important;
@@ -16376,22 +16366,16 @@ html {
 #lingowp-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }
-#lingowp-billing-app .Polaris-Frame {
+#lingowp-account-app .Polaris-Frame {
 	min-height: 0;
 }
-#lingowp-billing-app .Polaris-Frame__Main {
+#lingowp-account-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }
 #lingowp-insights-app .Polaris-Frame {
 	min-height: 0;
 }
 #lingowp-insights-app .Polaris-Frame__Main {
-	border-inline-end: none;
-}
-#lingowp-integrations-app .Polaris-Frame {
-	min-height: 0;
-}
-#lingowp-integrations-app .Polaris-Frame__Main {
 	border-inline-end: none;
 }
 

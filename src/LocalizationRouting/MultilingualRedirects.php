@@ -24,12 +24,15 @@ class MultilingualRedirects
     public function register(): void
     {
         add_filter('wp_redirect', [$this, 'preserveLanguagePrefix'], 10, 2);
+
+        add_filter('redirect_canonical', [$this, 'preserveLanguagePrefix'], 10, 2);
+
         add_action('template_redirect', [$this, 'redirectMiscasedPrefix'], -10);
     }
 
-    public function preserveLanguagePrefix($location, $status)
+    public function preserveLanguagePrefix($location, $unused)
     {
-        unset($status);
+        unset($unused);
 
         if (!is_string($location) || $location === '') {
             return $location;
@@ -81,7 +84,7 @@ class MultilingualRedirects
             return;
         }
 
-        $uri  = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $uri  = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
         $path = (string) wp_parse_url($uri, PHP_URL_PATH);
         $trimmed = trim($path, '/');
         if ($trimmed === '') {
