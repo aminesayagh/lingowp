@@ -288,6 +288,7 @@ function test_resolve(string $uri): array
     $wp->parse_request();
 
     $query = new WP_Query();
+    // nosemgrep: wpdb-query-without-prepare -- $query is a WP_Query, not $wpdb: WP_Query::query() takes an array of query VARS, never SQL. The rule matches any receiver on purpose, so it cannot tell the two apart.
     $query->query($wp->query_vars);
 
     return [

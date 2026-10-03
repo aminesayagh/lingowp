@@ -655,9 +655,8 @@ final class SlugMap
 
         // Renamed posts keep answering their old URLs through this meta.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        $oldSlugs = (array) $this->wpdb->get_col(
-            "SELECT meta_value FROM {$this->wpdb->postmeta} WHERE meta_key = '_wp_old_slug'" // nosemgrep: wpdb-interpolated-sql -- $wpdb table name, literal key
-        );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $oldSlugs = (array) $this->wpdb->get_col("SELECT meta_value FROM {$this->wpdb->postmeta} WHERE meta_key = '_wp_old_slug'"); // nosemgrep: wpdb-interpolated-sql -- the only interpolation is $wpdb->postmeta, a WordPress-provided table name; the meta key is a literal and no value is interpolated
         foreach ($oldSlugs as $slug) {
             if ((string) $slug !== '') {
                 $slugs[rawurldecode(sanitize_title((string) $slug))] = true;
