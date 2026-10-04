@@ -105,7 +105,6 @@ class LanguageLinks
 
         $path    = $this->prefixer->stripPrefix($this->currentPath());
         $query   = $this->currentQuery();
-        $origin  = $this->origin();
 
         $rows = [];
         foreach ($ordered as $code) {
@@ -114,7 +113,7 @@ class LanguageLinks
             $rows[] = [
                 'code'         => $code,
                 'slug'         => $this->resolver->slugForLanguage($code),
-                'url'          => $origin . $localized . $query,
+                'url'          => $this->prefixer->absoluteUrl($localized . $query),
                 'native_name'  => $this->languages->nativeLabel($code),
                 'english_name' => $this->languages->label($code),
                 'dir'          => $this->languages->direction($code),
@@ -138,12 +137,12 @@ class LanguageLinks
         $out = [];
         foreach ($codes as $code) {
             $code = (string) $code;
-            if (isset($byCode[$code])) {
-                $out[] = $byCode[$code];
+            if (isset($byCode[$code]) && !isset($out[$code])) {
+                $out[$code] = $byCode[$code];
             }
         }
 
-        return $out;
+        return array_values($out);
     }
 
     private function currentPath(): string
@@ -160,18 +159,5 @@ class LanguageLinks
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';
-    }
-
-    private function origin(): string
-    {
-        $parts = wp_parse_url(home_url('/'));
-        if (!is_array($parts) || empty($parts['host'])) {
-            return '';
-        }
-
-        $scheme = $parts['scheme'] ?? ((function_exists('is_ssl') && is_ssl()) ? 'https' : 'http');
-        $port   = isset($parts['port']) ? ':' . $parts['port'] : '';
-
-        return $scheme . '://' . $parts['host'] . $port;
     }
 }

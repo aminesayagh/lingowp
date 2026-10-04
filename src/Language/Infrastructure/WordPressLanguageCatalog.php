@@ -83,17 +83,22 @@ final class WordPressLanguageCatalog
 
     public static function nativeDisplay(string $locale, string $fallback = ''): string
     {
+        return self::displayIn($locale, $locale, $fallback);
+    }
+
+    public static function displayIn(string $locale, string $displayLocale, string $fallback = ''): string
+    {
         if (!class_exists(\Locale::class)) {
             return $fallback;
         }
 
-        $language = (string) \Locale::getDisplayLanguage(LocaleNormalizer::language($locale), $locale);
+        $language = (string) \Locale::getDisplayLanguage(LocaleNormalizer::language($locale), $displayLocale);
         if ($language === '') {
             return $fallback;
         }
         $language = mb_strtoupper(mb_substr($language, 0, 1)) . mb_substr($language, 1);
 
-        $regionName = (string) \Locale::getDisplayRegion($locale, $locale);
+        $regionName = (string) \Locale::getDisplayRegion($locale, $displayLocale);
 
         return $regionName !== '' ? $language . ' (' . $regionName . ')' : $language;
     }

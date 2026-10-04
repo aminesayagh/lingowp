@@ -53,7 +53,7 @@ class MultilingualRedirects
 
         $path = $parts['path'] ?? '/';
 
-        if ($this->isNonPublicPath($path)) {
+        if ($this->isNonPublicPath($this->prefixer->splitSiteFolder($path)[1] ?? $path)) {
             return $location;
         }
 
@@ -71,7 +71,7 @@ class MultilingualRedirects
 
         $rebuilt = $newPath . $this->queryFragment($parts);
 
-        return isset($parts['host']) ? home_url($rebuilt) : $rebuilt;
+        return isset($parts['host']) ? $this->prefixer->absoluteUrl($rebuilt) : $rebuilt;
     }
 
     public function redirectMiscasedPrefix(): void
@@ -84,27 +84,40 @@ class MultilingualRedirects
             return;
         }
 
-        $uri  = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
-        $path = (string) wp_parse_url($uri, PHP_URL_PATH);
-        $trimmed = trim($path, '/');
-        if ($trimmed === '') {
+        $uri    = esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $target = $this->miscasedPrefixTarget($uri);
+        if ($target === null) {
             return;
         }
 
-        $segments      = explode('/', $trimmed);
-        $requestedSlug = rawurldecode($segments[0]);
+        wp_safe_redirect($this->prefixer->absoluteUrl($target), 301);
+        exit;
+    }
 
-        $correctSlug = $this->correctedPrefixSlug($requestedSlug);
+    public function miscasedPrefixTarget(string $uri): ?string
+    {
+        $split = $this->prefixer->splitSiteFolder((string) wp_parse_url($uri, PHP_URL_PATH));
+        if ($split === null) {
+            return null;
+        }
+
+        [$folder, $path] = $split;
+        $trimmed = trim($path, '/');
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $segments    = explode('/', $trimmed);
+        $correctSlug = $this->correctedPrefixSlug(rawurldecode($segments[0]));
         if ($correctSlug === null) {
-            return;
+            return null;
         }
 
         $segments[0] = $correctSlug;
-        $corrected   = '/' . implode('/', $segments) . (str_ends_with($path, '/') ? '/' : '');
+        $corrected   = $folder . '/' . implode('/', $segments) . (str_ends_with($path, '/') ? '/' : '');
         $query       = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
-        wp_safe_redirect(home_url($corrected . ($query !== '' ? '?' . $query : '')), 301);
-        exit;
+        return $corrected . ($query !== '' ? '?' . $query : '');
     }
 
     public function correctedPrefixSlug(string $requestedSlug): ?string

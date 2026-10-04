@@ -2,6 +2,7 @@
 
 namespace LingoWP\Resolution;
 
+use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
 use LingoWP\Shared\StaticAssetExtensions;
 
 class RequestContext
@@ -143,9 +144,11 @@ class RequestContext
 
     public function path(): string
     {
-        $uri = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
+        $path  = (string) parse_url($uri, PHP_URL_PATH);
+        $split = LocalizedUrlBuilder::splitSiteFolder($path);
 
-        return trim((string) parse_url($uri, PHP_URL_PATH), '/');
+        return trim($split === null ? $path : $split[1], '/');
     }
 
     private function pathStartsWith(string $needle): bool

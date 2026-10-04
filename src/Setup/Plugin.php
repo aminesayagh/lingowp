@@ -3,6 +3,7 @@
 namespace LingoWP\Setup;
 
 use LingoWP\Admin\AdminAssets;
+use LingoWP\Admin\AdminBarTranslateLink;
 use LingoWP\Admin\ForeignNoticeSuppressor;
 use LingoWP\GettextDomains\InstalledGettextComponentDiscovery;
 use LingoWP\Language\Application\ResolveRequestLanguage;
@@ -21,10 +22,12 @@ use LingoWP\Resolution\PageOwnedHashes;
 use LingoWP\Extraction\OwnedStringIndex;
 use LingoWP\LocalizationRouting\LanguageRouteRegistrar;
 use LingoWP\LocalizationRouting\LanguageLinks;
-use LingoWP\LocalizationRouting\LanguageSwitcherShortcode;
-use LingoWP\LocalizationRouting\SwitcherRenderer;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
 use LingoWP\LocalizationRouting\SlugMap;
+use LingoWP\Switcher\Switcher;
+use LingoWP\Switcher\SwitcherSettings;
+use LingoWP\Switcher\SwitcherSettingsRestController;
+use LingoWP\Switcher\SwitcherShortcode;
 use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
 use LingoWP\Admin\PermalinkNotice;
 use LingoWP\Resolution\PublicLinkRewriter;
@@ -126,6 +129,8 @@ class Plugin
         if (is_admin()) {
             $this->bootAdmin($wpdb, $languageRegistry);
         }
+
+        (new AdminBarTranslateLink(new ConnectionRepository(), $languageResolver))->register();
     }
 
     private function bootLanguage(\wpdb $wpdb): array
@@ -166,11 +171,13 @@ class Plugin
         );
         LanguageLinks::prime($languageLinks);
 
-        $switcherRenderer = new SwitcherRenderer($languageLinks);
-        SwitcherRenderer::prime($switcherRenderer);
-        $switcherRenderer->register();
+        $switcher = new Switcher($languageLinks);
+        Switcher::prime($switcher);
+        $switcher->register();
 
-        (new LanguageSwitcherShortcode($switcherRenderer))->register();
+        (new SwitcherShortcode($switcher))->register();
+
+        SwitcherSettings::register();
     }
 
     private function bootExtraction(\wpdb $wpdb, WpDbSourceRepository $sourceRepository): array
@@ -273,6 +280,7 @@ class Plugin
         $addonMatcher->register();
         (new BillingRestController($backendClient, $billingEntitlements, $connection, $addonMatcher))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
+        (new SwitcherSettingsRestController())->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
         $collectionBoard   = new CollectionBoard($sourceRepository, $languageRegistry);

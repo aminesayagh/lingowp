@@ -63,6 +63,12 @@
 			"./wp eval-file tests/db/hreflang_it.php",
 			"./wp eval-file tests/db/multilingual_redirects_it.php",
 			"./wp eval-file tests/db/language_url_it.php",
+			"./wp eval-file tests/db/switcher_review_it.php",
+			"./wp eval-file tests/db/switcher_alpha_order_it.php",
+			"./wp eval-file tests/db/switcher_short_label_a11y_it.php",
+			"./wp eval-file tests/db/switcher_design_it.php",
+			"./wp eval-file tests/db/public_link_rewriter_it.php",
+			"./wp eval-file tests/db/subfolder_incoming_it.php",
 			"./wp eval-file tests/db/slug_translation_it.php",
 			"./wp eval-file tests/db/slug_routing_bugs_it.php",
 			"./wp eval-file tests/db/slug_open_findings_it.php",
@@ -72,7 +78,8 @@
 			"./wp eval-file tests/db/gettext_unit_it.php",
 			"./wp eval-file tests/db/gettext_merge_it.php",
 			"./wp eval-file tests/db/gettext_ai_it.php",
-			"./wp eval-file tests/db/no_auto_connect_it.php"
+			"./wp eval-file tests/db/no_auto_connect_it.php",
+			"./wp eval-file tests/db/admin_bar_translate_link_it.php"
 		],
 		"security": "sh -c 'rc=0; for t in phpcs deps secrets semgrep semgrep-selftest; do echo \"--- $t ---\"; composer run --no-interaction security:$t || rc=1; done; exit $rc'",
 		"security:phpcs": "phpcs --report-summary --report-full=security-reports/phpcs-full.log --report-source=security-reports/phpcs-sniffs.log --report-json=security-reports/phpcs.json --no-colors",

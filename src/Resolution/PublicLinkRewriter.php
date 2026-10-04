@@ -164,9 +164,7 @@ final class PublicLinkRewriter
         $localizedPath = $this->urlBuilder->addPrefix($path, $targetLang);
 
         if ($isAbsolute) {
-            return function_exists('home_url')
-                ? (string) home_url($localizedPath . $suffix)
-                : $localizedPath . $suffix;
+            return $this->urlBuilder->absoluteUrl($localizedPath . $suffix);
         }
 
         return $localizedPath . $suffix;
@@ -188,7 +186,12 @@ final class PublicLinkRewriter
 
     private function shouldRewritePath(string $path): bool
     {
-        $path = strtolower(trim(rawurldecode($path), '/'));
+        $split = $this->urlBuilder->splitSiteFolder($path);
+        if ($split === null) {
+            return false;
+        }
+
+        $path = strtolower(trim(rawurldecode($split[1]), '/'));
         if ($path === '') {
             return true;
         }

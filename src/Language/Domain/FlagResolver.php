@@ -24,7 +24,7 @@ final class FlagResolver
     {
     }
 
-    public static function url(string $locale): ?string
+    public static function url(string $locale, string $shape = '4x3'): ?string
     {
         $cc = LocaleNormalizer::region($locale);
         if ($cc === '') {
@@ -35,6 +35,11 @@ final class FlagResolver
         }
 
         $file = strtolower($cc) . '.svg';
+
+        if ($shape === '1x1' && file_exists(LINGOWP_DIR . 'assets/flags/1x1/' . $file)) {
+            return LINGOWP_URL . 'assets/flags/1x1/' . $file;
+        }
+
         if (!file_exists(LINGOWP_DIR . 'assets/flags/' . $file)) {
             return null;
         }

@@ -180,6 +180,10 @@ final class OnboardingPageController
 
         $notifyEmail = $this->notifyEmailResolver->resolve();
 
+        $cssEditor = $hook === $this->accountHookSuffix
+            ? wp_enqueue_code_editor(['type' => 'text/css'])
+            : false;
+
         wp_localize_script(self::HANDLE, 'LingoWP', [
             'rest'                => esc_url_raw(rest_url('lingowp/v1')),
             'nonce'               => wp_create_nonce('wp_rest'),
@@ -189,6 +193,7 @@ final class OnboardingPageController
                 (new BackendEndpointResolver())->baseUrl() . '/addons/icons/'
             ),
             'account_url'         => esc_url_raw(admin_url('admin.php?page=' . self::ACCOUNT_SLUG)),
+            'css_editor'          => $cssEditor,
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
             'cloud_terms_url'     => esc_url_raw((string) apply_filters(

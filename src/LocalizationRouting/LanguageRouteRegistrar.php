@@ -89,7 +89,7 @@ class LanguageRouteRegistrar
 
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- restored verbatim; normalizeOne() reads a sanitized copy for every decision.
         $rawUri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
-        $newUri = $rawUri === '' ? null : $this->normalizeOne($rawUri);
+        $newUri = $rawUri === '' ? null : $this->normalizeOne($rawUri, true);
 
         if ($newUri !== null) {
             $this->originalRequestUri = $rawUri;
@@ -99,7 +99,7 @@ class LanguageRouteRegistrar
         if (isset($_SERVER['PATH_INFO'])) {
             // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- same raw/restore contract as REQUEST_URI above.
             $rawPathInfo = (string) $_SERVER['PATH_INFO'];
-            $newPathInfo = $rawPathInfo === '' ? null : $this->normalizeOne($rawPathInfo);
+            $newPathInfo = $rawPathInfo === '' ? null : $this->normalizeOne($rawPathInfo, false);
 
             if ($newPathInfo !== null) {
                 $this->originalPathInfo = $rawPathInfo;
@@ -110,7 +110,7 @@ class LanguageRouteRegistrar
         return $continue;
     }
 
-    private function normalizeOne(string $raw): ?string
+    private function normalizeOne(string $raw, bool $hasSiteFolder): ?string
     {
         $cut     = strcspn($raw, '?#');
         $rawPath = substr($raw, 0, $cut);
@@ -118,6 +118,15 @@ class LanguageRouteRegistrar
 
         if (esc_url_raw(wp_unslash($rawPath)) !== $rawPath) {
             return null;
+        }
+
+        $folder = '';
+        if ($hasSiteFolder) {
+            $split = LocalizedUrlBuilder::splitSiteFolder($rawPath);
+            if ($split === null) {
+                return null;
+            }
+            [$folder, $rawPath] = $split;
         }
 
         $trimmed = trim($rawPath, '/');
@@ -143,7 +152,7 @@ class LanguageRouteRegistrar
             return null;
         }
 
-        return '/' . $prefix . $sourceRest . $suffix;
+        return $folder . '/' . $prefix . $sourceRest . $suffix;
     }
 
     public function restoreRequestPath(): void

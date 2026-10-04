@@ -40,7 +40,7 @@ final class AiTaskSubmitter
             'texts'        => array_map(static fn (array $u): array => [
                 'text'     => $u['original'],
                 'group_id' => $u['group_id'],
-            ], $units),
+            ] + (empty($u['previous']) ? [] : ['previous' => $u['previous']]), $units),
         ];
 
         $res = $this->backend->submitTasks($payload);

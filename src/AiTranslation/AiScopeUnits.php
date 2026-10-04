@@ -14,7 +14,7 @@ final class AiScopeUnits
         $this->repo = $repo;
     }
 
-    public function forScope(string $scope, string $lang, string $collectionId = '', ?SourceRef $ref = null): ?array
+    public function forScope(string $scope, string $lang, string $collectionId = '', ?SourceRef $ref = null, array $langs = []): ?array
     {
         if ($scope === 'text') {
             if ($ref === null) {
@@ -25,11 +25,20 @@ final class AiScopeUnits
                 return [];
             }
 
+            $previous = [];
+            foreach ($langs as $l) {
+                $text = $this->repo->translatedText($ref, $l);
+                if ($text !== null) {
+                    $previous[$l] = $text;
+                }
+            }
+
             return [[
                 'ref'      => $ref,
                 'original' => $context['text'],
                 'meta_key' => $context['meta_key'],
                 'group_id' => $ref->format(),
+                'previous' => $previous,
             ]];
         }
 

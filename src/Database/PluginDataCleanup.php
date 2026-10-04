@@ -25,6 +25,7 @@ class PluginDataCleanup
         'lingowp_auto_redirect',
         'lingowp_translate_slugs',
         'lingowp_slug_map_version',
+        'lingowp_switcher_settings',
         'lingowp_source_locale',
         'lingowp_source_language',
         'lingowp_languages',

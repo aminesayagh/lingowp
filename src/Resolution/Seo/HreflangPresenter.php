@@ -139,7 +139,7 @@ class HreflangPresenter
 
     private function absoluteUrl(string $path): string
     {
-        return home_url($path);
+        return $this->prefixer->absoluteUrl($path);
     }
 
     private function queryFragment(array $parts): string

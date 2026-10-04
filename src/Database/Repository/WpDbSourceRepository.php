@@ -1082,6 +1082,36 @@ final class WpDbSourceRepository
         }
     }
 
+    public function translatedText(SourceRef $ref, string $langCode): ?string
+    {
+        $tableKey = $ref->parentTableKey();
+        $child    = $this->parent($tableKey) . '_translation';
+
+        if ($this->isHashLink($tableKey)) {
+            $hashHex = $this->parentHashHex($ref);
+            if ($hashHex === null) {
+                return null;
+            }
+            $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
+                $this->wpdb->prepare(
+                    "SELECT translated_text FROM {$child} WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    $hashHex,
+                    $langCode
+                )
+            );
+        } else {
+            $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
+                $this->wpdb->prepare(
+                    "SELECT translated_text FROM {$child} WHERE parent_id = %d AND lang_code = %s",
+                    $ref->id,
+                    $langCode
+                )
+            );
+        }
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
     public function translationUpdatedAt(SourceRef $ref, string $langCode): ?string
     {
         $tableKey = $ref->parentTableKey();
