@@ -3,6 +3,7 @@
 namespace LingoWP\Setup;
 
 use LingoWP\Admin\AdminAssets;
+use LingoWP\Admin\AdminBarTranslateLink;
 use LingoWP\Admin\ForeignNoticeSuppressor;
 use LingoWP\GettextDomains\InstalledGettextComponentDiscovery;
 use LingoWP\Language\Application\ResolveRequestLanguage;
@@ -21,10 +22,10 @@ use LingoWP\Resolution\PageOwnedHashes;
 use LingoWP\Extraction\OwnedStringIndex;
 use LingoWP\LocalizationRouting\LanguageRouteRegistrar;
 use LingoWP\LocalizationRouting\LanguageLinks;
-use LingoWP\LocalizationRouting\LanguageSwitcherShortcode;
-use LingoWP\LocalizationRouting\SwitcherRenderer;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
 use LingoWP\LocalizationRouting\SlugMap;
+use LingoWP\Switcher\Switcher;
+use LingoWP\Switcher\SwitcherShortcode;
 use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
 use LingoWP\Admin\PermalinkNotice;
 use LingoWP\Resolution\PublicLinkRewriter;
@@ -149,6 +150,9 @@ class Plugin
         if (is_admin()) {
             $this->bootAdmin($wpdb, $languageRegistry);
         }
+
+        // Front end and wp-admin both show the admin bar, so not in bootAdmin().
+        (new AdminBarTranslateLink(new ConnectionRepository(), $languageResolver))->register();
     }
 
     /**
@@ -193,7 +197,7 @@ class Plugin
 
     /**
      * Language-prefixed permalinks, the language-links API (lingowp_get_language_links()),
-     * the bundled switcher renderer, and the [lingowp_language_switcher] shortcode.
+     * the language switcher, and the [lingowp_language_switcher] shortcode.
      */
     private function bootLocalizationRouting(
         ResolveRequestLanguage $languageResolver,
@@ -211,11 +215,14 @@ class Plugin
         );
         LanguageLinks::prime($languageLinks);
 
-        $switcherRenderer = new SwitcherRenderer($languageLinks);
-        SwitcherRenderer::prime($switcherRenderer);
-        $switcherRenderer->register();
+        // The previous SwitcherRenderer / LanguageSwitcherShortcode classes are
+        // kept on disk for reference only; the new switcher owns the same
+        // shortcode tag and public functions.
+        $switcher = new Switcher($languageLinks);
+        Switcher::prime($switcher);
+        $switcher->register();
 
-        (new LanguageSwitcherShortcode($switcherRenderer))->register();
+        (new SwitcherShortcode($switcher))->register();
     }
 
     /**

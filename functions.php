@@ -13,7 +13,7 @@
 
 use LingoWP\Database\Repository\WpDbSourceRepository;
 use LingoWP\LocalizationRouting\LanguageLinks;
-use LingoWP\LocalizationRouting\SwitcherRenderer;
+use LingoWP\Switcher\Switcher;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -56,27 +56,27 @@ if (!function_exists('lingowp_get_language_links')) {
 
 if (!function_exists('lingowp_get_switcher')) {
     /**
-     * The bundled language switcher markup as a string.
+     * The language switcher markup as a string.
      *
      * @param array<string, mixed> $args {
-     *   @type string          $display        'native' (default) | 'english' | 'code'.
-     *   @type string          $layout         'dropdown' (default) | 'inline' | 'list'.
-     *   @type bool|string      $flags          true | false | 'only'. Default: true for
-     *                                          dropdown, false for inline/list.
-     *   @type string          $flag_fallback  'globe' (default) | 'code' | 'none'.
-     *   @type string          $size           'lg' (default) | 'md' | 'sm'.
-     *   @type bool            $shadow         Drop shadow on the control. Default true.
-     *   @type bool            $hide_current   Drop the active language. Default false.
+     *   @type string          $layout         'dropdown' (default) | 'horizontal' | 'vertical'.
+     *   @type string          $label_format   'full' (default) | 'short' | 'none'.
+     *   @type string          $name_source    'native' (default) | 'english'.
+     *   @type string          $flag_position  'before' (default) | 'after' | 'hidden'.
+     *   @type string          $open_on        'click' (default) | 'hover' — dropdown only.
+     *   @type bool            $hide_current   Drop the active language from the choices.
      *   @type string          $label          Wrapper aria-label. Default "Language".
-     *   @type string          $id             Wrapper id. Default none.
+     *   @type string          $id             Wrapper id. Default generated.
      *   @type string          $class          Extra CSS classes for the wrapper.
      *   @type string[]        $include        Keep only these locales, in this order.
      *   @type string|string[] $order          'settings' (default), 'alpha', or a locale list.
      * }
+     * The previous switcher's display/show, flags and layout="inline|list"
+     * arguments are still accepted and mapped onto these.
      */
     function lingowp_get_switcher(array $args = []): string
     {
-        return SwitcherRenderer::instance()->render($args);
+        return Switcher::instance()->render($args);
     }
 }
 
@@ -99,12 +99,12 @@ if (!function_exists('lingowp_source_repository')) {
 
 if (!function_exists('lingowp_switcher')) {
     /**
-     * Echo the bundled language switcher. See lingowp_get_switcher() for $args.
+     * Echo the language switcher. See lingowp_get_switcher() for $args.
      *
      * @param array<string, mixed> $args
      */
     function lingowp_switcher(array $args = []): void
     {
-        echo lingowp_get_switcher($args); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- SwitcherRenderer escapes every value
+        echo lingowp_get_switcher($args); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the switcher template escapes every value
     }
 }

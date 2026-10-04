@@ -108,7 +108,8 @@ rm -rf \
   "$BUILD_DIR"/wp \
   "$BUILD_DIR"/test
 
-# Everything under assets/admin/build/ is minified webpack output. WordPress.org
+# Everything under assets/admin/build/ is minified webpack output, and
+# assets/switcher/build/ is minified Vite output (source: assets/switcher/src/). WordPress.org
 # requires the human-readable source it was compiled from, so the default build
 # ships admin-ui/ and the four files needed to rebuild it, and the required-file
 # check below refuses to package without them. An earlier release linked to a
@@ -128,7 +129,9 @@ if [[ "$STRIP_COMMENTS" == "1" ]]; then
     "$BUILD_DIR"/package.json \
     "$BUILD_DIR"/package-lock.json \
     "$BUILD_DIR"/postcss.config.js \
-    "$BUILD_DIR"/webpack.config.js
+    "$BUILD_DIR"/webpack.config.js \
+    "$BUILD_DIR"/assets/switcher/src \
+    "$BUILD_DIR"/vite.config.mjs
 fi
 
 REQUIRED=(
@@ -139,6 +142,8 @@ REQUIRED=(
   composer.json
   composer.lock
   assets/admin/build/index.js
+  assets/switcher/build/switcher.js
+  assets/switcher/build/switcher.css
   vendor/woocommerce/action-scheduler/action-scheduler.php
 )
 
@@ -151,6 +156,8 @@ if [[ "$STRIP_COMMENTS" != "1" ]]; then
     package-lock.json
     webpack.config.js
     postcss.config.js
+    assets/switcher/src/index.js
+    vite.config.mjs
   )
 fi
 
@@ -171,7 +178,7 @@ done
 # nothing upstream fails when it is left behind — it just silently adds ~827 MB.
 FORBIDDEN=(node_modules tests templates src/Admin/ResetPageController.php)
 if [[ "$STRIP_COMMENTS" == "1" ]]; then
-  FORBIDDEN+=(admin-ui)
+  FORBIDDEN+=(admin-ui assets/switcher/src)
 fi
 
 for forbidden in "${FORBIDDEN[@]}"; do
