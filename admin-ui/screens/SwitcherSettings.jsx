@@ -66,8 +66,18 @@ const SPACING_KEYS = [
 	[ 'item_gap', 'Flag to text, list items', '10px', '' ],
 ]
 
-const BOOL_KEYS = [ 'show_arrow', 'dropdown_animation', 'custom_css_enabled' ]
-const ENUM_KEYS = [ 'size', 'dropdown_shadow', 'button_width' ]
+const BOOL_KEYS = [
+	'show_arrow',
+	'dropdown_animation',
+	'floating_enabled',
+	'custom_css_enabled',
+]
+const ENUM_KEYS = [
+	'size',
+	'dropdown_shadow',
+	'button_width',
+	'floating_position',
+]
 const DESIGN_KEYS = [
 	...COLOR_KEYS.map( ( [ key ] ) => key ),
 	...SHAPE_KEYS.map( ( [ key ] ) => key ),
@@ -125,7 +135,12 @@ const PRESETS = {
 // The editable part of a settings response, in the shape POST accepts.
 function toDraft( settings ) {
 	const draft = {}
-	for ( const key of [ ...DESIGN_KEYS, ...ENUM_KEYS, 'custom_css' ] ) {
+	for ( const key of [
+		...DESIGN_KEYS,
+		...ENUM_KEYS,
+		'floating_offset',
+		'custom_css',
+	] ) {
 		draft[ key ] = settings?.[ key ] ?? ''
 	}
 	for ( const key of BOOL_KEYS ) {
@@ -375,7 +390,7 @@ function PreviewFrame( { preview } ) {
 		return `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="${ css }">
 <style>html,body{height:100%;margin:0;overflow:hidden}body{box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:24px;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#fff}#lp-root{display:contents}.lingowp-switcher--full{width:100%}</style>
-</head><body><div id="lp-css" hidden></div><div id="lp-root"></div>
+</head><body><div id="lp-css" hidden></div><div id="lp-root"></div><div id="lp-floating"></div>
 <script src="${ js }"></script>
 <script>
 document.addEventListener('click',function(e){if(e.target.closest('a')){e.preventDefault()}},true);
@@ -384,7 +399,9 @@ window.addEventListener('message',function(e){
 	document.getElementById('lp-css').innerHTML=e.data.css;
 	var root=document.getElementById('lp-root');
 	root.innerHTML=e.data.html;
-	if(window.lingowpSwitcher){window.lingowpSwitcher.init(root)}
+	var floating=document.getElementById('lp-floating');
+	floating.innerHTML=e.data.floating||'';
+	if(window.lingowpSwitcher){window.lingowpSwitcher.init(root);window.lingowpSwitcher.init(floating)}
 });
 window.parent.postMessage({type:'lingowp-preview-ready'},'*');
 </script></body></html>`
@@ -417,6 +434,12 @@ window.parent.postMessage({type:'lingowp-preview-ready'},'*');
 				type: 'lingowp-preview',
 				html: preview.html.replace( /\sdata-cookie="[^"]*"/g, '' ),
 				css: preview.head_css || '',
+				// The floating switcher, when the draft enables it: fixed in
+				// its corner of the frame.
+				floating: ( preview.floating_html || '' ).replace(
+					/\sdata-cookie="[^"]*"/g,
+					''
+				),
 			},
 			'*'
 		)
@@ -688,6 +711,60 @@ export default function SwitcherSettings() {
 									value={ draft.button_width }
 									onChange={ set( 'button_width' ) }
 								/>
+							</BlockStack>
+						</Card>
+
+						<Card>
+							<BlockStack gap="300">
+								<Text as="h3" variant="headingSm">
+									Floating switcher
+								</Text>
+								<Text as="p" tone="subdued">
+									A dropdown fixed in a bottom corner of every
+									page, with the same design. It opens upward.
+								</Text>
+								<Checkbox
+									label="Show a floating switcher"
+									checked={ draft.floating_enabled }
+									onChange={ set( 'floating_enabled' ) }
+								/>
+								{ draft.floating_enabled && (
+									<InlineGrid
+										columns={ { xs: 1, sm: 2 } }
+										gap="300"
+									>
+										<Select
+											label="Corner"
+											options={ [
+												{
+													label: 'Bottom right',
+													value: 'bottom-right',
+												},
+												{
+													label: 'Bottom left',
+													value: 'bottom-left',
+												},
+											] }
+											value={ draft.floating_position }
+											onChange={ set(
+												'floating_position'
+											) }
+										/>
+										<TextField
+											label="Distance from the edges"
+											value={ draft.floating_offset }
+											onChange={ set(
+												'floating_offset'
+											) }
+											placeholder="Default (20px)"
+											helpText="Move it away from a chat bubble or cookie banner. Up to 100px."
+											autoComplete="off"
+											error={ fieldError(
+												'floating_offset'
+											) }
+										/>
+									</InlineGrid>
+								) }
 							</BlockStack>
 						</Card>
 

@@ -27,7 +27,9 @@
  *      dropdowns only, saved through REST
  *  12  admin preview: renders the real template with an UNSAVED draft,
  *      head CSS from the draft, invalid fields reported, custom CSS gated
- *  13  uninstall removes the option
+ *  13  floating switcher: footer output only when enabled, corner, distance,
+ *      always a boxed fit-width dropdown, REST save/validation, preview HTML
+ *  14  uninstall removes the option
  *
  * Run: ./wp eval-file tests/db/switcher_design_it.php
  */
@@ -446,9 +448,54 @@ wp_set_current_user(0);
 test_ok('logged out: refused', in_array($status, [401, 403], true), "status $status");
 wp_set_current_user($previousUser);
 
-// ── 13. Uninstall ────────────────────────────────────────────────────────────
+// ── 13. Floating switcher ───────────────────────────────────────────────────
 
-test_section('13. Uninstall');
+test_section('13. Floating switcher');
+
+delete_option(SwitcherSettings::OPTION); // defaults (rolled back)
+
+$footer = static function () use ($switcher): string {
+    ob_start();
+    $switcher->renderFloating();
+
+    return (string) ob_get_clean();
+};
+$hasClass = static fn(string $html, string $class): bool => (bool) preg_match('#<nav\b[^>]*class="[^"]*\b' . preg_quote($class, '#') . '\b#s', $html);
+
+test_ok('hooked on wp_footer (the booted instance)', has_action('wp_footer', [Switcher::instance(), 'renderFloating']) !== false);
+test_ok('off by default: nothing in the footer', $footer() === '');
+
+SwitcherSettings::update(['floating_enabled' => true], false);
+$html = $footer();
+test_ok('enabled: a floating dropdown, bottom right by default', $hasClass($html, 'lingowp-switcher--floating') && $hasClass($html, 'lingowp-switcher--floating-right') && $hasClass($html, 'lingowp-switcher--dropdown'), $html === '' ? '(empty)' : '');
+test_ok('... always boxed (padding), with its own id', $hasClass($html, 'lingowp-switcher--boxed') && str_contains($html, 'id="lingowp-floating-switcher"'));
+
+SwitcherSettings::update(['floating_position' => 'bottom-left', 'floating_offset' => '40'], false);
+$html = $footer();
+test_ok('bottom-left corner', $hasClass($html, 'lingowp-switcher--floating-left') && !$hasClass($html, 'lingowp-switcher--floating-right'));
+test_ok('the distance from the edges lands in its style', str_contains($html, '--lingowp-switcher-floating-offset:40px'));
+
+SwitcherSettings::update(['button_width' => 'full', 'bg_color' => '#000'], false);
+test_ok('never full width, even when saved', !$hasClass($footer(), 'lingowp-switcher--full'));
+test_ok('... while an ordinary dropdown still is', $hasClass($switcher->render([]), 'lingowp-switcher--full'));
+
+test_ok('distance validation: 150px rejected, 2em kept', SwitcherSettings::sanitizeValue('floating_offset', '150px') === '' && SwitcherSettings::sanitizeValue('floating_offset', '2em') === '2em');
+
+wp_set_current_user($adminId);
+[$status, $data] = design_rest('POST', ['floating_enabled' => false, 'floating_position' => 'bottom-right', 'floating_offset' => '24']);
+test_ok('REST saves the floating settings', ($data['ok'] ?? null) === true && ($data['floating_enabled'] ?? null) === false && ($data['floating_position'] ?? '') === 'bottom-right' && ($data['floating_offset'] ?? '') === '24px', wp_json_encode($data));
+[$status, $data] = design_rest('POST', ['floating_position' => 'top-left', 'floating_offset' => '9999px']);
+test_ok('REST: an unknown corner and a too-large distance are ERR_INVALID_INPUT', ($data['error'] ?? '') === 'ERR_INVALID_INPUT' && in_array('floating_position', (array) ($data['fields'] ?? []), true) && in_array('floating_offset', (array) ($data['fields'] ?? []), true), wp_json_encode($data));
+
+[$status, $data] = design_preview(['floating_enabled' => true, 'floating_position' => 'bottom-left']);
+test_ok('preview: the floating switcher when the draft enables it', str_contains((string) ($data['floating_html'] ?? ''), 'lingowp-switcher--floating-left'));
+[$status, $data] = design_preview(['floating_enabled' => false]);
+test_ok('preview: none when it is off', ($data['floating_html'] ?? 'x') === '');
+wp_set_current_user($previousUser);
+
+// ── 14. Uninstall ────────────────────────────────────────────────────────────
+
+test_section('14. Uninstall');
 
 $options = (new ReflectionClassConstant(PluginDataCleanup::class, 'OPTIONS'))->getValue();
 test_ok('PluginDataCleanup removes lingowp_switcher_settings', in_array(SwitcherSettings::OPTION, (array) $options, true));
