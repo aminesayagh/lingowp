@@ -331,12 +331,14 @@ class Switcher
             return;
         }
 
-        echo $this->render([ // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the switcher template escapes every value
+        $html = $this->render([
             'floating'        => $settings['floating_position'],
             'floating_offset' => $settings['floating_offset'],
             'id'              => 'lingowp-floating-switcher',
             'label'           => __('Language', 'lingowp'),
         ]);
+
+        echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the switcher template escapes every value
     }
 
     public function registerAssets(): void
