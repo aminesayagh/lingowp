@@ -65,6 +65,7 @@
 			"./wp eval-file tests/db/language_url_it.php",
 			"./wp eval-file tests/db/switcher_review_it.php",
 			"./wp eval-file tests/db/public_link_rewriter_it.php",
+			"./wp eval-file tests/db/subfolder_incoming_it.php",
 			"./wp eval-file tests/db/slug_translation_it.php",
 			"./wp eval-file tests/db/slug_routing_bugs_it.php",
 			"./wp eval-file tests/db/slug_open_findings_it.php",

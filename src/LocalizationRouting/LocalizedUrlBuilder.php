@@ -81,9 +81,11 @@ class LocalizedUrlBuilder
     /**
      * The site's folder from home_url(): "/blog" for https://host/blog/, ""
      * for a root install. Read on every call — cheap, and correct across a
-     * multisite switch_to_blog().
+     * multisite switch_to_blog(). Static: needs no instance state, so code
+     * without a builder (LanguageRouteRegistrar, RequestContext) uses the same
+     * single definition of "the site folder".
      */
-    public function sitePath(): string
+    public static function sitePath(): string
     {
         if (!function_exists('home_url')) {
             return '';
@@ -158,9 +160,9 @@ class LocalizedUrlBuilder
      *
      * @return array{0:string,1:string}|null
      */
-    public function splitSiteFolder(string $path): ?array
+    public static function splitSiteFolder(string $path): ?array
     {
-        $folder = $this->sitePath();
+        $folder = self::sitePath();
         if ($folder === '') {
             return ['', $path];
         }
