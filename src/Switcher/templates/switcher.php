@@ -18,6 +18,9 @@
  * language the link leads to; text_lang/text_dir describe the label's own words
  * (e.g. "Arabe" on a French page is French text). Values are raw — escape at output, as below.
  *
+ * The current language is plain text (a <span>, aria-current="true"), not a
+ * link back to the page the visitor is already on.
+ *
  * Keep data-lingowp-switcher and the __trigger / __list classes if the bundled
  * script should keep turning the dropdown layout into a dropdown. Whether the
  * button or the plain list shows before/without JavaScript is decided in
@@ -80,7 +83,6 @@ $lingowp_label = static function (array $item) use ($lingowp_flag): void {
         <?php foreach ($switcher['items'] as $lingowp_item) : ?>
             <li class="lingowp-switcher__item<?php echo $lingowp_item['current'] ? ' is-current' : ''; ?>">
                 <?php if ($lingowp_item['current']) : ?>
-                    <?php // The language already shown: plain text, not a link back to this same page. ?>
                     <span
                         class="lingowp-switcher__link"
                         lang="<?php echo esc_attr($lingowp_item['language_tag']); ?>"
