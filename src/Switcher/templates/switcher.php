@@ -5,9 +5,16 @@
  * Override: copy this file to your-theme/lingowp/switcher.php.
  *
  * $switcher keys: id, list_id, layout ('dropdown' | 'horizontal' | 'vertical'),
- * classes, label, open_on, cookie, current (one item), items (list of items).
+ * classes, style, label, open_on, cookie, current (one item), items (list of
+ * items). style is this switcher's own design overrides as CSS variables
+ * ("--lingowp-switcher-bg:#000"), or ''.
  * Item keys: code, url, language_tag, dir, current, text, text_visible,
- * text_lang, text_dir, flag_url, flag_position. language_tag/dir describe the
+ * text_lang, text_dir, sr_text, sr_lang, sr_dir, flag_url, flag_square,
+ * flag_position. flag_square: the flag is the 1x1 version (flag_radius above
+ * 8px).
+ * sr_text (with sr_lang/sr_dir) is what screen readers should say instead of
+ * the visible text — "FR-CA, Français (Canada)" for a short label — or '' when
+ * the visible text already is. language_tag/dir describe the
  * language the link leads to; text_lang/text_dir describe the label's own words
  * (e.g. "Arabe" on a French page is French text). Values are raw — escape at output, as below.
  *
@@ -30,7 +37,7 @@ $lingowp_flag = static function (array $item): void {
         return;
     }
     ?>
-    <img class="lingowp-switcher__flag" src="<?php echo esc_url($item['flag_url']); ?>" alt="" width="20" height="15" decoding="async">
+    <img class="lingowp-switcher__flag<?php echo $item['flag_square'] ? ' lingowp-switcher__flag--square' : ''; ?>" src="<?php echo esc_url($item['flag_url']); ?>" alt="" width="20" height="<?php echo $item['flag_square'] ? '20' : '15'; ?>" decoding="async">
     <?php
 };
 
@@ -39,7 +46,12 @@ $lingowp_label = static function (array $item) use ($lingowp_flag): void {
         $lingowp_flag($item);
     }
     ?>
-    <span class="<?php echo $item['text_visible'] ? 'lingowp-switcher__text' : 'lingowp-switcher__sr'; ?>" lang="<?php echo esc_attr($item['text_lang']); ?>" dir="<?php echo esc_attr($item['text_dir']); ?>"><?php echo esc_html($item['text']); ?></span>
+    <?php if ($item['sr_text'] !== '') : ?>
+        <span class="lingowp-switcher__text" lang="<?php echo esc_attr($item['text_lang']); ?>" dir="<?php echo esc_attr($item['text_dir']); ?>" aria-hidden="true"><?php echo esc_html($item['text']); ?></span>
+        <span class="lingowp-switcher__sr" lang="<?php echo esc_attr($item['sr_lang']); ?>" dir="<?php echo esc_attr($item['sr_dir']); ?>"><?php echo esc_html($item['sr_text']); ?></span>
+    <?php else : ?>
+        <span class="<?php echo $item['text_visible'] ? 'lingowp-switcher__text' : 'lingowp-switcher__sr'; ?>" lang="<?php echo esc_attr($item['text_lang']); ?>" dir="<?php echo esc_attr($item['text_dir']); ?>"><?php echo esc_html($item['text']); ?></span>
+    <?php endif; ?>
     <?php
     if ($item['flag_position'] === 'after') {
         $lingowp_flag($item);
@@ -49,6 +61,9 @@ $lingowp_label = static function (array $item) use ($lingowp_flag): void {
 <nav
     id="<?php echo esc_attr($switcher['id']); ?>"
     class="<?php echo esc_attr($switcher['classes']); ?>"
+    <?php if ($switcher['style'] !== '') : ?>
+        style="<?php echo esc_attr($switcher['style']); ?>"
+    <?php endif; ?>
     aria-label="<?php echo esc_attr($switcher['label']); ?>"
     data-lingowp-switcher
     data-open-on="<?php echo esc_attr($switcher['open_on']); ?>"

@@ -12,6 +12,16 @@ namespace LingoWP\Switcher;
  *   [lingowp_language_switcher flag_position="after" name_source="english" open_on="hover"]
  *   [lingowp_language_switcher include="fr_FR,es_ES" order="alpha" hide_current="true"]
  *   [lingowp_language_switcher name_source="current"]  ("Arabe" on a French page)
+ *   [lingowp_language_switcher bg_color="#111" text_color="#fff" border_radius="8" flag_radius="50%"]
+ *   [lingowp_language_switcher show_arrow="false"]  (dropdown without its arrow)
+ *   [lingowp_language_switcher border_width="1" size="sm"]  (boxed, compact padding)
+ *   [lingowp_language_switcher dropdown_shadow="lg"]  (none | sm | md | lg)
+ *   [lingowp_language_switcher bg_color="#eee" button_width="full"]  (fit | full, needs a box)
+ *   [lingowp_language_switcher dropdown_animation="true"]  (off by default)
+ *
+ * Design attributes override the saved site-wide settings for this switcher
+ * only. Custom CSS is deliberately NOT an attribute: any post author can write
+ * shortcodes, so it lives in the administrator-only settings.
  */
 class SwitcherShortcode
 {
@@ -22,6 +32,8 @@ class SwitcherShortcode
         'layout', 'label_format', 'name_source', 'flag_position', 'open_on',
         'hide_current', 'include', 'order', 'label', 'id', 'class',
         'display', 'show', 'flags', 'size', 'shadow', 'flag_fallback',
+        'bg_color', 'bg_hover_color', 'text_color', 'text_hover_color',
+        'border_color', 'border_width', 'border_radius', 'flag_radius', 'dropdown_radius', 'button_gap', 'item_gap', 'show_arrow', 'dropdown_shadow', 'button_width', 'dropdown_animation',
     ];
 
     private Switcher $switcher;

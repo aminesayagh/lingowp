@@ -49,6 +49,15 @@ function setupDropdown( root ) {
 	}
 
 	const hover = root.dataset.openOn === 'hover'
+	const full = root.classList.contains( 'lingowp-switcher--full' )
+	// A floating switcher sits at the bottom of the screen: open upward,
+	// aligned to its own corner (flip() still turns it if there is no room).
+	let placement = 'bottom-start'
+	if ( root.classList.contains( 'lingowp-switcher--floating' ) ) {
+		placement = root.classList.contains( 'lingowp-switcher--floating-left' )
+			? 'top-start'
+			: 'top-end'
+	}
 	let stopAutoUpdate = null
 	let closeTimer = 0
 
@@ -57,18 +66,23 @@ function setupDropdown( root ) {
 			// Fixed escapes headers with overflow: hidden, which would clip
 			// an absolutely positioned panel.
 			strategy: 'fixed',
-			placement: 'bottom-start',
+			placement,
 			middleware: [
 				offset( 4 ),
 				flip( { padding: VIEWPORT_PADDING } ),
 				shift( { padding: VIEWPORT_PADDING } ),
 				size( {
 					padding: VIEWPORT_PADDING,
-					apply( { availableHeight, elements } ) {
+					apply( { availableHeight, elements, rects } ) {
 						elements.floating.style.maxHeight = `${ Math.max(
 							0,
 							availableHeight
 						) }px`
+						// A full-width button: the open list is at least as
+						// wide, so it lines up under it (it may grow wider).
+						if ( full ) {
+							elements.floating.style.minWidth = `${ rects.reference.width }px`
+						}
 					},
 				} ),
 			],

@@ -25,6 +25,8 @@ use LingoWP\LocalizationRouting\LanguageLinks;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
 use LingoWP\LocalizationRouting\SlugMap;
 use LingoWP\Switcher\Switcher;
+use LingoWP\Switcher\SwitcherSettings;
+use LingoWP\Switcher\SwitcherSettingsRestController;
 use LingoWP\Switcher\SwitcherShortcode;
 use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
 use LingoWP\Admin\PermalinkNotice;
@@ -223,6 +225,9 @@ class Plugin
         $switcher->register();
 
         (new SwitcherShortcode($switcher))->register();
+
+        // Saved site-wide switcher design (CSS variables + custom CSS in <head>).
+        SwitcherSettings::register();
     }
 
     /**
@@ -387,6 +392,7 @@ class Plugin
         $addonMatcher->register();
         (new BillingRestController($backendClient, $billingEntitlements, $connection, $addonMatcher))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
+        (new SwitcherSettingsRestController())->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
         $collectionBoard   = new CollectionBoard($sourceRepository, $languageRegistry);

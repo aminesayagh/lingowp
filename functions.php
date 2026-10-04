@@ -71,6 +71,20 @@ if (!function_exists('lingowp_get_switcher')) {
      *   @type string          $class          Extra CSS classes for the wrapper.
      *   @type string[]        $include        Keep only these locales, in this order.
      *   @type string|string[] $order          'settings' (default), 'alpha', or a locale list.
+     *   @type string          $bg_color, $bg_hover_color, $text_color, $text_hover_color,
+     *                         $border_color, $border_width, $border_radius, $flag_radius,
+     *                         $dropdown_radius (open list corners, default 4px),
+     *                         $button_gap, $item_gap (flag-to-text space, default 10px)
+     *                                          Design overrides for this switcher; the saved
+     *                                          site-wide settings apply otherwise.
+     *   @type bool            $show_arrow     Dropdown arrow. Default: the saved setting (on).
+     *   @type bool            $dropdown_animation Open animation. Default: the saved setting (off).
+     *   @type string          $button_width   'fit' | 'full' dropdown button once it has a border
+     *                                          or background (default: saved setting, fit).
+     *   @type string          $dropdown_shadow 'none' | 'sm' | 'md' | 'lg' under the open list
+     *                                          (default: saved setting, md).
+     *   @type string          $size           'sm' | 'md' | 'lg' padding once the switcher has a
+     *                                          border or background. Default: saved setting (md).
      * }
      * The previous switcher's display/show, flags and layout="inline|list"
      * arguments are still accepted and mapped onto these.

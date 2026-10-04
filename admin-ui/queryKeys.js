@@ -86,4 +86,13 @@ export const qk = {
 	scan: {
 		status: () => [ 'scan', 'status' ],
 	},
+
+	// Language switcher design (Account page, "Language switcher" tab).
+	switcher: {
+		all: [ 'switcher' ],
+		settings: () => [ 'switcher', 'settings' ], // GET /switcher-settings
+		// POST /switcher-settings/preview — keyed by the draft + layout, so an
+		// unchanged draft reuses the last render.
+		preview: ( params ) => [ 'switcher', 'preview', params ],
+	},
 }

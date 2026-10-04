@@ -26,6 +26,7 @@ import BillingUsage from './screens/BillingUsage'
 import BillingSites from './screens/BillingSites'
 import BillingToken from './screens/BillingToken'
 import BillingIntegrations from './screens/BillingIntegrations'
+import SwitcherSettings from './screens/SwitcherSettings'
 import AddonActivationToast from './screens/AddonActivationToast'
 import OwnerEmailCard from './screens/OwnerEmailCard'
 import SupportBubble from './screens/SupportBubble'
@@ -38,6 +39,7 @@ const tabParser = parseAsStringLiteral( [
 	'subscription',
 	'usage',
 	'sites',
+	'switcher',
 	'integrations',
 	'token',
 ] ).withDefault( 'subscription' )
@@ -46,6 +48,7 @@ const TABS = [
 	{ id: 'subscription', label: 'Plan & billing' },
 	{ id: 'usage', label: 'Usage' },
 	{ id: 'sites', label: 'Sites' },
+	{ id: 'switcher', label: 'Language switcher' },
 	{ id: 'integrations', label: 'Integrations' },
 	{ id: 'token', label: 'API token' },
 ]
@@ -238,16 +241,22 @@ function AccountAppInner() {
 												ease: 'easeOut',
 											} }
 										>
-											{ ! connectionReady && (
-												<Box padding="500">
-													<Spinner
-														accessibilityLabel="Connecting to LingoWP"
-														size="small"
-													/>
-												</Box>
+											{ /* Local settings: no cloud connection needed. */ }
+											{ tab === 'switcher' && (
+												<SwitcherSettings />
 											) }
+											{ ! connectionReady &&
+												tab !== 'switcher' && (
+													<Box padding="500">
+														<Spinner
+															accessibilityLabel="Connecting to LingoWP"
+															size="small"
+														/>
+													</Box>
+												) }
 											{ connectionReady &&
-												! connectionStatus?.connected && (
+												! connectionStatus?.connected &&
+												tab !== 'switcher' && (
 													<Card>
 														<BlockStack gap="300">
 															<Text

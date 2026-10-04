@@ -195,6 +195,14 @@ final class OnboardingPageController
 
         $notifyEmail = $this->notifyEmailResolver->resolve();
 
+        // Account page, "Language switcher" tab: WordPress's own CodeMirror
+        // CSS editor (as in Additional CSS) for the custom CSS field. False
+        // when the user turned syntax highlighting off in their profile — the
+        // tab then keeps a plain text box.
+        $cssEditor = $hook === $this->accountHookSuffix
+            ? wp_enqueue_code_editor(['type' => 'text/css'])
+            : false;
+
         wp_localize_script(self::HANDLE, 'LingoWP', [
             'rest'                => esc_url_raw(rest_url('lingowp/v1')),
             'nonce'               => wp_create_nonce('wp_rest'),
@@ -210,6 +218,7 @@ final class OnboardingPageController
                 (new BackendEndpointResolver())->baseUrl() . '/addons/icons/'
             ),
             'account_url'         => esc_url_raw(admin_url('admin.php?page=' . self::ACCOUNT_SLUG)),
+            'css_editor'          => $cssEditor,
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
             // The canonical published pages. They stay filterable so a

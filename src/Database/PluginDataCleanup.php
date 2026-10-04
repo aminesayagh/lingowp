@@ -45,6 +45,8 @@ class PluginDataCleanup
         'lingowp_auto_redirect',
         'lingowp_translate_slugs',
         'lingowp_slug_map_version',
+        // Language switcher design (colors, border, radius, custom CSS).
+        'lingowp_switcher_settings',
         // Source / target language state.
         'lingowp_source_locale',
         'lingowp_source_language',
