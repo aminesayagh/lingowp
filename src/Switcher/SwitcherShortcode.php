@@ -11,6 +11,7 @@ namespace LingoWP\Switcher;
  *   [lingowp_language_switcher layout="horizontal" label_format="short"]
  *   [lingowp_language_switcher flag_position="after" name_source="english" open_on="hover"]
  *   [lingowp_language_switcher include="fr_FR,es_ES" order="alpha" hide_current="true"]
+ *   [lingowp_language_switcher name_source="current"]  ("Arabe" on a French page)
  */
 class SwitcherShortcode
 {

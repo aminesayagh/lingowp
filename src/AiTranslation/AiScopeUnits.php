@@ -35,9 +35,15 @@ final class AiScopeUnits
      * how large the surrounding post is. 'collection'/'language' take only
      * missing units. Returns null on a malformed scope/id.
      *
-     * @return array<int, array{ref:SourceRef, original:string, group_id:string}>|null
+     * 'text' also carries `previous` -- the unit's current translation per
+     * language in $langs -- so the AI is asked for a different wording instead
+     * of returning the same text again. Bulk scopes never need it: they only
+     * take missing units, which have no translation yet.
+     *
+     * @param string[] $langs Target languages, read only by the 'text' scope.
+     * @return array<int, array{ref:SourceRef, original:string, group_id:string, previous?:array<string,string>}>|null
      */
-    public function forScope(string $scope, string $lang, string $collectionId = '', ?SourceRef $ref = null): ?array
+    public function forScope(string $scope, string $lang, string $collectionId = '', ?SourceRef $ref = null, array $langs = []): ?array
     {
         if ($scope === 'text') {
             if ($ref === null) {
@@ -48,11 +54,20 @@ final class AiScopeUnits
                 return [];
             }
 
+            $previous = [];
+            foreach ($langs as $l) {
+                $text = $this->repo->translatedText($ref, $l);
+                if ($text !== null) {
+                    $previous[$l] = $text;
+                }
+            }
+
             return [[
                 'ref'      => $ref,
                 'original' => $context['text'],
                 'meta_key' => $context['meta_key'],
                 'group_id' => $ref->format(),
+                'previous' => $previous,
             ]];
         }
 

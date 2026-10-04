@@ -185,11 +185,13 @@ class HreflangPresenter
     }
 
     /**
-     * Turn a site-relative path into an absolute URL on this site.
+     * Turn a path from the builder (already carrying any site folder, e.g.
+     * /blog/fr/about/) into an absolute URL. Not home_url($path): that adds the
+     * folder again — /blog/blog/fr/about/ on a subfolder install.
      */
     private function absoluteUrl(string $path): string
     {
-        return home_url($path);
+        return $this->prefixer->absoluteUrl($path);
     }
 
     /**

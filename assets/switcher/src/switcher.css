@@ -8,6 +8,21 @@
 	display: none !important;
 }
 
+/*
+ * First paint. A <head> script sets .lingowp-js on <html> before anything is
+ * drawn (Switcher::printJsFlag), so the dropdown shows closed from the first
+ * frame instead of flashing the full list until switcher.js runs.
+ * Without JavaScript the class never appears: the button stays hidden and the
+ * list stays as plain links.
+ */
+html:not(.lingowp-js) .lingowp-switcher__trigger {
+	display: none;
+}
+
+.lingowp-js .lingowp-switcher--dropdown:not(.is-enhanced) .lingowp-switcher__list {
+	display: none;
+}
+
 .lingowp-switcher__list {
 	list-style: none;
 	margin: 0;
@@ -25,6 +40,46 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4em;
+	color: inherit;
+	text-decoration: none;
+}
+
+/*
+ * Block-level link: fills its whole row in the dropdown and vertical list, so
+ * the entire row is clickable — not just the flag and text. In the horizontal
+ * list each item is a flex child sized to its content, so nothing changes there.
+ */
+.lingowp-switcher__link {
+	display: flex;
+}
+
+/*
+ * Neutral starting point: drop the browser's button chrome (gray fill, black
+ * border, system font) and the theme's link underline, so theming starts from
+ * the surrounding text. Scoped to the switcher's own classes — nothing else on
+ * the page is touched. Focus outlines are deliberately left to the browser.
+ */
+.lingowp-switcher__trigger {
+	appearance: none;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: none;
+	font: inherit;
+	line-height: inherit;
+	cursor: pointer;
+}
+
+/*
+ * Block themes ring every focused element, mouse clicks included
+ * (:where(.wp-site-blocks *:focus) in WordPress global styles). Drop the ring
+ * for pointer focus only; :focus-visible keeps it for keyboard users, who need
+ * it to see where they are.
+ */
+.lingowp-switcher__trigger:focus:not(:focus-visible),
+.lingowp-switcher__link:focus:not(:focus-visible) {
+	outline: none;
 }
 
 .lingowp-switcher__flag {

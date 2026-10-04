@@ -145,9 +145,14 @@ function setupDropdown( root ) {
 		} )
 	}
 
-	// Switch from the no-JS state (list visible, no button) to the dropdown.
+	// Hand the closed state from CSS (.lingowp-js, first paint) to the
+	// hidden attribute this script toggles from now on. Set .lingowp-js here
+	// too: if this script runs after the <head> fail-safe already removed it
+	// (a "delay JavaScript" optimizer, or a CSP blocking the inline flag),
+	// switcher.css would otherwise hide the button while the list is hidden
+	// — leaving no way to switch language.
+	document.documentElement.classList.add( 'lingowp-js' )
 	panel.hidden = true
-	trigger.hidden = false
 	root.classList.add( 'is-enhanced' )
 }
 

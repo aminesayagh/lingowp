@@ -118,11 +118,23 @@ final class WordPressLanguageCatalog
      */
     public static function nativeDisplay(string $locale, string $fallback = ''): string
     {
+        return self::displayIn($locale, $locale, $fallback);
+    }
+
+    /**
+     * A locale's name written in another language: displayIn('ar', 'fr_FR') is
+     * "Arabe", displayIn('pt_BR', 'en_US') is "Portuguese (Brazil)". Same shape
+     * and capitalization as nativeDisplay(), which is this with both locales
+     * equal. Used by the switcher's "name in the page's language" mode.
+     * Without the intl extension it returns $fallback.
+     */
+    public static function displayIn(string $locale, string $displayLocale, string $fallback = ''): string
+    {
         if (!class_exists(\Locale::class)) {
             return $fallback;
         }
 
-        $language = (string) \Locale::getDisplayLanguage(LocaleNormalizer::language($locale), $locale);
+        $language = (string) \Locale::getDisplayLanguage(LocaleNormalizer::language($locale), $displayLocale);
         if ($language === '') {
             return $fallback;
         }
@@ -131,7 +143,7 @@ final class WordPressLanguageCatalog
         // scripts (Japanese, Arabic) are unaffected.
         $language = mb_strtoupper(mb_substr($language, 0, 1)) . mb_substr($language, 1);
 
-        $regionName = (string) \Locale::getDisplayRegion($locale, $locale);
+        $regionName = (string) \Locale::getDisplayRegion($locale, $displayLocale);
 
         return $regionName !== '' ? $language . ' (' . $regionName . ')' : $language;
     }

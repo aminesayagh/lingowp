@@ -22,6 +22,17 @@ use LingoWP\Language\Application\ResolveRequestLanguage;
  * Callers already pair them that way (LanguageLinks::links(),
  * HreflangPresenter::currentBasePath() both strip then add), so slug
  * translation reaches every public URL surface without a single caller change.
+ *
+ * Site folder: on a WordPress installed in a subfolder (home_url() is
+ * https://host/blog, or a subdirectory multisite) every real path starts with
+ * that folder, and the language prefix belongs right AFTER it:
+ * /blog/fr/about/, never /fr/blog/about/. The three public methods take and
+ * return real paths; they set the folder aside, apply the prefix rules to what
+ * follows it (detectIn/stripIn/addIn — unchanged from the root-install logic),
+ * and put the folder back. A path outside the folder is not a WordPress URL and
+ * is returned untouched. On a root install the folder is "" and the wrappers
+ * change nothing. absoluteUrl() is the matching way back to a full URL — never
+ * home_url($path), which would add the folder a second time.
  */
 class LocalizedUrlBuilder
 {
@@ -68,10 +79,114 @@ class LocalizedUrlBuilder
     }
 
     /**
+     * The site's folder from home_url(): "/blog" for https://host/blog/, ""
+     * for a root install. Read on every call — cheap, and correct across a
+     * multisite switch_to_blog().
+     */
+    public function sitePath(): string
+    {
+        if (!function_exists('home_url')) {
+            return '';
+        }
+
+        return rtrim((string) parse_url((string) home_url('/'), PHP_URL_PATH), '/');
+    }
+
+    /**
+     * Scheme + host (+ port) + path: the absolute URL for a real path that
+     * already carries the site folder (anything these methods return).
+     *
+     * Not home_url($path): home_url() adds the folder itself, so on a /blog
+     * install /blog/fr/about/ became /blog/blog/fr/about/.
+     */
+    public function absoluteUrl(string $path): string
+    {
+        $parts = function_exists('home_url') ? parse_url((string) home_url('/')) : false;
+        if (!is_array($parts) || empty($parts['host'])) {
+            return $path;
+        }
+
+        $scheme = $parts['scheme'] ?? ((function_exists('is_ssl') && is_ssl()) ? 'https' : 'http');
+        $port   = isset($parts['port']) ? ':' . $parts['port'] : '';
+
+        return $scheme . '://' . $parts['host'] . $port . $path;
+    }
+
+    /**
      * The leading language segment of a path, or null if none/!enabled.
-     * "/fr/about" => "fr",  "/about" => null
+     * "/fr/about" => "fr",  "/about" => null,  on a /blog install
+     * "/blog/fr/about" => "fr".
      */
     public function detectPrefix(string $path): ?string
+    {
+        $split = $this->splitSiteFolder($path);
+
+        return $split === null ? null : $this->detectIn($split[1]);
+    }
+
+    /**
+     * stripIn() behind the site folder: "/blog/fr/about/" => "/blog/about/".
+     * See stripIn() for the trailing-slash and slug-translation contract.
+     */
+    public function stripPrefix(string $path): string
+    {
+        $split = $this->splitSiteFolder($path);
+
+        return $split === null ? $path : $split[0] . $this->stripIn($split[1]);
+    }
+
+    /**
+     * addIn() behind the site folder: ("/blog/about/", fr) => "/blog/fr/about/".
+     * See addIn() for the prefix, slug and language-home rules.
+     */
+    public function addPrefix(string $path, string $lang): string
+    {
+        $split = $this->splitSiteFolder($path);
+
+        return $split === null ? $path : $split[0] . $this->addIn($split[1], $lang);
+    }
+
+    /**
+     * [folder, rest] for a real path: "/blog/fr/about/" => ["/blog", "/fr/about/"],
+     * "/blog" => ["/blog", "/"], and ["", $path] on a root install. Null when the
+     * path is outside the folder (not a WordPress URL). The folder keeps the
+     * request's own spelling; matching ignores case, like WP::parse_request().
+     *
+     * Public for code that reads a path's segments itself (system-path checks,
+     * the miscased-prefix recovery): the segment after the folder is what
+     * "first segment" means on a subfolder install, not "blog".
+     *
+     * @return array{0:string,1:string}|null
+     */
+    public function splitSiteFolder(string $path): ?array
+    {
+        $folder = $this->sitePath();
+        if ($folder === '') {
+            return ['', $path];
+        }
+
+        $length = strlen($folder);
+        $head   = substr($path, 0, $length);
+        $next   = substr($path, $length, 1);
+
+        if (strcasecmp($head, $folder) !== 0 || ($next !== '' && $next !== '/')) {
+            return null;
+        }
+
+        $rest = (string) substr($path, $length);
+
+        return [$head, $rest === '' ? '/' : $rest];
+    }
+
+    // ------------------------------------------------------------------
+    // Prefix rules on a folder-free path (the root-install logic)
+    // ------------------------------------------------------------------
+
+    /**
+     * The leading language segment of a folder-free path, or null.
+     * "/fr/about" => "fr",  "/about" => null
+     */
+    private function detectIn(string $path): ?string
     {
         $trimmed = trim($path, '/');
 
@@ -93,9 +208,9 @@ class LocalizedUrlBuilder
      * switcher href or a redirect location. Dropping the slash here made every
      * one of those point at a URL that WordPress answers with a 301.
      */
-    public function stripPrefix(string $path): string
+    private function stripIn(string $path): string
     {
-        $prefix = $this->detectPrefix($path);
+        $prefix = $this->detectIn($path);
 
         if ($prefix === null) {
             return $path;
@@ -140,9 +255,9 @@ class LocalizedUrlBuilder
      * reads $wp_rewrite->use_trailing_slashes and adds or removes to match.
      * Guessing wrong costs a 301 on the most-linked page of the site.
      */
-    public function addPrefix(string $path, string $lang): string
+    private function addIn(string $path, string $lang): string
     {
-        $bare = $this->stripPrefix($path);
+        $bare = $this->stripIn($path);
 
         if (!$this->isPrefixed($lang)) {
             return $bare === '' ? '/' : $bare;

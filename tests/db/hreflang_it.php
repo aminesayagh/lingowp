@@ -14,6 +14,8 @@
  *   3. Gating: single enabled language, is_404(), non-front-end paths.
  *   4. filterCanonical() — non-string passthrough, default-language no-op,
  *      translated-language re-prefixing.
+ *   5. Subfolder install (/blog): alternates and canonical keep the folder once,
+ *      with the language prefix right after it.
  *
  * Run: wp eval-file tests/db/hreflang_it.php
  */
@@ -230,6 +232,66 @@ test_ok(
     (string) $rewritten
 );
 
+set_query_var('lingowp_lang', '');
+
+// ── 5. Subfolder install (home_url() ends in /blog) ─────────────────────────
+//
+// Reproduces what a real /blog install served (2026-10-04): every hreflang
+// href carried the folder twice (/blog/blog/about/, /blog/zz/blog/about/), and
+// a translated page's canonical became /blog/zz/blog/about/ — a 404 handed to
+// search engines as the page's own address. The language prefix belongs right
+// after the site folder, and the folder must appear exactly once.
+
+test_section('Subfolder install (home_url() ends in /blog)');
+
+// Faithful to a real /blog install: home_url() is the site address + /blog +
+// the given path, ALWAYS — so a path that already carries /blog comes back
+// doubled, exactly like the real subfolder site did. (An earlier version only
+// added /blog when missing, which hid that doubling.)
+$subfolder = static function (string $url, $path = ''): string {
+    $tail = (is_string($path) && $path !== '') ? '/' . ltrim($path, '/') : '';
+
+    return substr($url, 0, strlen($url) - strlen($tail)) . '/blog' . $tail;
+};
+add_filter('home_url', $subfolder, 10, 2);
+
+$path = static fn($url): string => (string) wp_parse_url((string) $url, PHP_URL_PATH);
+
+test_ok('home_url() really is in /blog (setup)', str_ends_with(rtrim(home_url('/'), '/'), '/blog'), home_url('/'));
+
+// Source-language page.
+set_query_var('lingowp_lang', '');
+$_SERVER['REQUEST_URI'] = '/blog/lingowp-test-hreflang-page/';
+$subResolver  = new ResolveRequestLanguage($registry);
+$subPresenter = new HreflangPresenter($subResolver, new LocalizedUrlBuilder($subResolver), $context);
+
+ob_start();
+$subPresenter->renderHreflangTags();
+$tags = test_parse_hreflang_tags((string) ob_get_clean());
+
+test_ok("[source page] $default alternate -> /blog/lingowp-test-hreflang-page/", $path($tags[$defaultHreflang] ?? '') === '/blog/lingowp-test-hreflang-page/', $tags[$defaultHreflang] ?? '(missing)');
+test_ok('[source page] zz_ZZ alternate -> /blog/zz/lingowp-test-hreflang-page/', $path($tags['zz-ZZ'] ?? '') === '/blog/zz/lingowp-test-hreflang-page/', $tags['zz-ZZ'] ?? '(missing)');
+test_ok('[source page] x-default -> /blog/lingowp-test-hreflang-page/', $path($tags['x-default'] ?? '') === '/blog/lingowp-test-hreflang-page/', $tags['x-default'] ?? '(missing)');
+
+// Translated page.
+set_query_var('lingowp_lang', 'zz_ZZ');
+$_SERVER['REQUEST_URI'] = '/blog/zz/lingowp-test-hreflang-page/';
+$subResolver  = new ResolveRequestLanguage($registry);
+$subPresenter = new HreflangPresenter($subResolver, new LocalizedUrlBuilder($subResolver), $context);
+
+ob_start();
+$subPresenter->renderHreflangTags();
+$tags = test_parse_hreflang_tags((string) ob_get_clean());
+
+test_ok("[zz page] $default alternate -> /blog/lingowp-test-hreflang-page/", $path($tags[$defaultHreflang] ?? '') === '/blog/lingowp-test-hreflang-page/', $tags[$defaultHreflang] ?? '(missing)');
+test_ok('[zz page] zz_ZZ alternate -> /blog/zz/lingowp-test-hreflang-page/', $path($tags['zz-ZZ'] ?? '') === '/blog/zz/lingowp-test-hreflang-page/', $tags['zz-ZZ'] ?? '(missing)');
+
+// WordPress builds the canonical with home_url(), so it already carries /blog.
+$subCanonical = home_url('/lingowp-test-hreflang-page/');
+$rewritten    = $subPresenter->filterCanonical($subCanonical);
+test_ok('[zz page] canonical -> /blog/zz/lingowp-test-hreflang-page/', $path($rewritten) === '/blog/zz/lingowp-test-hreflang-page/', (string) $rewritten);
+
+remove_filter('home_url', $subfolder, 10);
 set_query_var('lingowp_lang', '');
 
 test_done();

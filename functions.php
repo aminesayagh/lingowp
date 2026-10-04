@@ -61,7 +61,8 @@ if (!function_exists('lingowp_get_switcher')) {
      * @param array<string, mixed> $args {
      *   @type string          $layout         'dropdown' (default) | 'horizontal' | 'vertical'.
      *   @type string          $label_format   'full' (default) | 'short' | 'none'.
-     *   @type string          $name_source    'native' (default) | 'english'.
+     *   @type string          $name_source    'native' (default) | 'english' | 'current' (the
+     *                                          language of the page being viewed).
      *   @type string          $flag_position  'before' (default) | 'after' | 'hidden'.
      *   @type string          $open_on        'click' (default) | 'hover' — dropdown only.
      *   @type bool            $hide_current   Drop the active language from the choices.

@@ -7,11 +7,14 @@
  * $switcher keys: id, list_id, layout ('dropdown' | 'horizontal' | 'vertical'),
  * classes, label, open_on, cookie, current (one item), items (list of items).
  * Item keys: code, url, language_tag, dir, current, text, text_visible,
- * flag_url, flag_position. Values are raw — escape at output, as below.
+ * text_lang, text_dir, flag_url, flag_position. language_tag/dir describe the
+ * language the link leads to; text_lang/text_dir describe the label's own words
+ * (e.g. "Arabe" on a French page is French text). Values are raw — escape at output, as below.
  *
  * Keep data-lingowp-switcher and the __trigger / __list classes if the bundled
- * script should keep turning the dropdown layout into a dropdown. Without the
- * script the list stays visible as plain links and the button stays hidden.
+ * script should keep turning the dropdown layout into a dropdown. Whether the
+ * button or the plain list shows before/without JavaScript is decided in
+ * switcher.css (the .lingowp-js class), not in this markup.
  *
  * @package LingoWP
  *
@@ -36,7 +39,7 @@ $lingowp_label = static function (array $item) use ($lingowp_flag): void {
         $lingowp_flag($item);
     }
     ?>
-    <span class="<?php echo $item['text_visible'] ? 'lingowp-switcher__text' : 'lingowp-switcher__sr'; ?>" dir="<?php echo esc_attr($item['dir']); ?>"><?php echo esc_html($item['text']); ?></span>
+    <span class="<?php echo $item['text_visible'] ? 'lingowp-switcher__text' : 'lingowp-switcher__sr'; ?>" lang="<?php echo esc_attr($item['text_lang']); ?>" dir="<?php echo esc_attr($item['text_dir']); ?>"><?php echo esc_html($item['text']); ?></span>
     <?php
     if ($item['flag_position'] === 'after') {
         $lingowp_flag($item);
@@ -54,25 +57,33 @@ $lingowp_label = static function (array $item) use ($lingowp_flag): void {
     <?php endif; ?>
 >
     <?php if ($switcher['layout'] === 'dropdown') : ?>
-        <button type="button" class="lingowp-switcher__trigger" aria-expanded="false" aria-controls="<?php echo esc_attr($switcher['list_id']); ?>" hidden>
+        <button type="button" class="lingowp-switcher__trigger" aria-expanded="false" aria-controls="<?php echo esc_attr($switcher['list_id']); ?>">
             <?php $lingowp_label($switcher['current']); ?>
         </button>
     <?php endif; ?>
     <ul id="<?php echo esc_attr($switcher['list_id']); ?>" class="lingowp-switcher__list">
         <?php foreach ($switcher['items'] as $lingowp_item) : ?>
             <li class="lingowp-switcher__item<?php echo $lingowp_item['current'] ? ' is-current' : ''; ?>">
-                <a
-                    class="lingowp-switcher__link"
-                    href="<?php echo esc_url($lingowp_item['url']); ?>"
-                    hreflang="<?php echo esc_attr($lingowp_item['language_tag']); ?>"
-                    lang="<?php echo esc_attr($lingowp_item['language_tag']); ?>"
-                    data-lingowp-lang="<?php echo esc_attr($lingowp_item['code']); ?>"
-                    <?php if ($lingowp_item['current']) : ?>
-                        aria-current="page"
-                    <?php endif; ?>
-                >
-                    <?php $lingowp_label($lingowp_item); ?>
-                </a>
+                <?php if ($lingowp_item['current']) : ?>
+                    <?php // The language already shown: plain text, not a link back to this same page. ?>
+                    <span
+                        class="lingowp-switcher__link"
+                        lang="<?php echo esc_attr($lingowp_item['language_tag']); ?>"
+                        aria-current="true"
+                    >
+                        <?php $lingowp_label($lingowp_item); ?>
+                    </span>
+                <?php else : ?>
+                    <a
+                        class="lingowp-switcher__link"
+                        href="<?php echo esc_url($lingowp_item['url']); ?>"
+                        hreflang="<?php echo esc_attr($lingowp_item['language_tag']); ?>"
+                        lang="<?php echo esc_attr($lingowp_item['language_tag']); ?>"
+                        data-lingowp-lang="<?php echo esc_attr($lingowp_item['code']); ?>"
+                    >
+                        <?php $lingowp_label($lingowp_item); ?>
+                    </a>
+                <?php endif; ?>
             </li>
         <?php endforeach; ?>
     </ul>
