@@ -42,13 +42,25 @@ export function useLanguageCatalog( options = {} ) {
 
 // --- writes ----------------------------------------------------------------
 
+// Fired on window when a write publishes the site's first language (the
+// response's `first_published`). A one-off UI notice, not server data, so it
+// is an event rather than query state.
+export const FIRST_LANGUAGE_PUBLISHED_EVENT = 'lingowp:first-language-published'
+
 // `board` argument: also blow away the content board, for writes that change
 // which languages exist or what's translated (create / delete / use-fallback).
 function useLanguageWrite( mutationFn, { board = false } = {} ) {
 	const queryClient = useQueryClient()
 	return useMutation( {
 		mutationFn,
-		onSuccess: () => {
+		onSuccess: ( data ) => {
+			// The site just went from no published language to one —
+			// SwitcherSetupToast offers the language switcher settings.
+			if ( data?.first_published ) {
+				window.dispatchEvent(
+					new Event( FIRST_LANGUAGE_PUBLISHED_EVENT )
+				)
+			}
 			queryClient.invalidateQueries( { queryKey: qk.languages.all } )
 			if ( board ) {
 				queryClient.invalidateQueries( {
