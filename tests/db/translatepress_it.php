@@ -124,7 +124,7 @@ $trp = static function (string $original, string $translated, int $status = 1, i
 };
 
 $resetTrp = static function () use ($wpdb, $DICT): void {
-    $wpdb->query("DELETE FROM {$DICT}"); // phpcs:ignore WordPress.DB
+    $wpdb->query("DELETE FROM {$DICT}"); // phpcs:ignore WordPress.DB -- nosemgrep: wpdb-interpolated-sql -- integration test, table name from Importer::dictionaryTable() (TranslatePress's own naming)
 };
 
 /** The fr_FR translation row of a hash-shared text, or null. */
@@ -650,7 +650,7 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
         return $root;
     };
 
-    $wpdb->query("DELETE FROM {$GT}"); // phpcs:ignore WordPress.DB
+    $wpdb->query("DELETE FROM {$GT}"); // phpcs:ignore WordPress.DB -- nosemgrep: wpdb-interpolated-sql -- integration test, table name is $wpdb->prefix . 'trp_gettext_fr_fr'
     $stored = (array) get_option('trp_db_stored_data', []);
     $stored['gettext_plural_forms_header'][$LANG] = 'nplurals=2; plural=n > 1;';
     update_option('trp_db_stored_data', $stored);
@@ -883,7 +883,7 @@ test_ok('a stopped run still reports what it had done', $partial && isset($stopp
 // The job and the command run the whole import, gettext included, into
 // LingoWP's LIVE .mo folder — files the rollback can't undo. No gettext
 // fixtures from here on, so there is nothing for them to write…
-$wpdb->query("DELETE FROM {$GT}"); // phpcs:ignore WordPress.DB
+$wpdb->query("DELETE FROM {$GT}"); // phpcs:ignore WordPress.DB -- nosemgrep: wpdb-interpolated-sql -- integration test, table name is $wpdb->prefix . 'trp_gettext_fr_fr'
 // …and only fr_FR as a TranslatePress target, so no other language's gettext
 // table can be imported either.
 $onlyFr = (array) get_option('trp_settings');
@@ -1056,7 +1056,7 @@ test_ok('missing TranslatePress settings stop', $expectStop(static function () u
 
 update_option('trp_settings', $settings);
 foreach (TranslationMemorySchema::parentTables() as $table) {
-    $wpdb->query("DELETE FROM {$table}"); // phpcs:ignore WordPress.DB
+    $wpdb->query("DELETE FROM {$table}"); // phpcs:ignore WordPress.DB -- nosemgrep: wpdb-interpolated-sql -- integration test, table name from the schema map
 }
 test_ok('a site LingoWP never scanned stops', $expectStop(static function () use ($command, $wpdb) {
     $command->checks($wpdb);
