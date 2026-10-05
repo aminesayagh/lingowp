@@ -63,11 +63,17 @@ export default function MigrationTab() {
 		)
 	}
 
-	const blocked = previewQ.data?.blocked
+	const failed = state === 'failed'
+	// Done or stopped: what the run recorded. Before a run: the preview —
+	// whose "blocked" reason no longer applies once a run has succeeded.
+	const recorded = done || failed ? status.summary : null
+	const blocked = done ? null : previewQ.data?.blocked
+	const previewFailed = ! done && ! busy && previewQ.isError
 	const error =
 		( run.isError && errorMessage( run.error.code ) ) ||
 		( deactivate.isError && errorMessage( deactivate.error.code ) ) ||
-		( state === 'failed' && ( status.error || 'Migration stopped.' ) )
+		( previewFailed && errorMessage( previewQ.error.code ) ) ||
+		( failed && ( status.error || 'Migration stopped.' ) )
 
 	return (
 		<Card>
@@ -81,12 +87,25 @@ export default function MigrationTab() {
 					</Text>
 				</BlockStack>
 
-				<StatusLine
-					state={ state }
-					summary={ done ? status.summary : previewQ.data?.summary }
-					counting={ ! done && ! busy && previewQ.isPending }
-					blocked={ blocked }
-				/>
+				{ busy ? (
+					<Text as="p" tone="subdued">
+						Importing your translations… you can leave this page.
+					</Text>
+				) : (
+					<Outcome
+						state={ state }
+						summary={
+							recorded && ! ( failed && isEmpty( recorded ) )
+								? recorded
+								: previewQ.data?.summary
+						}
+						recorded={
+							!! recorded && ! ( failed && isEmpty( recorded ) )
+						}
+						blocked={ blocked }
+						counting={ ! recorded && previewQ.isPending }
+					/>
+				) }
 
 				{ error && (
 					<Text as="p" tone="critical">
@@ -95,16 +114,22 @@ export default function MigrationTab() {
 				) }
 
 				<InlineStack gap="200">
-					{ done ? (
+					{ done && (
 						<Button url="admin.php?page=lingowp">Review</Button>
-					) : (
+					) }
+					{ ! done && previewFailed && (
+						<Button onClick={ () => previewQ.refetch() }>
+							Retry
+						</Button>
+					) }
+					{ ! done && ! previewFailed && (
 						<Button
 							variant="primary"
 							loading={ busy || run.isPending }
-							disabled={ !! blocked || previewQ.isPending }
+							disabled={ !! blocked || ! previewQ.isSuccess }
 							onClick={ () => run.mutate() }
 						>
-							{ state === 'failed' ? 'Try again' : 'Migrate now' }
+							{ failed ? 'Try again' : 'Migrate now' }
 						</Button>
 					) }
 					<Button
@@ -120,15 +145,16 @@ export default function MigrationTab() {
 	)
 }
 
-// One short line: what can be imported, what was, or why not.
-function StatusLine( { state, summary, counting, blocked } ) {
-	if ( state === 'queued' || state === 'running' ) {
-		return (
-			<Text as="p" tone="subdued">
-				Importing your translations… you can leave this page.
-			</Text>
-		)
-	}
+function isEmpty( summary ) {
+	return summary.totals.imported === 0 && summary.totals.gettext === 0
+}
+
+const translations = ( n ) =>
+	n === 1 ? '1 translation' : `${ n } translations`
+
+// What can be imported, what was (done, or before a stop), or why not — the
+// main line, then one short line for what wasn't imported, only when there is.
+function Outcome( { state, summary, recorded, blocked, counting } ) {
 	if ( blocked ) {
 		return (
 			<Text as="p" tone="caution">
@@ -139,21 +165,24 @@ function StatusLine( { state, summary, counting, blocked } ) {
 	if ( counting || ! summary ) {
 		return (
 			<Text as="p" tone="subdued">
-				Counting your translations…
+				{ counting ? 'Counting your translations…' : '' }
 			</Text>
 		)
 	}
 
 	const { totals, languages } = summary
+	// Interface strings (plugins, themes) count as translations too.
+	const count = totals.imported + totals.gettext
 	const review =
 		totals.needs_review > 0
 			? ` · ${ totals.needs_review } need a review on the board`
 			: ''
-	const texts = ( n ) => ( n === 1 ? '1 translation' : `${ n } translations` )
-	const main =
-		state === 'done'
-			? `Done: ${ texts( totals.imported ) } imported${ review }`
-			: `${ texts( totals.imported ) } ready to import${ review }`
+	let main = `${ translations( count ) } ready to import${ review }`
+	if ( recorded && state === 'done' ) {
+		main = `Done: ${ translations( count ) } imported${ review }`
+	} else if ( recorded ) {
+		main = `Imported before the stop: ${ translations( count ) }${ review }`
+	}
 
 	// Per language only when there is more than one, or one gets added.
 	const perLanguage =
@@ -161,16 +190,37 @@ function StatusLine( { state, summary, counting, blocked } ) {
 			? languages
 					.map(
 						( l ) =>
-							`${ l.code || l.locale } ${ l.imported }${
-								l.added ? ' (new)' : ''
-							}`
+							`${ l.code || l.locale } ${
+								l.imported + l.gettext
+							}${ l.added ? ' (new)' : '' }`
 					)
 					.join( ' · ' )
 			: ''
 
+	const notImported = [
+		totals.unmatched > 0 && `${ totals.unmatched } not found on this site`,
+		totals.conflicts > 0 &&
+			`${ totals.conflicts } with conflicting translations`,
+		totals.mismatch > 0 && `${ totals.mismatch } with different formatting`,
+		totals.failed_checks > 0 &&
+			`${ totals.failed_checks } failing LingoWP's checks`,
+		totals.incomplete > 0 &&
+			`${ totals.incomplete } only partly translated`,
+		...languages
+			.filter( ( l ) => ! l.usable )
+			.map( ( l ) => `${ l.code || l.locale }: ${ l.language }` ),
+	].filter( Boolean )
+
 	return (
-		<Text as="p" tone="subdued">
-			{ perLanguage ? `${ main } — ${ perLanguage }` : main }
-		</Text>
+		<BlockStack gap="100">
+			<Text as="p" tone="subdued">
+				{ perLanguage ? `${ main } — ${ perLanguage }` : main }
+			</Text>
+			{ notImported.length > 0 && (
+				<Text as="p" variant="bodySm" tone="subdued">
+					{ `Not imported: ${ notImported.join( ' · ' ) }` }
+				</Text>
+			) }
+		</BlockStack>
 	)
 }

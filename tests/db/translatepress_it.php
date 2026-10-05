@@ -1013,10 +1013,12 @@ ob_start();
 (new \LingoWPTranslatePress\ImportCommand())->__invoke([], ['dry-run' => true]);
 ob_end_clean();
 test_ok('a dry run from the command line doesn\'t count as migrated', !MigrationState::isDone());
+set_transient(MigrationRestController::PREVIEW_TRANSIENT, ['ok' => true, 'blocked' => 'ZQ stale', 'summary' => null], 600);
 ob_start();
 (new \LingoWPTranslatePress\ImportCommand())->__invoke([], []);
 ob_end_clean();
 test_ok('a finished command-line run counts as migrated (the toast stops)', MigrationState::isDone());
+test_ok('…and drops the screen\'s cached preview, so an old warning can\'t hide "Done" (Codex 5th pass #6)', get_transient(MigrationRestController::PREVIEW_TRANSIENT) === false);
 
 $matcher = new AddonSiteMatcher();
 test_ok('core: a migration add-on is relevant when its plugin is installed but inactive', $matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN])
