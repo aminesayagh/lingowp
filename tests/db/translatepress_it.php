@@ -546,11 +546,15 @@ if (\LingoWP\Language\Infrastructure\WordPressLanguageCatalog::get($LANG) === nu
 
     if (!wp_using_ext_object_cache()) {
         $withoutFr();
+        $timeoutBefore = get_site_option('_site_transient_timeout_available_translations', 0);
         update_site_option('_site_transient_timeout_available_translations', time() - 60);
         $memo->setValue(null, null);
         $result = (new LanguageImport(true))->import($LANG, $settings);
         test_ok('a dry run with an expired catalog cache reports "unchecked" and deletes nothing (Codex #12)', $result['state'] === 'unchecked'
             && get_site_option('_site_transient_available_translations', false) !== false);
+        // Back to a fresh cache, so no later case refreshes it from WordPress.org.
+        update_site_option('_site_transient_timeout_available_translations', $timeoutBefore);
+        $memo->setValue(null, null);
     }
 
     $restore();
@@ -626,9 +630,43 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     $gettext('ZQTRPIT Hello %s', [0 => 'ZQ Bonjour']);
     $gettext('ZQTRPIT ghost', [0 => 'ZQ fantôme'], 'zqtrpit-not-installed');
     $gettext('ZQTRPIT kept', [0 => 'ZQ nouveau']);
-    // lingowp-acf has no French language pack: the "no plural rule anywhere" case.
-    $gettext('ZQTRPIT acf single', [0 => 'ZQ acf seul'], 'lingowp-acf');
-    $gettext('ZQTRPIT acf %d row', [0 => 'ZQ %d ligne', 1 => 'ZQ %d lignes'], 'lingowp-acf', 1, 'ZQTRPIT acf %d rows');
+    // An installed plugin with no French language pack anywhere WordPress
+    // looks: the "no plural rule anywhere" case. Found, not hardcoded.
+    global $wp_textdomain_registry;
+    $NOPACK = '';
+    foreach ($components as $candidate => $info) {
+        $base = WP_LANG_DIR . '/plugins/' . $candidate . '-' . $LANG;
+        if ($info['kind'] === 'plugin' && !is_readable($base . '.mo') && !is_readable($base . '.l10n.php')
+            && !$wp_textdomain_registry->get((string) $candidate, $LANG)
+            && !is_readable(rtrim((string) $info['path'], '/') . '/languages/' . $candidate . '-' . $LANG . '.mo')) {
+            $NOPACK = (string) $candidate;
+            break;
+        }
+    }
+    if ($NOPACK !== '') {
+        $gettext('ZQTRPIT nopack single', [0 => 'ZQ sans pack'], $NOPACK);
+        $gettext('ZQTRPIT nopack %d row', [0 => 'ZQ %d ligne', 1 => 'ZQ %d lignes'], $NOPACK, 1, 'ZQTRPIT nopack %d rows');
+    }
+
+    // A string the theme's own French pack already translates, if it has one:
+    // TranslatePress's translation must replace the pack's (Codex 2nd pass #4).
+    $themePack = null;
+    foreach ([WP_LANG_DIR . '/themes/' . $DOMAIN . '-' . $LANG . '.mo'] as $candidate) {
+        if (is_readable($candidate)) {
+            $themePack = new \MO();
+            $themePack->import_from_file($candidate);
+        }
+    }
+    $packKey = null;
+    foreach ($themePack ? $themePack->entries : [] as $key => $entry) {
+        if (!$entry->is_plural && !$entry->context && (string) ($entry->translations[0] ?? '') !== '') {
+            $packKey = (string) $key;
+            break;
+        }
+    }
+    if ($packKey !== null) {
+        $gettext($packKey, [0 => 'ZQ remplacé par TranslatePress']);
+    }
 
     $root = $newRoot();
     $mo   = new \MO();
@@ -662,17 +700,61 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     $seedRoot = $newRoot();
     $runGettext($seedRoot);
     $seeded = $read($seedRoot);
-    test_ok('a new file starts from the installed language pack', isset($seeded->entries['Twenty Twenty-Four']) && isset($seeded->entries['ZQTRPIT singular']));
-    test_ok('…and keeps the pack\'s plural rule', ($seeded->headers['Plural-Forms'] ?? '') === 'nplurals=2; plural=n > 1;');
+    if ($themePack !== null) {
+        $otherKey = null;
+        foreach ($themePack->entries as $key => $entry) {
+            if ($key !== $packKey) {
+                $otherKey = (string) $key;
+                break;
+            }
+        }
+        test_ok('a new file starts from the installed language pack', $otherKey !== null && isset($seeded->entries[$otherKey]) && isset($seeded->entries['ZQTRPIT singular']));
+        test_ok('…and keeps the pack\'s plural rule', ($seeded->headers['Plural-Forms'] ?? '') === (string) ($themePack->headers['Plural-Forms'] ?? ''));
+        test_ok('TranslatePress replaces a pack translation without --overwrite (it isn\'t LingoWP\'s own)', $packKey !== null && ($seeded->entries[$packKey]->translations[0] ?? '') === 'ZQ remplacé par TranslatePress');
+    } else {
+        test_ok('without a language pack, a new file holds only the imported entries', isset($seeded->entries['ZQTRPIT singular']));
+    }
+
+    // The .l10n.php pack format (WordPress 6.5+) keeps only the singular in the
+    // key; a plural's forms sit in the value (Codex 2nd pass #3).
+    $phpRoot = $newRoot();
+    wp_mkdir_p($phpRoot . '/component/languages');
+    file_put_contents($phpRoot . '/component/languages/zqtrpit-php-' . $LANG . '.l10n.php', '<?php return ' . var_export([
+        'plural-forms' => 'nplurals=2; plural=n > 1;',
+        'messages'     => ['ZQTRPIT %d apple' => "ZQ %d pomme\0ZQ %d pommes", 'ZQTRPIT pear' => 'ZQ poire'],
+    ], true) . ';');
+    $seedMethod = new \ReflectionMethod(GettextImport::class, 'seedFromLanguagePack');
+    $seedMethod->setAccessible(true);
+    $phpMo = new \MO();
+    $seedMethod->invoke(null, $phpMo, 'plugin', 'zqtrpit-php', $phpRoot . '/component', $LANG);
+    test_ok('a .l10n.php pack keeps its plural forms', ($phpMo->entries['ZQTRPIT %d apple']->translations ?? null) === ['ZQ %d pomme', 'ZQ %d pommes'] && $phpMo->entries['ZQTRPIT %d apple']->is_plural);
+    test_ok('…and its singulars and plural rule', ($phpMo->entries['ZQTRPIT pear']->translations[0] ?? '') === 'ZQ poire' && ($phpMo->headers['Plural-Forms'] ?? '') === 'nplurals=2; plural=n > 1;');
+    @unlink($phpRoot . '/component/languages/zqtrpit-php-' . $LANG . '.l10n.php'); // phpcs:ignore
+    @rmdir($phpRoot . '/component/languages'); // phpcs:ignore
+    @rmdir($phpRoot . '/component'); // phpcs:ignore
+
+    // The read-back check compares every translation, not only the count
+    // (Codex 2nd pass #5).
+    $same = new \ReflectionMethod(GettextImport::class, 'sameContent');
+    $same->setAccessible(true);
+    $a = new \MO();
+    $a->add_entry(new \Translation_Entry(['singular' => 'ZQTRPIT x', 'translations' => ['ZQ complet']]));
+    $b = new \MO();
+    $b->add_entry(new \Translation_Entry(['singular' => 'ZQTRPIT x', 'translations' => ['ZQ comp']]));
+    test_ok('a file whose translations were cut short fails the read-back check', $same->invoke(null, $a, $a) === true && $same->invoke(null, $a, $b) === false);
 
     unset($stored['gettext_plural_forms_header'][$LANG]);
     update_option('trp_db_stored_data', $stored);
-    $bareRoot = $newRoot();
-    $run      = $runGettext($bareRoot);
-    $bare     = new \MO();
-    $bare->import_from_file($bareRoot . '/plugins/lingowp-acf-' . $LANG . '.mo');
-    test_ok('without any plural rule (no pack, no TranslatePress header), plurals are skipped and reported', !isset($bare->entries['ZQTRPIT acf %d row']) && $run->counts()['no_plural_header'] >= 1);
-    test_ok('singulars are still imported without a plural rule', isset($bare->entries['ZQTRPIT acf single']));
+    if ($NOPACK === '') {
+        test_ok('no installed plugin without a French pack: the no-plural-rule case is skipped', true);
+    } else {
+        $bareRoot = $newRoot();
+        $run      = $runGettext($bareRoot);
+        $bare     = new \MO();
+        $bare->import_from_file($bareRoot . '/plugins/' . $NOPACK . '-' . $LANG . '.mo');
+        test_ok('without any plural rule (no pack, no TranslatePress header), plurals are skipped and reported', !isset($bare->entries['ZQTRPIT nopack %d row']) && $run->counts()['no_plural_header'] >= 1);
+        test_ok('singulars are still imported without a plural rule', isset($bare->entries['ZQTRPIT nopack single']));
+    }
 }
 
 // ── 8. Checks before the run (last: it empties LingoWP's source tables) ──────
@@ -779,14 +861,41 @@ $owner = MigrationState::claim();
 test_ok('one run claims the migration', is_string($owner) && MigrationState::owner() === $owner);
 test_ok('a second claim is refused while the first is alive', MigrationState::claim() === null);
 test_ok('"Migrate now" is refused while another run owns it', $rest('POST', '/run')->get_status() === 409);
-update_option(MigrationState::LOCK_OPTION, ['run' => $owner, 'at' => time() - 2 * HOUR_IN_SECONDS]);
+$wpdb->update($wpdb->options, ['option_value' => $owner . '|' . (time() - 2 * HOUR_IN_SECONDS)], ['option_name' => MigrationState::LOCK_OPTION]);
 $takeover = MigrationState::claim();
 test_ok('a dead run\'s lock (no heartbeat) can be taken over', is_string($takeover) && $takeover !== $owner);
-MigrationState::set('queued', $owner);
+test_ok('a second takeover of the same dead lock is refused (conditional update)', MigrationState::claim() === null);
+MigrationState::set('queued', $takeover);
 MigrationJob::run($owner);
-test_ok('a superseded job does nothing', MigrationState::owner() === $takeover && MigrationState::get()['run'] === $owner);
+test_ok('a superseded job does nothing', MigrationState::owner() === $takeover && MigrationState::get()['run'] === $takeover && MigrationState::get()['state'] === 'queued');
+
+$lost = false;
+try {
+    $beatClock = new \ReflectionProperty(MigrationState::class, 'lastBeat');
+    $beatClock->setAccessible(true);
+    $beatClock->setValue(null, []);
+    MigrationState::beat($owner);
+} catch (ImportStopped $e) {
+    $lost = true;
+}
+test_ok('a run that lost ownership stops at its next heartbeat', $lost);
+test_ok('…and can\'t record a state over the new owner', (static function () use ($owner): bool {
+    try {
+        MigrationState::set('done', $owner);
+    } catch (ImportStopped $e) {
+        return MigrationState::get()['run'] !== $owner;
+    }
+    return false;
+})());
+MigrationState::release($owner);
+test_ok('releasing someone else\'s run removes nothing', MigrationState::owner() === $takeover);
 MigrationState::release($takeover);
 test_ok('releasing frees the migration', MigrationState::owner() === '');
+
+$wpdb->insert($wpdb->options, ['option_name' => MigrationState::LOCK_OPTION, 'option_value' => 'garbage', 'autoload' => 'no']);
+$afterGarbage = MigrationState::claim();
+test_ok('a malformed lock row counts as stale, never blocks forever', is_string($afterGarbage));
+MigrationState::release($afterGarbage);
 // Not tested here: the command's refusal while another run owns the
 // migration. It ends in WP_CLI::error() (exits this process), and running the
 // command in a child process would put it outside this suite's transaction.

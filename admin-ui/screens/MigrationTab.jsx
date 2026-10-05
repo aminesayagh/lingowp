@@ -212,7 +212,12 @@ function Preview( { label, previewQ, running, onRun, retry } ) {
 
 function Report( { status, partial = false } ) {
 	const summary = status.summary
-	if ( ! summary || ( partial && summary.totals.imported === 0 ) ) {
+	if (
+		! summary ||
+		( partial &&
+			summary.totals.imported === 0 &&
+			summary.totals.gettext === 0 )
+	) {
 		return null
 	}
 	const { totals, languages } = summary
@@ -221,7 +226,7 @@ function Report( { status, partial = false } ) {
 		<BlockStack gap="300">
 			<Text as="p">
 				{ partial
-					? `Imported before the stop: ${ totals.imported } texts`
+					? `Imported before the stop: ${ totals.imported } texts, ${ totals.gettext } interface strings`
 					: `${ totals.imported } texts imported` }
 				{ totals.needs_review > 0 &&
 					`, ${ totals.needs_review } to review` }
