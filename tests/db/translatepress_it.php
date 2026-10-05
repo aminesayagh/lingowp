@@ -546,14 +546,18 @@ if (\LingoWP\Language\Infrastructure\WordPressLanguageCatalog::get($LANG) === nu
 
     if (!wp_using_ext_object_cache()) {
         $withoutFr();
-        $timeoutBefore = get_site_option('_site_transient_timeout_available_translations', 0);
+        $timeoutBefore = get_site_option('_site_transient_timeout_available_translations', null);
         update_site_option('_site_transient_timeout_available_translations', time() - 60);
         $memo->setValue(null, null);
         $result = (new LanguageImport(true))->import($LANG, $settings);
         test_ok('a dry run with an expired catalog cache reports "unchecked" and deletes nothing (Codex #12)', $result['state'] === 'unchecked'
             && get_site_option('_site_transient_available_translations', false) !== false);
         // Back to a fresh cache, so no later case refreshes it from WordPress.org.
-        update_site_option('_site_transient_timeout_available_translations', $timeoutBefore);
+        if ($timeoutBefore === null) {
+            delete_site_option('_site_transient_timeout_available_translations'); // was absent: never expires
+        } else {
+            update_site_option('_site_transient_timeout_available_translations', $timeoutBefore);
+        }
         $memo->setValue(null, null);
     }
 
@@ -579,11 +583,15 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     $roots = [];
     register_shutdown_function(static function () use (&$roots): void {
         foreach ($roots as $root) {
-            foreach (glob($root . '/*/*') ?: [] as $file) {
-                @unlink($file); // phpcs:ignore
+            if (!is_dir($root)) {
+                continue;
             }
-            foreach (glob($root . '/*') ?: [] as $dir) {
-                @rmdir($dir); // phpcs:ignore
+            $items = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($items as $item) {
+                $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname()); // phpcs:ignore
             }
             @rmdir($root); // phpcs:ignore
         }
@@ -742,6 +750,28 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     $b = new \MO();
     $b->add_entry(new \Translation_Entry(['singular' => 'ZQTRPIT x', 'translations' => ['ZQ comp']]));
     test_ok('a file whose translations were cut short fails the read-back check', $same->invoke(null, $a, $a) === true && $same->invoke(null, $a, $b) === false);
+
+    // Codex 3rd pass #1: ownership is checked right before the file is replaced.
+    $lostRoot = $newRoot();
+    $lostRun  = new GettextImport($wpdb, false, true, $lostRoot, static function (bool $now = false): void {
+        if ($now) {
+            throw new ImportStopped('lost ownership');
+        }
+    });
+    $lostStopped = false;
+    try {
+        $lostRun->run($LANG, $LANG);
+    } catch (ImportStopped $e) {
+        $lostStopped = true;
+    }
+    test_ok('a run that lost ownership replaces no file, and leaves no staging file', $lostStopped && glob($lostRoot . '/*/*') === []);
+
+    // Codex 3rd pass #3: the declared "Domain Path" (WordPress registers it only for active plugins).
+    $domainPath = new \ReflectionMethod(GettextImport::class, 'declaredDomainPath');
+    $domainPath->setAccessible(true);
+    if (isset($components['woocommerce'])) {
+        test_ok('a plugin\'s declared Domain Path is read (WooCommerce: /i18n/languages/)', trim((string) $domainPath->invoke(null, 'plugin', 'woocommerce'), '/') === 'i18n/languages');
+    }
 
     unset($stored['gettext_plural_forms_header'][$LANG]);
     update_option('trp_db_stored_data', $stored);
