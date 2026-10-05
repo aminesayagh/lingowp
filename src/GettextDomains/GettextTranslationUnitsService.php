@@ -269,6 +269,13 @@ final class GettextTranslationUnitsService
             return false;
         }
 
+        // Zero strings is only remembered when the scanner proves it can find
+        // strings at all; otherwise the next open scans again instead of the
+        // component being cached as empty forever.
+        if ($scanned === [] && ! $this->scanner->isWorking()) {
+            return true;
+        }
+
         $this->repository->bulkUpsert($type, $domain, $scanned);
         $this->repository->markScanned($type, $domain);
 

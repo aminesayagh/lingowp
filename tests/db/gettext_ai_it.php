@@ -307,8 +307,8 @@ foreach ($writtenMoFiles as $f) {
         @unlink($f);
     }
 }
-$scanned = json_decode((string) get_option('lingowp_gettext_scanned_domains', '[]'), true);
+$scanned = json_decode((string) get_option(GettextUnitRepository::OPTION_SCANNED, '[]'), true);
 $scanned = is_array($scanned) ? array_values(array_diff($scanned, ["$type:$domain"])) : [];
-update_option('lingowp_gettext_scanned_domains', wp_json_encode($scanned));
+update_option(GettextUnitRepository::OPTION_SCANNED, wp_json_encode($scanned));
 
 test_done();

@@ -78,6 +78,7 @@
 			"./wp eval-file tests/db/ai_pending_it.php",
 			"./wp eval-file tests/db/ai_result_applier_it.php",
 			"./wp eval-file tests/db/gettext_unit_it.php",
+			"./wp eval-file tests/db/gettext_scanner_it.php",
 			"./wp eval-file tests/db/gettext_merge_it.php",
 			"./wp eval-file tests/db/gettext_ai_it.php",
 			"./wp eval-file tests/db/no_auto_connect_it.php",

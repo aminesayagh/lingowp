@@ -70,7 +70,8 @@ class PluginDataCleanup
         // Gettext workspace.
         'lingowp_gettext_domains',
         'lingowp_gettext_ignored_units',
-        'lingowp_gettext_scanned_domains',
+        'lingowp_gettext_scanned_domains', // pre-v2 scan markers, see GettextUnitRepository::OPTION_SCANNED
+        'lingowp_gettext_scanned_v2',
         'lingowp_gettext_translated_counts',
     ];
 

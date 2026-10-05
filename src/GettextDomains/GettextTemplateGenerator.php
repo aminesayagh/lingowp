@@ -21,11 +21,13 @@ use Throwable;
  * component's strings (see GettextTranslationUnitsService) — not just as a
  * last resort, since it's how "translate manually" gets its row list.
  */
-final class GettextTemplateGenerator
+class GettextTemplateGenerator
 {
     private const SKIP_DIRS      = ['vendor', 'node_modules', 'tests', 'test'];
     private const MAX_FILES      = 5000;
     private const MAX_FILE_BYTES = 2 * 1024 * 1024;
+
+    private ?bool $working = null;
 
     /**
      * @return array<int, array{msgid: string, context: ?string}>|null Null if
@@ -69,6 +71,33 @@ final class GettextTemplateGenerator
         }
 
         return $entries;
+    }
+
+    /**
+     * Whether the scanner can find strings at all in this request — checked
+     * on a one-line snippet before an empty scan result is trusted. A broken
+     * parser setup (another plugin's older php-parser loaded first, see
+     * WordPressPhpScanner) looks exactly like "this component has no
+     * strings", and that must never be cached as a finished scan.
+     * Memoized per instance (one per request, see Plugin.php). Not final so
+     * a test can stand in a broken scanner.
+     */
+    public function isWorking(): bool
+    {
+        if ($this->working !== null) {
+            return $this->working;
+        }
+
+        $translations = Translations::create('lingowp-selfcheck');
+        try {
+            $scanner = new WordPressPhpScanner($translations);
+            $scanner->setDefaultDomain('lingowp-selfcheck');
+            $scanner->scanString("<?php __('Self check');", 'selfcheck.php');
+        } catch (Throwable $e) {
+            return $this->working = false;
+        }
+
+        return $this->working = count($translations) === 1;
     }
 
     /** @return \Generator<string> */

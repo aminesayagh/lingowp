@@ -28,7 +28,13 @@ final class GettextUnitRepository
     private const STATUS_ACTIVE  = 0;
     private const STATUS_IGNORED = -1;
     private const INSERT_CHUNK   = 100;
-    private const OPTION_SCANNED = 'lingowp_gettext_scanned_domains';
+    // "_v2": the previous key, lingowp_gettext_scanned_domains, was written
+    // by a scanner that silently found nothing whenever another plugin's
+    // older php-parser was loaded (see WordPressPhpScanner), so its "scanned"
+    // entries can't be trusted. A new key makes every component scan once
+    // more with the fixed scanner, on every site, with no migration. The old
+    // key is left in place and removed by PluginDataCleanup on uninstall.
+    public const OPTION_SCANNED = 'lingowp_gettext_scanned_v2';
     // Per (type:domain:locale) count of translated entries in the `.mo`,
     // written whenever this plugin touches that file, so the board's percent
     // is countActive() (DB) over this stored int — no `.mo` parse and no
