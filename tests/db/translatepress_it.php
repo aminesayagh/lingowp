@@ -261,6 +261,36 @@ test_ok('status 0 is skipped', $tr('ZQTRPIT status zero') === null);
 test_ok('block_type 2 is skipped', $tr('ZQTRPIT status deprecated') === null);
 test_ok('the report counts the status-3 row as similar', $run->counts()['similar'] === 1);
 
+test_section('content — compact index (Codex 4th pass):');
+
+$packSlot   = new \ReflectionMethod(DictionaryImport::class, 'packSlot');
+$unpackSlot = new \ReflectionMethod(DictionaryImport::class, 'unpackSlot');
+$packSlot->setAccessible(true);
+$unpackSlot->setAccessible(true);
+test_ok('a source row id past 32 bits survives the compact slot (no save on the wrong row)',
+    $unpackSlot->invoke(null, $packSlot->invoke(null, 3, 4294967297, 1)) === [3, 4294967297, 1]);
+
+$indexer   = new DictionaryImport($wpdb, true, false);
+$indexSlot = new \ReflectionMethod(DictionaryImport::class, 'indexSlot');
+$indexSlot->setAccessible(true);
+$pieceUnitsProp = new \ReflectionProperty(DictionaryImport::class, 'pieceUnits');
+$pieceUnitsProp->setAccessible(true);
+$indexSlot->invoke($indexer, 1, str_repeat('w {1}x{/1} ', 33000));
+test_ok('a unit with more pieces than a reference can hold is never assembled (not half-assembled)', !isset($pieceUnitsProp->getValue($indexer)[1]));
+
+$started = microtime(true);
+for ($i = 0; $i < 20000; $i++) {
+    $indexSlot->invoke($indexer, 100 + $i, 'ZQTRPIT the same text everywhere');
+}
+$lookupProp = new \ReflectionProperty(DictionaryImport::class, 'lookup');
+$lookupProp->setAccessible(true);
+$targets = 0;
+foreach ($lookupProp->getValue($indexer) as $found) {
+    $targets = max($targets, count((array) $found));
+}
+test_ok('20,000 slots sharing one text index in linear time (no copying per slot)', $targets === 20000 && microtime(true) - $started < 5.0,
+    sprintf('%.2f s, %d targets', microtime(true) - $started, $targets));
+
 test_section('content — text forms (README §3.2):');
 
 $resetTrp();
@@ -799,10 +829,11 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     test_ok('a board counter that can\'t be updated stops the run with a clear message', strpos($countersMessage, 'counters could not be updated') !== false, $countersMessage);
 
     // Codex 3rd pass #3: the declared "Domain Path" (WordPress registers it only for active plugins).
-    $domainPath = new \ReflectionMethod(GettextImport::class, 'declaredDomainPath');
-    $domainPath->setAccessible(true);
+    $languageDirs = new \ReflectionMethod(GettextImport::class, 'declaredLanguageDirs');
+    $languageDirs->setAccessible(true);
     if (isset($components['woocommerce'])) {
-        test_ok('a plugin\'s declared Domain Path is read (WooCommerce: /i18n/languages/)', trim((string) $domainPath->invoke(null, 'plugin', 'woocommerce'), '/') === 'i18n/languages');
+        test_ok('a plugin\'s declared Domain Path is resolved to its folder (WooCommerce: i18n/languages)',
+            in_array(WP_PLUGIN_DIR . '/woocommerce/i18n/languages', (array) $languageDirs->invoke(null, 'plugin', 'woocommerce'), true));
     }
 
     unset($stored['gettext_plural_forms_header'][$LANG]);
