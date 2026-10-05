@@ -87,6 +87,14 @@ export const qk = {
 		status: () => [ 'scan', 'status' ],
 	},
 
+	// Migration from another translation plugin (Account page, "Migration"
+	// tab), served by a migration add-on such as lingowp-translatepress.
+	migration: {
+		all: [ 'migration' ],
+		status: ( source ) => [ 'migration', 'status', source ],
+		preview: ( source ) => [ 'migration', 'preview', source ],
+	},
+
 	// Language switcher design (Account page, "Language switcher" tab).
 	switcher: {
 		all: [ 'switcher' ],

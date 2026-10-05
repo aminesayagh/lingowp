@@ -3935,6 +3935,10 @@ function TextUnitRow( {
 			// unit.status was never touched — dropping the override reverts it.
 			setOptimistic( null )
 			onActionError( 'Could not update the review status. Try again.' )
+		} else if ( action === 'manual' ) {
+			onActionError(
+				'Could not mark the translation as manual. Try again.'
+			)
 		}
 	}
 
@@ -4269,14 +4273,37 @@ function TextUnitRow( {
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
 							) }
+							{ /* Double-click (or Enter) turns an imported translation
+							     into a manual one; its status stays as it is. */ }
 							{ unit.origin === 'imported' && (
-								<Badge
-									tone="info"
-									size="small"
-									className="text-nowrap"
-								>
-									Imported
-								</Badge>
+								<Tooltip content="Double-click to mark as manual">
+									<span
+										role="button"
+										tabIndex={ 0 }
+										aria-label="Imported translation. Double-click or press Enter to mark it as manual."
+										onDoubleClick={ () =>
+											doStatus( 'manual' )
+										}
+										onKeyDown={ ( event ) => {
+											if ( event.key === 'Enter' ) {
+												event.preventDefault()
+												doStatus( 'manual' )
+											}
+										} }
+										style={ {
+											cursor: 'pointer',
+											userSelect: 'none',
+										} }
+									>
+										<Badge
+											tone="info"
+											size="small"
+											className="text-nowrap"
+										>
+											Imported
+										</Badge>
+									</span>
+								</Tooltip>
 							) }
 							{ badge && (
 								<span

@@ -86,6 +86,18 @@ test_begin();
 
 $now = current_time('mysql');
 
+/** Every file under LingoWP's live .mo folder with its size and mtime; must not change. */
+$liveMoFiles = static function (): array {
+    $root  = \LingoWP\GettextDomains\GettextPoImporter::baseDir();
+    $files = [];
+    foreach (glob($root . '/*/*') ?: [] as $file) {
+        $files[$file] = filesize($file) . ':' . filemtime($file);
+    }
+    ksort($files);
+    return $files;
+};
+$liveMoBefore = $liveMoFiles();
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 /** An html source unit (hash-shared, no owner row needed). */
@@ -628,6 +640,11 @@ test_ok('a stopped run still reports what it had done', $partial && isset($stopp
 
 // ── 9. Admin migration: state, job, REST routes, boot flag ──────────────────
 
+// The job and the command run the whole import, gettext included, into
+// LingoWP's LIVE .mo folder — files the rollback can't undo. No gettext
+// fixtures from here on, so there is nothing for them to write.
+$wpdb->query("DELETE FROM {$GT}"); // phpcs:ignore WordPress.DB
+
 test_section('admin migration — REST routes, background job, boot flag (PLAN §6):');
 
 $asAdmin = static function () {
@@ -646,7 +663,7 @@ $asAdmin();
 delete_option(MigrationState::OPTION);
 $status = $rest('GET', '')->get_data();
 test_ok('a never-run migration reports idle, with TranslatePress installed and inactive', ($status['state'] ?? '') === 'idle'
-    && ($status['translatepress']['installed'] ?? false) === true && ($status['translatepress']['active'] ?? true) === false);
+    && ($status['source']['installed'] ?? false) === true && ($status['source']['active'] ?? true) === false);
 
 $flag = apply_filters('lingowp_admin_migration', null);
 test_ok('the boot flag is set when TranslatePress is installed, not migrated yet', is_array($flag) && $flag['source'] === 'translatepress' && $flag['migrated'] === false);
@@ -692,6 +709,16 @@ test_ok('"Disable TranslatePress" deactivates it', $deactivate->get_status() ===
     && !in_array(\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN, (array) get_option('active_plugins', []), true));
 test_ok('…and keeps its data', DictionaryImport::tableExists($wpdb, $DICT) && is_array(get_option('trp_settings')));
 
+delete_option(MigrationState::OPTION);
+ob_start();
+(new \LingoWPTranslatePress\ImportCommand())->__invoke([], ['dry-run' => true]);
+ob_end_clean();
+test_ok('a dry run from the command line doesn\'t count as migrated', !MigrationState::isDone());
+ob_start();
+(new \LingoWPTranslatePress\ImportCommand())->__invoke([], []);
+ob_end_clean();
+test_ok('a finished command-line run counts as migrated (the toast stops)', MigrationState::isDone());
+
 $matcher = new AddonSiteMatcher();
 test_ok('core: a migration add-on is relevant when its plugin is installed but inactive', $matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN])
     && !$matcher->isRelevant([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
@@ -733,5 +760,8 @@ foreach (TranslationMemorySchema::parentTables() as $table) {
 test_ok('a site LingoWP never scanned stops', $expectStop(static function () use ($command, $wpdb) {
     $command->checks($wpdb);
 }));
+
+test_section('isolation:');
+test_ok('the live .mo folder is unchanged (files are outside the rollback)', $liveMoFiles() === $liveMoBefore);
 
 test_done();

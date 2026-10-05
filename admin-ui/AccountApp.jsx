@@ -27,6 +27,7 @@ import BillingSites from './screens/BillingSites'
 import BillingToken from './screens/BillingToken'
 import BillingIntegrations from './screens/BillingIntegrations'
 import SwitcherSettings from './screens/SwitcherSettings'
+import MigrationTab from './screens/MigrationTab'
 import AddonActivationToast from './screens/AddonActivationToast'
 import OwnerEmailCard from './screens/OwnerEmailCard'
 import SupportBubble from './screens/SupportBubble'
@@ -35,12 +36,17 @@ const cfg = window.LingoWP || {}
 
 const queryClient = makeQueryClient()
 
+// Set by a migration add-on only when there is something to migrate from
+// (e.g. TranslatePress installed); null hides the Migration tab.
+const hasMigration = !! ( window.LingoWP || {} ).migration
+
 const tabParser = parseAsStringLiteral( [
 	'subscription',
 	'usage',
 	'sites',
 	'switcher',
 	'integrations',
+	'migration',
 	'token',
 ] ).withDefault( 'subscription' )
 
@@ -50,8 +56,12 @@ const TABS = [
 	{ id: 'sites', label: 'Sites' },
 	{ id: 'switcher', label: 'Language switcher' },
 	{ id: 'integrations', label: 'Integrations' },
+	{ id: 'migration', label: 'Migration' },
 	{ id: 'token', label: 'API token' },
 ]
+
+// Tabs that work without the LingoWP Cloud connection (local settings).
+const LOCAL_TABS = [ 'switcher', 'migration' ]
 
 export default function AccountApp() {
 	return (
@@ -109,6 +119,10 @@ function AccountAppInner() {
 	// tab both need this, not just the disabled Button below.
 	useEffect( () => {
 		if ( ! subscribed && tab === 'usage' ) {
+			setTab( 'subscription' )
+		}
+		// A ?tab=migration link on a site with nothing (left) to migrate from.
+		if ( ! hasMigration && tab === 'migration' ) {
 			setTab( 'subscription' )
 		}
 	}, [ subscribed, tab, setTab ] )
@@ -172,7 +186,11 @@ function AccountAppInner() {
 										<Divider />
 
 										<BlockStack gap="050">
-											{ TABS.map( ( t ) => (
+											{ TABS.filter(
+												( t ) =>
+													t.id !== 'migration' ||
+													hasMigration
+											).map( ( t ) => (
 												<Button
 													key={ t.id }
 													fullWidth
@@ -245,8 +263,14 @@ function AccountAppInner() {
 											{ tab === 'switcher' && (
 												<SwitcherSettings />
 											) }
+											{ tab === 'migration' &&
+												hasMigration && (
+													<MigrationTab />
+												) }
 											{ ! connectionReady &&
-												tab !== 'switcher' && (
+												! LOCAL_TABS.includes(
+													tab
+												) && (
 													<Box padding="500">
 														<Spinner
 															accessibilityLabel="Connecting to LingoWP"
@@ -256,7 +280,9 @@ function AccountAppInner() {
 												) }
 											{ connectionReady &&
 												! connectionStatus?.connected &&
-												tab !== 'switcher' && (
+												! LOCAL_TABS.includes(
+													tab
+												) && (
 													<Card>
 														<BlockStack gap="300">
 															<Text

@@ -5,6 +5,11 @@
 
 const MESSAGES = {
 	ERR_UNREACHABLE: "Couldn't connect to LingoWP. Try again in a moment.",
+	// Migration tab (served by a migration add-on, e.g. lingowp-translatepress).
+	ERR_MIGRATION_RUNNING:
+		'A migration is already running. Wait for it to finish.',
+	ERR_DEACTIVATE_FAILED:
+		"The plugin couldn't be deactivated. Deactivate it from the Plugins page.",
 	// WordPress-level failures, mapped in api.js — the plugin's REST routes
 	// never registered, the admin session lapsed, or PHP died mid-request.
 	ERR_ROUTE_MISSING:
