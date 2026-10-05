@@ -67,14 +67,30 @@ function ActionButton( { label, loading, error, onClick } ) {
 // `variant` is which of the three lists the card sits in — decided once by
 // partitionAddons(), not re-derived per card.
 //   installed -> nothing to do
-//   ready     -> nothing to do either: the plan covers it and the plugin it
-//                targets is active, but this screen deliberately offers no
-//                download or install action (WordPress.org Guideline 8 — the
-//                plugin must not distribute add-on code from outside
-//                WordPress.org). How add-ons are obtained is decided outside
-//                the plugin.
+//   ready     -> nothing to do either for plan add-ons: the plan covers it and
+//                the plugin it targets is active, but this screen offers no
+//                install action (WordPress.org Guideline 8 — the plugin must
+//                not install add-on code from outside WordPress.org).
+//                Exception: free migration add-ons, a sales argument for sites
+//                leaving a competitor, carry `public_download_url` from the
+//                catalog — a plain download link the admin then uploads under
+//                Plugins → Add New. The plugin installs nothing itself.
 //   upgrade   -> Upgrade to <tier> (plugin it targets is active, plan too low)
 function AddonAction( { addon, variant, actions } ) {
+	if ( variant === 'ready' && addon.public_download_url ) {
+		return (
+			<BlockStack gap="100">
+				<InlineStack>
+					<Button url={ `${ addon.public_download_url }?src=plugin` }>
+						Download
+					</Button>
+				</InlineStack>
+				<Text as="span" tone="subdued" variant="bodySm">
+					Then upload it in Plugins → Add New.
+				</Text>
+			</BlockStack>
+		)
+	}
 	if ( variant === 'upgrade' ) {
 		return (
 			<ActionButton
@@ -209,7 +225,7 @@ export default function BillingIntegrations( { onUpgrade } ) {
 			title: 'Included in your plan',
 			description: `Included in your ${ tierLabel(
 				tier
-			) } plan and matching plugins active on this site.`,
+			) } plan and matching plugins on this site.`,
 			addons: ready,
 			variant: 'ready',
 		},
