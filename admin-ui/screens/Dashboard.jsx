@@ -4273,19 +4273,30 @@ function TextUnitRow( {
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
 							) }
-							{ /* Double-click (or Enter) turns an imported translation
-							     into a manual one; its status stays as it is. */ }
+							{ /* Turns an imported translation into a manual one; its
+							     status stays as it is. A mouse needs a double-click
+							     (one click is too easy to make by accident); the
+							     keyboard (Enter/Space) and assistive technology (a
+							     click with no pointer behind it, detail 0) act at once. */ }
 							{ unit.origin === 'imported' && (
 								<Tooltip content="Double-click to mark as manual">
 									<span
 										role="button"
 										tabIndex={ 0 }
-										aria-label="Imported translation. Double-click or press Enter to mark it as manual."
+										aria-label="Imported translation. Activate to mark it as manual."
 										onDoubleClick={ () =>
 											doStatus( 'manual' )
 										}
+										onClick={ ( event ) => {
+											if ( event.detail === 0 ) {
+												doStatus( 'manual' )
+											}
+										} }
 										onKeyDown={ ( event ) => {
-											if ( event.key === 'Enter' ) {
+											if (
+												event.key === 'Enter' ||
+												event.key === ' '
+											) {
 												event.preventDefault()
 												doStatus( 'manual' )
 											}

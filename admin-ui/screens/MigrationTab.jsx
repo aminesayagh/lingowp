@@ -91,10 +91,14 @@ export default function MigrationTab() {
 					) }
 
 					{ state === 'failed' && (
-						<Banner tone="critical">
-							{ status.error ||
-								'The migration stopped. Try again.' }
-						</Banner>
+						<BlockStack gap="200">
+							<Banner tone="critical">
+								{ status.error ||
+									'The migration stopped. Try again.' }
+							</Banner>
+							{ /* What was written before the stop stays written. */ }
+							<Report status={ status } partial />
+						</BlockStack>
 					) }
 
 					{ ! done && ! busy && (
@@ -206,9 +210,9 @@ function Preview( { label, previewQ, running, onRun, retry } ) {
 	)
 }
 
-function Report( { status } ) {
+function Report( { status, partial = false } ) {
 	const summary = status.summary
-	if ( ! summary ) {
+	if ( ! summary || ( partial && summary.totals.imported === 0 ) ) {
 		return null
 	}
 	const { totals, languages } = summary
@@ -216,7 +220,9 @@ function Report( { status } ) {
 	return (
 		<BlockStack gap="300">
 			<Text as="p">
-				{ `${ totals.imported } texts imported` }
+				{ partial
+					? `Imported before the stop: ${ totals.imported } texts`
+					: `${ totals.imported } texts imported` }
 				{ totals.needs_review > 0 &&
 					`, ${ totals.needs_review } to review` }
 				{ status.finished_at &&
@@ -244,6 +250,17 @@ function LanguageLine( { lang, preview = false } ) {
 		lang.gettext > 0 && `${ lang.gettext } interface strings`,
 	].filter( Boolean )
 
+	// Not imported: worth a look on the board.
+	const skipped = [
+		lang.unmatched > 0 && `${ lang.unmatched } not found on this site`,
+		lang.conflicts > 0 &&
+			`${ lang.conflicts } with conflicting translations (oldest kept)`,
+		lang.mismatch > 0 && `${ lang.mismatch } with different formatting`,
+		lang.failed_checks > 0 &&
+			`${ lang.failed_checks } failing LingoWP's checks (shortcodes, markup)`,
+		lang.incomplete > 0 && `${ lang.incomplete } only partly translated`,
+	].filter( Boolean )
+
 	return (
 		<InlineStack gap="200" blockAlign="center">
 			<Text as="span" fontWeight="semibold">
@@ -262,6 +279,11 @@ function LanguageLine( { lang, preview = false } ) {
 				<Badge tone="info">
 					{ preview ? 'Language will be added' : 'Language added' }
 				</Badge>
+			) }
+			{ lang.usable && skipped.length > 0 && (
+				<Text as="span" variant="bodySm" tone="subdued">
+					{ `Not imported: ${ skipped.join( ' · ' ) }` }
+				</Text>
 			) }
 		</InlineStack>
 	)

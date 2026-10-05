@@ -1353,9 +1353,10 @@ final class WpDbSourceRepository
     /**
      * Make a translation manual: clear its provider so the board stops
      * labelling it "Imported" or "AI". Text and status are left as they are.
-     * hash-link by the parent's hash, parent_id by parent id.
+     * hash-link by the parent's hash, parent_id by parent id. False when the
+     * database refused the update or the hash-link parent is gone.
      */
-    public function clearTranslationProvider(SourceRef $ref, string $langCode): void
+    public function clearTranslationProvider(SourceRef $ref, string $langCode): bool
     {
         $tableKey = $ref->parentTableKey();
         $child    = $this->parent($tableKey) . '_translation';
@@ -1364,9 +1365,9 @@ final class WpDbSourceRepository
         if ($this->isHashLink($tableKey)) {
             $hashHex = $this->parentHashHex($ref);
             if ($hashHex === null) {
-                return;
+                return false;
             }
-            $this->wpdb->query( // phpcs:ignore WordPress.DB
+            return false !== $this->wpdb->query( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
                     "UPDATE {$child} SET provider = NULL, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s AND translated_text IS NOT NULL",
                     $now,
@@ -1374,10 +1375,9 @@ final class WpDbSourceRepository
                     $langCode
                 )
             );
-            return;
         }
 
-        $this->wpdb->query( // phpcs:ignore WordPress.DB
+        return false !== $this->wpdb->query( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "UPDATE {$child} SET provider = NULL, updated_at = %s WHERE parent_id = %d AND lang_code = %s AND translated_text IS NOT NULL",
                 $now,

@@ -8,6 +8,8 @@ const MESSAGES = {
 	// Migration tab (served by a migration add-on, e.g. lingowp-translatepress).
 	ERR_MIGRATION_RUNNING:
 		'A migration is already running. Wait for it to finish.',
+	ERR_NETWORK_ACTIVE:
+		'This plugin is active for the whole network. A network administrator has to deactivate it from Network Admin → Plugins.',
 	ERR_DEACTIVATE_FAILED:
 		"The plugin couldn't be deactivated. Deactivate it from the Plugins page.",
 	// WordPress-level failures, mapped in api.js — the plugin's REST routes

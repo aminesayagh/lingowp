@@ -69,8 +69,14 @@ if (class_exists('TRP_Translate_Press')) {
 $HP = TranslationMemorySchema::parentTables()['html'];
 $PP = TranslationMemorySchema::parentTables()['post'];
 $MP = TranslationMemorySchema::parentTables()['meta'];
-$touched = [$DICT, $GT, $GO, $HP, $PP, $MP, $HP . '_translation', $PP . '_translation', $MP . '_translation', $wpdb->posts, $wpdb->options,
-    $wpdb->prefix . 'actionscheduler_actions', $wpdb->prefix . 'actionscheduler_groups', $wpdb->prefix . 'actionscheduler_logs'];
+$touched = array_merge(
+    [$DICT, $GT, $GO, $wpdb->posts, $wpdb->options],
+    array_values(TranslationMemorySchema::parentTables()),
+    array_values(TranslationMemorySchema::childTables()),
+    array_map(static function (string $t) use ($wpdb): string {
+        return $wpdb->prefix . 'actionscheduler_' . $t;
+    }, ['actions', 'claims', 'groups', 'logs'])
+);
 foreach ($touched as $table) {
     $engine = (string) $wpdb->get_var($wpdb->prepare(
         'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s',
@@ -218,6 +224,15 @@ wp_set_current_user(0);
 $request = new \WP_REST_Request('POST', '/lingowp/v1/texts/' . rawurlencode($manualRef->format()) . '/status');
 $request->set_param('action', 'manual');
 test_ok('a visitor can\'t use it', in_array(rest_do_request($request)->get_status(), [401, 403], true));
+wp_set_current_user((int) ($admins[0] ?? 0));
+$request = new \WP_REST_Request('POST', '/lingowp/v1/texts/' . rawurlencode($manualRef->format()) . '/status');
+$request->set_param('action', 'manual');
+$request->set_param('language', $LANG);
+$refused = $withFailingQuery('SET provider = NULL', static function () use ($request): int {
+    return rest_do_request($request)->get_status();
+});
+test_ok('a refused update returns an error, not ok (Codex #9)', $refused === 500);
+wp_set_current_user(0);
 
 // ── 3. Content: statuses, text forms, existing, overwrite, dry run ───────────
 
@@ -352,6 +367,12 @@ test_ok('swapped links keep each link on its own words', ($tr('ZQTRPIT {1}first{
 test_ok('an extra tag is a markup mismatch, not saved', $tr('ZQTRPIT keep {1}bold{/1} only') === null);
 test_ok('the mismatch is reported', $run->counts()['mismatch'] === 1);
 
+$resetTrp();
+$unit('ZQTRPIT order {1}matters not{/1}');
+$trp('ZQTRPIT order <a class="zq" href="/o">matters not</a>', 'ZQ ordre <a href="/o" class="zq">sans importance</a>', 1, 1);
+$import();
+test_ok('the same tag with its attributes in another order still matches (Codex #10)', ($tr('ZQTRPIT order {1}matters not{/1}')['translated_text'] ?? null) === 'ZQ ordre {1}sans importance{/1}');
+
 test_section('content — assembled pieces (README §3.3c):');
 
 $resetTrp();
@@ -373,6 +394,15 @@ test_ok('an assembled translation is saved as needs review', (int) ($assembled['
 test_ok('one missing piece → the unit is left alone', $tr('ZQTRPIT half {1}ZQTRPIT missing piece{/1}') === null);
 test_ok('a direct match beats an assembled one', ($tr('ZQTRPIT direct {1}ZQTRPIT wins{/1}')['translated_text'] ?? null) === 'ZQ direct {1}gagne{/1}');
 test_ok('the report counts one assembled translation', $run->counts()['assembled'] === 1);
+test_ok('a unit with only some pieces translated is counted (Codex #11)', $run->counts()['incomplete'] === 1);
+
+$resetTrp();
+$unit('ZQTRPIT piece {1}ZQTRPIT twice{/1}');
+$trp('ZQTRPIT piece', 'ZQ morceau');
+$trp('ZQTRPIT twice', 'ZQ deux fois');
+$trp('ZQTRPIT Twice', 'ZQ autrement');
+$run = $import();
+test_ok('two different translations of one piece: the oldest is used, the conflict reported (Codex #11)', ($tr('ZQTRPIT piece {1}ZQTRPIT twice{/1}')['translated_text'] ?? null) === 'ZQ morceau {1}ZQ deux fois{/1}' && $run->counts()['conflicts'] === 1);
 
 $resetTrp();
 $preId = $unit('ZQTRPIT pre {1}ZQTRPIT existing{/1}');
@@ -410,6 +440,19 @@ $stopped = $withFailingQuery("FROM {$DICT}", static function () use ($import): b
     return false;
 });
 test_ok('a failed read of the dictionary stops the import', $stopped);
+
+$resetTrp();
+$unit('ZQTRPIT context read');
+$trp('ZQTRPIT context read', 'ZQ lecture du contexte');
+$stopped = $withFailingQuery("SELECT original_text FROM {$HP} WHERE id", static function () use ($import): bool {
+    try {
+        $import();
+    } catch (ImportStopped $e) {
+        return true;
+    }
+    return false;
+});
+test_ok('a failed read of the source text before saving stops the import, not "ignored" (Codex #7)', $stopped && $tr('ZQTRPIT context read') === null);
 
 // ── 6. Languages ─────────────────────────────────────────────────────────────
 
@@ -501,6 +544,15 @@ if (\LingoWP\Language\Infrastructure\WordPressLanguageCatalog::get($LANG) === nu
     $result = (new LanguageImport(false))->import('zz_ZZ', ['url-slugs' => []] + $settings);
     test_ok('a language unknown to WordPress is skipped as unsupported', $result['state'] === 'unsupported' && !$store->has('zz_ZZ'));
 
+    if (!wp_using_ext_object_cache()) {
+        $withoutFr();
+        update_site_option('_site_transient_timeout_available_translations', time() - 60);
+        $memo->setValue(null, null);
+        $result = (new LanguageImport(true))->import($LANG, $settings);
+        test_ok('a dry run with an expired catalog cache reports "unchecked" and deletes nothing (Codex #12)', $result['state'] === 'unchecked'
+            && get_site_option('_site_transient_available_translations', false) !== false);
+    }
+
     $restore();
 }
 
@@ -574,6 +626,9 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     $gettext('ZQTRPIT Hello %s', [0 => 'ZQ Bonjour']);
     $gettext('ZQTRPIT ghost', [0 => 'ZQ fantôme'], 'zqtrpit-not-installed');
     $gettext('ZQTRPIT kept', [0 => 'ZQ nouveau']);
+    // lingowp-acf has no French language pack: the "no plural rule anywhere" case.
+    $gettext('ZQTRPIT acf single', [0 => 'ZQ acf seul'], 'lingowp-acf');
+    $gettext('ZQTRPIT acf %d row', [0 => 'ZQ %d ligne', 1 => 'ZQ %d lignes'], 'lingowp-acf', 1, 'ZQTRPIT acf %d rows');
 
     $root = $newRoot();
     $mo   = new \MO();
@@ -602,12 +657,22 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     $run     = $runGettext($dryRoot, true);
     test_ok('a dry run writes no file', !file_exists($dryRoot . $MOFILE) && $run->counts()['imported'] > 0);
 
+    // Codex review #1: LingoWP's own file replaces the language pack, so a new
+    // file must start from the pack, or every other string loses its translation.
+    $seedRoot = $newRoot();
+    $runGettext($seedRoot);
+    $seeded = $read($seedRoot);
+    test_ok('a new file starts from the installed language pack', isset($seeded->entries['Twenty Twenty-Four']) && isset($seeded->entries['ZQTRPIT singular']));
+    test_ok('…and keeps the pack\'s plural rule', ($seeded->headers['Plural-Forms'] ?? '') === 'nplurals=2; plural=n > 1;');
+
     unset($stored['gettext_plural_forms_header'][$LANG]);
     update_option('trp_db_stored_data', $stored);
     $bareRoot = $newRoot();
     $run      = $runGettext($bareRoot);
-    test_ok('without any plural rule, plurals are skipped and reported', !isset($read($bareRoot)->entries['ZQTRPIT %d item']) && $run->counts()['no_plural_header'] >= 1);
-    test_ok('singulars are still imported without a plural rule', isset($read($bareRoot)->entries['ZQTRPIT singular']));
+    $bare     = new \MO();
+    $bare->import_from_file($bareRoot . '/plugins/lingowp-acf-' . $LANG . '.mo');
+    test_ok('without any plural rule (no pack, no TranslatePress header), plurals are skipped and reported', !isset($bare->entries['ZQTRPIT acf %d row']) && $run->counts()['no_plural_header'] >= 1);
+    test_ok('singulars are still imported without a plural rule', isset($bare->entries['ZQTRPIT acf single']));
 }
 
 // ── 8. Checks before the run (last: it empties LingoWP's source tables) ──────
@@ -642,8 +707,13 @@ test_ok('a stopped run still reports what it had done', $partial && isset($stopp
 
 // The job and the command run the whole import, gettext included, into
 // LingoWP's LIVE .mo folder — files the rollback can't undo. No gettext
-// fixtures from here on, so there is nothing for them to write.
+// fixtures from here on, so there is nothing for them to write…
 $wpdb->query("DELETE FROM {$GT}"); // phpcs:ignore WordPress.DB
+// …and only fr_FR as a TranslatePress target, so no other language's gettext
+// table can be imported either.
+$onlyFr = (array) get_option('trp_settings');
+$onlyFr['translation-languages'] = [$onlyFr['default-language'], $LANG];
+update_option('trp_settings', $onlyFr);
 
 test_section('admin migration — REST routes, background job, boot flag (PLAN §6):');
 
@@ -678,11 +748,11 @@ test_ok('the preview writes nothing', $tr('ZQTRPIT admin migration') === null);
 
 $first = $rest('POST', '/run');
 test_ok('"Migrate now" queues the background job', $first->get_status() === 200 && ($first->get_data()['state'] ?? '') === 'queued'
-    && (bool) as_next_scheduled_action(MigrationJob::HOOK, [], MigrationJob::GROUP));
+    && (bool) as_next_scheduled_action(MigrationJob::HOOK, ['run' => $first->get_data()['run'] ?? MigrationState::get()['run']], MigrationJob::GROUP));
 $second = $rest('POST', '/run');
 test_ok('a second click while queued is refused', $second->get_status() === 409);
 
-MigrationJob::run();
+MigrationJob::run(MigrationState::get()['run']);
 $status = $rest('GET', '')->get_data();
 test_ok('the job imports and stores done + report', ($status['state'] ?? '') === 'done' && ($status['summary']['totals']['imported'] ?? 0) >= 1
     && ($tr('ZQTRPIT admin migration')['translated_text'] ?? null) === 'ZQ migration admin');
@@ -693,14 +763,33 @@ test_ok('the job drops the cached preview', get_transient(MigrationRestControlle
 $resetTrp();
 $unit('ZQTRPIT admin fail');
 $trp('ZQTRPIT admin fail', 'ZQTRPIT-FAILWRITE');
+MigrationJob::queue();
 $withFailingQuery('ZQTRPIT-FAILWRITE', static function (): void {
-    MigrationJob::run();
+    MigrationJob::run(MigrationState::get()['run']);
 });
 $status = MigrationState::get();
 test_ok('a failed job stores failed + the error', $status['state'] === 'failed' && $status['error'] !== '');
 
-update_option(MigrationState::OPTION, ['state' => 'running', 'updated_at' => time() - 3 * HOUR_IN_SECONDS]);
-test_ok('a job that died mid-run is reported as failed, so it can be retried', MigrationState::get()['state'] === 'failed' && !MigrationState::isBusy());
+// Codex review #2: ownership.
+delete_option(MigrationState::LOCK_OPTION);
+update_option(MigrationState::OPTION, ['state' => 'running', 'run' => 'zq-dead-run', 'updated_at' => time()]);
+test_ok('a running state whose owner is gone is reported as failed, so it can be retried', MigrationState::get()['state'] === 'failed' && !MigrationState::isBusy());
+
+$owner = MigrationState::claim();
+test_ok('one run claims the migration', is_string($owner) && MigrationState::owner() === $owner);
+test_ok('a second claim is refused while the first is alive', MigrationState::claim() === null);
+test_ok('"Migrate now" is refused while another run owns it', $rest('POST', '/run')->get_status() === 409);
+update_option(MigrationState::LOCK_OPTION, ['run' => $owner, 'at' => time() - 2 * HOUR_IN_SECONDS]);
+$takeover = MigrationState::claim();
+test_ok('a dead run\'s lock (no heartbeat) can be taken over', is_string($takeover) && $takeover !== $owner);
+MigrationState::set('queued', $owner);
+MigrationJob::run($owner);
+test_ok('a superseded job does nothing', MigrationState::owner() === $takeover && MigrationState::get()['run'] === $owner);
+MigrationState::release($takeover);
+test_ok('releasing frees the migration', MigrationState::owner() === '');
+// Not tested here: the command's refusal while another run owns the
+// migration. It ends in WP_CLI::error() (exits this process), and running the
+// command in a child process would put it outside this suite's transaction.
 
 $active = (array) get_option('active_plugins', []);
 update_option('active_plugins', array_merge($active, [\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));

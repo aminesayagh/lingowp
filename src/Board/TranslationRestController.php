@@ -138,7 +138,9 @@ final class TranslationRestController
                 $this->repo->setTranslationStatus($ref, $lang, TranslationStatus::REVIEWED);
                 break;
             case 'manual':
-                $this->repo->clearTranslationProvider($ref, $lang);
+                if (!$this->repo->clearTranslationProvider($ref, $lang)) {
+                    return new WP_REST_Response(['ok' => false, 'error' => 'ERR_SAVE_FAILED'], 500);
+                }
                 break;
             default:
                 return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
