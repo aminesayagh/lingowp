@@ -4269,6 +4269,15 @@ function TextUnitRow( {
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
 							) }
+							{ unit.origin === 'imported' && (
+								<Badge
+									tone="info"
+									size="small"
+									className="text-nowrap"
+								>
+									Imported
+								</Badge>
+							) }
 							{ badge && (
 								<span
 									role={ isReview ? 'button' : undefined }

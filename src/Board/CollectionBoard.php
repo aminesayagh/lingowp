@@ -21,6 +21,9 @@ use LingoWP\Shared\Source\TranslationStatus;
  */
 final class CollectionBoard
 {
+    /** Providers written by migration add-ons: shown as origin 'imported', never as AI. */
+    public const IMPORT_PROVIDERS = ['translatepress'];
+
     private WpDbSourceRepository $repo;
     private LanguageRegistry $languages;
 
@@ -506,7 +509,11 @@ final class CollectionBoard
             $statusLabel = 'translated';
         }
 
-        $isAi = $translated !== null && $status === TranslationStatus::MACHINE && $provider !== null;
+        // A migration add-on stamps its own provider (e.g. lingowp-translatepress
+        // writes 'translatepress'); those rows are imported, not AI output.
+        $isImported = $translated !== null && in_array($provider, self::IMPORT_PROVIDERS, true);
+        $isAi       = $translated !== null && $status === TranslationStatus::MACHINE && $provider !== null && !$isImported;
+        $origin     = $translated === null ? null : ($isImported ? 'imported' : ($provider !== null ? 'ai' : 'manual'));
 
         return [
             'id'            => SourceRef::make($kind, (int) $row['id'])->format(),
@@ -519,7 +526,7 @@ final class CollectionBoard
             'fallback'      => $fallbackText ?? $original,
             'status'        => $statusLabel,
             'ai_error'      => $row['ai_error'] ?? null,
-            'origin'        => $translated === null ? null : ($provider !== null ? 'ai' : 'manual'),
+            'origin'        => $origin,
             'is_ai'         => $isAi,
             'word_count'    => str_word_count(wp_strip_all_tags($original)),
             'char_count'    => mb_strlen($original),

@@ -55,6 +55,7 @@
 			"./wp eval-file tests/db/woocommerce_it.php",
 			"./wp eval-file tests/db/acf_it.php",
 			"./wp eval-file tests/db/elementor_it.php",
+			"./wp eval-file tests/db/translatepress_it.php",
 			"./wp eval-file tests/db/option_pipeline_it.php",
 			"./wp eval-file tests/db/reconcile_it.php",
 			"./wp eval-file tests/db/board_search_it.php",

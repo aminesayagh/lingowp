@@ -987,19 +987,22 @@ final class WpDbSourceRepository
      * Create or update one translation for the parent addressed by $ref.
      * hash-link: keyed (parent.original_hash, lang) — shared across positions.
      * parent_id: keyed (parent.id, lang). No-op if the parent row is gone.
+     *
+     * Returns false when the database refused the write, or when a hash-link
+     * parent is gone; true otherwise. Callers that don't need it may ignore it.
      */
-    public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): void
+    public function saveTranslation(SourceRef $ref, string $langCode, string $text, int $status, ?string $provider): bool
     {
         $tableKey = $ref->parentTableKey();
 
         if ($this->isHashLink($tableKey)) {
             $hashHex = $this->parentHashHex($ref);
             if ($hashHex === null) {
-                return;
+                return false;
             }
-            $this->saveTranslationByHash($tableKey, $hashHex, $langCode, $text, $status, $provider);
+            $saved = $this->saveTranslationByHash($tableKey, $hashHex, $langCode, $text, $status, $provider);
             $this->flushHtmlCache($ref, $langCode);
-            return;
+            return $saved;
         }
 
         $child = $this->parent($tableKey) . '_translation';
@@ -1028,12 +1031,13 @@ final class WpDbSourceRepository
                 FROM {$this->parent($tableKey)} p WHERE p.id = %d {$update}";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+        return $this->wpdb->query($this->wpdb->prepare($sql, ...$args)) !== false;
     }
 
     /** Hash-link upsert, shared by saveTranslation() (ref-driven) and the AI
-     * queue's applyQueueResult() (hash-driven, no ref at all — see below). */
-    private function saveTranslationByHash(string $tableKey, string $hashHex, string $langCode, string $text, int $status, ?string $provider): void
+     * queue's applyQueueResult() (hash-driven, no ref at all — see below).
+     * False when the database refused the write. */
+    private function saveTranslationByHash(string $tableKey, string $hashHex, string $langCode, string $text, int $status, ?string $provider): bool
     {
         $child = $this->parent($tableKey) . '_translation';
         $now   = current_time('mysql');
@@ -1053,13 +1057,17 @@ final class WpDbSourceRepository
                     status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at),
                     ai_pending_since = NULL, ai_error = NULL";
 
+        // Captured before bumpSlugMapForHash(), whose own query would replace
+        // $wpdb->last_error and hide a failed write.
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-        $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+        $saved = $this->wpdb->query($this->wpdb->prepare($sql, ...$args)) !== false;
 
         // The one writer a manual save, an AI queue delivery and a bulk apply
         // all pass through for the hash-link tables, so this is where an edited
         // title reaches the URL instead of waiting out the map's cache.
         $this->bumpSlugMapForHash($tableKey, $hashHex);
+
+        return $saved;
     }
 
     /**
