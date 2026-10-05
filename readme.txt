@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.1
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,14 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 LingoWP adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.5.0 =
+
+* New language switcher: a dropdown with design options (layout, labels, flags, colours) and an optional floating switcher, set up from the Account page with a live preview. When the first language is published, a notice points to it.
+* Works on WordPress installed in a subfolder (for example example.com/blog/), and language links keep the site's own trailing-slash style.
+* Migration from TranslatePress: with the free TranslatePress Migration add-on, a new Migration tab on the Account page imports existing TranslatePress translations in the background, then lets you disable TranslatePress. The dashboard suggests it when TranslatePress is installed.
+* Imported translations carry an "Imported" label on the board; double-click it to mark a translation as your own.
+* Fixed: the Plugins & Themes board found no translatable strings when another plugin (such as Plugin Check) loaded an older PHP parser first. Every site re-scans once.
 
 = 1.4.1 =
 
