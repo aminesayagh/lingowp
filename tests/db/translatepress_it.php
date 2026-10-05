@@ -540,6 +540,24 @@ if (\LingoWP\Language\Infrastructure\WordPressLanguageCatalog::get($LANG) === nu
     $result = (new LanguageImport(true))->import($LANG, $settings);
     test_ok('a dry run creates no language', $result['state'] === 'would_add' && !$store->has($LANG));
 
+    // A language added but not activated is in the report (Codex 1st pass #8).
+    $withoutFr();
+    $realTrp = (array) get_option('trp_settings');
+    update_option('trp_settings', array_merge($realTrp, $settings));
+    $halfway = new Importer();
+    $stoppedAtActivation = $withFailingQuery("`option_name` = 'lingowp_active_lang'", static function () use ($halfway, $wpdb, $LANG): bool {
+        try {
+            $halfway->run($wpdb, false, false, $LANG);
+        } catch (ImportStopped $e) {
+            return strpos($e->getMessage(), 'could not be activated') !== false;
+        }
+        return false;
+    });
+    $halfLanguage = $halfway->report()['languages'][$LANG]['language'] ?? [];
+    test_ok('activation fails → the run stops, and the report still lists the added language', $stoppedAtActivation
+        && ($halfLanguage['state'] ?? '') === 'added_inactive' && $store->has($LANG));
+    update_option('trp_settings', $realTrp);
+
     $restore();
     $result = (new LanguageImport(false))->import('zz_ZZ', ['url-slugs' => []] + $settings);
     test_ok('a language unknown to WordPress is skipped as unsupported', $result['state'] === 'unsupported' && !$store->has('zz_ZZ'));
@@ -766,6 +784,20 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
     }
     test_ok('a run that lost ownership replaces no file, and leaves no staging file', $lostStopped && glob($lostRoot . '/*/*') === []);
 
+    // The board's counters are checked after a write (Codex 1st pass #9).
+    $countersRoot = $newRoot();
+    // Start from a count the import won't produce, so a refused update shows.
+    (new \LingoWP\GettextDomains\GettextUnitRepository($wpdb))->setTranslatedInFile('theme', $DOMAIN, $LANG, 0);
+    $countersMessage = $withFailingQuery('lingowp_gettext_translated_counts', static function () use ($wpdb, $LANG, $countersRoot): string {
+        try {
+            (new GettextImport($wpdb, false, true, $countersRoot))->run($LANG, $LANG);
+        } catch (ImportStopped $e) {
+            return $e->getMessage();
+        }
+        return '';
+    });
+    test_ok('a board counter that can\'t be updated stops the run with a clear message', strpos($countersMessage, 'counters could not be updated') !== false, $countersMessage);
+
     // Codex 3rd pass #3: the declared "Domain Path" (WordPress registers it only for active plugins).
     $domainPath = new \ReflectionMethod(GettextImport::class, 'declaredDomainPath');
     $domainPath->setAccessible(true);
@@ -926,9 +958,17 @@ $wpdb->insert($wpdb->options, ['option_name' => MigrationState::LOCK_OPTION, 'op
 $afterGarbage = MigrationState::claim();
 test_ok('a malformed lock row counts as stale, never blocks forever', is_string($afterGarbage));
 MigrationState::release($afterGarbage);
-// Not tested here: the command's refusal while another run owns the
-// migration. It ends in WP_CLI::error() (exits this process), and running the
-// command in a child process would put it outside this suite's transaction.
+$blocker = MigrationState::claim();
+test_ok('the command refuses a real run while another run owns the migration', (static function (): bool {
+    try {
+        \LingoWPTranslatePress\ImportCommand::claim(false);
+    } catch (ImportStopped $e) {
+        return strpos($e->getMessage(), 'already running') !== false;
+    }
+    return false;
+})());
+test_ok('…but a dry run needs no ownership', \LingoWPTranslatePress\ImportCommand::claim(true) === '');
+MigrationState::release($blocker);
 
 $active = (array) get_option('active_plugins', []);
 update_option('active_plugins', array_merge($active, [\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
