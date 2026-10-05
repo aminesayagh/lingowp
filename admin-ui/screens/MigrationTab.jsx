@@ -72,9 +72,14 @@ export default function MigrationTab() {
 	return (
 		<Card>
 			<BlockStack gap="300">
-				<Text as="h2" variant="headingMd">
-					{ label }
-				</Text>
+				<BlockStack gap="100">
+					<Text as="h2" variant="headingMd">
+						{ `Migrate from ${ label }` }
+					</Text>
+					<Text as="p" tone="subdued">
+						{ `Bring your ${ label } translations into LingoWP, then disable ${ label } so only LingoWP translates your site. Its data is kept.` }
+					</Text>
+				</BlockStack>
 
 				<StatusLine
 					state={ state }
@@ -120,7 +125,7 @@ function StatusLine( { state, summary, counting, blocked } ) {
 	if ( state === 'queued' || state === 'running' ) {
 		return (
 			<Text as="p" tone="subdued">
-				Importing…
+				Importing your translations… you can leave this page.
 			</Text>
 		)
 	}
@@ -134,18 +139,21 @@ function StatusLine( { state, summary, counting, blocked } ) {
 	if ( counting || ! summary ) {
 		return (
 			<Text as="p" tone="subdued">
-				Counting…
+				Counting your translations…
 			</Text>
 		)
 	}
 
 	const { totals, languages } = summary
 	const review =
-		totals.needs_review > 0 ? ` · ${ totals.needs_review } to review` : ''
+		totals.needs_review > 0
+			? ` · ${ totals.needs_review } need a review on the board`
+			: ''
+	const texts = ( n ) => ( n === 1 ? '1 translation' : `${ n } translations` )
 	const main =
 		state === 'done'
-			? `${ totals.imported } imported${ review }`
-			: `${ totals.imported } to import${ review }`
+			? `Done: ${ texts( totals.imported ) } imported${ review }`
+			: `${ texts( totals.imported ) } ready to import${ review }`
 
 	// Per language only when there is more than one, or one gets added.
 	const perLanguage =
