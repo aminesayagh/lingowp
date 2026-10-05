@@ -1351,6 +1351,43 @@ final class WpDbSourceRepository
 
 
     /**
+     * Make a translation manual: clear its provider so the board stops
+     * labelling it "Imported" or "AI". Text and status are left as they are.
+     * hash-link by the parent's hash, parent_id by parent id.
+     */
+    public function clearTranslationProvider(SourceRef $ref, string $langCode): void
+    {
+        $tableKey = $ref->parentTableKey();
+        $child    = $this->parent($tableKey) . '_translation';
+        $now      = current_time('mysql');
+
+        if ($this->isHashLink($tableKey)) {
+            $hashHex = $this->parentHashHex($ref);
+            if ($hashHex === null) {
+                return;
+            }
+            $this->wpdb->query( // phpcs:ignore WordPress.DB
+                $this->wpdb->prepare(
+                    "UPDATE {$child} SET provider = NULL, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s AND translated_text IS NOT NULL",
+                    $now,
+                    $hashHex,
+                    $langCode
+                )
+            );
+            return;
+        }
+
+        $this->wpdb->query( // phpcs:ignore WordPress.DB
+            $this->wpdb->prepare(
+                "UPDATE {$child} SET provider = NULL, updated_at = %s WHERE parent_id = %d AND lang_code = %s AND translated_text IS NOT NULL",
+                $now,
+                $ref->id,
+                $langCode
+            )
+        );
+    }
+
+    /**
      * Update only the status of $ref's translation for one language (no text
      * change): mark reviewed (2) or flag needs_review (-1). Both are review
      * states of an existing translation, so the row must already carry one —

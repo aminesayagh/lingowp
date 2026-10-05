@@ -54,6 +54,29 @@ final class AddonSiteMatcher
         return false;
     }
 
+    /**
+     * Relevance for a migration add-on: the plugin it migrates from only has
+     * to be on the site, active or not — the migration reads the data that
+     * plugin left behind, and owners often deactivate it before switching.
+     */
+    public function isPresent(array $detects): bool
+    {
+        foreach ($detects as $detect) {
+            $detect = (string) $detect;
+            if (strpos($detect, 'theme:') === 0) {
+                if (wp_get_theme(substr($detect, 6))->exists()) {
+                    return true;
+                }
+                continue;
+            }
+            if (validate_file($detect) === 0 && file_exists(WP_PLUGIN_DIR . '/' . $detect)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Every add-on zip unpacks to lingowp-<product>/lingowp-<product>.php (backend catalog contract). */
     public function isInstalled(string $product): bool
     {

@@ -218,6 +218,12 @@ final class OnboardingPageController
                 (new BackendEndpointResolver())->baseUrl() . '/addons/icons/'
             ),
             'account_url'         => esc_url_raw(admin_url('admin.php?page=' . self::ACCOUNT_SLUG)),
+            // A migration add-on (e.g. lingowp-translatepress) fills this in when
+            // there is something to migrate from on this site: { source, label,
+            // migrated }. Null hides the Account page's Migration tab and the
+            // dashboard's "migrate" toast. A boot flag, not a REST call, so the
+            // tab never flickers and screens pay nothing when it's absent.
+            'migration'           => apply_filters('lingowp_admin_migration', null),
             'css_editor'          => $cssEditor,
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],

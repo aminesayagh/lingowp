@@ -23,6 +23,7 @@
 
 require __DIR__ . '/_harness.php';
 
+use LingoWP\Backend\AddonSiteMatcher;
 use LingoWP\Board\CollectionBoard;
 use LingoWP\Database\TranslationMemorySchema;
 use LingoWP\GettextDomains\GettextDomainRegistry;
@@ -32,9 +33,12 @@ use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use LingoWP\Shared\Source\SourceRef;
 use LingoWP\Shared\Source\TranslationStatus;
 use LingoWP\Shared\Text\TranslationKey;
+use LingoWPTranslatePress\Admin\MigrationJob;
+use LingoWPTranslatePress\Admin\MigrationRestController;
+use LingoWPTranslatePress\Admin\MigrationState;
 use LingoWPTranslatePress\DictionaryImport;
 use LingoWPTranslatePress\GettextImport;
-use LingoWPTranslatePress\ImportCommand;
+use LingoWPTranslatePress\Importer;
 use LingoWPTranslatePress\ImportStopped;
 use LingoWPTranslatePress\LanguageImport;
 
@@ -48,7 +52,7 @@ if (!class_exists(DictionaryImport::class)) {
 }
 
 $LANG = 'fr_FR';
-$DICT = ImportCommand::dictionaryTable($wpdb, 'en_US', $LANG);
+$DICT = Importer::dictionaryTable($wpdb, 'en_US', $LANG);
 $GT   = $wpdb->prefix . 'trp_gettext_fr_fr';
 $GO   = $wpdb->prefix . 'trp_gettext_original_strings';
 
@@ -65,7 +69,8 @@ if (class_exists('TRP_Translate_Press')) {
 $HP = TranslationMemorySchema::parentTables()['html'];
 $PP = TranslationMemorySchema::parentTables()['post'];
 $MP = TranslationMemorySchema::parentTables()['meta'];
-$touched = [$DICT, $GT, $GO, $HP, $PP, $MP, $HP . '_translation', $PP . '_translation', $MP . '_translation', $wpdb->posts, $wpdb->options];
+$touched = [$DICT, $GT, $GO, $HP, $PP, $MP, $HP . '_translation', $PP . '_translation', $MP . '_translation', $wpdb->posts, $wpdb->options,
+    $wpdb->prefix . 'actionscheduler_actions', $wpdb->prefix . 'actionscheduler_groups', $wpdb->prefix . 'actionscheduler_logs'];
 foreach ($touched as $table) {
     $engine = (string) $wpdb->get_var($wpdb->prepare(
         'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s',
@@ -179,6 +184,28 @@ test_ok('provider translatepress → origin "imported"', $imported['origin'] ===
 test_ok('provider translatepress is never flagged as AI', $imported['is_ai'] === false);
 test_ok('an AI provider is still origin "ai"', $present('ai', TranslationStatus::MACHINE)['origin'] === 'ai');
 test_ok('no provider is still origin "manual"', $present(null, TranslationStatus::REVIEWED)['origin'] === 'manual');
+
+test_section('core — double-clicking "Imported" makes the translation manual:');
+
+$manualId  = $unit('ZQTRPIT make manual');
+$manualRef = SourceRef::make('html', $manualId);
+$repo->saveTranslation($manualRef, $LANG, 'ZQ rendu manuel', TranslationStatus::NEEDS_REVIEW, 'translatepress');
+
+$admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
+wp_set_current_user((int) ($admins[0] ?? 0));
+$request = new \WP_REST_Request('POST', '/lingowp/v1/texts/' . rawurlencode($manualRef->format()) . '/status');
+$request->set_param('action', 'manual');
+$request->set_param('language', $LANG);
+$response = rest_do_request($request);
+$row      = $tr('ZQTRPIT make manual');
+
+test_ok('the board\'s "manual" action succeeds', $response->get_status() === 200 && ($response->get_data()['ok'] ?? false) === true, 'status ' . $response->get_status());
+test_ok('it clears the provider, so the board shows it as manual', $row !== null && $row['provider'] === null);
+test_ok('it keeps the text and the status (still needs review)', ($row['translated_text'] ?? '') === 'ZQ rendu manuel' && (int) $row['status'] === TranslationStatus::NEEDS_REVIEW);
+wp_set_current_user(0);
+$request = new \WP_REST_Request('POST', '/lingowp/v1/texts/' . rawurlencode($manualRef->format()) . '/status');
+$request->set_param('action', 'manual');
+test_ok('a visitor can\'t use it', in_array(rest_do_request($request)->get_status(), [401, 403], true));
 
 // ── 3. Content: statuses, text forms, existing, overwrite, dry run ───────────
 
@@ -573,9 +600,107 @@ if (!DictionaryImport::tableExists($wpdb, $GT) || !DictionaryImport::tableExists
 
 // ── 8. Checks before the run (last: it empties LingoWP's source tables) ──────
 
+test_section('Importer — one flow for the command and the admin screen:');
+
+$resetTrp();
+$unit('ZQTRPIT via importer');
+$trp('ZQTRPIT via importer', 'ZQ via l’importateur');
+$report = (new Importer())->run($wpdb, true, false, $LANG);
+$content = $report['languages'][$LANG]['content'] ?? null;
+test_ok('run() returns the report as data, per TranslatePress language', is_array($content) && $content['imported'] === 1 && isset($report['languages'][$LANG]['language']['state']));
+test_ok('the report carries the samples the screen lists', array_key_exists('unmatched_samples', $content ?? []));
+test_ok('a dry run through Importer writes nothing', $tr('ZQTRPIT via importer') === null);
+
+// Fixtures first: the failing-query filter would also block their own INSERT.
+$resetTrp();
+$unit('ZQTRPIT importer fail');
+$trp('ZQTRPIT importer fail', 'ZQTRPIT-FAILWRITE');
+$stoppedImporter = new Importer();
+$partial = $withFailingQuery('ZQTRPIT-FAILWRITE', static function () use ($stoppedImporter, $wpdb): bool {
+    try {
+        $stoppedImporter->run($wpdb, false, false, 'fr_FR');
+    } catch (ImportStopped $e) {
+        return true;
+    }
+    return false;
+});
+test_ok('a stopped run still reports what it had done', $partial && isset($stoppedImporter->report()['languages']['fr_FR']['content']['imported']));
+
+// ── 9. Admin migration: state, job, REST routes, boot flag ──────────────────
+
+test_section('admin migration — REST routes, background job, boot flag (PLAN §6):');
+
+$asAdmin = static function () {
+    $admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
+    wp_set_current_user((int) ($admins[0] ?? 0));
+};
+$rest = static function (string $method, string $path): \WP_REST_Response {
+    return rest_do_request(new \WP_REST_Request($method, '/lingowp/v1/migration/translatepress' . $path));
+};
+
+wp_set_current_user(0);
+test_ok('the migration routes refuse visitors', in_array($rest('GET', '')->get_status(), [401, 403], true));
+test_ok('…including "Migrate now"', in_array($rest('POST', '/run')->get_status(), [401, 403], true));
+
+$asAdmin();
+delete_option(MigrationState::OPTION);
+$status = $rest('GET', '')->get_data();
+test_ok('a never-run migration reports idle, with TranslatePress installed and inactive', ($status['state'] ?? '') === 'idle'
+    && ($status['translatepress']['installed'] ?? false) === true && ($status['translatepress']['active'] ?? true) === false);
+
+$flag = apply_filters('lingowp_admin_migration', null);
+test_ok('the boot flag is set when TranslatePress is installed, not migrated yet', is_array($flag) && $flag['source'] === 'translatepress' && $flag['migrated'] === false);
+
+$resetTrp();
+$unit('ZQTRPIT admin migration');
+$trp('ZQTRPIT admin migration', 'ZQ migration admin');
+delete_transient(MigrationRestController::PREVIEW_TRANSIENT);
+$preview = $rest('GET', '/preview')->get_data();
+test_ok('the preview counts what can be imported, per language', ($preview['summary']['totals']['imported'] ?? 0) >= 1 && ($preview['summary']['languages'][0]['locale'] ?? '') === $LANG);
+test_ok('the preview writes nothing', $tr('ZQTRPIT admin migration') === null);
+
+$first = $rest('POST', '/run');
+test_ok('"Migrate now" queues the background job', $first->get_status() === 200 && ($first->get_data()['state'] ?? '') === 'queued'
+    && (bool) as_next_scheduled_action(MigrationJob::HOOK, [], MigrationJob::GROUP));
+$second = $rest('POST', '/run');
+test_ok('a second click while queued is refused', $second->get_status() === 409);
+
+MigrationJob::run();
+$status = $rest('GET', '')->get_data();
+test_ok('the job imports and stores done + report', ($status['state'] ?? '') === 'done' && ($status['summary']['totals']['imported'] ?? 0) >= 1
+    && ($tr('ZQTRPIT admin migration')['translated_text'] ?? null) === 'ZQ migration admin');
+test_ok('the screen always keeps existing translations (no overwrite)', ($tr('ZQTRPIT kept')['translated_text'] ?? null) === 'ZQ nouveau');
+test_ok('the boot flag says migrated once done', (apply_filters('lingowp_admin_migration', null)['migrated'] ?? false) === true);
+test_ok('the job drops the cached preview', get_transient(MigrationRestController::PREVIEW_TRANSIENT) === false);
+
+$resetTrp();
+$unit('ZQTRPIT admin fail');
+$trp('ZQTRPIT admin fail', 'ZQTRPIT-FAILWRITE');
+$withFailingQuery('ZQTRPIT-FAILWRITE', static function (): void {
+    MigrationJob::run();
+});
+$status = MigrationState::get();
+test_ok('a failed job stores failed + the error', $status['state'] === 'failed' && $status['error'] !== '');
+
+update_option(MigrationState::OPTION, ['state' => 'running', 'updated_at' => time() - 3 * HOUR_IN_SECONDS]);
+test_ok('a job that died mid-run is reported as failed, so it can be retried', MigrationState::get()['state'] === 'failed' && !MigrationState::isBusy());
+
+$active = (array) get_option('active_plugins', []);
+update_option('active_plugins', array_merge($active, [\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
+$deactivate = $rest('POST', '/deactivate');
+test_ok('"Disable TranslatePress" deactivates it', $deactivate->get_status() === 200
+    && !in_array(\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN, (array) get_option('active_plugins', []), true));
+test_ok('…and keeps its data', DictionaryImport::tableExists($wpdb, $DICT) && is_array(get_option('trp_settings')));
+
+$matcher = new AddonSiteMatcher();
+test_ok('core: a migration add-on is relevant when its plugin is installed but inactive', $matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN])
+    && !$matcher->isRelevant([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
+test_ok('core: a plugin that is not on the site is not present', !$matcher->isPresent(['zq-trpit-missing/zq.php']));
+wp_set_current_user(0);
+
 test_section('checks before anything is written (README §3, step 1):');
 
-$command  = new ImportCommand();
+$command  = new Importer();
 $expectStop = static function (callable $fn): bool {
     try {
         $fn();
