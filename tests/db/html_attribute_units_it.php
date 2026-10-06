@@ -52,6 +52,7 @@ $skipped = $extractor->units(implode('', [
     '<img src="/d.jpg" alt="2024">',
     '<input type="text" value="Prefilled user data">',
     '<input type="hidden" value="Hidden token text">',
+    '<input type="submit" name="action" value="Delete everything">',
     '<input type="text" alt="Not an image input">',
     '<div placeholder="Not a form field">x</div>',
     '<span data-title="Data attributes are not visible">y</span>',
@@ -61,6 +62,7 @@ $skipped = $extractor->units(implode('', [
 ]));
 
 foreach (['IMG_1234.jpg', 'https://example.com/b.jpg', '2024', 'Prefilled user data', 'Hidden token text',
+    'Delete everything' /* named submit: its value is form data */,
     'Not an image input', 'Not a form field', 'Data attributes are not visible', 'Opted out alt',
     'Opted out title', 'Script title'] as $unexpected) {
     test_ok("'{$unexpected}' is not a unit", !in_array($unexpected, $skipped, true), 'got ' . json_encode($skipped));
@@ -173,6 +175,22 @@ foreach (['hashMap', 'hashLoaded'] as $prop) { // drop the per-request cache so 
 $rendered = (string) $resolver->content(get_post($postId)->post_content);
 test_ok('a stray {1} in an attribute translation renders as literal text, never markup',
     strpos($rendered, 'alt="LINGOWP_TEST {1}chien{/1}"') !== false, $rendered);
+
+// Core's lightbox (render_block_core/image, 15) copies the alt into
+// Interactivity state while do_blocks() runs — before the_content. Through the
+// real do_blocks(), the frozen copy must be the translation too.
+test_section('post content: image lightbox state gets the translated alt:');
+
+$addTranslation('LINGOWP_TEST a lightbox horse', 'LINGOWP_TEST un cheval');
+add_filter('render_block_core/image', [$resolver, 'imageBlock'], 14, 1);
+$lightboxHtml = do_blocks('<!-- wp:image {"lightbox":{"enabled":true}} --><figure class="wp-block-image">'
+    . '<img src="/wp-content/uploads/horse.jpg" alt="LINGOWP_TEST a lightbox horse"/></figure><!-- /wp:image -->');
+remove_filter('render_block_core/image', [$resolver, 'imageBlock'], 14);
+
+$stateAlts = array_column((array) (wp_interactivity_state('core/image')['metadata'] ?? []), 'alt');
+test_ok('the lightbox ran (state captured)', $stateAlts !== [], $lightboxHtml);
+test_ok('the frozen lightbox alt is the translation', in_array('LINGOWP_TEST un cheval', $stateAlts, true), 'got ' . json_encode($stateAlts));
+test_ok('the visible img alt is the translation', strpos($lightboxHtml, 'alt="LINGOWP_TEST un cheval"') !== false, $lightboxHtml);
 
 $wpdb->update($wpdb->posts, ['post_content' => $imageBlock('LINGOWP_TEST a cat on the sofa')], ['ID' => $postId]);
 clean_post_cache($postId);

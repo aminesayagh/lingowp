@@ -136,6 +136,35 @@ final class HtmlUnitExtractor
     }
 
     /**
+     * render() limited to the attribute pass — for a rendered block whose
+     * attributes another filter reads before the_content runs (core/image's
+     * lightbox freezes the alt into Interactivity state). Block text is left to
+     * the normal the_content pass.
+     *
+     * @param callable(string):?string $translate
+     */
+    public function renderAttributes(string $html, callable $translate): string
+    {
+        if ($html === '' || !class_exists(HTML5::class)) {
+            return $html;
+        }
+
+        try {
+            $html5    = new HTML5();
+            $fragment = $html5->loadHTMLFragment($html);
+            if (!$fragment instanceof \DOMNode) {
+                return $html;
+            }
+
+            $this->walkAttributes($fragment, static fn(\DOMElement $element, string $name, string $unit): ?string => $translate($unit));
+
+            return $html5->saveHTML($fragment);
+        } catch (\Throwable $e) {
+            return $html;
+        }
+    }
+
+    /**
      * Walk a node's block-level leaves. For each, encode it and call
      * $onUnit($block, $encoded); a non-null/non-empty return is decoded against
      * the live tag map and replaces the block's inner content. Shared with the
@@ -302,7 +331,10 @@ final class HtmlUnitExtractor
             if (($tags !== null && !isset($tags[$tag])) || !$element->hasAttribute($name)) {
                 continue;
             }
-            if ($tag === 'input' && $name === 'value' && !in_array($type, ['submit', 'button', 'reset'], true)) {
+            // A named submit sends its value with the form ($_POST['action'] ===
+            // 'Delete'), so only an unnamed button's value is display-only.
+            if ($tag === 'input' && $name === 'value'
+                && (!in_array($type, ['submit', 'button', 'reset'], true) || trim($element->getAttribute('name')) !== '')) {
                 continue;
             }
             if ($tag === 'input' && $name === 'alt' && $type !== 'image') {
