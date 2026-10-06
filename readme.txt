@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,11 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 LingoWP adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.5.1 =
+
+* Migration add-ons can be downloaded from the Account page's Integrations tab: TranslatePress Migration is free, with a Download button and the steps to install it.
+* The Integrations tab lists a migration add-on whenever the plugin it migrates from is installed, even if that plugin is already deactivated.
 
 = 1.5.0 =
 
