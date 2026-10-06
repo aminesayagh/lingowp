@@ -200,6 +200,63 @@ test_ok('editing the alt replaces the old row with the new text',
     in_array('LINGOWP_TEST a cat on the sofa', $rows, true) && !in_array('LINGOWP_TEST a dog on the beach', $rows, true),
     'got ' . json_encode($rows));
 
+// ── 3b. Upgrade: attribute units must not inherit a deleted paragraph's translation ─
+// Codex review: an existing post's first save after the upgrade discovers its
+// attribute units as NEW; if that save also deleted one paragraph, reconcile's
+// one-removed/one-inserted rule copied the paragraph's translation onto the alt.
+
+test_section('upgrade: a deleted paragraph\'s translation never lands on an alt:');
+
+$upgradePost = static function (string $suffix) use ($wpdb, $now, $scanner, $PP, $addTranslation): array {
+    $alt     = "LINGOWP_TEST upgrade alt {$suffix}";
+    $welcome = "LINGOWP_TEST upgrade welcome {$suffix}";
+    $body    = static fn(bool $withWelcome): string => ($withWelcome ? '<!-- wp:paragraph --><p>' . $welcome . '</p><!-- /wp:paragraph -->' : '')
+        . '<!-- wp:image --><figure class="wp-block-image"><img src="/u.jpg" alt="' . $alt . '"/></figure><!-- /wp:image -->';
+    $id = test_insert($wpdb->posts, [
+        'post_author' => 1, 'post_date' => $now, 'post_date_gmt' => $now, 'post_content' => $body(true),
+        'post_title' => "LINGOWP_TEST upgrade {$suffix}", 'post_excerpt' => '', 'post_status' => 'publish',
+        'comment_status' => 'closed', 'ping_status' => 'closed', 'post_name' => 'lingowp-test-upgrade-' . strtolower($suffix),
+        'post_modified' => $now, 'post_modified_gmt' => $now, 'post_type' => 'post',
+    ]);
+    $scanner->refreshPost($id);
+    // Pre-upgrade state: discovered before attribute units existed.
+    $wpdb->query($wpdb->prepare("DELETE FROM {$PP} WHERE post_id = %d AND original_hash = UNHEX(%s)", $id, bin2hex(TranslationKey::currentHash($alt))));
+    $addTranslation($welcome, "LINGOWP_TEST bienvenue {$suffix}");
+    return [$id, $alt, $body];
+};
+$altTranslation = static fn(string $alt): ?string => $wpdb->get_var($wpdb->prepare(
+    "SELECT translated_text FROM {$PP}_translation WHERE original_hash = UNHEX(%s) AND lang_code = 'fr'", bin2hex(TranslationKey::currentHash($alt))
+));
+$editRemovingWelcome = static function (int $id, callable $body) use ($wpdb, $scanner): void {
+    $wpdb->update($wpdb->posts, ['post_content' => $body(false)], ['ID' => $id]);
+    clean_post_cache($id);
+    $scanner->refreshPost($id);
+};
+
+// Without the one-time rescan: reproduces the graft (documents why the rescan exists).
+[$idA, $altA, $bodyA] = $upgradePost('A');
+$editRemovingWelcome($idA, $bodyA);
+test_ok('reproduced: edit-first grafts the paragraph translation onto the alt', $altTranslation($altA) === 'LINGOWP_TEST bienvenue A', 'got ' . var_export($altTranslation($altA), true));
+
+// With it: the rescan discovers the alt on its own (nothing removed), then the edit.
+[$idB, $altB, $bodyB] = $upgradePost('B');
+$scanner->refreshPost($idB); // what the one-time InitialDiscoveryScan pass does per post
+$editRemovingWelcome($idB, $bodyB);
+test_ok('rescan-first: the alt keeps no translation', $altTranslation($altB) === null, 'got ' . var_export($altTranslation($altB), true));
+
+$scan = new \LingoWP\Extraction\Structured\InitialDiscoveryScan($wpdb, $scanner, new \LingoWP\Extraction\OptionSourceScanner($repo, $wpdb));
+update_option(\LingoWP\Extraction\Structured\InitialDiscoveryScan::VERSION_OPTION, 1);
+delete_option(\LingoWP\Extraction\Structured\InitialDiscoveryScan::OPTION_FLAG);
+as_unschedule_all_actions(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK);
+$scan->maybeEnqueue();
+test_ok('a site on an older discovery version gets the one-time rescan queued',
+    (bool) as_has_scheduled_action(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK));
+test_ok('and is stamped current, so it runs once',
+    (int) get_option(\LingoWP\Extraction\Structured\InitialDiscoveryScan::VERSION_OPTION) === \LingoWP\Extraction\Structured\InitialDiscoveryScan::DISCOVERY_VERSION);
+as_unschedule_all_actions(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK);
+$scan->maybeEnqueue();
+test_ok('a second request queues nothing more', !as_has_scheduled_action(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK));
+
 // ── 4. Template HTML: discovered with an @attr selector, translated on the page ─
 
 test_section('template HTML: hardcoded attribute text:');

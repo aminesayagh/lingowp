@@ -36,6 +36,7 @@ class PluginDataCleanup
         'lingowp_rewrite_rules_version',
         'lingowp_age_out_last_run',
         'lingowp_needs_initial_scan',
+        'lingowp_discovery_version',
         'lingowp_needs_html_crawl',
         // Behavior toggles (reciprocal of TranslationMemorySchema::setDefaultOptions()).
         'lingowp_enabled_languages',

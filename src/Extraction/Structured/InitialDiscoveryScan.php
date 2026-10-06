@@ -23,6 +23,17 @@ final class InitialDiscoveryScan
     public const GROUP       = 'lingowp';
     public const OPTION_FLAG = 'lingowp_needs_initial_scan';
 
+    /**
+     * Bumped when discovery starts producing units it did not before
+     * (2: text inside HTML attributes). Existing content is then rescanned once,
+     * on its own: left to each post's next save, the new units would land in
+     * the same reconcile as the editor's change, and reconcile's
+     * one-removed/one-inserted carry-forward would copy a just-deleted
+     * paragraph's translation onto an unrelated alt.
+     */
+    public const DISCOVERY_VERSION = 2;
+    public const VERSION_OPTION    = 'lingowp_discovery_version';
+
     private const BATCH = 200;
 
     private \wpdb $wpdb;
@@ -45,9 +56,14 @@ final class InitialDiscoveryScan
         add_action('init', [$this, 'maybeEnqueue']);
     }
 
-    /** Kick off the first batch once, when activation requested a scan. */
+    /** Kick off the first batch once, when activation or a discovery upgrade requested a scan. */
     public function maybeEnqueue(): void
     {
+        if ((int) get_option(self::VERSION_OPTION, 0) < self::DISCOVERY_VERSION) {
+            update_option(self::OPTION_FLAG, 1);
+            update_option(self::VERSION_OPTION, self::DISCOVERY_VERSION);
+        }
+
         if (!get_option(self::OPTION_FLAG)) {
             return;
         }
