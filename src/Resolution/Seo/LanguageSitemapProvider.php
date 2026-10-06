@@ -26,6 +26,9 @@ use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
  * language's sitemap — listing a noindex URL is a Search Console warning. Term
  * and author archives are never noindex, so they are always listed.
  *
+ * With "prefix default language" on, core's own entries get the default
+ * language's prefix too (localizeDefaultEntry()), again matching hreflang.
+ *
  * No <xhtml:link> alternates: core's renderer accepts only loc/lastmod/
  * changefreq/priority, and hreflang is already in every page's <head>.
  */
@@ -61,6 +64,28 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
             $this->registry = $server->registry;
             $server->registry->add_provider($this->name, $this);
         });
+
+        // Core's own (default-language) entries: with "prefix default language"
+        // on, hreflang says /en/about/, so core's /about/ must say so too.
+        foreach (['wp_sitemaps_posts_entry', 'wp_sitemaps_posts_show_on_front_entry', 'wp_sitemaps_taxonomies_entry', 'wp_sitemaps_users_entry'] as $hook) {
+            add_filter($hook, [$this, 'localizeDefaultEntry'], 10, 1);
+        }
+    }
+
+    /**
+     * @param mixed $entry
+     * @return mixed
+     */
+    public function localizeDefaultEntry($entry)
+    {
+        $default = $this->resolver->getDefaultLanguage();
+        if (!is_array($entry) || !isset($entry['loc']) || !$this->urls->isPrefixed($default)) {
+            return $entry;
+        }
+
+        $entry['loc'] = $this->localize((string) $entry['loc'], $default);
+
+        return $entry;
     }
 
     /** @return array<int, array{name: string, pages: int}> */

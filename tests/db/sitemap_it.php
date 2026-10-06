@@ -151,6 +151,8 @@ test_ok('paging matches core\'s own page sitemap',
 test_section('language sitemap provider: URL list:');
 
 // Last page of core's page sitemap — the fixtures are the newest pages.
+$entryHooks = static fn(): int => isset($GLOBALS['wp_filter']['wp_sitemaps_posts_entry']) ? count($GLOBALS['wp_filter']['wp_sitemaps_posts_entry']->callbacks, COUNT_RECURSIVE) : 0;
+$hooksBefore = $entryHooks();
 $lastPage = $provider->get_max_num_pages('zz_zz-posts-page');
 $locs     = array_column($provider->get_url_list($lastPage, 'zz_zz-posts-page'), 'loc');
 
@@ -173,7 +175,7 @@ test_ok('an untranslated page (noindex in zz) is left out',
 test_ok('every listed URL carries the /zz/ prefix', $locs !== [] && count(preg_grep('#^https?://[^/]+(/[^/]+)?/zz/#', $locs)) === count($locs),
     'got ' . json_encode(array_slice($locs, 0, 5)));
 test_ok('an unknown subtype lists nothing', $provider->get_url_list(1, 'nope-posts-page') === []);
-test_ok('the temporary post-id hook is removed afterwards', !has_filter('wp_sitemaps_posts_entry'));
+test_ok('the temporary post-id hook is removed afterwards', $entryHooks() === $hooksBefore);
 
 test_section('language sitemap provider: home on a latest-posts front page:');
 
@@ -185,5 +187,45 @@ test_ok('the page sitemap stays listed with nothing translated, because it carri
 $homeLocs = array_column($provider->get_url_list(1, 'yy_yy-posts-page'), 'loc');
 test_ok('it lists the language home', in_array($builder->absoluteUrl($builder->addPrefix(LocalizedUrlBuilder::sitePath() . '/', 'yy_YY')), $homeLocs, true),
     'got ' . json_encode(array_slice($homeLocs, 0, 3)));
+
+// ── 3. "Prefix default language": core's own entries follow hreflang ──────────
+
+test_section('prefix default language: core entries:');
+
+update_option('show_on_front', 'page');
+[$provider, $resolver, $builder] = $newProvider();
+$default   = $registry->getDefaultLanguage();
+$aboutLoc  = home_url($aboutPath);
+
+test_ok('option off: a core entry is left exactly as core built it',
+    $provider->localizeDefaultEntry(['loc' => $aboutLoc]) === ['loc' => $aboutLoc]);
+
+update_option('lingowp_prefix_default_language', true);
+[$provider, $resolver, $builder] = $newProvider();
+
+ob_start();
+(new HreflangPresenter($resolver, $builder, new RequestContext()))->renderHreflangTags();
+preg_match('/hreflang="' . preg_quote(str_replace('_', '-', $default), '/') . '" href="([^"]+)"/', (string) ob_get_clean(), $m);
+$defaultHref = html_entity_decode($m[1] ?? '');
+
+$entry = $provider->localizeDefaultEntry(['loc' => $aboutLoc, 'lastmod' => '2026-01-01']);
+test_ok('option on: a core entry gets the default language prefix, exactly the hreflang URL',
+    $defaultHref !== '' && $entry['loc'] === $defaultHref, 'entry=' . $entry['loc'] . ' hreflang=' . $defaultHref);
+test_ok('other entry fields are kept', ($entry['lastmod'] ?? null) === '2026-01-01');
+test_ok('the plugin hooks it into all four core entry filters',
+    count(array_filter(['wp_sitemaps_posts_entry', 'wp_sitemaps_posts_show_on_front_entry', 'wp_sitemaps_taxonomies_entry', 'wp_sitemaps_users_entry'],
+        static fn(string $hook): bool => (bool) has_filter($hook))) === 4);
+
+$coreLocs = array_column($server->registry->get_provider('posts')->get_url_list($lastPage, 'page'), 'loc');
+$prefix   = '/' . trim((string) wp_parse_url($builder->addPrefix(LocalizedUrlBuilder::sitePath() . '/', $default), PHP_URL_PATH), '/') . '/';
+test_ok('through core itself: every page entry carries the default prefix',
+    $coreLocs !== [] && count(array_filter($coreLocs, static fn(string $loc): bool => strpos((string) wp_parse_url($loc, PHP_URL_PATH), $prefix) === 0)) === count($coreLocs),
+    'prefix=' . $prefix . ' got ' . json_encode(array_slice($coreLocs, -3)));
+
+$locs = array_column($provider->get_url_list($lastPage, 'zz_zz-posts-page'), 'loc');
+test_ok('the zz sitemap is unaffected: still /zz/, never /en/zz/ or /zz/en/',
+    in_array($hreflangHref, $locs, true), 'got ' . json_encode(array_slice($locs, -3)));
+
+update_option('lingowp_prefix_default_language', false);
 
 test_done();
