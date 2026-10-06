@@ -202,6 +202,34 @@ test_ok('a short-circuited (cached) core list cannot add the untranslated page',
     in_array($hreflangHref, $cachedLocs, true) && preg_grep('#' . preg_quote(trim($plainPath, '/'), '#') . '#', $cachedLocs) === [],
     'got ' . json_encode(array_slice($cachedLocs, -3)));
 
+// Codex review 2 #1: another plugin's post__in / post__not_in on core's query
+// is narrowed further, never replaced (WP_Query drops post__not_in beside post__in).
+$excludeAbout = static function ($args) use ($aboutId) { $args['post__not_in'] = [$aboutId]; return $args; };
+add_filter('wp_sitemaps_posts_query_args', $excludeAbout, 10);
+[$exProvider] = $newProvider();
+test_ok('a page another plugin excludes (post__not_in) stays out of the language sitemap too',
+    !in_array('zz_zz-posts-page', array_column($exProvider->get_sitemap_type_data(), 'name'), true)
+    && $exProvider->get_url_list(1, 'zz_zz-posts-page') === []);
+remove_filter('wp_sitemaps_posts_query_args', $excludeAbout, 10);
+$onlyPlain = static function ($args) use ($plainId) { $args['post__in'] = [$plainId]; return $args; };
+add_filter('wp_sitemaps_posts_query_args', $onlyPlain, 10);
+[$inProvider] = $newProvider();
+test_ok('another plugin\'s post__in is intersected, not overwritten (only an untranslated page allowed → nothing)',
+    !in_array('zz_zz-posts-page', array_column($inProvider->get_sitemap_type_data(), 'name'), true));
+remove_filter('wp_sitemaps_posts_query_args', $onlyPlain, 10);
+
+// Codex review 2 #5: an explicit suppression through core's short-circuits is
+// honored (a populated cached list, above, is not a suppression).
+add_filter('wp_sitemaps_posts_pre_max_num_pages', $zero = static fn($v, $type) => $type === 'page' ? 0 : $v, 10, 2);
+[$vetoProvider] = $newProvider();
+test_ok('pre_max_num_pages = 0 suppresses the language page sitemap too',
+    !in_array('zz_zz-posts-page', array_column($vetoProvider->get_sitemap_type_data(), 'name'), true));
+remove_filter('wp_sitemaps_posts_pre_max_num_pages', $zero, 10);
+add_filter('wp_sitemaps_posts_pre_url_list', $none = static fn($v, $type) => $type === 'page' ? [] : $v, 10, 2);
+[$vetoProvider] = $newProvider();
+test_ok('pre_url_list = [] suppresses the language page list too', $vetoProvider->get_url_list(1, 'zz_zz-posts-page') === []);
+remove_filter('wp_sitemaps_posts_pre_url_list', $none, 10);
+
 // Codex review #4: core pages over ALL posts; with 1 URL per sitemap page and
 // only one translated page, the zz page sitemap must be exactly 1 non-empty page.
 add_filter('wp_sitemaps_max_urls', $oneUrl = static fn() => 1, 10);

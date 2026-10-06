@@ -130,6 +130,10 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
             return [];
         }
 
+        if ($this->isVetoed($sitemap, (int) $page_num)) {
+            return [];
+        }
+
         $list = $this->withTranslatedOnly($sitemap, static fn() => $core->get_url_list($page_num, $sitemap['subtype']));
 
         $out = [];
@@ -151,7 +155,9 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
      * noindex), by adding post__in to core's own query. The pre_url_list /
      * pre_max_num_pages short-circuits are forced off for the call: a caching
      * plugin answering them would hand back the unrestricted default-language
-     * list. Other providers run untouched.
+     * list. An explicit veto through them (0 pages / an empty list — "no
+     * sitemap for this type") is honored by the callers via isVetoed() first.
+     * Other providers run untouched.
      *
      * ponytail: post__in holds every translated id of the language — fine into
      * the tens of thousands; a join on the translation tables if a site outgrows it.
@@ -167,8 +173,20 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
 
         $ids      = $this->translatedPostIds($sitemap['lang']);
         $restrict = static function ($args) use ($ids) {
-            $args             = is_array($args) ? $args : [];
-            $args['post__in'] = $ids !== [] ? $ids : [0]; // [] would mean "no restriction"
+            $args = is_array($args) ? $args : [];
+
+            // Narrow, never widen, what other plugins already asked of core's
+            // query: WP_Query ignores post__not_in once post__in is set, so an
+            // exclusion is folded into the list instead of being lost.
+            $allowed = $ids;
+            if (!empty($args['post__in'])) {
+                $allowed = array_intersect($allowed, array_map('intval', (array) $args['post__in']));
+            }
+            if (!empty($args['post__not_in'])) {
+                $allowed = array_diff($allowed, array_map('intval', (array) $args['post__not_in']));
+            }
+            unset($args['post__not_in']);
+            $args['post__in'] = $allowed !== [] ? array_values($allowed) : [0]; // [] would mean "no restriction"
 
             return $args;
         };
@@ -183,6 +201,28 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
             remove_filter('wp_sitemaps_posts_pre_url_list', '__return_null', PHP_INT_MAX);
             remove_filter('wp_sitemaps_posts_pre_max_num_pages', '__return_null', PHP_INT_MAX);
         }
+    }
+
+    /**
+     * Whether another plugin explicitly suppressed this posts sitemap through
+     * core's short-circuits: 0 from pre_max_num_pages, or (for one page) an
+     * empty array from pre_url_list. A populated answer is not a veto — it is
+     * a cached default-language list, rebuilt restricted by withTranslatedOnly().
+     *
+     * @param array{lang: string, provider: string, subtype: string, pages: int} $sitemap
+     */
+    private function isVetoed(array $sitemap, ?int $page): bool
+    {
+        if ($sitemap['provider'] !== 'posts') {
+            return false;
+        }
+
+        $pages = apply_filters('wp_sitemaps_posts_pre_max_num_pages', null, $sitemap['subtype']);
+        if ($pages !== null && (int) $pages === 0) {
+            return true;
+        }
+
+        return $page !== null && apply_filters('wp_sitemaps_posts_pre_url_list', null, $sitemap['subtype'], $page) === [];
     }
 
     /** @return int[] */
@@ -248,7 +288,9 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
                     $entry   = ['lang' => $lang, 'provider' => $provider, 'subtype' => $subtype, 'pages' => (int) ($type['pages'] ?? 0)];
                     if ($provider === 'posts') {
                         $core           = $this->coreProvider('posts');
-                        $entry['pages'] = (int) $this->withTranslatedOnly($entry, static fn() => $core->get_max_num_pages($subtype));
+                        $entry['pages'] = $this->isVetoed($entry, null)
+                            ? 0
+                            : (int) $this->withTranslatedOnly($entry, static fn() => $core->get_max_num_pages($subtype));
                     }
                     if ($entry['pages'] < 1) {
                         continue;

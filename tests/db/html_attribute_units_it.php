@@ -53,6 +53,7 @@ $skipped = $extractor->units(implode('', [
     '<input type="text" value="Prefilled user data">',
     '<input type="hidden" value="Hidden token text">',
     '<input type="submit" name="action" value="Delete everything">',
+    '<input type="submit" name=" " value="Whitespace name is still a name">',
     '<input type="text" alt="Not an image input">',
     '<div placeholder="Not a form field">x</div>',
     '<span data-title="Data attributes are not visible">y</span>',
@@ -62,7 +63,7 @@ $skipped = $extractor->units(implode('', [
 ]));
 
 foreach (['IMG_1234.jpg', 'https://example.com/b.jpg', '2024', 'Prefilled user data', 'Hidden token text',
-    'Delete everything' /* named submit: its value is form data */,
+    'Delete everything' /* named submit: its value is form data */, 'Whitespace name is still a name',
     'Not an image input', 'Not a form field', 'Data attributes are not visible', 'Opted out alt',
     'Opted out title', 'Script title'] as $unexpected) {
     test_ok("'{$unexpected}' is not a unit", !in_array($unexpected, $skipped, true), 'got ' . json_encode($skipped));
@@ -177,20 +178,46 @@ test_ok('a stray {1} in an attribute translation renders as literal text, never 
     strpos($rendered, 'alt="LINGOWP_TEST {1}chien{/1}"') !== false, $rendered);
 
 // Core's lightbox (render_block_core/image, 15) copies the alt into
-// Interactivity state while do_blocks() runs — before the_content. Through the
-// real do_blocks(), the frozen copy must be the translation too.
-test_section('post content: image lightbox state gets the translated alt:');
+// Interactivity state while do_blocks() runs — before any translation pass.
+// The final-HTML pass (ImageLightboxState) gives the state the image's final
+// alt. Full chain: do_blocks() → the_content pass → page pass.
+test_section('image lightbox state follows the translated alt:');
+
+$lightboxPage = static function (string $blocks, callable $contentPass, array $pageMap): array {
+    $body = $contentPass(do_blocks($blocks));
+    $data = apply_filters('script_module_data_@wordpress/interactivity', []);
+    $html = '<!doctype html><html><head></head><body>' . $body
+        . '<script type="application/json" id="wp-script-module-data-@wordpress/interactivity">'
+        . wp_json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP) . '</script></body></html>';
+    $out = (new \LingoWP\Resolution\HtmlRenderer(new HtmlUnitExtractor(new TranslationUnitCodec())))->render(
+        $html, $pageMap, null, static function (\DOMDocument $dom): void { (new \LingoWP\Resolution\ImageLightboxState())->sync($dom); }
+    );
+    preg_match('#id="wp-script-module-data-@wordpress/interactivity">(.*?)</script>#s', $out, $m);
+    $state = json_decode($m[1] ?? '', true)['state']['core/image']['metadata'] ?? [];
+    preg_match('#data-wp-key="([^"]+)"#', $out, $k);
+    return [$out, $state[$k[1] ?? ''] ?? null];
+};
+$lightboxBlock = static fn(string $alt): string => '<!-- wp:image {"lightbox":{"enabled":true}} --><figure class="wp-block-image">'
+    . '<img src="/wp-content/uploads/horse.jpg" alt="' . $alt . '"/></figure><!-- /wp:image -->';
 
 $addTranslation('LINGOWP_TEST a lightbox horse', 'LINGOWP_TEST un cheval');
-add_filter('render_block_core/image', [$resolver, 'imageBlock'], 14, 1);
-$lightboxHtml = do_blocks('<!-- wp:image {"lightbox":{"enabled":true}} --><figure class="wp-block-image">'
-    . '<img src="/wp-content/uploads/horse.jpg" alt="LINGOWP_TEST a lightbox horse"/></figure><!-- /wp:image -->');
-remove_filter('render_block_core/image', [$resolver, 'imageBlock'], 14);
+[$out, $entry] = $lightboxPage($lightboxBlock('LINGOWP_TEST a lightbox horse'), static fn(string $html): string => (string) $resolver->content($html), []);
+test_ok('post content: the visible alt is translated', strpos($out, 'alt="LINGOWP_TEST un cheval"') !== false, $out);
+test_ok('post content: the lightbox state alt is translated', ($entry['alt'] ?? null) === 'LINGOWP_TEST un cheval', 'got ' . json_encode($entry));
+test_ok('post content: the dialog label carries the translated alt, not the source',
+    is_string($entry['customAriaLabel'] ?? null) && strpos($entry['customAriaLabel'], 'LINGOWP_TEST un cheval') !== false
+    && strpos($entry['customAriaLabel'], 'lightbox horse') === false, 'got ' . json_encode($entry));
 
-$stateAlts = array_column((array) (wp_interactivity_state('core/image')['metadata'] ?? []), 'alt');
-test_ok('the lightbox ran (state captured)', $stateAlts !== [], $lightboxHtml);
-test_ok('the frozen lightbox alt is the translation', in_array('LINGOWP_TEST un cheval', $stateAlts, true), 'got ' . json_encode($stateAlts));
-test_ok('the visible img alt is the translation', strpos($lightboxHtml, 'alt="LINGOWP_TEST un cheval"') !== false, $lightboxHtml);
+// Template image translated only through the html table (no post row).
+$templateMap = [bin2hex(TranslationKey::currentHash('LINGOWP_TEST a template zebra')) => 'LINGOWP_TEST un zèbre'];
+[$out, $entry] = $lightboxPage($lightboxBlock('LINGOWP_TEST a template zebra'), static fn(string $html): string => $html, $templateMap);
+test_ok('template html: the lightbox state alt follows the page-pass translation', ($entry['alt'] ?? null) === 'LINGOWP_TEST un zèbre', 'got ' . json_encode($entry));
+
+// Opted out: neither the image nor its state are touched, even with a translation available.
+[$out, $entry] = $lightboxPage('<!-- wp:group {"className":"notranslate"} --><div class="wp-block-group notranslate">'
+    . $lightboxBlock('LINGOWP_TEST a template zebra') . '</div><!-- /wp:group -->', static fn(string $html): string => $html, $templateMap);
+test_ok('opted out: the visible alt stays the source', strpos($out, 'alt="LINGOWP_TEST a template zebra"') !== false, $out);
+test_ok('opted out: the lightbox state stays the source', ($entry['alt'] ?? null) === 'LINGOWP_TEST a template zebra', 'got ' . json_encode($entry));
 
 $wpdb->update($wpdb->posts, ['post_content' => $imageBlock('LINGOWP_TEST a cat on the sofa')], ['ID' => $postId]);
 clean_post_cache($postId);
@@ -244,18 +271,36 @@ $scanner->refreshPost($idB); // what the one-time InitialDiscoveryScan pass does
 $editRemovingWelcome($idB, $bodyB);
 test_ok('rescan-first: the alt keeps no translation', $altTranslation($altB) === null, 'got ' . var_export($altTranslation($altB), true));
 
-$scan = new \LingoWP\Extraction\Structured\InitialDiscoveryScan($wpdb, $scanner, new \LingoWP\Extraction\OptionSourceScanner($repo, $wpdb));
-update_option(\LingoWP\Extraction\Structured\InitialDiscoveryScan::VERSION_OPTION, 1);
-delete_option(\LingoWP\Extraction\Structured\InitialDiscoveryScan::OPTION_FLAG);
-as_unschedule_all_actions(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK);
+$scanClass = \LingoWP\Extraction\Structured\InitialDiscoveryScan::class;
+$scan      = new $scanClass($wpdb, $scanner, new \LingoWP\Extraction\OptionSourceScanner($repo, $wpdb));
+$pending   = static fn(): int => count(as_get_scheduled_actions(['hook' => $scanClass::HOOK, 'status' => \ActionScheduler_Store::STATUS_PENDING, 'per_page' => -1], 'ids'));
+$resetRescan = static function () use ($scanClass): void {
+    update_option($scanClass::VERSION_OPTION, 1);
+    delete_option($scanClass::OPTION_FLAG);
+    delete_transient($scanClass::RETRY_TRANSIENT);
+    as_unschedule_all_actions($scanClass::HOOK);
+};
+
+$resetRescan();
 $scan->maybeEnqueue();
-test_ok('a site on an older discovery version gets the one-time rescan queued',
-    (bool) as_has_scheduled_action(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK));
-test_ok('and is stamped current, so it runs once',
-    (int) get_option(\LingoWP\Extraction\Structured\InitialDiscoveryScan::VERSION_OPTION) === \LingoWP\Extraction\Structured\InitialDiscoveryScan::DISCOVERY_VERSION);
-as_unschedule_all_actions(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK);
+test_ok('a site on an older discovery version gets the one-time rescan queued', $pending() === 1, 'pending=' . $pending());
+test_ok('the version is NOT stamped yet — only a completed pass stamps it', (int) get_option($scanClass::VERSION_OPTION) === 1);
 $scan->maybeEnqueue();
-test_ok('a second request queues nothing more', !as_has_scheduled_action(\LingoWP\Extraction\Structured\InitialDiscoveryScan::HOOK));
+test_ok('while it runs, later requests queue no second chain', $pending() === 1, 'pending=' . $pending());
+
+as_unschedule_all_actions($scanClass::HOOK); // the chain died mid-way
+$scan->maybeEnqueue();
+test_ok('a dead chain is not re-queued on every request (daily throttle)', $pending() === 0, 'pending=' . $pending());
+delete_transient($scanClass::RETRY_TRANSIENT); // a day later
+$scan->maybeEnqueue();
+test_ok('…and is re-queued once the throttle lapses', $pending() === 1, 'pending=' . $pending());
+
+as_unschedule_all_actions($scanClass::HOOK);
+$scan->runBatch(['phase' => 'terms', 'after' => PHP_INT_MAX]); // the last batch of a pass
+test_ok('a completed pass stamps the version', (int) get_option($scanClass::VERSION_OPTION) === $scanClass::DISCOVERY_VERSION);
+delete_transient($scanClass::RETRY_TRANSIENT);
+$scan->maybeEnqueue();
+test_ok('after completion nothing is queued again', $pending() === 0, 'pending=' . $pending());
 
 // ── 4. Template HTML: discovered with an @attr selector, translated on the page ─
 
