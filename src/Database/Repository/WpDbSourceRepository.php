@@ -959,74 +959,31 @@ final class WpDbSourceRepository
     }
 
     /**
-     * hasAnyTranslation() for many posts at once — same rule, one query per
-     * table instead of one per post. For the language sitemap, which must leave
-     * out exactly the pages LanguageAwareRobotsMeta marks noindex.
+     * Every post id that hasAnyTranslation() in $langCode — same rule, one
+     * query per table. For the language sitemap, which must list exactly the
+     * pages LanguageAwareRobotsMeta leaves indexable.
      *
-     * @param int[] $postIds
-     * @return array<int, true> post id => true for posts with a translated unit
+     * @return int[]
      */
-    public function postIdsWithAnyTranslation(array $postIds, string $langCode): array
+    public function translatedPostIds(string $langCode): array
     {
-        $postIds = array_values(array_unique(array_filter(array_map('intval', $postIds), static fn(int $id): bool => $id > 0)));
-        if ($postIds === []) {
-            return [];
-        }
-
-        $out = [];
-        foreach (['post' => false, 'meta' => true] as $tableKey => $parentId) {
-            $parent       = $this->parent($tableKey);
-            $child        = $parent . '_translation';
-            $join         = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
-            $placeholders = implode(', ', array_fill(0, count($postIds), '%d'));
-
-            $sql = "SELECT DISTINCT p.post_id FROM {$parent} p
-                    JOIN {$child} t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
-                    WHERE p.status = %d AND p.post_id IN ({$placeholders})";
-
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            $ids = $this->wpdb->get_col($this->wpdb->prepare(
-                $sql,
-                $langCode,
-                TranslationStatus::SOURCE_DISCOVERED,
-                ...$postIds
-            ));
-            foreach ((array) $ids as $id) {
-                $out[(int) $id] = true;
-            }
-        }
-
-        return $out;
-    }
-
-    /**
-     * Post types with at least one post that hasAnyTranslation() in $langCode —
-     * lets the language sitemap index skip a type whose sitemap would be empty
-     * (an index entry that 404s is a Search Console error).
-     *
-     * @return array<string, true> post type => true
-     */
-    public function postTypesWithAnyTranslation(string $langCode): array
-    {
-        $out = [];
+        $ids = [];
         foreach (['post' => false, 'meta' => true] as $tableKey => $parentId) {
             $parent = $this->parent($tableKey);
             $child  = $parent . '_translation';
             $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
 
-            $sql = "SELECT DISTINCT wp.post_type FROM {$parent} p
+            $sql = "SELECT DISTINCT p.post_id FROM {$parent} p
                     JOIN {$child} t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
-                    JOIN {$this->wpdb->posts} wp ON wp.ID = p.post_id
                     WHERE p.status = %d";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
-            $types = $this->wpdb->get_col($this->wpdb->prepare($sql, $langCode, TranslationStatus::SOURCE_DISCOVERED));
-            foreach ((array) $types as $type) {
-                $out[(string) $type] = true;
+            foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, $langCode, TranslationStatus::SOURCE_DISCOVERED)) as $id) {
+                $ids[(int) $id] = (int) $id;
             }
         }
 
-        return $out;
+        return array_values($ids);
     }
 
     /** Cheap EXISTS check: does $postId have at least one translated child row in $langCode for this table? */

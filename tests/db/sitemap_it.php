@@ -59,9 +59,9 @@ $translate = static function (string $source, string $lang, string $text) use ($
     ));
 };
 
-// ── 1. Batch "has any translation" agrees with the per-post check ──────────
+// ── 1. translatedPostIds() agrees with the per-post noindex check ─────────
 
-test_section('postIdsWithAnyTranslation() matches hasAnyTranslation():');
+test_section('translatedPostIds() matches hasAnyTranslation():');
 
 $translatedId   = $makePost('LINGOWP_TEST sitemap translated');
 $untranslatedId = $makePost('LINGOWP_TEST sitemap untranslated');
@@ -69,19 +69,18 @@ $otherLangId    = $makePost('LINGOWP_TEST sitemap other language');
 $translate('LINGOWP_TEST sitemap translated', 'fr_FR', 'LINGOWP_TEST plan traduit');
 $translate('LINGOWP_TEST sitemap other language', 'es_GT', 'LINGOWP_TEST otro idioma');
 
-$batch = $repo->postIdsWithAnyTranslation([$translatedId, $untranslatedId, $otherLangId, 0, -3], 'fr_FR');
-test_ok('a post with a French unit is in the French set', isset($batch[$translatedId]));
-test_ok('a post with no translation is not', !isset($batch[$untranslatedId]));
-test_ok('a post translated only in another language is not', !isset($batch[$otherLangId]));
-test_ok('an empty id list costs nothing and returns nothing', $repo->postIdsWithAnyTranslation([], 'fr_FR') === []);
+$frIds = $repo->translatedPostIds('fr_FR');
+test_ok('a post with a French unit is in the French set', in_array($translatedId, $frIds, true));
+test_ok('a post with no translation is not', !in_array($untranslatedId, $frIds, true));
+test_ok('a post translated only in another language is not', !in_array($otherLangId, $frIds, true));
 
 $allIds = array_map('intval', $wpdb->get_col("SELECT DISTINCT post_id FROM {$PP} UNION SELECT DISTINCT post_id FROM {$parents['meta']}"));
 $languages = (new \LingoWP\Language\Infrastructure\OptionLanguageRegistry())->getEnabledLanguages();
 $mismatches = [];
 foreach ($languages as $lang) {
-    $batch = $repo->postIdsWithAnyTranslation($allIds, $lang);
+    $set = array_flip($repo->translatedPostIds($lang));
     foreach ($allIds as $id) {
-        if (isset($batch[$id]) !== $repo->hasAnyTranslation($id, $lang)) {
+        if (isset($set[$id]) !== $repo->hasAnyTranslation($id, $lang)) {
             $mismatches[] = "{$id}/{$lang}";
         }
     }
@@ -145,14 +144,27 @@ if ($coreTaxonomies !== []) {
     test_ok("term archives are listed even with nothing translated (never noindex): yy_yy-taxonomies-{$first}",
         in_array("yy_yy-taxonomies-{$first}", $names, true), 'got ' . json_encode($names));
 }
-test_ok('paging matches core\'s own page sitemap',
-    $provider->get_max_num_pages('zz_zz-posts-page') === $server->registry->get_provider('posts')->get_max_num_pages('page'));
+$allNonEmpty = static function (LanguageSitemapProvider $provider): array {
+    $empty = [];
+    foreach ($provider->get_sitemap_type_data() as $type) {
+        for ($page = 1; $page <= $type['pages']; $page++) {
+            if ($provider->get_url_list($page, $type['name']) === []) {
+                $empty[] = "{$type['name']}#{$page}";
+            }
+        }
+    }
+    return $empty;
+};
+test_ok('every advertised sitemap page is non-empty (core 404s an empty one)', ($e = $allNonEmpty($provider)) === [], 'empty: ' . json_encode($e));
 
 test_section('language sitemap provider: URL list:');
 
 // Last page of core's page sitemap — the fixtures are the newest pages.
-$entryHooks = static fn(): int => isset($GLOBALS['wp_filter']['wp_sitemaps_posts_entry']) ? count($GLOBALS['wp_filter']['wp_sitemaps_posts_entry']->callbacks, COUNT_RECURSIVE) : 0;
-$hooksBefore = $entryHooks();
+$hookCount = static fn(): int => array_sum(array_map(
+    static fn(string $hook): int => isset($GLOBALS['wp_filter'][$hook]) ? count($GLOBALS['wp_filter'][$hook]->callbacks, COUNT_RECURSIVE) : 0,
+    ['wp_sitemaps_posts_query_args', 'wp_sitemaps_posts_pre_url_list', 'wp_sitemaps_posts_pre_max_num_pages']
+));
+$hooksBefore = $hookCount();
 $lastPage = $provider->get_max_num_pages('zz_zz-posts-page');
 $locs     = array_column($provider->get_url_list($lastPage, 'zz_zz-posts-page'), 'loc');
 
@@ -175,7 +187,39 @@ test_ok('an untranslated page (noindex in zz) is left out',
 test_ok('every listed URL carries the /zz/ prefix', $locs !== [] && count(preg_grep('#^https?://[^/]+(/[^/]+)?/zz/#', $locs)) === count($locs),
     'got ' . json_encode(array_slice($locs, 0, 5)));
 test_ok('an unknown subtype lists nothing', $provider->get_url_list(1, 'nope-posts-page') === []);
-test_ok('the temporary post-id hook is removed afterwards', $entryHooks() === $hooksBefore);
+test_ok('the temporary query restriction is removed afterwards', $hookCount() === $hooksBefore);
+
+// Codex review #5: a caching plugin answering core's short-circuit with the
+// unrestricted list must not smuggle the untranslated (noindex) page back in.
+$cached = static fn() => [['loc' => get_permalink($aboutId)], ['loc' => get_permalink($plainId)]];
+add_filter('wp_sitemaps_posts_pre_url_list', $cached, 10);
+add_filter('wp_sitemaps_posts_pre_max_num_pages', static fn() => 1, 10);
+[$cachedProvider] = $newProvider();
+$cachedLocs = array_column($cachedProvider->get_url_list($cachedProvider->get_max_num_pages('zz_zz-posts-page'), 'zz_zz-posts-page'), 'loc');
+remove_all_filters('wp_sitemaps_posts_pre_url_list', 10);
+remove_all_filters('wp_sitemaps_posts_pre_max_num_pages', 10);
+test_ok('a short-circuited (cached) core list cannot add the untranslated page',
+    in_array($hreflangHref, $cachedLocs, true) && preg_grep('#' . preg_quote(trim($plainPath, '/'), '#') . '#', $cachedLocs) === [],
+    'got ' . json_encode(array_slice($cachedLocs, -3)));
+
+// Codex review #4: core pages over ALL posts; with 1 URL per sitemap page and
+// only one translated page, the zz page sitemap must be exactly 1 non-empty page.
+add_filter('wp_sitemaps_max_urls', $oneUrl = static fn() => 1, 10);
+[$tinyProvider] = $newProvider();
+test_ok('paging counts only translated posts (1 per page → 1 page, not one per published page)',
+    $tinyProvider->get_max_num_pages('zz_zz-posts-page') === 1, 'got ' . $tinyProvider->get_max_num_pages('zz_zz-posts-page'));
+test_ok('…and that page is the translated one', array_column($tinyProvider->get_url_list(1, 'zz_zz-posts-page'), 'loc') === [$hreflangHref]);
+remove_filter('wp_sitemaps_max_urls', $oneUrl, 10);
+
+// Codex review #7: a translated page moved to draft keeps its source rows; it
+// must not keep an (empty, 404ing) page sitemap advertised.
+$draftId = $makePost('LINGOWP_TEST Sitemap Drafted');
+$translate('LINGOWP_TEST Sitemap Drafted', 'yy_YY', 'LINGOWP_TEST Yy Brouillon');
+$wpdb->update($wpdb->posts, ['post_status' => 'draft'], ['ID' => $draftId]);
+clean_post_cache($draftId);
+[$draftProvider] = $newProvider();
+test_ok('a language whose only translated page is now a draft lists no page sitemap',
+    !in_array('yy_yy-posts-page', array_column($draftProvider->get_sitemap_type_data(), 'name'), true));
 
 test_section('language sitemap provider: home on a latest-posts front page:');
 

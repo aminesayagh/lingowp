@@ -23,8 +23,11 @@ use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
  *
  * Untranslated pages: a singular post with no translated unit in a language is
  * noindex there (LanguageAwareRobotsMeta), so it is left out of that
- * language's sitemap — listing a noindex URL is a Search Console warning. Term
- * and author archives are never noindex, so they are always listed.
+ * language's sitemap — listing a noindex URL is a Search Console warning. Done
+ * inside core's own posts query (post__in, see withTranslatedOnly()), so
+ * core's paging, published-status and query-arg rules apply to exactly the
+ * listed set: no index entry for a page that would come back empty and 404.
+ * Term and author archives are never noindex, so they are always listed.
  *
  * With "prefix default language" on, core's own entries get the default
  * language's prefix too (localizeDefaultEntry()), again matching hreflang.
@@ -44,6 +47,9 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
 
     /** @var array<string, array{lang: string, provider: string, subtype: string, pages: int}>|null */
     private ?array $sitemaps = null;
+
+    /** @var array<string, int[]> lang => translated post ids, per request */
+    private array $translatedIds = [];
 
     public function __construct(
         ResolveRequestLanguage $resolver,
@@ -124,25 +130,7 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
             return [];
         }
 
-        // Core's entries carry no post id; note it per <loc> while core builds
-        // them. Last priority, so the loc recorded is the final one.
-        $postIds = [];
-        $capture = static function ($entry, $post) use (&$postIds) {
-            if (is_array($entry) && isset($entry['loc']) && $post instanceof \WP_Post) {
-                $postIds[(string) $entry['loc']] = (int) $post->ID;
-            }
-
-            return $entry;
-        };
-
-        add_filter('wp_sitemaps_posts_entry', $capture, PHP_INT_MAX, 2);
-        try {
-            $list = $core->get_url_list($page_num, $sitemap['subtype']);
-        } finally {
-            remove_filter('wp_sitemaps_posts_entry', $capture, PHP_INT_MAX);
-        }
-
-        $translated = $postIds !== [] ? $this->repository->postIdsWithAnyTranslation(array_values($postIds), $sitemap['lang']) : [];
+        $list = $this->withTranslatedOnly($sitemap, static fn() => $core->get_url_list($page_num, $sitemap['subtype']));
 
         $out = [];
         foreach ((array) $list as $entry) {
@@ -150,16 +138,57 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
                 continue;
             }
 
-            $postId = $postIds[(string) $entry['loc']] ?? 0;
-            if ($postId > 0 && !isset($translated[$postId])) {
-                continue; // noindex in this language — see class doc
-            }
-
             $entry['loc'] = $this->localize((string) $entry['loc'], $sitemap['lang']);
             $out[]        = $entry;
         }
 
         return $out;
+    }
+
+    /**
+     * Run a core posts-provider call restricted to the posts translated in
+     * $sitemap's language (the same rule as LanguageAwareRobotsMeta's
+     * noindex), by adding post__in to core's own query. The pre_url_list /
+     * pre_max_num_pages short-circuits are forced off for the call: a caching
+     * plugin answering them would hand back the unrestricted default-language
+     * list. Other providers run untouched.
+     *
+     * ponytail: post__in holds every translated id of the language — fine into
+     * the tens of thousands; a join on the translation tables if a site outgrows it.
+     *
+     * @param array{lang: string, provider: string, subtype: string, pages: int} $sitemap
+     * @return mixed
+     */
+    private function withTranslatedOnly(array $sitemap, callable $call)
+    {
+        if ($sitemap['provider'] !== 'posts') {
+            return $call();
+        }
+
+        $ids      = $this->translatedPostIds($sitemap['lang']);
+        $restrict = static function ($args) use ($ids) {
+            $args             = is_array($args) ? $args : [];
+            $args['post__in'] = $ids !== [] ? $ids : [0]; // [] would mean "no restriction"
+
+            return $args;
+        };
+
+        add_filter('wp_sitemaps_posts_query_args', $restrict, PHP_INT_MAX, 1);
+        add_filter('wp_sitemaps_posts_pre_url_list', '__return_null', PHP_INT_MAX);
+        add_filter('wp_sitemaps_posts_pre_max_num_pages', '__return_null', PHP_INT_MAX);
+        try {
+            return $call();
+        } finally {
+            remove_filter('wp_sitemaps_posts_query_args', $restrict, PHP_INT_MAX);
+            remove_filter('wp_sitemaps_posts_pre_url_list', '__return_null', PHP_INT_MAX);
+            remove_filter('wp_sitemaps_posts_pre_max_num_pages', '__return_null', PHP_INT_MAX);
+        }
+    }
+
+    /** @return int[] */
+    private function translatedPostIds(string $lang): array
+    {
+        return $this->translatedIds[$lang] ??= $this->repository->translatedPostIds($lang);
     }
 
     /**
@@ -180,13 +209,11 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
     }
 
     /**
-     * subtype name => what it mirrors. Built once per request: core's type
-     * data runs a count query per subtype, wanted once, not per language.
-     *
-     * A posts subtype with zero translated posts in a language is skipped (its
-     * sitemap would be empty, and an index entry that 404s is a Search Console
-     * error) — except "page" while the front page shows latest posts, since
-     * core adds the home URL to that sitemap, and home is never noindex.
+     * subtype name => what it mirrors, with its page count. Built once per
+     * request. Taxonomies/users mirror core's type data as-is; a posts subtype
+     * is counted by core under withTranslatedOnly(), so a type with nothing
+     * translated has 0 pages and is not listed (core itself keeps "page" at one
+     * page while the front page shows latest posts — the home URL lives there).
      *
      * @return array<string, array{lang: string, provider: string, subtype: string, pages: int}>
      */
@@ -205,30 +232,29 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
         $types = [];
         foreach ($languages === [] ? [] : self::CORE_PROVIDERS as $name) {
             $core = $this->coreProvider($name);
-            if ($core !== null) {
-                $types[$name] = (array) $core->get_sitemap_type_data();
+            if ($core === null) {
+                continue;
             }
+            $types[$name] = $name === 'posts'
+                ? array_map(static fn($subtype): array => ['name' => (string) $subtype], array_keys((array) $core->get_object_subtypes()))
+                : (array) $core->get_sitemap_type_data();
         }
-
-        $homeInPages = get_option('show_on_front') === 'posts';
 
         $this->sitemaps = [];
         foreach ($languages as $lang) {
-            $translatedTypes = isset($types['posts']) ? $this->repository->postTypesWithAnyTranslation($lang) : [];
-
             foreach ($types as $provider => $typeData) {
                 foreach ($typeData as $type) {
                     $subtype = (string) ($type['name'] ?? '');
-                    $pages   = (int) ($type['pages'] ?? 0);
-                    if ($pages < 1) {
-                        continue;
+                    $entry   = ['lang' => $lang, 'provider' => $provider, 'subtype' => $subtype, 'pages' => (int) ($type['pages'] ?? 0)];
+                    if ($provider === 'posts') {
+                        $core           = $this->coreProvider('posts');
+                        $entry['pages'] = (int) $this->withTranslatedOnly($entry, static fn() => $core->get_max_num_pages($subtype));
                     }
-                    if ($provider === 'posts' && !isset($translatedTypes[$subtype]) && !($subtype === 'page' && $homeInPages)) {
+                    if ($entry['pages'] < 1) {
                         continue;
                     }
 
-                    $name = strtolower($lang) . '-' . $provider . ($subtype !== '' ? '-' . $subtype : '');
-                    $this->sitemaps[$name] = ['lang' => $lang, 'provider' => $provider, 'subtype' => $subtype, 'pages' => $pages];
+                    $this->sitemaps[strtolower($lang) . '-' . $provider . ($subtype !== '' ? '-' . $subtype : '')] = $entry;
                 }
             }
         }
