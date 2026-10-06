@@ -30,9 +30,14 @@ final class InitialDiscoveryScan
      * the same reconcile as the editor's change, and reconcile's
      * one-removed/one-inserted carry-forward would copy a just-deleted
      * paragraph's translation onto an unrelated alt.
+     *
+     * The version is stamped only when a full pass completes (runBatch()); a
+     * pass that never started or died mid-chain is re-requested, at most once
+     * a day (RETRY_TRANSIENT), so a batch that keeps failing cannot loop.
      */
     public const DISCOVERY_VERSION = 2;
     public const VERSION_OPTION    = 'lingowp_discovery_version';
+    public const RETRY_TRANSIENT   = 'lingowp_discovery_rescan_requested';
 
     private const BATCH = 200;
 
@@ -59,9 +64,13 @@ final class InitialDiscoveryScan
     /** Kick off the first batch once, when activation or a discovery upgrade requested a scan. */
     public function maybeEnqueue(): void
     {
-        if ((int) get_option(self::VERSION_OPTION, 0) < self::DISCOVERY_VERSION) {
+        if ((int) get_option(self::VERSION_OPTION, 0) < self::DISCOVERY_VERSION
+            && get_transient(self::RETRY_TRANSIENT) === false
+            && function_exists('as_has_scheduled_action')
+            && !as_has_scheduled_action(self::HOOK, null, self::GROUP)
+        ) {
+            set_transient(self::RETRY_TRANSIENT, 1, DAY_IN_SECONDS);
             update_option(self::OPTION_FLAG, 1);
-            update_option(self::VERSION_OPTION, self::DISCOVERY_VERSION);
         }
 
         if (!get_option(self::OPTION_FLAG)) {
@@ -103,6 +112,7 @@ final class InitialDiscoveryScan
             // plus widget/theme_mod rows, tens of rows not thousands. Batch it like
             // posts if a site ever shows up with a pathological widget count.
             $this->optionScanner->scan();
+            update_option(self::VERSION_OPTION, self::DISCOVERY_VERSION);
             return; // done
         }
         foreach ($terms as [$ttId, $taxonomy, $name, $description]) {

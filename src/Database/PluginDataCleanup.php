@@ -82,6 +82,7 @@ class PluginDataCleanup
         'lingowp_backend_status',
         'lingowp_entitlements_cache',
         'lingowp_wplang_transition_notice',
+        'lingowp_discovery_rescan_requested',
     ];
 
     /** Transients whose names carry a hashed suffix — matched by prefix. */
