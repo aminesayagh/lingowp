@@ -64,6 +64,20 @@ final class HtmlRenderer
                 return $map[bin2hex(TranslationKey::currentHash($unit))] ?? null;
             });
 
+            // Attribute units (alt, title, placeholder, …) after the block pass —
+            // see HtmlUnitExtractor::renderFragment() for why the order matters.
+            // The board selector names the attribute: "form>input@placeholder".
+            $this->extractor->walkAttributes($body, function (\DOMElement $element, string $name, string $unit) use ($map, $onUnit): ?string {
+                if ($onUnit !== null) {
+                    $selector = $this->domSelector($element, '@' . $name);
+                    if ($selector !== '') {
+                        $onUnit($selector, $unit);
+                    }
+                }
+
+                return $map[bin2hex(TranslationKey::currentHash($unit))] ?? null;
+            });
+
             // Document-level passes run on the SAME DOM — parsing and serializing
             // the page a second time would double the cost and risk the two passes
             // disagreeing. Isolated: a failure here must not discard the body
@@ -83,8 +97,11 @@ final class HtmlRenderer
         }
     }
 
-    /** Stable structural selector for a block, capped to the parent column width. */
-    private function domSelector(\DOMElement $element): string
+    /**
+     * Stable structural selector for a block, capped to the parent column width.
+     * $suffix (an attribute unit's "@alt") is kept through the cap.
+     */
+    private function domSelector(\DOMElement $element, string $suffix = ''): string
     {
         $segments = [];
         $node     = $element;
@@ -98,13 +115,13 @@ final class HtmlRenderer
             $node = $node->parentNode;
         }
 
-        $selector = implode('>', $segments);
+        $selector = implode('>', $segments) . $suffix;
         $max      = HtmlSource::SELECTOR_MAX_LENGTH;
 
         // Drop leftmost (least specific) segments until it fits.
         while (strlen($selector) > $max && count($segments) > 1) {
             array_shift($segments);
-            $selector = implode('>', $segments);
+            $selector = implode('>', $segments) . $suffix;
         }
 
         return strlen($selector) > $max ? substr($selector, -$max) : $selector;

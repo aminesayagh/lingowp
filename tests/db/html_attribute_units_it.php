@@ -182,4 +182,46 @@ test_ok('editing the alt replaces the old row with the new text',
     in_array('LINGOWP_TEST a cat on the sofa', $rows, true) && !in_array('LINGOWP_TEST a dog on the beach', $rows, true),
     'got ' . json_encode($rows));
 
+// ── 4. Template HTML: discovered with an @attr selector, translated on the page ─
+
+test_section('template HTML: hardcoded attribute text:');
+
+$HP       = TranslationMemorySchema::parentTables()['html'];
+$renderer = new \LingoWP\Resolution\HtmlRenderer($extractor);
+$discovery = new \LingoWP\Extraction\Html\HtmlDiscovery($renderer, new \LingoWP\Extraction\OwnedStringIndex($wpdb), $repo);
+
+$page = '<!doctype html><html><head><title>t</title></head><body>'
+    . '<header><form role="search"><input type="search" placeholder="LINGOWP_TEST search the site"></form>'
+    . '<a href="/" aria-label="LINGOWP_TEST back to home"><svg aria-hidden="true"></svg></a></header>'
+    . '<main><p>LINGOWP_TEST cat on the sofa <img src="/x.jpg" alt="LINGOWP_TEST a cat on the sofa"></p></main>'
+    . '</body></html>';
+$discovery->discover($page, '/lingowp-test-attr/');
+
+$htmlRow = static fn(string $text): ?array => $wpdb->get_row($wpdb->prepare(
+    "SELECT selector, source_url FROM {$HP} WHERE original_hash = UNHEX(%s)",
+    bin2hex(TranslationKey::currentHash($text))
+), ARRAY_A);
+
+$row = $htmlRow('LINGOWP_TEST search the site');
+test_ok('a hardcoded placeholder is minted as a html row', $row !== null);
+test_ok('its board selector names the attribute', $row !== null && $row['selector'] === 'header>form>input@placeholder', 'got ' . json_encode($row));
+$row = $htmlRow('LINGOWP_TEST back to home');
+test_ok('a hardcoded aria-label is minted with an @aria-label selector', $row !== null && $row['selector'] === 'header>a@aria-label', 'got ' . json_encode($row));
+test_ok('an alt already owned by post content is not duplicated as a html row', $htmlRow('LINGOWP_TEST a cat on the sofa') === null);
+
+$long = str_repeat('<div>', 80) . '<img src="/y.jpg" alt="LINGOWP_TEST deeply nested alt">' . str_repeat('</div>', 80);
+$discovery->discover('<!doctype html><html><body>' . $long . '</body></html>', '/lingowp-test-attr-deep/');
+$row = $htmlRow('LINGOWP_TEST deeply nested alt');
+test_ok('a capped selector keeps its @alt suffix and fits the column',
+    $row !== null && substr($row['selector'], -4) === '@alt' && strlen($row['selector']) <= 255, 'got ' . json_encode($row));
+
+$map = [
+    bin2hex(TranslationKey::currentHash('LINGOWP_TEST search the site')) => 'LINGOWP_TEST rechercher sur le site',
+    bin2hex(TranslationKey::currentHash('LINGOWP_TEST back to home'))    => 'LINGOWP_TEST retour à l\'accueil',
+];
+$out = $renderer->render($page, $map);
+test_ok('the page pass translates the placeholder', strpos($out, 'placeholder="LINGOWP_TEST rechercher sur le site"') !== false, $out);
+test_ok('the page pass translates the aria-label', strpos($out, 'aria-label="LINGOWP_TEST retour à l\'accueil"') !== false, $out);
+test_ok('the page pass leaves an attribute without a translation alone', strpos($out, 'alt="LINGOWP_TEST a cat on the sofa"') !== false, $out);
+
 test_done();
