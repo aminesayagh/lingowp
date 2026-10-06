@@ -74,7 +74,7 @@ test_ok('a post with a French unit is in the French set', in_array($translatedId
 test_ok('a post with no translation is not', !in_array($untranslatedId, $frIds, true));
 test_ok('a post translated only in another language is not', !in_array($otherLangId, $frIds, true));
 
-$allIds = array_map('intval', $wpdb->get_col("SELECT DISTINCT post_id FROM {$PP} UNION SELECT DISTINCT post_id FROM {$parents['meta']}"));
+$allIds = array_map('intval', $wpdb->get_col("SELECT DISTINCT post_id FROM {$PP} UNION SELECT DISTINCT post_id FROM {$parents['meta']}")); // phpcs:ignore WordPress.DB -- nosemgrep: wpdb-interpolated-sql -- integration test, table names from TranslationMemorySchema::parentTables()
 $languages = (new \LingoWP\Language\Infrastructure\OptionLanguageRegistry())->getEnabledLanguages();
 $mismatches = [];
 foreach ($languages as $lang) {
