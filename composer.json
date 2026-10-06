@@ -63,6 +63,7 @@
 			"./wp eval-file tests/db/orphan_sweep_it.php",
 			"./wp eval-file tests/db/fallback_language_it.php",
 			"./wp eval-file tests/db/hreflang_it.php",
+			"./wp eval-file tests/db/sitemap_it.php",
 			"./wp eval-file tests/db/multilingual_redirects_it.php",
 			"./wp eval-file tests/db/language_url_it.php",
 			"./wp eval-file tests/db/switcher_review_it.php",

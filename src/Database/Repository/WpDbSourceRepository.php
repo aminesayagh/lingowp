@@ -958,6 +958,47 @@ final class WpDbSourceRepository
             || $this->existsTranslatedChild('meta', true, $postId, $langCode);
     }
 
+    /**
+     * hasAnyTranslation() for many posts at once — same rule, one query per
+     * table instead of one per post. For the language sitemap, which must leave
+     * out exactly the pages LanguageAwareRobotsMeta marks noindex.
+     *
+     * @param int[] $postIds
+     * @return array<int, true> post id => true for posts with a translated unit
+     */
+    public function postIdsWithAnyTranslation(array $postIds, string $langCode): array
+    {
+        $postIds = array_values(array_unique(array_filter(array_map('intval', $postIds), static fn(int $id): bool => $id > 0)));
+        if ($postIds === []) {
+            return [];
+        }
+
+        $out = [];
+        foreach (['post' => false, 'meta' => true] as $tableKey => $parentId) {
+            $parent       = $this->parent($tableKey);
+            $child        = $parent . '_translation';
+            $join         = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
+            $placeholders = implode(', ', array_fill(0, count($postIds), '%d'));
+
+            $sql = "SELECT DISTINCT p.post_id FROM {$parent} p
+                    JOIN {$child} t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
+                    WHERE p.status = %d AND p.post_id IN ({$placeholders})";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $ids = $this->wpdb->get_col($this->wpdb->prepare(
+                $sql,
+                $langCode,
+                TranslationStatus::SOURCE_DISCOVERED,
+                ...$postIds
+            ));
+            foreach ((array) $ids as $id) {
+                $out[(int) $id] = true;
+            }
+        }
+
+        return $out;
+    }
+
     /** Cheap EXISTS check: does $postId have at least one translated child row in $langCode for this table? */
     private function existsTranslatedChild(string $tableKey, bool $parentId, int $postId, string $langCode): bool
     {
