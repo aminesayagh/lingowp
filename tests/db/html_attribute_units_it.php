@@ -220,6 +220,62 @@ $sync->sync($doc);
 $entry = json_decode($doc->getElementById('wp-script-module-data-@wordpress/interactivity')->textContent, true)['state']['core/image']['metadata']['k1'];
 test_ok('only the trailing alt inside the label is swapped', $entry['customAriaLabel'] === 'Enlarged image: photo' && $entry['alt'] === 'photo', 'got ' . json_encode($entry));
 
+// Codex review 3: the rest of the shared payload round-trips unchanged ({} stays {}),
+// older core layouts (6.5–6.8) are covered, and labels are rebuilt from core's
+// template wherever the locale puts %s — never by searching the label text.
+$syncDoc = static function (string $body, array $data): \DOMDocument {
+    $doc = (new \Masterminds\HTML5())->loadHTML('<!doctype html><html><body>' . $body
+        . ($data === [] ? '' : '<script type="application/json" id="wp-script-module-data-@wordpress/interactivity">'
+            . wp_json_encode($data, JSON_HEX_TAG) . '</script>') . '</body></html>');
+    (new \LingoWP\Resolution\ImageLightboxState())->sync($doc);
+    return $doc;
+};
+$rawData = static fn(\DOMDocument $doc): string => (string) $doc->getElementById('wp-script-module-data-@wordpress/interactivity')->textContent;
+$ctx     = static fn(\DOMDocument $doc): array => (array) json_decode($doc->getElementsByTagName('figure')->item(0)->getAttribute('data-wp-context'), true);
+
+$doc = $syncDoc('<figure class="wp-block-image wp-lightbox-container" data-wp-key="k9"><img src="/i.jpg" alt="photo"></figure>',
+    ['state' => ['other/store' => ['quantities' => new \stdClass(), 'list' => ['0' => 'a', '1' => 'b']],
+        'core/image' => ['metadata' => ['k9' => ['alt' => 'image', 'customAriaLabel' => 'Enlarged image: image']]]]]);
+test_ok('another store\'s empty object stays an object ({} not [])', strpos($rawData($doc), '"quantities":{}') !== false, $rawData($doc));
+
+// 6.8: state keyed by the context's imageId (no data-wp-key); ariaLabel is a constant.
+$doc = $syncDoc('<figure class="wp-block-image wp-lightbox-container" data-wp-interactive="core/image" data-wp-context=\'{"imageId":"k8"}\'><img src="/i.jpg" alt="photo"></figure>',
+    ['state' => ['core/image' => ['metadata' => ['k8' => ['alt' => 'image', 'ariaLabel' => 'Enlarged image']]]]]);
+$entry = json_decode($rawData($doc), true)['state']['core/image']['metadata']['k8'];
+test_ok('6.7–6.8 layout: state found through the context imageId', $entry['alt'] === 'photo' && $entry['ariaLabel'] === 'Enlarged image', 'got ' . json_encode($entry));
+
+// 6.7: same, plus "Enlarge image: %s" in the state label and on the trigger button.
+$doc = $syncDoc('<figure class="wp-block-image wp-lightbox-container" data-wp-context=\'{"imageId":"k7"}\'><img src="/i.jpg" alt="photo">'
+    . '<button class="lightbox-trigger" type="button" aria-label="Enlarge image: image"></button></figure>',
+    ['state' => ['core/image' => ['metadata' => ['k7' => ['alt' => 'image', 'ariaLabel' => 'Enlarge image: image']]]]]);
+$entry  = json_decode($rawData($doc), true)['state']['core/image']['metadata']['k7'];
+$button = $doc->getElementsByTagName('button')->item(0)->getAttribute('aria-label');
+test_ok('6.7 layout: state label and trigger button label rebuilt around the new alt',
+    $entry['ariaLabel'] === 'Enlarge image: photo' && $button === 'Enlarge image: photo', 'got ' . json_encode([$entry, $button]));
+
+// 6.5–6.6: alt and label in the figure's own context, no shared state needed.
+$doc = $syncDoc('<figure class="wp-block-image wp-lightbox-container" data-wp-context=\'{"uploadedSrc":"/i.jpg","ariaLabel":"Enlarge image: image","alt":"image"}\'>'
+    . '<img src="/i.jpg" alt="photo"><button class="lightbox-trigger" type="button" aria-label="Enlarge image: image"></button></figure>', []);
+$c = $ctx($doc);
+test_ok('6.5–6.6 layout: the figure context alt and label follow the image',
+    ($c['alt'] ?? '') === 'photo' && ($c['ariaLabel'] ?? '') === 'Enlarge image: photo' && ($c['uploadedSrc'] ?? '') === '/i.jpg', 'got ' . json_encode($c));
+
+// A locale that puts %s first.
+$frTemplate = static fn($t, $text, $domain) => ($domain === 'default' && $text === 'Enlarged image: %s') ? '%s (image agrandie)' : $t;
+add_filter('gettext', $frTemplate, 10, 3);
+$doc = $syncDoc('<figure class="wp-block-image wp-lightbox-container" data-wp-key="k4"><img src="/i.jpg" alt="photo"></figure>',
+    ['state' => ['core/image' => ['metadata' => ['k4' => ['alt' => 'image', 'customAriaLabel' => 'image (image agrandie)']]]]]);
+remove_filter('gettext', $frTemplate, 10);
+$entry = json_decode($rawData($doc), true)['state']['core/image']['metadata']['k4'];
+test_ok('%s-first locale: the label is rebuilt from the template, the label\'s own words untouched',
+    $entry['customAriaLabel'] === 'photo (image agrandie)', 'got ' . json_encode($entry));
+
+$doc = $syncDoc('<figure class="wp-block-image wp-lightbox-container" data-wp-key="k5"><img src="/i.jpg" alt="photo"></figure>',
+    ['state' => ['core/image' => ['metadata' => ['k5' => ['alt' => 'image', 'customAriaLabel' => 'Some custom label: image']]]]]);
+$entry = json_decode($rawData($doc), true)['state']['core/image']['metadata']['k5'];
+test_ok('a label matching no known template is left alone (alt still updated)',
+    $entry['customAriaLabel'] === 'Some custom label: image' && $entry['alt'] === 'photo', 'got ' . json_encode($entry));
+
 // Template image translated only through the html table (no post row).
 $templateMap = [bin2hex(TranslationKey::currentHash('LINGOWP_TEST a template zebra')) => 'LINGOWP_TEST un zèbre'];
 [$out, $entry] = $lightboxPage($lightboxBlock('LINGOWP_TEST a template zebra'), static fn(string $html): string => $html, $templateMap);
@@ -308,8 +364,19 @@ $scan->maybeEnqueue();
 test_ok('…and is re-queued once the throttle lapses', $pending() === 1, 'pending=' . $pending());
 
 as_unschedule_all_actions($scanClass::HOOK);
-$scan->runBatch(['phase' => 'terms', 'after' => PHP_INT_MAX]); // the last batch of a pass
-test_ok('a completed pass stamps the version', (int) get_option($scanClass::VERSION_OPTION) === $scanClass::DISCOVERY_VERSION);
+// Codex review 3: a chain queued by older discovery rules (no 'v' on its cursor)
+// must not complete the upgrade — it is restarted as a full current pass.
+$scan->runBatch(['phase' => 'terms', 'after' => PHP_INT_MAX]); // old chain's last batch
+test_ok('an older chain finishing does NOT stamp the version', (int) get_option($scanClass::VERSION_OPTION) === 1);
+$restarted = as_get_scheduled_actions(['hook' => $scanClass::HOOK, 'status' => \ActionScheduler_Store::STATUS_PENDING, 'per_page' => -1]);
+$restartArgs = $restarted !== [] ? reset($restarted)->get_args()['cursor'] ?? [] : [];
+test_ok('…it is restarted from the first post under the current rules',
+    ($restartArgs['phase'] ?? '') === 'posts' && ($restartArgs['after'] ?? -1) === 0 && ($restartArgs['v'] ?? 0) === $scanClass::DISCOVERY_VERSION,
+    'got ' . json_encode($restartArgs));
+as_unschedule_all_actions($scanClass::HOOK);
+
+$scan->runBatch(['phase' => 'terms', 'after' => PHP_INT_MAX, 'v' => $scanClass::DISCOVERY_VERSION]); // current chain's last batch
+test_ok('a completed current pass stamps the version', (int) get_option($scanClass::VERSION_OPTION) === $scanClass::DISCOVERY_VERSION);
 delete_transient($scanClass::RETRY_TRANSIENT);
 $scan->maybeEnqueue();
 test_ok('after completion nothing is queued again', $pending() === 0, 'pending=' . $pending());

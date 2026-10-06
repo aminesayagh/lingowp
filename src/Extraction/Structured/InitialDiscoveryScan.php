@@ -85,11 +85,21 @@ final class InitialDiscoveryScan
     }
 
     /**
-     * @param array{phase?: string, after?: int} $cursor
+     * @param array{phase?: string, after?: int, v?: int} $cursor
      */
     public function runBatch($cursor = []): void
     {
         $cursor = is_array($cursor) ? $cursor : [];
+
+        // A chain queued by an older discovery (no or lower 'v' — e.g. an
+        // activation scan still running when the plugin was updated) already
+        // skipped the posts behind its cursor with the old rules. Restart it as
+        // a full current pass rather than let it stamp the new version.
+        if ((int) ($cursor['v'] ?? 1) < self::DISCOVERY_VERSION) {
+            $this->enqueue(['phase' => 'posts', 'after' => 0]);
+            return;
+        }
+
         $phase  = $cursor['phase'] ?? 'posts';
         $after  = (int) ($cursor['after'] ?? 0);
 
@@ -127,6 +137,8 @@ final class InitialDiscoveryScan
      */
     private function enqueue(array $cursor): void
     {
+        $cursor['v'] = self::DISCOVERY_VERSION; // which discovery rules this chain runs
+
         if (function_exists('as_enqueue_async_action')) {
             as_enqueue_async_action(self::HOOK, ['cursor' => $cursor], self::GROUP);
         }
