@@ -65,8 +65,12 @@ final class ImageLightboxState
                 continue;
             }
 
-            if (is_string($entry['customAriaLabel'] ?? null) && $entry['alt'] !== '') {
-                $entry['customAriaLabel'] = str_replace((string) $entry['alt'], $alt, $entry['customAriaLabel']);
+            // Last occurrence only: the alt is the label's %s, so a short alt
+            // ("image") must not also rewrite a word of the label text itself.
+            $label = $entry['customAriaLabel'] ?? null;
+            $at    = is_string($label) && $entry['alt'] !== '' ? strrpos($label, (string) $entry['alt']) : false;
+            if ($at !== false) {
+                $entry['customAriaLabel'] = substr_replace($label, $alt, $at, strlen((string) $entry['alt']));
             }
             $entry['alt'] = $alt;
             $data['state']['core/image']['metadata'][$key] = $entry;
@@ -76,8 +80,13 @@ final class ImageLightboxState
             return;
         }
 
-        // Same flags as core's own print (JSON_HEX_TAG keeps "</script>" out).
-        $json = wp_json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        // Core's own flags (WP_Script_Modules::print_script_module_data()):
+        // JSON_HEX_TAG keeps "</script>" out; literal Unicode only on UTF-8 pages.
+        $flags = JSON_HEX_TAG | JSON_UNESCAPED_SLASHES;
+        if (!function_exists('is_utf8_charset') || is_utf8_charset()) {
+            $flags |= JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS;
+        }
+        $json = wp_json_encode($data, $flags);
         if (!is_string($json)) {
             return;
         }

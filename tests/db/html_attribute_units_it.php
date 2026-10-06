@@ -208,6 +208,18 @@ test_ok('post content: the dialog label carries the translated alt, not the sour
     is_string($entry['customAriaLabel'] ?? null) && strpos($entry['customAriaLabel'], 'LINGOWP_TEST un cheval') !== false
     && strpos($entry['customAriaLabel'], 'lightbox horse') === false, 'got ' . json_encode($entry));
 
+// A short alt that is also a word of the label text: only the alt (the label's
+// trailing %s) is swapped, never the label's own words.
+$sync = new \LingoWP\Resolution\ImageLightboxState();
+$doc  = (new \Masterminds\HTML5())->loadHTML('<!doctype html><html><body>'
+    . '<figure class="wp-block-image wp-lightbox-container" data-wp-key="k1"><img src="/i.jpg" alt="photo"></figure>'
+    . '<script type="application/json" id="wp-script-module-data-@wordpress/interactivity">'
+    . wp_json_encode(['state' => ['core/image' => ['metadata' => ['k1' => ['alt' => 'image', 'customAriaLabel' => 'Enlarged image: image']]]]], JSON_HEX_TAG)
+    . '</script></body></html>');
+$sync->sync($doc);
+$entry = json_decode($doc->getElementById('wp-script-module-data-@wordpress/interactivity')->textContent, true)['state']['core/image']['metadata']['k1'];
+test_ok('only the trailing alt inside the label is swapped', $entry['customAriaLabel'] === 'Enlarged image: photo' && $entry['alt'] === 'photo', 'got ' . json_encode($entry));
+
 // Template image translated only through the html table (no post row).
 $templateMap = [bin2hex(TranslationKey::currentHash('LINGOWP_TEST a template zebra')) => 'LINGOWP_TEST un zèbre'];
 [$out, $entry] = $lightboxPage($lightboxBlock('LINGOWP_TEST a template zebra'), static fn(string $html): string => $html, $templateMap);
