@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,12 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 LingoWP adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.6.0 =
+
+* Text inside HTML attributes is now translated: image alt text, tooltips (title), screen-reader labels (aria-label), form placeholders and button labels — in post content and in your theme or plugins' templates alike. Template rows on the board show which attribute they are, for example "@alt" or "@placeholder". Existing content is re-scanned once after the update.
+* When an image opens in a lightbox ("Expand on click"), the enlarged image and its label use the translated alt text too.
+* The WordPress XML sitemap (wp-sitemap.xml) now lists every page in each published language, at the same URLs as the hreflang tags, including translated slugs. Pages with nothing translated yet in a language are left out of that language's sitemap, since they are marked noindex.
 
 = 1.5.1 =
 

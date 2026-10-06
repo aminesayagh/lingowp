@@ -3,7 +3,7 @@
  * Plugin Name:       LingoWP
  * Plugin URI:        https://www.lingowp.com/
  * Description:       Create multilingual WordPress sites with local manual translation and optional AI-assisted translation.
- * Version:           1.5.1
+ * Version:           1.6.0
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            Mohamed Amine Sayagh
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('LINGOWP_VERSION', '1.5.1');
+define('LINGOWP_VERSION', '1.6.0');
 define('LINGOWP_FILE', __FILE__);
 define('LINGOWP_DIR', plugin_dir_path(__FILE__));
 define('LINGOWP_URL', plugin_dir_url(__FILE__));
