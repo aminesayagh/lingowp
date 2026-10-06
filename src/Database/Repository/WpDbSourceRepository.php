@@ -999,6 +999,36 @@ final class WpDbSourceRepository
         return $out;
     }
 
+    /**
+     * Post types with at least one post that hasAnyTranslation() in $langCode —
+     * lets the language sitemap index skip a type whose sitemap would be empty
+     * (an index entry that 404s is a Search Console error).
+     *
+     * @return array<string, true> post type => true
+     */
+    public function postTypesWithAnyTranslation(string $langCode): array
+    {
+        $out = [];
+        foreach (['post' => false, 'meta' => true] as $tableKey => $parentId) {
+            $parent = $this->parent($tableKey);
+            $child  = $parent . '_translation';
+            $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
+
+            $sql = "SELECT DISTINCT wp.post_type FROM {$parent} p
+                    JOIN {$child} t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
+                    JOIN {$this->wpdb->posts} wp ON wp.ID = p.post_id
+                    WHERE p.status = %d";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            $types = $this->wpdb->get_col($this->wpdb->prepare($sql, $langCode, TranslationStatus::SOURCE_DISCOVERED));
+            foreach ((array) $types as $type) {
+                $out[(string) $type] = true;
+            }
+        }
+
+        return $out;
+    }
+
     /** Cheap EXISTS check: does $postId have at least one translated child row in $langCode for this table? */
     private function existsTranslatedChild(string $tableKey, bool $parentId, int $postId, string $langCode): bool
     {

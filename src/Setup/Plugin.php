@@ -14,6 +14,7 @@ use LingoWP\Resolution\GettextResolver;
 use LingoWP\Resolution\DateResolver;
 use LingoWP\Resolution\NumberResolver;
 use LingoWP\Resolution\Seo\HreflangPresenter;
+use LingoWP\Resolution\Seo\LanguageSitemapProvider;
 use LingoWP\LocalizationRouting\MultilingualRedirects;
 use LingoWP\Resolution\HtmlRenderer;
 use LingoWP\Shared\Parsing\HtmlUnitExtractor;
@@ -308,6 +309,10 @@ class Plugin
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         (new MultilingualRedirects($languageResolver, $urlBuilder, $context))->register();
         (new LanguageAwareRobotsMeta($languageResolver, $context, $sourceRepository))->register();
+
+        // Translated URLs in core's wp-sitemap.xml — same URLs as hreflang,
+        // minus the pages the robots rule above marks noindex.
+        (new LanguageSitemapProvider($languageResolver, $urlBuilder, $sourceRepository))->register();
 
         // <html lang>/dir for the current request's language on translated pages.
         (new LanguageHtmlAttributes($languageResolver, $context, new SupportedLanguages(new LanguageMetadataStore())))->register();
