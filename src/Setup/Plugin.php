@@ -218,9 +218,6 @@ class Plugin
         );
         LanguageLinks::prime($languageLinks);
 
-        // The previous SwitcherRenderer / LanguageSwitcherShortcode classes are
-        // kept on disk for reference only; the new switcher owns the same
-        // shortcode tag and public functions.
         $switcher = new Switcher($languageLinks);
         Switcher::prime($switcher);
         $switcher->register();
