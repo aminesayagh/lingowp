@@ -9,8 +9,13 @@
 
 require __DIR__ . '/_harness.php';
 
+use LingoWP\Database\Repository\WpDbBoardQueries;
+use LingoWP\Database\Repository\WpDbSourceRepository;
+use LingoWP\Database\TranslationMemorySchema;
+use LingoWP\Extraction\Structured\StructuredSourceScanner;
 use LingoWP\Shared\Parsing\HtmlUnitExtractor;
 use LingoWP\Shared\Parsing\TranslationUnitCodec;
+use LingoWP\Shared\Text\TranslationKey;
 
 test_guard();
 test_begin();
@@ -93,5 +98,88 @@ test_ok('entities decode for the lookup and a quote in the translation cannot cl
 
 $out = $extractor->render('<img src="/x.jpg" alt="Untranslated alt">', $translate);
 test_ok('an attribute with no translation is left exactly as-is', strpos($out, 'alt="Untranslated alt"') !== false, $out);
+
+// ── 3. Post content: discovered on save, rendered translated, pruned on edit ─
+
+test_section('post content: image block alt end to end:');
+
+global $wpdb;
+
+$repo    = new WpDbSourceRepository($wpdb, new WpDbBoardQueries($wpdb));
+$scanner = new StructuredSourceScanner($repo, $extractor);
+$PP      = TranslationMemorySchema::parentTables()['post'];
+$now     = current_time('mysql');
+
+$imageBlock = static fn(string $alt): string => '<!-- wp:image {"id":1} --><figure class="wp-block-image">'
+    . '<img src="/wp-content/uploads/dog.jpg" alt="' . esc_attr($alt) . '"/>'
+    . '<figcaption>LINGOWP_TEST caption</figcaption></figure><!-- /wp:image -->';
+
+$postId = test_insert($wpdb->posts, [
+    'post_author' => 1, 'post_date' => $now, 'post_date_gmt' => $now,
+    'post_content' => $imageBlock('LINGOWP_TEST a dog on the beach'),
+    'post_title' => 'LINGOWP_TEST attr fixture', 'post_excerpt' => '', 'post_status' => 'publish',
+    'comment_status' => 'closed', 'ping_status' => 'closed',
+    'post_name' => 'lingowp-test-attr-' . wp_generate_password(8, false),
+    'post_modified' => $now, 'post_modified_gmt' => $now, 'post_type' => 'post',
+]);
+$scanner->refreshPost($postId);
+
+$contentRows = static fn(int $id): array => $wpdb->get_col($wpdb->prepare(
+    "SELECT original_text FROM {$PP} WHERE post_id = %d AND field = 'post_content' ORDER BY id", $id
+));
+
+$rows = $contentRows($postId);
+test_ok('the image alt is discovered as its own post_content row', in_array('LINGOWP_TEST a dog on the beach', $rows, true), 'got ' . json_encode($rows));
+test_ok('the caption is still discovered next to it', in_array('LINGOWP_TEST caption', $rows, true), 'got ' . json_encode($rows));
+
+$addTranslation = static function (string $source, string $translated) use ($wpdb, $PP): void {
+    $wpdb->query($wpdb->prepare(
+        "INSERT INTO {$PP}_translation (original_hash, lang_code, translated_text, status, created_at, updated_at)
+         VALUES (UNHEX(%s), 'fr', %s, 1, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text)",
+        bin2hex(TranslationKey::currentHash($source)), $translated
+    ));
+};
+$addTranslation('LINGOWP_TEST a dog on the beach', 'LINGOWP_TEST un chien sur la plage');
+$addTranslation('LINGOWP_TEST caption', 'LINGOWP_TEST légende');
+
+$languageRegistry = new \LingoWP\Language\Infrastructure\OptionLanguageRegistry();
+$resolver = new \LingoWP\Resolution\StructuredRenderResolver(
+    new \LingoWP\Language\Application\ResolveRequestLanguage($languageRegistry),
+    new \LingoWP\Resolution\RequestContext(),
+    $repo,
+    $extractor,
+    new \LingoWP\Resolution\PageOwnedHashes(),
+    $languageRegistry
+);
+$ref = new ReflectionClass($resolver);
+foreach (['active' => true, 'lang' => 'fr'] as $prop => $value) {
+    $ref->getProperty($prop)->setAccessible(true);
+    $ref->getProperty($prop)->setValue($resolver, $value);
+}
+
+$rendered = (string) $resolver->content(get_post($postId)->post_content);
+test_ok('the French render carries the translated alt', strpos($rendered, 'alt="LINGOWP_TEST un chien sur la plage"') !== false, $rendered);
+test_ok('the French render carries the translated caption', strpos($rendered, 'LINGOWP_TEST légende') !== false, $rendered);
+
+// A stray placeholder in an attribute translation (no guard rejects it — the
+// source has no markers, same as any plain unit) stays inert literal text.
+$addTranslation('LINGOWP_TEST a dog on the beach', 'LINGOWP_TEST {1}chien{/1}');
+wp_cache_flush();
+foreach (['hashMap', 'hashLoaded'] as $prop) { // drop the per-request cache so the new row is read
+    $ref->getProperty($prop)->setAccessible(true);
+    $ref->getProperty($prop)->setValue($resolver, []);
+}
+$rendered = (string) $resolver->content(get_post($postId)->post_content);
+test_ok('a stray {1} in an attribute translation renders as literal text, never markup',
+    strpos($rendered, 'alt="LINGOWP_TEST {1}chien{/1}"') !== false, $rendered);
+
+$wpdb->update($wpdb->posts, ['post_content' => $imageBlock('LINGOWP_TEST a cat on the sofa')], ['ID' => $postId]);
+clean_post_cache($postId);
+$scanner->refreshPost($postId);
+$rows = $contentRows($postId);
+test_ok('editing the alt replaces the old row with the new text',
+    in_array('LINGOWP_TEST a cat on the sofa', $rows, true) && !in_array('LINGOWP_TEST a dog on the beach', $rows, true),
+    'got ' . json_encode($rows));
 
 test_done();
