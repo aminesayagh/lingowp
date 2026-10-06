@@ -5,94 +5,169 @@ namespace LingoWP\Resolution;
 /**
  * Keeps core's Image lightbox in step with the translated page.
  *
- * With "expand on click" on, core's Image block copies the <img alt> into
- * Interactivity API state while the block renders (block_core_image_render_lightbox)
- * — before the_content or the final-HTML pass translate it. The enlarged image
- * and its dialog label are later built from that state, so a translated page
- * would still announce the source-language alt once the lightbox opens.
+ * With "expand on click" on, core's Image block copies the <img alt> (and labels
+ * composed from it) into Interactivity API data while the block renders
+ * (block_core_image_render_lightbox) — before the_content or the final-HTML pass
+ * translate it. The enlarged image and its labels are later built from that
+ * data, so a translated page would still announce the source-language alt once
+ * the lightbox opens.
  *
- * Runs in the final-HTML pass, after every translation of the body: each
- * lightbox <figure> carries its state key (data-wp-key), so the state entry is
- * given the image's FINAL alt — whatever pass translated it (post content,
- * template HTML), and untouched where it was opted out. customAriaLabel is
- * core's "Enlarged image: %s" composed around the alt, so the old alt inside it
- * is swapped for the new one rather than re-composed. No queries, no extra
- * translation step.
+ * Runs in the final-HTML pass, after every translation of the body, and gives
+ * each lightbox the image's FINAL alt — whatever pass translated it (post
+ * content, template HTML), untouched where it was opted out. No queries, no
+ * extra translation step. Where core keeps that copy changed across versions
+ * (LingoWP supports 6.2+, the lightbox exists since 6.4):
+ *
+ *   6.9+     shared state, entry keyed by the figure's data-wp-key — alt, customAriaLabel
+ *   6.7–6.8  shared state, entry keyed by the figure context's imageId — alt, ariaLabel
+ *   6.5–6.6  the figure's own data-wp-context — alt, ariaLabel
+ *   6.4–6.7  the trigger button's aria-label ("Enlarge image: %s")
+ *
+ * A label is rebuilt from core's own (current-locale) template, never by
+ * searching for the old alt inside it — a locale may put %s anywhere. A label
+ * that does not match a known template exactly is left alone. JSON is decoded
+ * as objects so the rest of the shared payload round-trips unchanged ({} stays
+ * {}), and re-encoded with core's own flags.
  */
 final class ImageLightboxState
 {
-    private const SCRIPT_ID = 'wp-script-module-data-@wordpress/interactivity';
+    private const SCRIPT_IDS = ['wp-script-module-data-@wordpress/interactivity', 'wp-interactivity-data'];
+
+    /** Core's label templates around the alt (wp-includes/blocks/image.php, 6.4+). */
+    private const LABEL_TEMPLATES = ['Enlarged image: %s', 'Enlarge image: %s'];
+
+    /** Label fields core has stored next to the alt. */
+    private const LABEL_FIELDS = ['customAriaLabel', 'ariaLabel'];
 
     public function sync(\DOMDocument $dom): void
     {
-        $finalAlts = [];
-        foreach ($dom->getElementsByTagName('figure') as $figure) {
-            $key = $figure->getAttribute('data-wp-key');
-            if ($key === '' || strpos(' ' . $figure->getAttribute('class') . ' ', ' wp-lightbox-container ') === false) {
+        $script    = null;
+        $data      = null;
+        $dataDirty = false;
+
+        foreach (iterator_to_array($dom->getElementsByTagName('figure')) as $figure) {
+            if (strpos(' ' . $figure->getAttribute('class') . ' ', ' wp-lightbox-container ') === false) {
                 continue;
             }
             $img = $figure->getElementsByTagName('img')->item(0);
-            if ($img instanceof \DOMElement && $img->hasAttribute('alt')) {
-                $finalAlts[$key] = $img->getAttribute('alt');
+            if (!$img instanceof \DOMElement || !$img->hasAttribute('alt')) {
+                continue;
             }
-        }
-        if ($finalAlts === []) {
-            return;
-        }
+            $alt     = $img->getAttribute('alt');
+            $context = json_decode($figure->getAttribute('data-wp-context'));
+            $oldAlt  = null;
 
-        $script = $dom->getElementById(self::SCRIPT_ID);
-        if (!$script instanceof \DOMElement) {
-            foreach ($dom->getElementsByTagName('script') as $candidate) {
-                if ($candidate->getAttribute('id') === self::SCRIPT_ID) {
-                    $script = $candidate;
-                    break;
+            // 6.5–6.6: the alt lives in the figure's own context.
+            if (is_object($context) && isset($context->alt) && is_string($context->alt)) {
+                $oldAlt = $context->alt;
+                if ($this->retarget($context, $alt)) {
+                    $figure->setAttribute('data-wp-context', $this->encode($context, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP));
+                }
+            }
+
+            // 6.7+: the alt lives in shared state, keyed per image.
+            $key = $figure->getAttribute('data-wp-key');
+            if ($key === '' && is_object($context) && isset($context->imageId) && is_scalar($context->imageId)) {
+                $key = (string) $context->imageId;
+            }
+            if ($key !== '') {
+                if ($data === null) {
+                    [$script, $data] = $this->loadData($dom);
+                }
+                $entry = $data->state->{'core/image'}->metadata->{$key} ?? null;
+                if (is_object($entry) && isset($entry->alt) && is_string($entry->alt)) {
+                    $oldAlt    = $oldAlt ?? $entry->alt;
+                    $dataDirty = $this->retarget($entry, $alt) || $dataDirty;
+                }
+            }
+
+            // 6.4–6.7: the trigger button's own label carries the alt.
+            if ($oldAlt !== null && $oldAlt !== $alt) {
+                foreach ($figure->getElementsByTagName('button') as $button) {
+                    $label = $button->getAttribute('aria-label');
+                    $new   = $label !== '' ? $this->relabel($label, $oldAlt, $alt) : null;
+                    if ($new !== null) {
+                        $button->setAttribute('aria-label', $new);
+                    }
                 }
             }
         }
-        if (!$script instanceof \DOMElement) {
-            return;
-        }
 
-        $data = json_decode((string) $script->textContent, true);
-        if (!is_array($data) || !is_array($data['state']['core/image']['metadata'] ?? null)) {
-            return;
-        }
-
-        $changed = false;
-        foreach ($finalAlts as $key => $alt) {
-            $entry = $data['state']['core/image']['metadata'][$key] ?? null;
-            if (!is_array($entry) || !isset($entry['alt']) || $entry['alt'] === $alt) {
-                continue;
+        if ($dataDirty && $script instanceof \DOMElement) {
+            $flags = JSON_HEX_TAG | JSON_UNESCAPED_SLASHES;
+            if (!function_exists('is_utf8_charset') || is_utf8_charset()) {
+                $flags |= JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS;
             }
-
-            // Last occurrence only: the alt is the label's %s, so a short alt
-            // ("image") must not also rewrite a word of the label text itself.
-            $label = $entry['customAriaLabel'] ?? null;
-            $at    = is_string($label) && $entry['alt'] !== '' ? strrpos($label, (string) $entry['alt']) : false;
-            if ($at !== false) {
-                $entry['customAriaLabel'] = substr_replace($label, $alt, $at, strlen((string) $entry['alt']));
+            $json = $this->encode($data, $flags);
+            if ($json !== '') {
+                while ($script->firstChild) {
+                    $script->removeChild($script->firstChild);
+                }
+                $script->appendChild($dom->createTextNode($json));
             }
-            $entry['alt'] = $alt;
-            $data['state']['core/image']['metadata'][$key] = $entry;
-            $changed = true;
         }
-        if (!$changed) {
-            return;
+    }
+
+    /**
+     * Point one alt-carrying object (state entry or figure context) at $alt,
+     * rebuilding the label fields composed from the old alt.
+     */
+    private function retarget(object $holder, string $alt): bool
+    {
+        $old = (string) $holder->alt;
+        if ($old === $alt) {
+            return false;
         }
 
-        // Core's own flags (WP_Script_Modules::print_script_module_data()):
-        // JSON_HEX_TAG keeps "</script>" out; literal Unicode only on UTF-8 pages.
-        $flags = JSON_HEX_TAG | JSON_UNESCAPED_SLASHES;
-        if (!function_exists('is_utf8_charset') || is_utf8_charset()) {
-            $flags |= JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS;
+        foreach (self::LABEL_FIELDS as $field) {
+            if (isset($holder->{$field}) && is_string($holder->{$field})) {
+                $new = $this->relabel($holder->{$field}, $old, $alt);
+                if ($new !== null) {
+                    $holder->{$field} = $new;
+                }
+            }
         }
-        $json = wp_json_encode($data, $flags);
-        if (!is_string($json)) {
-            return;
+        $holder->alt = $alt;
+
+        return true;
+    }
+
+    /** $label rebuilt around $alt, or null when it is not a known template around $old. */
+    private function relabel(string $label, string $old, string $alt): ?string
+    {
+        foreach (self::LABEL_TEMPLATES as $template) {
+            // Core's own string, in the locale core composed it in (still the
+            // visitor's: GettextResolver restores it after the output buffers close).
+            // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.NonSingularStringLiteralText -- core's string from core's domain, matched against what core printed.
+            $translated = translate($template, 'default');
+            if (sprintf($translated, $old) === $label) {
+                return sprintf($translated, $alt);
+            }
         }
-        while ($script->firstChild) {
-            $script->removeChild($script->firstChild);
+
+        return null;
+    }
+
+    /** @return array{0: ?\DOMElement, 1: object} the data script and its decoded payload (empty object if none) */
+    private function loadData(\DOMDocument $dom): array
+    {
+        foreach ($dom->getElementsByTagName('script') as $script) {
+            if (in_array($script->getAttribute('id'), self::SCRIPT_IDS, true)) {
+                $data = json_decode((string) $script->textContent);
+                if (is_object($data)) {
+                    return [$script, $data];
+                }
+            }
         }
-        $script->appendChild($dom->createTextNode($json));
+
+        return [null, new \stdClass()];
+    }
+
+    /** @param mixed $value */
+    private function encode($value, int $flags): string
+    {
+        $json = wp_json_encode($value, $flags);
+
+        return is_string($json) ? $json : '';
     }
 }
