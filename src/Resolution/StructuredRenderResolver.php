@@ -98,10 +98,6 @@ final class StructuredRenderResolver
         add_filter('the_title', [$this, 'title'], 10, 2);
         add_filter('the_content', [$this, 'content'], 10, 1);
         add_filter('render_block_data', [$this, 'blockAttributes'], 10, 1);
-        // 14: one ahead of core's lightbox (block_core_image_render_lightbox, 15),
-        // which copies the <img alt> into Interactivity state before
-        // the_content ever sees it.
-        add_filter('render_block_core/image', [$this, 'imageBlock'], 14, 1);
         add_filter('get_the_excerpt', [$this, 'excerpt'], 10, 2);
         // wp_get_attachment_caption() reads post_excerpt directly and fires this
         // filter instead of get_the_excerpt — the gallery/[caption] shortcode paths
@@ -245,38 +241,6 @@ final class StructuredRenderResolver
         }
 
         return $parsedBlock;
-    }
-
-    /**
-     * An Image block's attribute text (alt, title), translated as the block
-     * renders — see register() for why the_content is too late here. The
-     * caption stays with content(). Hash lookup, so a block rendered from a
-     * template (never preloaded) loads its hashes first.
-     *
-     * @param mixed $blockContent
-     * @return mixed
-     */
-    public function imageBlock($blockContent)
-    {
-        if (!$this->isActive() || !is_string($blockContent) || $blockContent === '') {
-            return $blockContent;
-        }
-
-        $hashes = [];
-        $this->unitExtractor->renderAttributes($blockContent, static function (string $unit) use (&$hashes): ?string {
-            $hashes[] = TranslationKey::currentHash($unit);
-
-            return null;
-        });
-        if ($hashes === []) {
-            return $blockContent;
-        }
-        $this->ensureHashLoaded('post', $hashes);
-
-        return $this->unitExtractor->renderAttributes(
-            $blockContent,
-            fn(string $unit): ?string => $this->hashMap[$this->hashKey('post', TranslationKey::currentHash($unit))] ?? null
-        );
     }
 
     /**

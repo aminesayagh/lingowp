@@ -160,6 +160,9 @@ final class PublicRenderPipeline
             null,
             function (\DOMDocument $dom) use ($lang): void {
                 $this->seoHead->translate($dom, $lang);
+                // After the body is translated: core's lightbox froze the
+                // source alt into Interactivity state at block render.
+                (new ImageLightboxState())->sync($dom);
             }
         );
 
