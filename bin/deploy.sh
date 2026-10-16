@@ -86,14 +86,18 @@ step "Client archive (release/)" env LINGOWP_STRIP_COMMENTS=1 "$ROOT_DIR/bin/bui
 # rather than remembered.
 WPORG_ZIP="$ROOT_DIR/dist/lingowp-${VERSION}.zip"
 CLIENT_ZIP="$RELEASE_DIR/lingowp-${VERSION}-client.zip"
-if ! unzip -l "$WPORG_ZIP" | grep -q 'lingowp/admin-ui/'; then
-  echo "The WordPress.org archive has no admin-ui/ — Guideline 4 needs it." >&2
-  exit 1
-fi
-if unzip -l "$CLIENT_ZIP" | grep -q 'lingowp/admin-ui/'; then
-  echo "The client archive carries admin-ui/ — customers should not get it." >&2
-  exit 1
-fi
+# Listed into variables and matched with `case`, deliberately: piping into
+# `grep -q` under `set -o pipefail` reports a SUCCESSFUL match as a failure,
+# because grep exits on the first hit and unzip then dies of SIGPIPE.
+WPORG_ENTRIES="$(unzip -Z1 "$WPORG_ZIP")"
+CLIENT_ENTRIES="$(unzip -Z1 "$CLIENT_ZIP")"
+case "$WPORG_ENTRIES" in
+  *lingowp/admin-ui/*) ;;
+  *) echo "The WordPress.org archive has no admin-ui/ — Guideline 4 needs it." >&2; exit 1 ;;
+esac
+case "$CLIENT_ENTRIES" in
+  *lingowp/admin-ui/*) echo "The client archive carries admin-ui/ — customers should not get it." >&2; exit 1 ;;
+esac
 echo "==> Both archives verified: source in dist/, absent from release/."
 
 # The backend parses the version out of the filename with -(\d+(\.\d+)*)\.zip$
