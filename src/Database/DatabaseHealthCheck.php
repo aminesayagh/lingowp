@@ -39,7 +39,9 @@ final class DatabaseHealthCheck
 
         $rows = 0;
         foreach (TranslationMemorySchema::childTables() as $table) {
+            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
             $rows += (int) $this->wpdb->get_var('SELECT COUNT(*) FROM ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            // phpcs:enable
         }
 
         return [
@@ -54,6 +56,7 @@ final class DatabaseHealthCheck
 
     private function engineOf(string $table): ?string
     {
+        // phpcs:disable WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $engine = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT ENGINE FROM information_schema.TABLES
@@ -61,6 +64,7 @@ final class DatabaseHealthCheck
                 $table
             )
         );
+        // phpcs:enable
 
         return is_string($engine) ? $engine : null;
     }

@@ -221,7 +221,7 @@ final class HtmlDiscoveryCrawl
             'timeout'   => self::FETCH_TIMEOUT_SECONDS,
             // Loopback request to the site's own domain — matches core's own
             // convention for self-requests (e.g. spawn_cron()'s loopback ping).
-            'sslverify' => apply_filters('https_local_ssl_verify', false),
+            'sslverify' => apply_filters('https_local_ssl_verify', false), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core filter, applied so other plugins' callbacks still run.
         ]);
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
@@ -244,6 +244,7 @@ final class HtmlDiscoveryCrawl
      */
     private function nextPostIds(int $after): array
     {
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $ids = $this->wpdb->get_col( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT ID FROM {$this->wpdb->posts}
@@ -254,6 +255,7 @@ final class HtmlDiscoveryCrawl
                 self::BATCH
             )
         );
+        // phpcs:enable
 
         return array_map('intval', (array) $ids);
     }
@@ -284,8 +286,9 @@ final class HtmlDiscoveryCrawl
 
         $args = array_merge([$after], array_values($taxonomies), [self::BATCH]);
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        // phpcs:enable
 
         return array_map(
             static fn(array $r): array => [(int) $r['tt_id'], (int) $r['term_id'], (string) $r['taxonomy']],

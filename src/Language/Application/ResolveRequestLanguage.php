@@ -155,7 +155,7 @@ class ResolveRequestLanguage
             return null;
         }
 
-        $path = trim((string) parse_url(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '')), PHP_URL_PATH), '/');
+        $path = trim((string) wp_parse_url(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '')), PHP_URL_PATH), '/');
         if ($path === '') {
             return $this->getDefaultLanguage();
         }
@@ -269,7 +269,7 @@ class ResolveRequestLanguage
             return true;
         }
 
-        $path = trim((string) parse_url(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '')), PHP_URL_PATH), '/');
+        $path = trim((string) wp_parse_url(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '')), PHP_URL_PATH), '/');
 
         return $path === 'wp-login.php';
     }

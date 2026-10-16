@@ -30,7 +30,7 @@ final class TermSource extends SourceRecord
             throw new InvalidArgumentException('TermSource: term_taxonomy_id must be positive.');
         }
         if (!in_array($field, self::FIELDS, true)) {
-            throw new InvalidArgumentException("TermSource: unsupported field '{$field}'.");
+            throw new InvalidArgumentException("TermSource: unsupported field '{$field}'."); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- developer-facing invariant on a value set in code; this class runs without WordPress (tests/source_identity_check.php).
         }
     }
 

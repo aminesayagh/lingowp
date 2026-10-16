@@ -138,7 +138,7 @@ final class ImageLightboxState
         foreach (self::LABEL_TEMPLATES as $template) {
             // Core's own string, in the locale core composed it in (still the
             // visitor's: GettextResolver restores it after the output buffers close).
-            // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.NonSingularStringLiteralText -- core's string from core's domain, matched against what core printed.
+            // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.NonSingularStringLiteralText, WordPress.WP.I18n.TextDomainMismatch -- core's string from core's domain, matched against what core printed.
             $translated = translate($template, 'default');
             if (sprintf($translated, $old) === $label) {
                 return sprintf($translated, $alt);

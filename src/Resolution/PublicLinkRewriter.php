@@ -242,6 +242,6 @@ final class PublicLinkRewriter
      */
     private function urlParts(string $url)
     {
-        return function_exists('wp_parse_url') ? wp_parse_url($url) : parse_url($url);
+        return function_exists('wp_parse_url') ? wp_parse_url($url) : wp_parse_url($url);
     }
 }

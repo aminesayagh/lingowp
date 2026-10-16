@@ -19,7 +19,7 @@ class PhpTemplateRenderer
 
         if (!is_readable($file)) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                trigger_error(
+                trigger_error( // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error -- WP_DEBUG only: a missing template is a packaging bug.
                     sprintf('LingoWP template not found: %s', esc_html($template)),
                     E_USER_WARNING
                 );

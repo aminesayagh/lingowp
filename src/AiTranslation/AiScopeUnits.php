@@ -65,7 +65,7 @@ final class AiScopeUnits
             return [[
                 'ref'      => $ref,
                 'original' => $context['text'],
-                'meta_key' => $context['meta_key'],
+                'meta_key' => $context['meta_key'], // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a result array key, not a WP_Query argument.
                 'group_id' => $ref->format(),
                 'previous' => $previous,
             ]];
@@ -225,7 +225,7 @@ final class AiScopeUnits
                 'original'         => (string) $r['original_text'],
                 'translated'       => $r['translated_text'],
                 'ai_pending_since' => $r['ai_pending_since'] ?? null,
-                'meta_key'         => $hasMetaKey ? (string) ($r['field'] ?? '') : null,
+                'meta_key'         => $hasMetaKey ? (string) ($r['field'] ?? '') : null, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a result array key, not a WP_Query argument.
                 'group_id'         => is_string($groupId) ? $groupId : $groupId($r),
             ];
         }, $rows);

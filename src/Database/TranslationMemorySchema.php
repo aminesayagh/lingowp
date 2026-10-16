@@ -72,6 +72,7 @@ class TranslationMemorySchema
         $p  = self::parentTables();
 
         // 1. Create the seven parent tables first — they are the child FK targets.
+        // phpcs:disable PluginCheck.Security.DirectDB -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
@@ -79,16 +80,20 @@ class TranslationMemorySchema
         $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::user($p['user'], $wpdb->users, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::termMeta($p['term_meta'], $wpdb->terms, $cc));                // phpcs:ignore WordPress.DB
+        // phpcs:enable
 
         // 2a. Hash-link children (post/term/html/option/user): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
+            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::hashLinkTranslation($p[$parentKey] . '_translation', $cc)
             );
+            // phpcs:enable
         }
 
         // 2b. parent_id children (meta, term_meta): FK'd back to their parent id.
         foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
+            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::parentIdTranslation(
                     $p[$parentKey] . '_translation',
@@ -97,6 +102,7 @@ class TranslationMemorySchema
                     $cc
                 )
             );
+            // phpcs:enable
         }
 
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
@@ -105,13 +111,17 @@ class TranslationMemorySchema
         // 4. On any missing FK: drop the tables (children first), then fail.
         if ($missing !== []) {
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
                 $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+                // phpcs:enable
             }
             foreach ($p as $table) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
                 $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+                // phpcs:enable
             }
 
-            throw SchemaFailure::missingForeignKeys($missing);
+            throw SchemaFailure::missingForeignKeys($missing); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- escaped where it is shown: Activator wp_die(esc_html($failure->getMessage())).
         }
 
         // 5. Gettext source-string tracking (Plugins & Themes board) — no FK,
@@ -121,7 +131,9 @@ class TranslationMemorySchema
         // ignores are snapshotted and re-seeded there. Then fold any
         // pre-existing ignored-units option data into it, once.
         self::migrateGettextUnitV6($cc);
+        // phpcs:disable PluginCheck.Security.DirectDB -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         $wpdb->query(TableDefinitions::gettextUnit(self::gettextUnitTable(), $cc)); // phpcs:ignore WordPress.DB
+        // phpcs:enable
         self::migrateGettextIgnoredUnits();
 
         // 6. Version is written only after verification passes.
@@ -168,21 +180,25 @@ class TranslationMemorySchema
 
         $table = self::gettextUnitTable();
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $exists = (bool) $wpdb->get_var($wpdb->prepare(
             'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s',
             DB_NAME,
             $table
         ));
+        // phpcs:enable
         if (! $exists) {
             return;
         }
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $hasNormHash = (bool) $wpdb->get_var($wpdb->prepare(
             'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s',
             DB_NAME,
             $table,
             'norm_hash'
         ));
+        // phpcs:enable
         if ($hasNormHash) {
             return;
         }
@@ -192,12 +208,15 @@ class TranslationMemorySchema
         // (deliberately, so a real rescan never overwrites status), so a blank
         // msgid inserted here would stay blank forever instead of being filled
         // in by that rescan.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery -- table name only, from the schema map
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table name only, from the schema map
         $ignored = (array) $wpdb->get_results("SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM {$table} WHERE status = -1", ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
+        // phpcs:enable
 
         // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
+        // phpcs:disable PluginCheck.Security.DirectDB -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
         $wpdb->query("DROP TABLE IF EXISTS {$table}"); // phpcs:ignore WordPress.DB -- table name only
         $wpdb->query(TableDefinitions::gettextUnit($table, $charsetCollate)); // phpcs:ignore WordPress.DB
+        // phpcs:enable
 
         $now = current_time('mysql', true);
         foreach ($ignored as $row) {
@@ -214,6 +233,7 @@ class TranslationMemorySchema
             }
             $args[] = $now;
             $args[] = $now;
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $wpdb->query($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name only
                 "INSERT INTO {$table} (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
@@ -221,6 +241,7 @@ class TranslationMemorySchema
                  ON DUPLICATE KEY UPDATE status = -1",
                 ...$args
             ));
+            // phpcs:enable
         }
 
         delete_option('lingowp_gettext_scanned_domains');
@@ -282,7 +303,7 @@ class TranslationMemorySchema
                 $args[] = $now;
                 $args[] = $now;
 
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQLPlaceholders, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $wpdb->query($wpdb->prepare(
                     "INSERT INTO {$table}
                         (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
@@ -290,6 +311,7 @@ class TranslationMemorySchema
                      ON DUPLICATE KEY UPDATE status = -1, updated_at = VALUES(updated_at)",
                     ...$args
                 ));
+                // phpcs:enable
             }
         }
 
@@ -335,7 +357,7 @@ class TranslationMemorySchema
             $engine = self::engineOf($table);
 
             if ($engine !== null && strtoupper($engine) !== 'INNODB') {
-                throw SchemaFailure::parentNotInnoDB($table, $engine);
+                throw SchemaFailure::parentNotInnoDB($table, $engine); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- escaped where it is shown: Activator wp_die(esc_html($failure->getMessage())).
             }
         }
     }
@@ -453,7 +475,9 @@ class TranslationMemorySchema
 
         foreach ($tables as $table) {
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
             $wpdb->query('DROP TABLE IF EXISTS ' . $table);
+            // phpcs:enable
         }
     }
 

@@ -186,7 +186,7 @@ final class CollectionsRestController
                         case 'translated':
                             return $c['translated'] > 0;
                         default:
-                            throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                            throw new \RuntimeException('Unhandled match case: ' . esc_html((string) wp_json_encode($status)));
                     }
                 }));
             }
@@ -263,7 +263,7 @@ final class CollectionsRestController
                     case 'translated':
                         return $t['status'] === 'translated' || $t['status'] === 'reviewed';
                     default:
-                        throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                        throw new \RuntimeException('Unhandled match case: ' . esc_html((string) wp_json_encode($status)));
                 }
             }));
         }
@@ -316,7 +316,7 @@ final class CollectionsRestController
                         case 'translated':
                             return $c['translated'] > 0;
                         default:
-                            throw new \RuntimeException('Unhandled match case: ' . var_export($status, true));
+                            throw new \RuntimeException('Unhandled match case: ' . esc_html((string) wp_json_encode($status)));
                     }
                 }));
             }

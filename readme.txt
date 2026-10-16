@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,10 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 LingoWP adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.6.1 =
+
+* Maintenance release for the WordPress.org review: file cleanup uses wp_delete_file(), URL parsing uses wp_parse_url(), error messages are escaped, and every database query carries a stated reason for its coding-standards exception. No change in behaviour.
 
 = 1.6.0 =
 

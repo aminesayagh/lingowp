@@ -232,11 +232,11 @@ final class GettextTranslationUnitsService
         wp_mkdir_p(dirname($target));
         $staging = wp_tempnam(basename($target));
         if (! $mo->export_to_file($staging)) {
-            @unlink($staging);
+            wp_delete_file($staging);
             return false;
         }
 
-        if (! rename($staging, $target)) {
+        if (! rename($staging, $target)) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is LingoWP's own WP_LANG_DIR/lingowp folder (see GettextPoImporter::baseDir()).
             return false;
         }
 

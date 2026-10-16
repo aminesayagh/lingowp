@@ -184,7 +184,7 @@ class RequestContext
     public function path(): string
     {
         $uri   = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
-        $path  = (string) parse_url($uri, PHP_URL_PATH);
+        $path  = (string) wp_parse_url($uri, PHP_URL_PATH);
         $split = LocalizedUrlBuilder::splitSiteFolder($path);
 
         return trim($split === null ? $path : $split[1], '/');

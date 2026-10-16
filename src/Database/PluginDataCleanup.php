@@ -150,6 +150,7 @@ class PluginDataCleanup
         foreach (self::TRANSIENT_PREFIXES as $prefix) {
             $likeValue   = $wpdb->esc_like('_transient_' . $prefix) . '%';
             $likeTimeout = $wpdb->esc_like('_transient_timeout_' . $prefix) . '%';
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $wpdb->query(
                 $wpdb->prepare(
                     "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
@@ -157,6 +158,7 @@ class PluginDataCleanup
                     $likeTimeout
                 )
             );
+            // phpcs:enable
         }
     }
 }

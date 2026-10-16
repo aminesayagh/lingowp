@@ -39,7 +39,7 @@ final class UserSource extends SourceRecord
             throw new InvalidArgumentException('UserSource: user_id must be positive.');
         }
         if (!in_array($field, self::allowedFields(), true)) {
-            throw new InvalidArgumentException("UserSource: unsupported field '{$field}'.");
+            throw new InvalidArgumentException("UserSource: unsupported field '{$field}'."); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- developer-facing invariant on a value set in code; this class runs without WordPress (tests/source_identity_check.php).
         }
     }
 

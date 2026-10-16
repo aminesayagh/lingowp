@@ -91,7 +91,7 @@ class LocalizedUrlBuilder
             return '';
         }
 
-        return rtrim((string) parse_url((string) home_url('/'), PHP_URL_PATH), '/');
+        return rtrim((string) wp_parse_url((string) home_url('/'), PHP_URL_PATH), '/');
     }
 
     /**
@@ -103,7 +103,7 @@ class LocalizedUrlBuilder
      */
     public function absoluteUrl(string $path): string
     {
-        $parts = function_exists('home_url') ? parse_url((string) home_url('/')) : false;
+        $parts = function_exists('home_url') ? wp_parse_url((string) home_url('/')) : false;
         if (!is_array($parts) || empty($parts['host'])) {
             return $path;
         }

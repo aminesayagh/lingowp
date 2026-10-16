@@ -174,8 +174,9 @@ final class GettextUnitRepository
                     VALUES " . implode(', ', $tuples) . '
                     ON DUPLICATE KEY UPDATE last_seen_at = VALUES(last_seen_at), updated_at = VALUES(updated_at)';
 
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+            // phpcs:enable
         }
     }
 
@@ -199,11 +200,12 @@ final class GettextUnitRepository
             $args[] = '%' . $this->wpdb->esc_like($search) . '%';
         }
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT msgid, context FROM {$table} WHERE {$where} ORDER BY id ASC",
             ...$args
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(
             static fn (array $row): array => [
@@ -218,13 +220,14 @@ final class GettextUnitRepository
     {
         $table = TranslationMemorySchema::gettextUnitTable();
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         return (int) $this->wpdb->get_var($this->wpdb->prepare(
             "SELECT COUNT(*) FROM {$table} WHERE type = %s AND domain = %s AND status = %d",
             $type,
             $domain,
             self::STATUS_ACTIVE
         ));
+        // phpcs:enable
     }
 
     /**
@@ -244,12 +247,13 @@ final class GettextUnitRepository
         $table = TranslationMemorySchema::gettextUnitTable();
         $like  = '%' . $this->wpdb->esc_like($search) . '%';
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT DISTINCT type, domain FROM {$table} WHERE status = %d AND msgid LIKE %s",
             self::STATUS_ACTIVE,
             $like
         ), ARRAY_A);
+        // phpcs:enable
 
         $out = [];
         foreach ((array) $rows as $row) {
@@ -268,7 +272,7 @@ final class GettextUnitRepository
     {
         $table = TranslationMemorySchema::gettextUnitTable();
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $this->wpdb->query($this->wpdb->prepare(
             "UPDATE {$table} SET status = %d, updated_at = %s
              WHERE type = %s AND domain = %s AND unit_hash = UNHEX(%s)",
@@ -278,6 +282,7 @@ final class GettextUnitRepository
             $domain,
             bin2hex(self::hashOf($msgid, $context))
         ));
+        // phpcs:enable
     }
 
     /**
@@ -296,25 +301,27 @@ final class GettextUnitRepository
         $table = TranslationMemorySchema::gettextUnitTable();
 
         if ($seenHashes === []) {
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $result = $this->wpdb->query($this->wpdb->prepare(
                 "DELETE FROM {$table} WHERE type = %s AND domain = %s",
                 $type,
                 $domain
             ));
+            // phpcs:enable
 
             return is_int($result) ? $result : 0;
         }
 
         $placeholders = implode(', ', array_fill(0, count($seenHashes), 'UNHEX(%s)'));
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQLPlaceholders, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $result = $this->wpdb->query($this->wpdb->prepare(
             "DELETE FROM {$table} WHERE type = %s AND domain = %s AND unit_hash NOT IN ({$placeholders})",
             $type,
             $domain,
             ...$seenHashes
         ));
+        // phpcs:enable
 
         return is_int($result) ? $result : 0;
     }

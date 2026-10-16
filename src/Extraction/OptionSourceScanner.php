@@ -132,21 +132,25 @@ final class OptionSourceScanner
      */
     private function widgetOptionNames(): array
     {
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         $names = $this->wpdb->get_col( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             "SELECT option_name FROM {$this->wpdb->options} WHERE option_name LIKE 'widget\\_%'"
         );
+        // phpcs:enable
 
         return is_array($names) ? array_map('strval', $names) : [];
     }
 
     private function optionId(string $optionName): ?int
     {
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $id = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT option_id FROM {$this->wpdb->options} WHERE option_name = %s",
                 $optionName
             )
         );
+        // phpcs:enable
 
         return ($id !== null && (int) $id > 0) ? (int) $id : null;
     }

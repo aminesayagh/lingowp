@@ -149,6 +149,7 @@ final class InitialDiscoveryScan
      */
     private function nextPostIds(int $after): array
     {
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $ids = $this->wpdb->get_col( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT ID FROM {$this->wpdb->posts}
@@ -159,6 +160,7 @@ final class InitialDiscoveryScan
                 self::BATCH
             )
         );
+        // phpcs:enable
 
         return array_map('intval', (array) $ids);
     }
@@ -168,6 +170,7 @@ final class InitialDiscoveryScan
      */
     private function nextTerms(int $after): array
     {
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT tt.term_taxonomy_id AS tt_id, tt.taxonomy AS taxonomy,
@@ -182,6 +185,7 @@ final class InitialDiscoveryScan
             ),
             ARRAY_A
         );
+        // phpcs:enable
 
         return array_map(
             static fn(array $r): array => [

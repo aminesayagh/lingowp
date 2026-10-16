@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Builds the plugin zip, drops it in the backend's plugin/ folder (where the
-# public download route picks up the highest version automatically), then
-# publishes the same tree to the public distribution repository in release/.
+# The one delivery command. Runs every suite, then builds BOTH archives:
 #
-# This builds the comment-stripped "client" variant, not the WordPress.org
-# submission — customers download this one, and the implementation notes in the
-# source are not for them. The WordPress.org archive is built by running
-# build-release-zip.sh on its own, with comments left intact for the reviewer.
+#   dist/lingowp-<v>.zip          WordPress.org submission. Comments intact for
+#                                 the reviewer, and it carries admin-ui/ plus the
+#                                 build config — Guideline 4 requires the source
+#                                 of the minified bundles either in the plugin or
+#                                 behind a public link, and this is the "in the
+#                                 plugin" half of that choice. Upload by hand.
+#   release/lingowp-<v>-client.zip  Direct download. Comments stripped, no admin
+#                                 source: customers get neither the notes nor the
+#                                 build inputs. Copied to the backend's plugin/
+#                                 folder, and release/ doubles as the working copy
+#                                 of the public distribution repository.
+#
+# Both come from the same commit, so they only ever differ in those two ways —
+# the check after the builds enforces exactly that.
 #
 # An earlier client variant was dropped because stripping every comment also
 # removed the ones machines read: the phpcs:ignore annotations that keep
@@ -66,8 +74,27 @@ step "Security scanners (needs Docker)"    composer run --no-interaction securit
 step "Integration checks (needs the wordpress container)" \
   composer run --no-interaction test:db
 
-# Stages the client tree into release/ and writes the zip next to it.
-LINGOWP_STRIP_COMMENTS=1 "$ROOT_DIR/bin/build-release-zip.sh"
+# Two passes over build-release-zip.sh. Each re-runs npm ci and composer
+# install in its own temp dir, so this is the slow part — worth it to keep the
+# two archives from ever drifting out of one command.
+step "WordPress.org archive (dist/)" "$ROOT_DIR/bin/build-release-zip.sh"
+step "Client archive (release/)" env LINGOWP_STRIP_COMMENTS=1 "$ROOT_DIR/bin/build-release-zip.sh"
+
+# Guard the one mistake that costs a review round: shipping the source-free
+# client zip to WordPress.org. An earlier submission was pended because the
+# readme pointed at a 404 instead of carrying the source, so this is checked
+# rather than remembered.
+WPORG_ZIP="$ROOT_DIR/dist/lingowp-${VERSION}.zip"
+CLIENT_ZIP="$RELEASE_DIR/lingowp-${VERSION}-client.zip"
+if ! unzip -l "$WPORG_ZIP" | grep -q 'lingowp/admin-ui/'; then
+  echo "The WordPress.org archive has no admin-ui/ — Guideline 4 needs it." >&2
+  exit 1
+fi
+if unzip -l "$CLIENT_ZIP" | grep -q 'lingowp/admin-ui/'; then
+  echo "The client archive carries admin-ui/ — customers should not get it." >&2
+  exit 1
+fi
+echo "==> Both archives verified: source in dist/, absent from release/."
 
 # The backend parses the version out of the filename with -(\d+(\.\d+)*)\.zip$
 # and serves the highest match; a name it cannot parse is silently skipped — so
@@ -75,6 +102,7 @@ LINGOWP_STRIP_COMMENTS=1 "$ROOT_DIR/bin/build-release-zip.sh"
 cp -f "$RELEASE_DIR/lingowp-${VERSION}-client.zip" "$ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Deployed: $ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Publish with: cd $(dirname "$ARTIFACT_DIR") && ./deploy/addons.sh"
+echo "==> WordPress.org archive ready to upload: $WPORG_ZIP"
 
 # The build only stages release/; committing and pushing happens here, on a
 # message typed at the prompt, so nothing reaches the public remote without a

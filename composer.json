@@ -93,7 +93,7 @@
 		"security:semgrep": "docker run --rm --mount type=bind,src=.,dst=/src -w /src semgrep/semgrep semgrep scan --config=p/php --config=p/security-audit --config=.semgrep.yml --error --metrics=off --json-output=security-reports/semgrep.json --exclude=tests/fixtures --text-output=security-reports/semgrep.log",
 		"security:semgrep-selftest": "docker run --rm --mount type=bind,src=.,dst=/src,ro -w /src semgrep/semgrep semgrep scan --config=.semgrep.yml --metrics=off --no-git-ignore --json tests/fixtures/ | python3 -c \"import json,sys; n=len(json.load(sys.stdin)['results']); print('fixture findings:', n, '(expected 2)'); sys.exit(0 if n==2 else 1)\"",
 		"security:secrets-history": "docker run --rm --mount type=bind,src=.,dst=/repo zricethezav/gitleaks:latest git /repo --no-banner --redact --report-path=/repo/security-reports/gitleaks-history.json",
-		"security:plugin-check": "wp plugin check lingowp --categories=security --format=csv",
+		"security:plugin-check": "wp plugin check lingowp --format=csv",
 		"compat:php": "phpcs --standard=phpcs-compat.xml.dist --report-summary --report-full=security-reports/phpcompat-full.log --report-json=security-reports/phpcompat.json --no-colors"
 	},
 	"scripts-descriptions": {

@@ -33,6 +33,7 @@ final class ConstraintVerifier
         $tables       = array_unique(array_values($expected));
         $placeholders = implode(',', array_fill(0, count($tables), '%s'));
 
+        // phpcs:disable WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = (array) $this->wpdb->get_results( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT CONSTRAINT_NAME
@@ -44,6 +45,7 @@ final class ConstraintVerifier
             ),
             ARRAY_A
         );
+        // phpcs:enable
 
         return array_values(array_diff(array_keys($expected), array_column($rows, 'CONSTRAINT_NAME')));
     }

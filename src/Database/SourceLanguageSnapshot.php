@@ -31,6 +31,7 @@ final class SourceLanguageSnapshot
             $child = $parent . '_translation';
 
             if (in_array($parentKey, TranslationMemorySchema::HASH_LINK_CHILDREN, true)) {
+                // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
                     "INSERT IGNORE INTO {$child}
                         (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
@@ -40,11 +41,13 @@ final class SourceLanguageSnapshot
                     $now,
                     $now
                 ));
+                // phpcs:enable
 
                 continue;
             }
 
             // Parent-id child (meta): keyed (parent_id, lang_code).
+            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
                 "INSERT IGNORE INTO {$child}
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
@@ -54,6 +57,7 @@ final class SourceLanguageSnapshot
                 $now,
                 $now
             ));
+            // phpcs:enable
         }
     }
 }

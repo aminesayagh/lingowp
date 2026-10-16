@@ -217,12 +217,12 @@ final class LanguageSitemapProvider extends \WP_Sitemaps_Provider
             return false;
         }
 
-        $pages = apply_filters('wp_sitemaps_posts_pre_max_num_pages', null, $sitemap['subtype']);
+        $pages = apply_filters('wp_sitemaps_posts_pre_max_num_pages', null, $sitemap['subtype']); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core filter, applied so other plugins' callbacks still run.
         if ($pages !== null && (int) $pages === 0) {
             return true;
         }
 
-        return $page !== null && apply_filters('wp_sitemaps_posts_pre_url_list', null, $sitemap['subtype'], $page) === [];
+        return $page !== null && apply_filters('wp_sitemaps_posts_pre_url_list', null, $sitemap['subtype'], $page) === []; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core filter, applied so other plugins' callbacks still run.
     }
 
     /** @return int[] */

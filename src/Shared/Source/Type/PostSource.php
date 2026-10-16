@@ -31,7 +31,7 @@ class PostSource extends SourceRecord
             throw new InvalidArgumentException('PostSource: post id must be positive.');
         }
         if (!in_array($field, self::FIELDS, true)) {
-            throw new InvalidArgumentException("PostSource: unsupported field '{$field}'.");
+            throw new InvalidArgumentException("PostSource: unsupported field '{$field}'."); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- developer-facing invariant on a value set in code; this class runs without WordPress (tests/source_identity_check.php).
         }
     }
 

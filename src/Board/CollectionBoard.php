@@ -677,7 +677,7 @@ final class CollectionBoard
                     $matches = $collection['needs_review'] > 0;
                     break;
                 default:
-                    throw new \RuntimeException('Unhandled match case: ' . var_export($value, true));
+                    throw new \RuntimeException('Unhandled match case: ' . esc_html((string) wp_json_encode($value)));
             }
             if ($matches) {
                 return true;

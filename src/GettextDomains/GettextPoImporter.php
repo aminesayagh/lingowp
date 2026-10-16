@@ -55,12 +55,12 @@ final class GettextPoImporter
 
         $staging = wp_tempnam(basename($target));
         if (! $mo->export_to_file($staging)) {
-            @unlink($staging);
+            wp_delete_file($staging);
             return false;
         }
 
         // Rename-into-place: a concurrent request never reads a half-written file.
-        return rename($staging, $target);
+        return rename($staging, $target); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is LingoWP's own WP_LANG_DIR/lingowp folder (see GettextPoImporter::baseDir()).
     }
 
     /**

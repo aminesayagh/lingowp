@@ -144,12 +144,12 @@ final class GettextOnlineTranslationFetcher
 
         $staging = wp_tempnam(basename($target));
         if (file_put_contents($staging, $moBytes) === false) {
-            @unlink($staging);
+            wp_delete_file($staging);
             return false;
         }
 
-        if (! rename($staging, $target)) {
-            @unlink($staging);
+        if (! rename($staging, $target)) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is LingoWP's own WP_LANG_DIR/lingowp folder (see GettextPoImporter::baseDir()).
+            wp_delete_file($staging);
             return false;
         }
 
@@ -261,13 +261,13 @@ final class GettextOnlineTranslationFetcher
     {
         $tmp = wp_tempnam('gettext-merge.mo');
         if (file_put_contents($tmp, $bytes) === false) {
-            @unlink($tmp);
+            wp_delete_file($tmp);
             return null;
         }
 
         $mo = new \MO();
         $ok = $mo->import_from_file($tmp);
-        @unlink($tmp);
+        wp_delete_file($tmp);
 
         return $ok ? $mo : null;
     }
@@ -369,19 +369,19 @@ final class GettextOnlineTranslationFetcher
 
         $zipTemp = wp_tempnam('gettext-language-pack.zip');
         if (file_put_contents($zipTemp, wp_remote_retrieve_body($response)) === false) {
-            @unlink($zipTemp);
+            wp_delete_file($zipTemp);
             return null;
         }
 
         $zip = new \ZipArchive();
         if ($zip->open($zipTemp) !== true) {
-            @unlink($zipTemp);
+            wp_delete_file($zipTemp);
             return null;
         }
 
         $mo = $zip->getFromName($slug . '-' . $locale . '.mo');
         $zip->close();
-        @unlink($zipTemp);
+        wp_delete_file($zipTemp);
 
         return $mo !== false ? $mo : null;
     }
