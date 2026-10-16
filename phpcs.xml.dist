@@ -35,7 +35,8 @@
 	<!--
 		WordPress.DB.PreparedSQL* is deliberately NOT enabled here, but it is NOT
 		blind to `$this->wpdb`: Plugin Check (what WordPress.org runs) reports it.
-		Every query therefore sits in a `phpcs:disable ... -- reason` /
+		Every query therefore sits in a `phpcs:disable` block that names its
+		sniffs and states a reason, closed by a matching
 		`phpcs:enable` block. A one-line `phpcs:ignore` is not enough: it covers
 		only the next line, and a multi-line prepare() is reported on its
 		argument lines. Keep the blocks when editing queries.
