@@ -212,8 +212,8 @@ class TranslationMemorySchema
         $ignored = (array) $wpdb->get_results("SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM {$table} WHERE status = -1", ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         // phpcs:enable
 
-        // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         // phpcs:disable PluginCheck.Security.DirectDB -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
+        // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         $wpdb->query("DROP TABLE IF EXISTS {$table}"); // phpcs:ignore WordPress.DB -- table name only
         $wpdb->query(TableDefinitions::gettextUnit($table, $charsetCollate)); // phpcs:ignore WordPress.DB
         // phpcs:enable
@@ -474,8 +474,8 @@ class TranslationMemorySchema
         ];
 
         foreach ($tables as $table) {
-            // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
+            // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
             $wpdb->query('DROP TABLE IF EXISTS ' . $table);
             // phpcs:enable
         }
