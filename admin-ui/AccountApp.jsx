@@ -234,10 +234,10 @@ function AccountAppInner() {
 											setRecoveryAvailable( false )
 										}
 									>
-										We found an existing Lingostack account for
-										this site — check your owner email to
-										move its subscription and word balance
-										here.
+										We found an existing Lingostack account
+										for this site — check your owner email
+										to move its subscription and word
+										balance here.
 									</Banner>
 								) }
 								{ connectionReady &&
@@ -305,7 +305,8 @@ function AccountAppInner() {
 																this site&apos;s
 																domain and
 																WordPress admin
-																email to Lingostack
+																email to
+																Lingostack
 																Cloud;
 																translation text
 																and provider
