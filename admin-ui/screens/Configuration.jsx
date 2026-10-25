@@ -178,7 +178,7 @@ export default function Configuration( {
 						disabled={ busy }
 						onClick={ connectAndSubmit }
 					>
-						Connect to LingoWP AI
+						Connect to Lingostack AI
 					</Button>
 				</InlineStack>
 			) : (

@@ -220,7 +220,7 @@ export default function BillingToken() {
 					Site token
 				</Text>
 				<Text as="span" tone="subdued">
-					Connects this site to LingoWP.
+					Connects this site to Lingostack.
 				</Text>
 				{ fetchError && (
 					<Banner
@@ -380,7 +380,7 @@ export default function BillingToken() {
 						<InlineStack align="space-between" blockAlign="center">
 							<BlockStack gap="100">
 								<Text as="span" tone="critical">
-									Disconnect from LingoWP Cloud
+									Disconnect from Lingostack Cloud
 								</Text>
 								<Text as="span" tone="subdued" variant="bodySm">
 									Disables AI translation, provider keys, and
@@ -451,7 +451,7 @@ export default function BillingToken() {
 			<Modal
 				open={ disconnectOpen }
 				onClose={ () => setDisconnectOpen( false ) }
-				title="Disconnect from LingoWP Cloud?"
+				title="Disconnect from Lingostack Cloud?"
 				primaryAction={ {
 					content: 'Disconnect',
 					destructive: true,

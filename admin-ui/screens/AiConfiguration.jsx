@@ -172,7 +172,7 @@ export default function AiConfiguration( {
 		}
 		onConfirm( {
 			title: `Remove your ${ providerLabel( provider ) } key?`,
-			body: 'You can add it again anytime. Languages currently using it fall back to the LingoWP model.',
+			body: 'You can add it again anytime. Languages currently using it fall back to the Lingostack model.',
 			actionLabel: 'Remove key',
 			destructive: true,
 			onConfirm: async () => {
@@ -232,7 +232,7 @@ export default function AiConfiguration( {
 				</Text>
 				<Text as="p" tone="subdued">
 					Bill translations to your own OpenAI or Anthropic account
-					instead of your LingoWP subscription.
+					instead of your Lingostack subscription.
 				</Text>
 				{ providerKeysError && (
 					<Banner
@@ -312,7 +312,7 @@ export default function AiConfiguration( {
 										)
 									}
 								>
-									Use the LingoWP model instead
+									Use the Lingostack model instead
 								</Button>
 							) }
 						</InlineStack>

@@ -42,9 +42,9 @@ class PermalinkNotice
 
         printf(
             '<div class="notice notice-warning"><p>%s <a href="%s">%s</a></p></div>',
-            esc_html__('LingoWP needs pretty permalinks for language-prefixed URLs. Your site is using “Plain” permalinks, so translated pages will not resolve.', 'lingowp'),
+            esc_html__('Lingostack needs pretty permalinks for language-prefixed URLs. Your site is using “Plain” permalinks, so translated pages will not resolve.', 'lingostack'),
             esc_url(admin_url('options-permalink.php')),
-            esc_html__('Open Permalink Settings', 'lingowp')
+            esc_html__('Open Permalink Settings', 'lingostack')
         );
     }
 }

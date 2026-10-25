@@ -281,7 +281,7 @@ class Switcher
             'hide_current'  => filter_var($args['hide_current'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'include'       => is_array($args['include'] ?? null) ? $args['include'] : null,
             'order'         => $args['order'] ?? 'settings',
-            'label'         => trim((string) ($args['label'] ?? '')) !== '' ? trim((string) $args['label']) : __('Language', 'lingowp'),
+            'label'         => trim((string) ($args['label'] ?? '')) !== '' ? trim((string) $args['label']) : __('Language', 'lingostack'),
             'id'            => trim((string) ($args['id'] ?? '')),
             'class'         => trim((string) ($args['class'] ?? '')),
             // Per-switcher design overrides (bg_color, border_radius, …), validated
@@ -335,7 +335,7 @@ class Switcher
             'floating'        => $settings['floating_position'],
             'floating_offset' => $settings['floating_offset'],
             'id'              => 'lingowp-floating-switcher',
-            'label'           => __('Language', 'lingowp'),
+            'label'           => __('Language', 'lingostack'),
         ]);
 
         echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the switcher template escapes every value

@@ -139,7 +139,7 @@ function AppInner() {
 						title={
 							step === 'add-language'
 								? 'Add languages'
-								: 'Finish setting up LingoWP'
+								: 'Finish setting up Lingostack'
 						}
 					>
 						{ step === 'onboarding' && state && (

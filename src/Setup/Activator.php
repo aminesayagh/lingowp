@@ -33,10 +33,10 @@ class Activator
             wp_die(
                 sprintf(
                     /* translators: %s is a comma-separated list of required PHP extensions. */
-                    esc_html__('LingoWP requires these PHP extensions: %s.', 'lingowp'),
+                    esc_html__('Lingostack requires these PHP extensions: %s.', 'lingostack'),
                     esc_html(implode(', ', $missing))
                 ),
-                esc_html__('LingoWP activation failed', 'lingowp'),
+                esc_html__('Lingostack activation failed', 'lingostack'),
                 ['back_link' => true]
             );
         }
@@ -49,7 +49,7 @@ class Activator
         } catch (SchemaFailure $failure) {
             wp_die(
                 esc_html($failure->getMessage()),
-                esc_html__('LingoWP activation failed', 'lingowp'),
+                esc_html__('Lingostack activation failed', 'lingostack'),
                 ['back_link' => true]
             );
         }

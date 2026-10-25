@@ -118,7 +118,7 @@ function InsightsAppInner() {
 													as="span"
 													variant="headingMd"
 												>
-													LingoWP
+													Lingostack
 												</Text>
 											</InlineStack>
 

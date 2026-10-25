@@ -33,7 +33,7 @@ export default function MigrationToast( { ready } ) {
 		if ( cfg.migration.migrated ) {
 			return null
 		}
-		content = `${ cfg.migration.label } translations found on this site. Import them into LingoWP.`
+		content = `${ cfg.migration.label } translations found on this site. Import them into Lingostack.`
 		action = { content: 'Migrate', tab: 'migration' }
 	} else {
 		const addon = ( addonsQ.data?.addons ?? [] ).find(
@@ -45,7 +45,7 @@ export default function MigrationToast( { ready } ) {
 		if ( ! addon ) {
 			return null
 		}
-		content = `${ addon.title } is available. Get the add-on to bring your translations into LingoWP.`
+		content = `${ addon.title } is available. Get the add-on to bring your translations into Lingostack.`
 		action = { content: 'Get the add-on', tab: 'integrations' }
 	}
 

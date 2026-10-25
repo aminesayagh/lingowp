@@ -60,7 +60,7 @@ final class AdminBarTranslateLink
 
         $bar->add_node([
             'id'    => 'lingowp-translate',
-            'title' => esc_html__('Translate with LingoWP', 'lingowp'),
+            'title' => esc_html__('Translate with Lingostack', 'lingostack'),
             'href'  => add_query_arg(array_map('rawurlencode', $args), admin_url('admin.php')),
         ]);
     }

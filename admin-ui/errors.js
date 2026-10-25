@@ -4,7 +4,7 @@
 // and what the user can do next.
 
 const MESSAGES = {
-	ERR_UNREACHABLE: "Couldn't connect to LingoWP. Try again in a moment.",
+	ERR_UNREACHABLE: "Couldn't connect to Lingostack. Try again in a moment.",
 	// Migration tab (served by a migration add-on, e.g. lingowp-translatepress).
 	ERR_MIGRATION_RUNNING:
 		'A migration is already running. Wait for it to finish.',
@@ -15,15 +15,15 @@ const MESSAGES = {
 	// WordPress-level failures, mapped in api.js — the plugin's REST routes
 	// never registered, the admin session lapsed, or PHP died mid-request.
 	ERR_ROUTE_MISSING:
-		"This part of LingoWP isn't responding. Deactivate and reactivate the plugin, then reload this page.",
+		"This part of Lingostack isn't responding. Deactivate and reactivate the plugin, then reload this page.",
 	ERR_SESSION_EXPIRED: 'Your session expired. Reload the page and try again.',
 	ERR_FORBIDDEN:
 		"You don't have permission to do that. Ask an administrator.",
 	ERR_HTTP_500:
 		'Your site hit an error handling that request. Check the PHP error log.',
 	ERR_ORIGIN_NOT_CONFIGURED:
-		"Couldn't connect to LingoWP. Try again in a moment.",
-	ERR_BACKEND: "Couldn't connect to LingoWP. Try again in a moment.",
+		"Couldn't connect to Lingostack. Try again in a moment.",
+	ERR_BACKEND: "Couldn't connect to Lingostack. Try again in a moment.",
 	ERR_INVALID_TOKEN: "Couldn't validate this connection. Contact support.",
 	ERR_NOT_FOUND: 'Not found. Refresh and try again.',
 	ERR_INVALID_PAYLOAD: "That request wasn't valid. Refresh and try again.",
@@ -66,18 +66,18 @@ const MESSAGES = {
 		'You already have a plan change scheduled for your next billing date.',
 	ERR_SUBSCRIPTION_REQUIRED: 'Subscribe to a plan before buying extra words.',
 	ERR_OWNER_EMAIL_TAKEN:
-		'That address already owns another LingoWP licence. Use a different one, or add this site from that account instead.',
+		'That address already owns another Lingostack licence. Use a different one, or add this site from that account instead.',
 	ERR_OWNER_EMAIL_REQUIRED:
 		'Set up an account owner before adding another site.',
 	ERR_SITES_LIMIT_REACHED: "You've used all the site slots on your plan.",
 	ERR_DOMAIN_CLAIMED:
-		'This domain is already registered on another LingoWP account. Contact support.',
+		'This domain is already registered on another Lingostack account. Contact support.',
 	ERR_ORDER_NOT_OWNED:
 		"This order doesn't belong to this site. Contact support.",
 	ERR_UNKNOWN_PACK:
 		"That word pack isn't available anymore. Refresh and try again.",
 	ERR_SITE_OVER_PLAN_LIMIT:
-		"This site is over your plan's site limit. Free a slot or upgrade from the LingoWP dashboard on one of your other sites.",
+		"This site is over your plan's site limit. Free a slot or upgrade from the Lingostack dashboard on one of your other sites.",
 	ERR_HOSTED_AI_UNAVAILABLE: 'Subscribe to a plan to use AI translation.',
 	ERR_INSUFFICIENT_AI_WORDS:
 		"You're out of AI words for this period. Buy a word pack to keep translating.",

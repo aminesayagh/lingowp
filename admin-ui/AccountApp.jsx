@@ -179,7 +179,7 @@ function AccountAppInner() {
 												/>
 											) }
 											<Text as="span" variant="headingMd">
-												LingoWP
+												Lingostack
 											</Text>
 										</InlineStack>
 
@@ -234,7 +234,7 @@ function AccountAppInner() {
 											setRecoveryAvailable( false )
 										}
 									>
-										We found an existing LingoWP account for
+										We found an existing Lingostack account for
 										this site — check your owner email to
 										move its subscription and word balance
 										here.
@@ -273,7 +273,7 @@ function AccountAppInner() {
 												) && (
 													<Box padding="500">
 														<Spinner
-															accessibilityLabel="Connecting to LingoWP"
+															accessibilityLabel="Connecting to Lingostack"
 															size="small"
 														/>
 													</Box>
@@ -290,7 +290,7 @@ function AccountAppInner() {
 																variant="headingMd"
 															>
 																Connect to
-																LingoWP Cloud
+																Lingostack Cloud
 															</Text>
 															<Text
 																as="p"
@@ -305,7 +305,7 @@ function AccountAppInner() {
 																this site&apos;s
 																domain and
 																WordPress admin
-																email to LingoWP
+																email to Lingostack
 																Cloud;
 																translation text
 																and provider
@@ -335,7 +335,7 @@ function AccountAppInner() {
 																	}
 																>
 																	Connect to
-																	LingoWP
+																	Lingostack
 																	Cloud
 																</Button>
 																{ cfg.cloud_terms_url && (

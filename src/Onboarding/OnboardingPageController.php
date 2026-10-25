@@ -67,8 +67,8 @@ final class OnboardingPageController
     public function addMenu(): void
     {
         $hook = add_menu_page(
-            __('LingoWP', 'lingowp'),
-            __('LingoWP', 'lingowp'),
+            __('Lingostack', 'lingostack'),
+            __('Lingostack', 'lingostack'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage'],
@@ -78,8 +78,8 @@ final class OnboardingPageController
 
         add_submenu_page(
             self::SLUG,
-            __('LingoWP', 'lingowp'),
-            __('Workspace', 'lingowp'),
+            __('Lingostack', 'lingostack'),
+            __('Workspace', 'lingostack'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
@@ -87,8 +87,8 @@ final class OnboardingPageController
 
         $insightsHook = self::INSIGHTS_ENABLED ? add_submenu_page(
             self::SLUG,
-            __('Insights', 'lingowp'),
-            __('Insights', 'lingowp'),
+            __('Insights', 'lingostack'),
+            __('Insights', 'lingostack'),
             self::CAPABILITY,
             self::INSIGHTS_SLUG,
             [$this, 'renderInsightsPage']
@@ -96,8 +96,8 @@ final class OnboardingPageController
 
         $accountHook = add_submenu_page(
             self::SLUG,
-            __('Account', 'lingowp'),
-            __('Account', 'lingowp'),
+            __('Account', 'lingostack'),
+            __('Account', 'lingostack'),
             self::CAPABILITY,
             self::ACCOUNT_SLUG,
             [$this, 'renderAccountPage']
@@ -126,7 +126,7 @@ final class OnboardingPageController
     public function renderPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'lingostack'));
         }
 
         echo '<div class="wrap"><div id="lingowp-app"></div></div>';
@@ -135,7 +135,7 @@ final class OnboardingPageController
     public function renderAccountPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'lingostack'));
         }
 
         echo '<div class="wrap"><div id="lingowp-account-app"></div></div>';
@@ -144,7 +144,7 @@ final class OnboardingPageController
     public function renderInsightsPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'lingostack'));
         }
 
         echo '<div class="wrap"><div id="lingowp-insights-app"></div></div>';
@@ -163,7 +163,7 @@ final class OnboardingPageController
         if (!is_readable($asset)) {
             add_action('admin_notices', static function (): void {
                 echo '<div class="notice notice-error"><p>'
-                    . esc_html__('LingoWP admin assets are not built. Run "npm install && npm run build" in the plugin.', 'lingowp')
+                    . esc_html__('Lingostack admin assets are not built. Run "npm install && npm run build" in the plugin.', 'lingostack')
                     . '</p></div>';
             });
             return;
@@ -241,6 +241,6 @@ final class OnboardingPageController
             )),
         ]);
 
-        wp_set_script_translations(self::HANDLE, 'lingowp', LINGOWP_DIR . 'languages');
+        wp_set_script_translations(self::HANDLE, 'lingostack', LINGOWP_DIR . 'languages');
     }
 }

@@ -357,7 +357,7 @@ final class CollectionsRestController
 
         return [[
             'id'             => 'ignored:all',
-            'label'          => __('Ignored', 'lingowp'),
+            'label'          => __('Ignored', 'lingostack'),
             'type'           => 'ignored',
             'preview_url'    => null,
             'preview_target' => 'admin',
