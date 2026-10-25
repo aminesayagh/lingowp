@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # The one delivery command. Runs every suite, then builds BOTH archives:
 #
-#   dist/lingowp-<v>.zip          WordPress.org submission. Comments intact for
+#   dist/lingostack-<v>.zip          WordPress.org submission. Comments intact for
 #                                 the reviewer, and it carries admin-ui/ plus the
 #                                 build config — Guideline 4 requires the source
 #                                 of the minified bundles either in the plugin or
 #                                 behind a public link, and this is the "in the
 #                                 plugin" half of that choice. Upload by hand.
-#   release/lingowp-<v>-client.zip  Direct download. Comments stripped, no admin
+#   release/lingostack-<v>-client.zip  Direct download. Comments stripped, no admin
 #                                 source: customers get neither the notes nor the
 #                                 build inputs. Copied to the backend's plugin/
 #                                 folder, and release/ doubles as the working copy
@@ -84,26 +84,26 @@ step "Client archive (release/)" env LINGOWP_STRIP_COMMENTS=1 "$ROOT_DIR/bin/bui
 # client zip to WordPress.org. An earlier submission was pended because the
 # readme pointed at a 404 instead of carrying the source, so this is checked
 # rather than remembered.
-WPORG_ZIP="$ROOT_DIR/dist/lingowp-${VERSION}.zip"
-CLIENT_ZIP="$RELEASE_DIR/lingowp-${VERSION}-client.zip"
+WPORG_ZIP="$ROOT_DIR/dist/lingostack-${VERSION}.zip"
+CLIENT_ZIP="$RELEASE_DIR/lingostack-${VERSION}-client.zip"
 # Listed into variables and matched with `case`, deliberately: piping into
 # `grep -q` under `set -o pipefail` reports a SUCCESSFUL match as a failure,
 # because grep exits on the first hit and unzip then dies of SIGPIPE.
 WPORG_ENTRIES="$(unzip -Z1 "$WPORG_ZIP")"
 CLIENT_ENTRIES="$(unzip -Z1 "$CLIENT_ZIP")"
 case "$WPORG_ENTRIES" in
-  *lingowp/admin-ui/*) ;;
+  *lingostack/admin-ui/*) ;;
   *) echo "The WordPress.org archive has no admin-ui/ — Guideline 4 needs it." >&2; exit 1 ;;
 esac
 case "$CLIENT_ENTRIES" in
-  *lingowp/admin-ui/*) echo "The client archive carries admin-ui/ — customers should not get it." >&2; exit 1 ;;
+  *lingostack/admin-ui/*) echo "The client archive carries admin-ui/ — customers should not get it." >&2; exit 1 ;;
 esac
 echo "==> Both archives verified: source in dist/, absent from release/."
 
 # The backend parses the version out of the filename with -(\d+(\.\d+)*)\.zip$
 # and serves the highest match; a name it cannot parse is silently skipped — so
 # the "-client" build is copied to the plain versioned name it expects.
-cp -f "$RELEASE_DIR/lingowp-${VERSION}-client.zip" "$ARTIFACT_DIR/lingowp-${VERSION}.zip"
+cp -f "$RELEASE_DIR/lingostack-${VERSION}-client.zip" "$ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Deployed: $ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Publish with: cd $(dirname "$ARTIFACT_DIR") && ./deploy/addons.sh"
 echo "==> WordPress.org archive ready to upload: $WPORG_ZIP"
@@ -152,4 +152,4 @@ fi
 git -C "$RELEASE_DIR" push origin HEAD
 git -C "$RELEASE_DIR" push origin "v${VERSION}"
 echo "==> Published v${VERSION}."
-echo "==> Attach $RELEASE_DIR/lingowp-${VERSION}-client.zip to the GitHub release by hand."
+echo "==> Attach $RELEASE_DIR/lingostack-${VERSION}-client.zip to the GitHub release by hand."
