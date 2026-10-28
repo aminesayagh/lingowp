@@ -22,8 +22,8 @@ final class PrivacyPolicyContent
 <p><em>Last updated: 27 August 2026</em></p>
 
 <h2>1. Operator and scope</h2>
-<p>Lingostack is operated by <strong>Mohamed Amine SAYAGH</strong>, an individual registered as an auto-entrepreneur in Morocco, at <strong>1 rue Abou Bakker El Wahrani, esc. B, étg. 3, appt. 17, La Villette H M, Casablanca, Morocco</strong>. Contact us at <strong>contact@lingowp.com</strong> or <strong>+212616137124</strong>. Full registration details appear in the Legal Notice.</p>
-<p>This policy covers the legacy service domain lingowp.com, account and support services, and data sent by the Lingostack WordPress plugin to our backend. The operator of a website using our plugin remains responsible for that website's own privacy information and processing.</p>
+<p>Linvara is operated by <strong>Mohamed Amine SAYAGH</strong>, an individual registered as an auto-entrepreneur in Morocco, at <strong>1 rue Abou Bakker El Wahrani, esc. B, étg. 3, appt. 17, La Villette H M, Casablanca, Morocco</strong>. Contact us at <strong>contact@lingowp.com</strong> or <strong>+212616137124</strong>. Full registration details appear in the Legal Notice.</p>
+<p>This policy covers the legacy service domain lingowp.com, account and support services, and data sent by the Linvara WordPress plugin to our backend. The operator of a website using our plugin remains responsible for that website's own privacy information and processing.</p>
 <p>We determine how account, payment-administration, support and security information is processed. When processing personal data in website content on a customer's instructions, we act as a processor, or a sub-processor if the customer is itself a processor. Public website text can contain personal data, including names and testimonials.</p>
 
 <h2>2. Information processed and its purpose</h2>
@@ -46,14 +46,14 @@ final class PrivacyPolicyContent
 <h2>3. Local features and external processing</h2>
 <p><strong>Local and manual translation.</strong> Translations and settings are stored in the customer's WordPress database. Manual editing does not send that edited text to our translation service. Account, licence, billing and support communications can still occur when AI is disabled; disabling AI does not disconnect the service account.</p>
 <p><strong>Browser-language detection.</strong> This feature runs locally on the customer's WordPress server. It compares the browser's Accept-Language header with enabled site languages. It does not call our backend or an AI service and does not transmit a text sample for detection. It is disabled by default and can be enabled by the website administrator. The URL's language prefix takes priority. Visitors do not have a separate plugin control for switching this feature off.</p>
-<p><strong>Lingostack-hosted AI.</strong> Text submitted for translation passes through our backend and the translation engine used to provide the service. An external AI service may process the request where used. Results return to the plugin for local storage and display.</p>
+<p><strong>Linvara-hosted AI.</strong> Text submitted for translation passes through our backend and the translation engine used to provide the service. An external AI service may process the request where used. Results return to the plugin for local storage and display.</p>
 <p><strong>BYOK.</strong> Bringing your own provider key does not bypass our backend. We receive the text, use your key to authorize the request and forward it to your selected provider under your provider account. Both the text needed for the request and the authorization credential reach that provider. Its charges, terms, settings and data practices also apply.</p>
 <p>BYOK keys are validated with the selected provider and stored encrypted in our database. The last four characters are stored separately for identification. A key is decrypted when needed for a provider request. Removing it deletes the active database record; it does not revoke the key with the provider or guarantee removal from any existing backups. You can revoke the key separately with its provider.</p>
 
 <h2>4. Translation content, logs and training</h2>
 <p>We do not store source text or translations in the translation service's application database or maintain a reusable backend translation memory. Aggregate word counts are recorded for usage and billing. The customer's WordPress installation stores its own translations.</p>
 <p><strong>Our current application writes submitted source strings and translations to server logs. Content can therefore remain after a translation request has finished.</strong> Log retention and access depend on the operational logging system; we do not currently specify a fixed deletion deadline for those copies. Disabling future content logging would not itself erase existing logs.</p>
-<p>Lingostack does not use submitted translation text to train or fine-tune models, build training datasets, or evaluate models for general service improvement. Processing to deliver a translation or investigate a specific service problem is separate from model training. This commitment concerns our own use; external AI services apply their own contractual terms, account settings and retention rules. We do not promise zero retention or a particular training policy on another provider's behalf.</p>
+<p>Linvara does not use submitted translation text to train or fine-tune models, build training datasets, or evaluate models for general service improvement. Processing to deliver a translation or investigate a specific service problem is separate from model training. This commitment concerns our own use; external AI services apply their own contractual terms, account settings and retention rules. We do not promise zero retention or a particular training policy on another provider's behalf.</p>
 
 <h2>5. Legal bases, recipients and international processing</h2>
 <p>We process information to provide requested services, administer purchases, answer enquiries, protect the service and meet applicable legal obligations. We do not subscribe support contacts to marketing simply because they contacted us.</p>
@@ -74,7 +74,7 @@ final class PrivacyPolicyContent
 <tr><td>Abuse-prevention records</td><td>The rate-limit calculation reads a one-hour window; stored emails, domains, IP addresses and request details have no automatic purge.</td></tr>
 <tr><td>Billing and account-linked usage</td><td>No automatic retention limit or complete account-deletion function is currently implemented. Records needed by law remain subject to the applicable obligations.</td></tr>
 <tr><td>Support and update requests</td><td>No automatic deletion period is implemented. Stopping updates does not itself erase the original request.</td></tr>
-<tr><td>Translation-content and other technical logs</td><td>Retention depends on the logging system; no fixed maximum period is currently specified by Lingostack.</td></tr>
+<tr><td>Translation-content and other technical logs</td><td>Retention depends on the logging system; no fixed maximum period is currently specified by Linvara.</td></tr>
 <tr><td>Backups, if created</td><td>No verified backup-retention or backup-erasure timeframe is currently specified. Deletion from an active system does not establish that every backup copy has been erased.</td></tr>
 </tbody>
 </table>
@@ -100,6 +100,6 @@ final class PrivacyPolicyContent
 <p>You may complain to Morocco's <a href="https://www.cndp.ma/">CNDP</a> or another competent supervisory authority. Changes to this policy will be dated, and material changes will be communicated where required.</p>
 HTML;
 
-        wp_add_privacy_policy_content('Lingostack', wp_kses_post($content));
+        wp_add_privacy_policy_content('Linvara', wp_kses_post($content));
     }
 }

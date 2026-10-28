@@ -236,7 +236,7 @@ final class GettextTranslationUnitsService
             return false;
         }
 
-        if (! rename($staging, $target)) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is Lingostack's own WP_LANG_DIR/lingowp folder (see GettextPoImporter::baseDir()).
+        if (! rename($staging, $target)) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is Linvara's own WP_LANG_DIR/lingowp folder (see GettextPoImporter::baseDir()).
             return false;
         }
 

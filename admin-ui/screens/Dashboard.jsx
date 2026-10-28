@@ -564,7 +564,7 @@ export default function Dashboard( {
 	const providerMenuItems = []
 	if ( hasSubscription && ! billingBlocked && ownKeyProviders.length > 0 ) {
 		providerMenuItems.push( {
-			content: 'Use Lingostack AI model',
+			content: 'Use Linvara AI model',
 			disabled:
 				! langsReady || allLangsOn( 'internal' ) || !! applyingProvider,
 			onAction: () => {
@@ -591,7 +591,7 @@ export default function Dashboard( {
 					window.location.assign( `${ cfg.account_url }&tab=token` ),
 			},
 			{
-				content: 'Subscribe to Lingostack',
+				content: 'Subscribe to Linvara',
 				onAction: () => window.location.assign( cfg.account_url ),
 			}
 		)
@@ -879,7 +879,7 @@ export default function Dashboard( {
 		if ( ! ai.available ) {
 			showToast(
 				'warning',
-				ai.error || 'AI unavailable — connect Lingostack to enable it.'
+				ai.error || 'AI unavailable — connect Linvara to enable it.'
 			)
 			return
 		}
@@ -958,7 +958,7 @@ export default function Dashboard( {
 		if ( ! ai.available ) {
 			showToast(
 				'warning',
-				ai.error || 'AI unavailable — connect Lingostack to enable it.'
+				ai.error || 'AI unavailable — connect Linvara to enable it.'
 			)
 			return
 		}
@@ -999,7 +999,7 @@ export default function Dashboard( {
 		if ( ! ai.available ) {
 			showToast(
 				'warning',
-				ai.error || 'AI unavailable — connect Lingostack to enable it.'
+				ai.error || 'AI unavailable — connect Linvara to enable it.'
 			)
 			return
 		}
@@ -1041,7 +1041,7 @@ export default function Dashboard( {
 			{ code: lang.code, ai_model: 'internal' },
 			{
 				onSuccess: () =>
-					showToast( 'success', 'Now using the Lingostack model.' ),
+					showToast( 'success', 'Now using the Linvara model.' ),
 			}
 		)
 	}
@@ -2297,7 +2297,7 @@ export default function Dashboard( {
 											/>
 										) }
 										<Text as="span" variant="headingMd">
-											Lingostack
+											Linvara
 										</Text>
 									</InlineStack>
 									<Popover
@@ -2857,7 +2857,7 @@ export default function Dashboard( {
 						{ showNeedsOnboarding && (
 							<Box padding="500">
 								<EmptyState
-									heading="Finish setting up Lingostack"
+									heading="Finish setting up Linvara"
 									action={ {
 										content: 'Continue setup',
 										onAction: onStartOnboarding,

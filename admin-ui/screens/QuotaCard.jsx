@@ -10,7 +10,7 @@ const cfg = window.LingoWP || {}
 // disconnected) it says so — the plugin still works offline, only AI actions
 // are disabled.
 function unavailableCopy() {
-	return 'AI is off — reconnect Lingostack in Settings to enable AI translation.'
+	return 'AI is off — reconnect Linvara in Settings to enable AI translation.'
 }
 
 export default function QuotaCard( {

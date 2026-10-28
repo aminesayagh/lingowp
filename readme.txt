@@ -1,50 +1,50 @@
-=== Lingostack – Multilingual & AI Translation ===
+=== Linvara – Multilingual & AI Translation ===
 Contributors: masayagh
 Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.2
+Stable tag: 1.6.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Translate WordPress content locally, with optional AI-assisted translation through Lingostack Cloud.
+Translate WordPress content locally, with optional AI-assisted translation through Linvara Cloud.
 
 == Description ==
 
-Lingostack makes a WordPress site multilingual without duplicating it. Your posts, pages, and settings stay exactly as they are — the single source of truth — and Lingostack stores each translation next to the original, then swaps it in when a visitor reads the site in another language. Everything below works entirely on your own server, with no account and no external service.
+Linvara makes a WordPress site multilingual without duplicating it. Your posts, pages, and settings stay exactly as they are — the single source of truth — and Linvara stores each translation next to the original, then swaps it in when a visitor reads the site in another language. Everything below works entirely on your own server, with no account and no external service.
 
-= What makes Lingostack different =
+= What makes Linvara different =
 
-* **No duplicate posts.** Most multilingual plugins clone every post per language, so you end up managing three copies of every page, menu, and category. Lingostack keeps one canonical post and stores translations in its own tables keyed to the original text. Delete the original and its translations go with it; edit the original and the changed sentences are flagged for re-translation while the rest stay translated.
-* **Finds translatable text for you, across everything.** Instead of asking you to register strings, Lingostack discovers them: post titles and content (block by block, table cell by table cell), categories and tags, custom fields (including nested and repeater-style values), author bios, site title and tagline, widgets, theme customizer text, text stored inside block settings such as Search button labels and Navigation items, plus theme-rendered text that appears on the page but lives in no post at all. It all lands on one board, in one place.
+* **No duplicate posts.** Most multilingual plugins clone every post per language, so you end up managing three copies of every page, menu, and category. Linvara keeps one canonical post and stores translations in its own tables keyed to the original text. Delete the original and its translations go with it; edit the original and the changed sentences are flagged for re-translation while the rest stay translated.
+* **Finds translatable text for you, across everything.** Instead of asking you to register strings, Linvara discovers them: post titles and content (block by block, table cell by table cell), categories and tags, custom fields (including nested and repeater-style values), author bios, site title and tagline, widgets, theme customizer text, text stored inside block settings such as Search button labels and Navigation items, plus theme-rendered text that appears on the page but lives in no post at all. It all lands on one board, in one place.
 * **Plugin and theme strings included.** The text your theme and plugins output through WordPress's translation functions gets its own board. Fetch WordPress.org's existing language pack for a plugin and translate only the strings it missed, import and export standard PO files, and see how much of each plugin is still untranslated — no separate translation-editor plugin needed.
 * **An editor that cannot break your markup.** Links, bold text, and shortcodes inside a sentence become numbered placeholders while you translate, so word order is free but the tags and shortcodes are always rebuilt from the original. A translation with a missing or misplaced placeholder is rejected before it saves.
 * **Translate once, apply everywhere.** Translations are keyed to the text itself, so a sentence that appears in ten places is translated once.
 * **Language-aware frontend, done in the plugin.** Language-prefixed URLs, translated internal links, `hreflang` tags, the page's `lang` and `dir` attributes for RTL languages, localized dates and numbers, optional browser-language and cookie-based redirects, and a per-language fallback chain so a missing translation shows the next best language instead of nothing.
 * **A switcher you can drop anywhere.** A dropdown, inline, or list switcher with flag icons, available as a shortcode, a template function, and a filterable link array for building your own. The dropdown works without JavaScript.
-* **AI is optional and never required.** If you connect to Lingostack Cloud, you can translate with Lingostack's hosted models or bring your own OpenAI or Anthropic key. The plugin itself contains no translation engine and never contacts any service until an administrator chooses to connect.
+* **AI is optional and never required.** If you connect to Linvara Cloud, you can translate with Linvara's hosted models or bring your own OpenAI or Anthropic key. The plugin itself contains no translation engine and never contacts any service until an administrator chooses to connect.
 
 Add-ons for Elementor, WooCommerce, Advanced Custom Fields, and the major SEO plugins extend discovery to their content through public hooks; they are separate plugins, not bundled here.
 
-Connecting to Lingostack Cloud is optional and never automatic. During setup, an administrator chooses "Connect to Lingostack Cloud" or "Continue without connecting"; the connection can also be made later from the Workspace or Account page. Connecting enables AI translation, provider-key management, licensing, billing, and account management. An administrator can fully disconnect at any time from the Account page's Danger zone; disconnecting disables all cloud features until reconnected, and does not affect any manually translated content.
+Connecting to Linvara Cloud is optional and never automatic. During setup, an administrator chooses "Connect to Linvara Cloud" or "Continue without connecting"; the connection can also be made later from the Workspace or Account page. Connecting enables AI translation, provider-key management, licensing, billing, and account management. An administrator can fully disconnect at any time from the Account page's Danger zone; disconnecting disables all cloud features until reconnected, and does not affect any manually translated content.
 
 The Insights screen is an intentional preview of a possible future feature. Opening it does not submit demand data. For a connected site, its “Notify me at launch” button voluntarily submits the fixed product-interest code `feature_interest:translangs_insights` through the support suggestion service. The plugin does not include an email address in that request; the service associates it with the authenticated license owner, falling back to the site administrator email.
 
 = External services =
 
-Lingostack Cloud is hosted at https://cloud.lingowp.com and provides optional account, AI translation, provider-key, billing, and authenticated support-suggestion services.
+Linvara Cloud is hosted at https://cloud.lingowp.com and provides optional account, AI translation, provider-key, billing, and authenticated support-suggestion services.
 
-When an administrator clicks "Connect to Lingostack Cloud", the site domain and WordPress administrator email address are sent to create the site connection. No request is made to Lingostack Cloud before that click, other than an unauthenticated reachability check during setup that sends no site data. AI translation requests send the selected source text, source and target languages, and grouping identifiers, and only when an administrator explicitly requests AI translation. Provider keys entered by an administrator are sent for provider validation and encrypted storage. Billing and account actions send the information necessary to perform the requested action. Clicking “Notify me at launch” sends the legacy backend code `feature_interest:translangs_insights` with the site's existing authentication and domain headers. It does not send an email address in the request body. An administrator can disconnect entirely at any time from the Account page's Danger zone, which stops all further requests to Lingostack Cloud until reconnected.
+When an administrator clicks "Connect to Linvara Cloud", the site domain and WordPress administrator email address are sent to create the site connection. No request is made to Linvara Cloud before that click, other than an unauthenticated reachability check during setup that sends no site data. AI translation requests send the selected source text, source and target languages, and grouping identifiers, and only when an administrator explicitly requests AI translation. Provider keys entered by an administrator are sent for provider validation and encrypted storage. Billing and account actions send the information necessary to perform the requested action. Clicking “Notify me at launch” sends the legacy backend code `feature_interest:translangs_insights` with the site's existing authentication and domain headers. It does not send an email address in the request body. An administrator can disconnect entirely at any time from the Account page's Danger zone, which stops all further requests to Linvara Cloud until reconnected.
 
-Local manual translation works fully without Lingostack Cloud; disconnecting does not affect it.
+Local manual translation works fully without Linvara Cloud; disconnecting does not affect it.
 
-Lingostack Cloud Terms of Service: https://www.lingowp.com/legal/terms-of-service/
-Lingostack Cloud Privacy Policy: https://www.lingowp.com/legal/privacy-policy/
+Linvara Cloud Terms of Service: https://www.lingowp.com/legal/terms-of-service/
+Linvara Cloud Privacy Policy: https://www.lingowp.com/legal/privacy-policy/
 Refunds policy: https://www.lingowp.com/legal/refunds-policy/
 Legal notice: https://www.lingowp.com/legal/legal-notice/
 
-Lingostack can also contact WordPress.org language-pack APIs when an administrator explicitly requests an available translation package for an installed theme or plugin.
+Linvara can also contact WordPress.org language-pack APIs when an administrator explicitly requests an available translation package for an installed theme or plugin.
 
 = Human-readable source =
 
@@ -60,23 +60,23 @@ That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` 
 == Installation ==
 
 1. Upload the `lingowp` folder to `/wp-content/plugins/`, or install it through the WordPress Plugins screen.
-2. Activate Lingostack.
-3. Open Lingostack in wp-admin and choose the source and target languages.
-4. Choose whether to connect to Lingostack Cloud (for AI translation, billing, and account features) or continue without connecting. You can connect later from the Workspace or Account page, and disconnect anytime from Account → Danger zone.
+2. Activate Linvara.
+3. Open Linvara in wp-admin and choose the source and target languages.
+4. Choose whether to connect to Linvara Cloud (for AI translation, billing, and account features) or continue without connecting. You can connect later from the Workspace or Account page, and disconnect anytime from Account → Danger zone.
 
 == Frequently Asked Questions ==
 
-= Does Lingostack require a cloud account? =
+= Does Linvara require a cloud account? =
 
-No. Local manual translation works fully without using any Lingostack Cloud feature. The site never connects on its own: an administrator chooses to connect during setup or later from the Workspace or Account page, and can fully disconnect at any time from the Account page.
+No. Local manual translation works fully without using any Linvara Cloud feature. The site never connects on its own: an administrator chooses to connect during setup or later from the Workspace or Account page, and can fully disconnect at any time from the Account page.
 
-= When is content sent to Lingostack Cloud? =
+= When is content sent to Linvara Cloud? =
 
-The site domain and administrator email are sent only when an administrator clicks "Connect to Lingostack Cloud". Translation text is sent only when an administrator explicitly requests AI translation. An administrator can disconnect entirely at any time from the Account page's Danger zone.
+The site domain and administrator email are sent only when an administrator clicks "Connect to Linvara Cloud". Translation text is sent only when an administrator explicitly requests AI translation. An administrator can disconnect entirely at any time from the Account page's Danger zone.
 
-= How are Lingostack add-ons (Elementor, WooCommerce, ACF, SEO) installed? =
+= How are Linvara add-ons (Elementor, WooCommerce, ACF, SEO) installed? =
 
-Like any other plugin, by you, through WordPress's own Plugins screen. Account → Integrations only shows which add-ons your plan includes for the plugins active on your site and which are already installed. Free migration add-ons (for sites moving from another translation plugin) show a Download link to a zip you then upload under Plugins → Add New yourself. Lingostack itself never downloads, installs, or updates any code.
+Like any other plugin, by you, through WordPress's own Plugins screen. Account → Integrations only shows which add-ons your plan includes for the plugins active on your site and which are already installed. Free migration add-ons (for sites moving from another translation plugin) show a Download link to a zip you then upload under Plugins → Add New yourself. Linvara itself never downloads, installs, or updates any code.
 
 = Does the Insights preview track visitors? =
 
@@ -84,7 +84,7 @@ No. The preview contains illustrative placeholders. On a connected site, clickin
 
 == For developers ==
 
-Lingostack exposes a small template API for building your own language switcher.
+Linvara exposes a small template API for building your own language switcher.
 
 `lingowp_get_language_links( array $args = [] )` returns the current page's URL
 in every enabled language, as an array of rows with keys `code`, `slug`, `url`
@@ -120,13 +120,13 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 
 == Privacy ==
 
-Lingostack adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
+Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
 
-= 1.6.2 =
+= 1.6.3 =
 
-* Renamed from LingoWP to Lingostack. Settings, translations and add-ons carry over unchanged.
+* Renamed from LingoWP to Linvara. Settings, translations and add-ons carry over unchanged.
 
 = 1.6.1 =
 
@@ -153,7 +153,7 @@ Lingostack adds suggested disclosure text to WordPress's Privacy Policy Guide. S
 
 = 1.4.1 =
 
-* Connecting to Lingostack Cloud is now an explicit choice during setup. The plugin contacts no external service until an administrator connects.
+* Connecting to Linvara Cloud is now an explicit choice during setup. The plugin contacts no external service until an administrator connects.
 * Plugin and theme translations are written to their own `wp-content/languages/lingowp/` folder, so a WordPress language-pack update can no longer overwrite them. They are removed when the plugin is deleted.
 * Translated text is now sanitised on output in every context, matching what WordPress applies to post content.
 * Uses WordPress 6.9's template enhancement output buffer where it is available, falling back to the plugin's own buffer otherwise.

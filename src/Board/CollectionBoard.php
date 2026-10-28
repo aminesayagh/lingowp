@@ -54,7 +54,7 @@ final class CollectionBoard
         if ($option['total'] > 0) {
             $collections[] = [
                 'id'             => 'option:site',
-                'label'          => __('Site settings', 'lingostack'),
+                'label'          => __('Site settings', 'linvara'),
                 'type'           => 'site_settings',
                 'preview_url'    => admin_url('options-general.php'),
                 'preview_target' => 'admin',
@@ -67,7 +67,7 @@ final class CollectionBoard
         if ($userBios['total'] > 0) {
             $collections[] = [
                 'id'             => 'user:bios',
-                'label'          => __('Author bios', 'lingostack'),
+                'label'          => __('Author bios', 'linvara'),
                 'type'           => 'author_bios',
                 'preview_url'    => admin_url('users.php'),
                 'preview_target' => 'admin',
@@ -125,7 +125,7 @@ final class CollectionBoard
 
             $row = [
                 'id'             => 'content:' . $pid,
-                'label'          => $c['post_title'] !== '' ? $c['post_title'] : __('(no title)', 'lingostack'),
+                'label'          => $c['post_title'] !== '' ? $c['post_title'] : __('(no title)', 'linvara'),
                 'type'           => $isFront ? 'page' : $this->uxType($c['post_type']),
                 'total'          => $c['total'],
                 'translated'     => $c['translated'],
@@ -154,7 +154,7 @@ final class CollectionBoard
         if ($mediaTotals['total'] > 0) {
             $collections[] = [
                 'id'             => 'media:all',
-                'label'          => __('Media', 'lingostack'),
+                'label'          => __('Media', 'linvara'),
                 'type'           => 'media',
                 'preview_url'    => admin_url('upload.php'),
                 'preview_target' => 'admin',
@@ -199,7 +199,7 @@ final class CollectionBoard
         if ($html['total'] > 0) {
             $collections[] = [
                 'id'             => 'html:all',
-                'label'          => __('Template content', 'lingostack'),
+                'label'          => __('Template content', 'linvara'),
                 'type'           => 'html',
                 'preview_url'    => null,
                 'preview_target' => 'frontend',

@@ -141,7 +141,7 @@ final class SourceLanguageTransition
             '<div class="notice notice-info is-dismissible"><p>%s</p></div>',
             sprintf(
                 /* translators: 1: previous source locale (now a target), 2: new source locale */
-                esc_html__('Lingostack: source language switched from %1$s to %2$s. %1$s is now a target language seeded with your previous content; any existing %2$s translations are preserved but no longer shown as a target.', 'lingostack'),
+                esc_html__('Linvara: source language switched from %1$s to %2$s. %1$s is now a target language seeded with your previous content; any existing %2$s translations are preserved but no longer shown as a target.', 'linvara'),
                 esc_html($from),
                 esc_html($to)
             )

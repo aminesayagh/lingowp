@@ -83,7 +83,7 @@ export default function MigrationTab() {
 						{ `Migrate from ${ label }` }
 					</Text>
 					<Text as="p" tone="subdued">
-						{ `Bring your ${ label } translations into Lingostack, then disable ${ label } so only Lingostack translates your site. Its data is kept.` }
+						{ `Bring your ${ label } translations into Linvara, then disable ${ label } so only Linvara translates your site. Its data is kept.` }
 					</Text>
 				</BlockStack>
 
@@ -203,7 +203,7 @@ function Outcome( { state, summary, recorded, blocked, counting } ) {
 			`${ totals.conflicts } with conflicting translations`,
 		totals.mismatch > 0 && `${ totals.mismatch } with different formatting`,
 		totals.failed_checks > 0 &&
-			`${ totals.failed_checks } failing Lingostack's checks`,
+			`${ totals.failed_checks } failing Linvara's checks`,
 		totals.incomplete > 0 &&
 			`${ totals.incomplete } only partly translated`,
 		...languages

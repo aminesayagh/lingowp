@@ -21,7 +21,7 @@
 #                                         repository's).
 set -euo pipefail
 
-PLUGIN_SLUG="lingostack"
+PLUGIN_SLUG="linvara"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/lingowp.php" | head -n 1)"
 BUILD_DIR="$(mktemp -d)"

@@ -179,7 +179,7 @@ function AccountAppInner() {
 												/>
 											) }
 											<Text as="span" variant="headingMd">
-												Lingostack
+												Linvara
 											</Text>
 										</InlineStack>
 
@@ -234,10 +234,10 @@ function AccountAppInner() {
 											setRecoveryAvailable( false )
 										}
 									>
-										We found an existing Lingostack account
-										for this site — check your owner email
-										to move its subscription and word
-										balance here.
+										We found an existing Linvara account for
+										this site — check your owner email to
+										move its subscription and word balance
+										here.
 									</Banner>
 								) }
 								{ connectionReady &&
@@ -273,7 +273,7 @@ function AccountAppInner() {
 												) && (
 													<Box padding="500">
 														<Spinner
-															accessibilityLabel="Connecting to Lingostack"
+															accessibilityLabel="Connecting to Linvara"
 															size="small"
 														/>
 													</Box>
@@ -290,7 +290,7 @@ function AccountAppInner() {
 																variant="headingMd"
 															>
 																Connect to
-																Lingostack Cloud
+																Linvara Cloud
 															</Text>
 															<Text
 																as="p"
@@ -305,8 +305,7 @@ function AccountAppInner() {
 																this site&apos;s
 																domain and
 																WordPress admin
-																email to
-																Lingostack
+																email to Linvara
 																Cloud;
 																translation text
 																and provider
@@ -336,7 +335,7 @@ function AccountAppInner() {
 																	}
 																>
 																	Connect to
-																	Lingostack
+																	Linvara
 																	Cloud
 																</Button>
 																{ cfg.cloud_terms_url && (

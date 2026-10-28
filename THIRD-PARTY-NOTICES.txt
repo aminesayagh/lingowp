@@ -1,13 +1,13 @@
 # Third-party notices
 
-Lingostack includes or compiles code and assets from third-party projects. The
+Linvara includes or compiles code and assets from third-party projects. The
 release archive retains the license files shipped by Composer dependencies in
 `vendor/`. JavaScript dependency metadata and license texts are available from
 the human-readable source repository and its lockfile.
 
 ## Runtime PHP packages
 
-- Action Scheduler by Automattic — GPL-3.0-or-later license. Lingostack is
+- Action Scheduler by Automattic — GPL-3.0-or-later license. Linvara is
   GPL-2.0-or-later, which permits the combination; the distributed whole is
   therefore effectively GPL-3.0-or-later. The package is bundled under
   `vendor/woocommerce/action-scheduler/` and loaded by
@@ -23,7 +23,7 @@ the human-readable source repository and its lockfile.
 
 - Shopify Polaris, Polaris Icons, and Polaris Tokens — Shopify's Polaris license.
   That license restricts use to interfaces that integrate with or interoperate
-  with Shopify software or services. Lingostack intentionally retains Polaris;
+  with Shopify software or services. Linvara intentionally retains Polaris;
   marketplace acceptance of this dependency is an acknowledged release risk.
 - TanStack Query and TanStack Virtual — MIT license.
 - Motion — MIT license.

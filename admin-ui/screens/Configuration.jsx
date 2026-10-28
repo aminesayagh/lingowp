@@ -178,7 +178,7 @@ export default function Configuration( {
 						disabled={ busy }
 						onClick={ connectAndSubmit }
 					>
-						Connect to Lingostack AI
+						Connect to Linvara AI
 					</Button>
 				</InlineStack>
 			) : (
