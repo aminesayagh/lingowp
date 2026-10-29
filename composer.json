@@ -7,8 +7,8 @@
 	"prefer-stable": true,
 	"require": {
 		"php": ">=7.4",
-		"masterminds/html5": "^2.10",
-		"woocommerce/action-scheduler": "^3.9",
+		"masterminds/html5": "^2.12",
+		"woocommerce/action-scheduler": "^4.2",
 		"gettext/php-scanner": "^2.0"
 	},
 	"require-dev": {
