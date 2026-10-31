@@ -106,10 +106,7 @@ class SwitcherSettingsRestController
                 ])
                 : '';
 
-            ob_start();
-            SwitcherSettings::printHeadStyles();
-
-            return [$html, $floating, (string) ob_get_clean()];
+            return [$html, $floating, SwitcherSettings::headCss()];
         });
 
         return new \WP_REST_Response([

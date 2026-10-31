@@ -390,13 +390,14 @@ function PreviewFrame( { preview } ) {
 		return `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="${ css }">
 <style>html,body{height:100%;margin:0;overflow:hidden}body{box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:24px;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#fff}#lp-root{display:contents}.lingowp-switcher--full{width:100%}</style>
-</head><body><div id="lp-css" hidden></div><div id="lp-root"></div><div id="lp-floating"></div>
+<style id="lp-css"></style>
+</head><body><div id="lp-root"></div><div id="lp-floating"></div>
 <script src="${ js }"></script>
 <script>
 document.addEventListener('click',function(e){if(e.target.closest('a')){e.preventDefault()}},true);
 window.addEventListener('message',function(e){
 	if(e.source!==window.parent||!e.data||e.data.type!=='lingowp-preview'){return}
-	document.getElementById('lp-css').innerHTML=e.data.css;
+	document.getElementById('lp-css').textContent=e.data.css;
 	var root=document.getElementById('lp-root');
 	root.innerHTML=e.data.html;
 	var floating=document.getElementById('lp-floating');

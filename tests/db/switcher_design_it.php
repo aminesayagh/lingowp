@@ -52,13 +52,10 @@ test_begin();
 
 delete_option(SwitcherSettings::OPTION); // start from "nothing saved" (rolled back)
 
-/** What printHeadStyles() writes into <head>. */
+/** The CSS enqueueHeadStyles() attaches inline in <head> (plain CSS, no tags). */
 function design_head(): string
 {
-    ob_start();
-    SwitcherSettings::printHeadStyles();
-
-    return (string) ob_get_clean();
+    return SwitcherSettings::headCss();
 }
 
 /** A REST call as the current user; returns [status, data]. */
@@ -124,7 +121,7 @@ SwitcherSettings::update(['bg_color' => '#123456', 'border_radius' => '8', 'text
 $head = design_head();
 test_ok(
     'saved values printed once as variables on .lingowp-switcher',
-    str_contains($head, '<style id="lingowp-switcher-settings">.lingowp-switcher{--lingowp-switcher-bg:#123456;--lingowp-switcher-radius:8px}</style>'),
+    str_contains($head, '.lingowp-switcher{--lingowp-switcher-bg:#123456;--lingowp-switcher-radius:8px}'),
     $head
 );
 test_ok('an invalid saved value is dropped', !str_contains($head, 'nope') && !str_contains($head, '--lingowp-switcher-text:'), $head);
@@ -175,12 +172,19 @@ test_ok('no overrides -> no style attribute at all', design_nav_style($switcher-
 test_section('4. Custom CSS');
 
 SwitcherSettings::update(['custom_css' => '.lingowp-switcher{letter-spacing:1px}', 'custom_css_enabled' => false], true);
-test_ok('saved but disabled -> not printed', !str_contains(design_head(), 'lingowp-switcher-custom-css'), design_head());
+test_ok('saved but disabled -> not printed', !str_contains(design_head(), 'letter-spacing'), design_head());
 
 SwitcherSettings::update(['custom_css' => '.lingowp-switcher > a{letter-spacing:1px}</style><script>alert(1)</script>', 'custom_css_enabled' => true], true);
 $head = design_head();
-test_ok('enabled -> printed in its own <style>', str_contains($head, '<style id="lingowp-switcher-custom-css">.lingowp-switcher > a{letter-spacing:1px}'), $head);
-test_ok('tags are stripped: it cannot close <style> or open <script>', !str_contains($head, '<script') && substr_count($head, '</style>') === 1 + (int) str_contains($head, 'lingowp-switcher-settings'), $head);
+test_ok('enabled -> printed', str_contains($head, '.lingowp-switcher > a{letter-spacing:1px}'), $head);
+test_ok('tags are stripped: it cannot close <style> or open <script>', !str_contains($head, '<'), $head);
+
+// Through the enqueue API, never a hand-printed <style> (WordPress.org review).
+SwitcherSettings::enqueueHeadStyles();
+$inline = implode("\n", (array) wp_styles()->get_data(SwitcherSettings::STYLE_HANDLE, 'after'));
+test_ok('enqueued as an inline style on its own handle', wp_style_is(SwitcherSettings::STYLE_HANDLE, 'enqueued') && str_contains($inline, 'letter-spacing:1px'), $inline);
+wp_dequeue_style(SwitcherSettings::STYLE_HANDLE);
+wp_deregister_style(SwitcherSettings::STYLE_HANDLE);
 
 $before = SwitcherSettings::get()['custom_css'];
 SwitcherSettings::update(['custom_css' => 'body{display:none}'], false);

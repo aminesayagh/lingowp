@@ -363,29 +363,53 @@ class SwitcherSettings
         return implode(';', $declarations);
     }
 
+    /** Style handle the design + custom CSS are attached to, inline. */
+    public const STYLE_HANDLE = 'lingowp-switcher-design';
+
     public static function register(): void
     {
-        // After the switcher stylesheet (wp_print_styles runs at 8), so custom
-        // CSS can override it; before WordPress's own Additional CSS (101).
-        add_action('wp_head', [self::class, 'printHeadStyles'], 100);
+        // Priority 100: enqueued after the theme's styles (default 10), so
+        // custom CSS can override them as well as the switcher stylesheet;
+        // still printed before WordPress's own Additional CSS (wp_head 101).
+        add_action('wp_enqueue_scripts', [self::class, 'enqueueHeadStyles'], 100);
     }
 
-    /** The saved design as CSS variables, then the custom CSS — only what is set. */
-    public static function printHeadStyles(): void
+    /**
+     * headCss() through the enqueue API (WordPress.org guideline: no
+     * hand-printed <style> tags). A file-less handle is WordPress's documented
+     * way to carry inline CSS of its own.
+     */
+    public static function enqueueHeadStyles(): void
+    {
+        $css = self::headCss();
+        if ($css === '') {
+            return;
+        }
+
+        wp_register_style(self::STYLE_HANDLE, false, [], LINGOWP_VERSION);
+        wp_add_inline_style(self::STYLE_HANDLE, $css);
+        wp_enqueue_style(self::STYLE_HANDLE);
+    }
+
+    /** The saved design as CSS variables, then the custom CSS — only what is set. Plain CSS, no tags. */
+    public static function headCss(): string
     {
         $settings  = self::get();
         $variables = self::cssVariables($settings['design']);
+        $css       = [];
 
         if ($variables !== '') {
             // Every value matched sanitizeValue()'s allow-list: no ; { } < or quotes.
-            echo '<style id="lingowp-switcher-settings">.lingowp-switcher{' . $variables . "}</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- allow-listed CSS values, see sanitizeValue()
+            $css[] = '.lingowp-switcher{' . $variables . '}';
         }
 
         if ($settings['custom_css_enabled'] && trim($settings['custom_css']) !== '') {
             // Same treatment as WordPress's own Additional CSS (wp_custom_css_cb):
             // tags stripped, so the CSS can never close the <style> element.
-            echo '<style id="lingowp-switcher-custom-css">' . wp_strip_all_tags($settings['custom_css']) . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSS context; tags stripped like wp_custom_css_cb()
+            $css[] = wp_strip_all_tags($settings['custom_css']);
         }
+
+        return implode("\n", $css);
     }
 
     // ------------------------------------------------------------------
