@@ -12,7 +12,7 @@ use LingoWP\Database\TranslationMemorySchema;
  * self-service diagnosis saves support hours. This reports, in Tools → Site
  * Health:
  *   - wp_posts / wp_term_taxonomy storage engines
- *   - the five foreign keys (fk_post_owner, fk_meta_owner, fk_term_owner, fk_option_owner, fk_meta_tr_parent)
+ *   - the foreign key each FK-carrying table must have (listed by table: the FKs are unnamed)
  *   - deferred-index suggestion with the current translation row count
  *   - last orphan sweep run
  *
@@ -72,10 +72,10 @@ final class DatabaseHealthReport
             ],
         ];
 
-        foreach (array_keys(TranslationMemorySchema::expectedForeignKeys()) as $fk) {
-            $fields[$fk] = [
-                'label' => $fk,
-                'value' => $this->fkLabel($fk, $state['missing_fks']),
+        foreach (TranslationMemorySchema::expectedForeignKeys() as $table => $referenced) {
+            $fields['fk_' . $table] = [
+                'label' => $table . ' → ' . $referenced,
+                'value' => $this->fkLabel($table, $state['missing_fks']),
             ];
         }
 

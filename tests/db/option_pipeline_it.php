@@ -177,13 +177,13 @@ test_ok('the map serves both options from one entry',
 // ── 7. FK cascade, split into two assertions ─────────────────────────────────
 // A fused assertion cannot distinguish "no FK" from "FK that does not cascade".
 
-test_section('fk_option_owner cascade:');
+test_section('option owner FK cascade:');
 
 $fkExists = test_count(
     "SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
-     WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND CONSTRAINT_NAME = 'fk_option_owner'",
-    DB_NAME, $P);
-test_ok('fk_option_owner constraint exists', $fkExists > 0, "found $fkExists");
+     WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND REFERENCED_TABLE_NAME = %s",
+    DB_NAME, $P, $wpdb->options);
+test_ok('option owner FK to the options table exists', $fkExists > 0, "found $fkExists");
 
 $fixtureOption = 'lingowp-test_fixture_option';
 add_option($fixtureOption, 'LINGOWP_TEST Fixture Option Value');

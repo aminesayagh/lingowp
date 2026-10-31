@@ -33,14 +33,11 @@ class TranslationMemorySchema
     public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option', 'user'];
 
     /**
-     * parent_id children (meta, term_meta): FK constraint name => parent table key.
-     * Public (like HASH_LINK_CHILDREN): WpDbSourceRepository loops over its values
-     * to stay generic across every parent_id table, not just 'meta'.
+     * parent_id children (meta, term_meta): parent table keys whose child is
+     * FK'd back by parent_id. Public (like HASH_LINK_CHILDREN): WpDbSourceRepository
+     * loops over it to stay generic across every parent_id table, not just 'meta'.
      */
-    public const PARENT_ID_CHILD_FKS = [
-        'fk_meta_tr_parent'      => 'meta',
-        'fk_term_meta_tr_parent' => 'term_meta',
-    ];
+    public const PARENT_ID_CHILD_FKS = ['meta', 'term_meta'];
 
     public static function maybeUpgrade(): void
     {
@@ -92,13 +89,12 @@ class TranslationMemorySchema
         }
 
         // 2b. parent_id children (meta, term_meta): FK'd back to their parent id.
-        foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
+        foreach (self::PARENT_ID_CHILD_FKS as $parentKey) {
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::parentIdTranslation(
                     $p[$parentKey] . '_translation',
                     $p[$parentKey],
-                    $fkName,
                     $cc
                 )
             );
@@ -320,24 +316,27 @@ class TranslationMemorySchema
 
     /**
      * Every FK this schema must contain: four parent→WordPress owners plus the
-     * one parent_id child→parent link. Hash-link children have no FK.
+     * one parent_id child→parent link. Hash-link children have no FK. Keyed by
+     * table, not constraint name: the FKs are unnamed (see TableDefinitions).
      *
-     * @return array<string, string> constraint_name => table_name
+     * @return array<string, string> table carrying the FK => table it references
      */
     public static function expectedForeignKeys(): array
     {
+        global $wpdb;
+
         $p        = self::parentTables();
         $expected = [
-            'fk_post_owner'      => $p['post'],
-            'fk_meta_owner'      => $p['meta'],
-            'fk_term_owner'      => $p['term'],
-            'fk_option_owner'    => $p['option'],
-            'fk_user_owner'      => $p['user'],
-            'fk_term_meta_owner' => $p['term_meta'],
+            $p['post']      => $wpdb->posts,
+            $p['meta']      => $wpdb->posts,
+            $p['term']      => $wpdb->term_taxonomy,
+            $p['option']    => $wpdb->options,
+            $p['user']      => $wpdb->users,
+            $p['term_meta'] => $wpdb->terms,
         ];
 
-        foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
-            $expected[$fkName] = $p[$parentKey] . '_translation';
+        foreach (self::PARENT_ID_CHILD_FKS as $parentKey) {
+            $expected[$p[$parentKey] . '_translation'] = $p[$parentKey];
         }
 
         return $expected;

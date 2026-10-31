@@ -47,6 +47,7 @@
 		],
 		"test:db": [
 			"./wp eval-file tests/db/schema_constraints_it.php",
+			"./wp eval-file tests/db/schema_second_site_it.php",
 			"./wp eval-file tests/db/section1_posts_pages_it.php",
 			"./wp eval-file tests/db/section2_taxonomies_it.php",
 			"./wp eval-file tests/db/section3_media_it.php",
