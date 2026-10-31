@@ -63,9 +63,8 @@ step() {
 # own clean check. build-release-zip.sh rebuilds the assets in its temp dir
 # anyway, so a broken admin build still fails the deploy, one step later.
 #
-# `security:plugin-check` is also absent: it shells out to a bare `wp` and needs
-# the Plugin Check plugin installed on the site. Run it by hand before a
-# WordPress.org submission.
+# Plugin Check runs after the builds instead (bin/plugin-check.sh), against the
+# WordPress.org archive itself on the QA site, not this dev folder.
 step "Unit checks (PHP, no WordPress)"     composer run --no-interaction test
 step "Unit checks (JS)"                    npm test
 step "Lint (JS)"                           npm run lint:js
@@ -99,6 +98,10 @@ case "$CLIENT_ENTRIES" in
   *linvara/admin-ui/*) echo "The client archive carries admin-ui/ — customers should not get it." >&2; exit 1 ;;
 esac
 echo "==> Both archives verified: source in dist/, absent from release/."
+
+# Before anything is copied out: the WordPress.org archive must activate
+# cleanly and pass Plugin Check on the QA site, as the review team checks it.
+step "Plugin Check + clean activation (QA site)" "$ROOT_DIR/bin/plugin-check.sh"
 
 # The backend parses the version out of the filename with -(\d+(\.\d+)*)\.zip$
 # and serves the highest match; a name it cannot parse is silently skipped — so

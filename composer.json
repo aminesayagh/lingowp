@@ -95,7 +95,7 @@
 		"security:semgrep": "docker run --rm --mount type=bind,src=.,dst=/src -w /src semgrep/semgrep semgrep scan --config=p/php --config=p/security-audit --config=.semgrep.yml --error --metrics=off --json-output=security-reports/semgrep.json --exclude=tests/fixtures --text-output=security-reports/semgrep.log",
 		"security:semgrep-selftest": "docker run --rm --mount type=bind,src=.,dst=/src,ro -w /src semgrep/semgrep semgrep scan --config=.semgrep.yml --metrics=off --no-git-ignore --json tests/fixtures/ | python3 -c \"import json,sys; n=len(json.load(sys.stdin)['results']); print('fixture findings:', n, '(expected 2)'); sys.exit(0 if n==2 else 1)\"",
 		"security:secrets-history": "docker run --rm --mount type=bind,src=.,dst=/repo zricethezav/gitleaks:latest git /repo --no-banner --redact --report-path=/repo/security-reports/gitleaks-history.json",
-		"security:plugin-check": "wp plugin check lingowp --format=csv",
+		"security:plugin-check": "bin/plugin-check.sh",
 		"compat:php": "phpcs --standard=phpcs-compat.xml.dist --report-summary --report-full=security-reports/phpcompat-full.log --report-json=security-reports/phpcompat.json --no-colors"
 	},
 	"scripts-descriptions": {
@@ -108,7 +108,7 @@
 		"security:semgrep": "Semgrep PHP + security-audit rules, plus .semgrep.yml (custom wpdb SQL rule). Needs Docker.",
 		"security:semgrep-selftest": "Asserts the custom wpdb rule still catches exactly the 2 bad cases in tests/fixtures/.",
 		"security:secrets-history": "Gitleaks over full Git history. Slow — run before a release.",
-		"security:plugin-check": "WordPress Plugin Check. Needs a running site and wp-cli on PATH.",
+		"security:plugin-check": "Installs dist/ archive on the lingowp-qa site, checks clean activation with WP_DEBUG, then runs WordPress Plugin Check.",
 		"compat:php": "Cross-version PHP syntax check (phpcs-compat.xml.dist, testVersion=7.4-). Guards the composer.json php floor against regressions."
 	}
 }
