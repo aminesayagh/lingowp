@@ -4,7 +4,7 @@ namespace LingoWP\GettextDomains;
 
 /**
  * Points WordPress at the `.mo` files LingoWP writes under its own folder,
- * `wp-content/languages/lingowp/{plugins,themes}/`, instead of the shared
+ * `uploads/linvara/languages/{plugins,themes}/`, instead of the shared
  * `wp-content/languages/{plugins,themes}/` that core's Language_Pack_Upgrader
  * owns and overwrites on every translation update. Same model as Loco
  * Translate's "custom" location: our files never collide with core's, and a

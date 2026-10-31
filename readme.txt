@@ -154,7 +154,7 @@ Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site
 = 1.4.1 =
 
 * Connecting to Linvara Cloud is now an explicit choice during setup. The plugin contacts no external service until an administrator connects.
-* Plugin and theme translations are written to their own `wp-content/languages/lingowp/` folder, so a WordPress language-pack update can no longer overwrite them. They are removed when the plugin is deleted.
+* Plugin and theme translations are written to their own `wp-content/uploads/linvara/languages/` folder, so a WordPress language-pack update can no longer overwrite them. They are removed when the plugin is deleted.
 * Translated text is now sanitised on output in every context, matching what WordPress applies to post content.
 * Uses WordPress 6.9's template enhancement output buffer where it is available, falling back to the plugin's own buffer otherwise.
 * Add-ons are no longer downloaded or installed by the plugin. The Integrations tab lists what a plan includes; add-ons are installed like any other plugin.

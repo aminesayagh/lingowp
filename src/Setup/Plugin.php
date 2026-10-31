@@ -169,6 +169,7 @@ class Plugin
     {
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
+        GettextPoImporter::migrateLegacyDir();
 
         $languageRegistry = new OptionLanguageRegistry();
 

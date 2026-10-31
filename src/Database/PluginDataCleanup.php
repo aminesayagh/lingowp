@@ -111,26 +111,15 @@ class PluginDataCleanup
     }
 
     /**
-     * Every `.mo` LingoWP ever wrote lives under one folder of its own
+     * Every `.mo` Linvara ever wrote lives under one folder of its own
      * (GettextPoImporter::baseDir()), so removing it is the whole cleanup and
      * cannot touch a translation file that core or another plugin installed.
+     * The pre-uploads folder too, in case its one-time move never ran.
      */
     private static function removeTranslationFiles(): void
     {
-        $root = \LingoWP\GettextDomains\GettextPoImporter::baseDir();
-        if (!is_dir($root)) {
-            return;
-        }
-
-        $files = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($files as $file) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions -- deleting the plugin's own files on uninstall
-            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
-        }
-        rmdir($root); // phpcs:ignore WordPress.WP.AlternativeFunctions
+        \LingoWP\GettextDomains\GettextPoImporter::removeTree(\LingoWP\GettextDomains\GettextPoImporter::baseDir());
+        \LingoWP\GettextDomains\GettextPoImporter::removeTree(\LingoWP\GettextDomains\GettextPoImporter::legacyDir());
     }
 
     private static function cancelScheduledActions(): void

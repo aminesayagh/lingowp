@@ -10,7 +10,7 @@
  * GettextAiQueue depends on the interface, not BackendClient (same pattern
  * as tests/db/ai_result_applier_it.php).
  *
- * saveUnit() writes a real `.mo` file under WP_LANG_DIR — outside the DB
+ * saveUnit() writes a real `.mo` file under GettextPoImporter::baseDir() — outside the DB
  * transaction, so this file cleans those up itself before test_done().
  */
 

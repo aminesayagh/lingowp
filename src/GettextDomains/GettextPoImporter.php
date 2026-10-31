@@ -8,7 +8,7 @@ namespace LingoWP\GettextDomains;
  * classes (`wp-includes/pomo/po.php`, `mo.php`) — no PO-parsing dependency
  * of our own.
  *
- * Files land under LingoWP's own `wp-content/languages/lingowp/` (see
+ * Files land under Linvara's own `uploads/linvara/languages/` (see
  * baseDir()), never in the shared `wp-content/languages/{plugins,themes}/`
  * that core's Language_Pack_Upgrader overwrites on every translation update.
  * GettextMoFileLoader tells WordPress to look there.
@@ -60,18 +60,77 @@ final class GettextPoImporter
         }
 
         // Rename-into-place: a concurrent request never reads a half-written file.
-        return rename($staging, $target); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is Linvara's own WP_LANG_DIR/lingowp folder (see GettextPoImporter::baseDir()).
+        return rename($staging, $target); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is Linvara's own uploads/linvara/languages folder (see GettextPoImporter::baseDir()).
     }
 
     /**
-     * Root of every `.mo` LingoWP writes. A subfolder of WP_LANG_DIR because
-     * that is the directory WordPress reads translations from and the one its
-     * own installer writes to; a subfolder of it because that is the only way
-     * to never collide with a file core owns. Removed whole on uninstall.
+     * Root of every `.mo` Linvara writes: its own folder in uploads, the only
+     * place the WordPress.org guidelines let a plugin store files (an earlier
+     * WP_LANG_DIR/lingowp subfolder was rejected in review). Core's language
+     * packs never touch uploads, and on multisite every site gets its own.
+     * GettextMoFileLoader points WordPress here. Removed whole on uninstall.
      */
     public static function baseDir(): string
     {
+        return wp_upload_dir(null, false)['basedir'] . '/linvara/languages';
+    }
+
+    /** Where 1.6.3 and earlier wrote; emptied by migrateLegacyDir(). */
+    public static function legacyDir(): string
+    {
         return WP_LANG_DIR . '/lingowp';
+    }
+
+    /**
+     * One-time move of the files written before baseDir() moved to uploads.
+     * They are the only copy of hand-saved and imported strings, so they are
+     * moved, never dropped: the old folder is deleted only once every file has
+     * landed. A file already in the new folder is newer and wins. Main site
+     * only — the old folder was shared by every site of a network.
+     */
+    public static function migrateLegacyDir(): void
+    {
+        $old = self::legacyDir();
+        if (! is_dir($old) || ! is_main_site()) {
+            return;
+        }
+
+        $allMoved = true;
+        foreach (['plugins', 'themes'] as $sub) {
+            foreach (glob($old . '/' . $sub . '/*.mo') ?: [] as $file) {
+                $target = self::baseDir() . '/' . $sub . '/' . basename($file);
+                if (file_exists($target)) {
+                    continue;
+                }
+                wp_mkdir_p(dirname($target));
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- moving Linvara's own files out of the old location into uploads.
+                $allMoved = rename($file, $target) && $allMoved;
+            }
+        }
+
+        // ponytail: a failed move leaves the old folder in place and retries on
+        // the next main-site request — one is_dir() + glob() until it succeeds.
+        if ($allMoved) {
+            self::removeTree($old);
+        }
+    }
+
+    /** Recursively delete a folder Linvara owns. */
+    public static function removeTree(string $root): void
+    {
+        if (! is_dir($root)) {
+            return;
+        }
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($files as $file) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions -- deleting the plugin's own files
+            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
+        }
+        rmdir($root); // phpcs:ignore WordPress.WP.AlternativeFunctions
     }
 
     /** @param 'plugin'|'theme' $type */
