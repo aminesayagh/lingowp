@@ -4,7 +4,6 @@ namespace LingoWP\Setup;
 
 use LingoWP\Admin\AdminAssets;
 use LingoWP\Admin\AdminBarTranslateLink;
-use LingoWP\Admin\ForeignNoticeSuppressor;
 use LingoWP\GettextDomains\InstalledGettextComponentDiscovery;
 use LingoWP\Language\Application\ResolveRequestLanguage;
 use LingoWP\Language\Application\SourceLanguageTransition;
@@ -441,7 +440,6 @@ class Plugin
     {
         (new DatabaseHealthReport(new DatabaseHealthCheck($wpdb)))->register();
         (new AdminAssets())->register();
-        (new ForeignNoticeSuppressor())->register();
         (new OnboardingPageController(new NotifyEmailResolver()))->register();
         (new PermalinkNotice($languageRegistry))->register();
 

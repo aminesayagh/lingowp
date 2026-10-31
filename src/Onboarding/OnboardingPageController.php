@@ -129,7 +129,7 @@ final class OnboardingPageController
             wp_die(esc_html__('You do not have permission to access this page.', 'linvara'));
         }
 
-        echo '<div class="wrap"><div id="lingowp-app"></div></div>';
+        echo '<div class="wrap"><hr class="wp-header-end"><div id="lingowp-app"></div></div>';
     }
 
     public function renderAccountPage(): void
@@ -138,7 +138,7 @@ final class OnboardingPageController
             wp_die(esc_html__('You do not have permission to access this page.', 'linvara'));
         }
 
-        echo '<div class="wrap"><div id="lingowp-account-app"></div></div>';
+        echo '<div class="wrap"><hr class="wp-header-end"><div id="lingowp-account-app"></div></div>';
     }
 
     public function renderInsightsPage(): void
@@ -147,7 +147,7 @@ final class OnboardingPageController
             wp_die(esc_html__('You do not have permission to access this page.', 'linvara'));
         }
 
-        echo '<div class="wrap"><div id="lingowp-insights-app"></div></div>';
+        echo '<div class="wrap"><hr class="wp-header-end"><div id="lingowp-insights-app"></div></div>';
     }
 
     public function enqueue(string $hook): void
