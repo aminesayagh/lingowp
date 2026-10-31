@@ -51,7 +51,7 @@ test_section('second site tables, same database:');
 
 $wpdb->suppress_errors(true);
 foreach ($create as $table => $sql) {
-    $wpdb->query($sql); // phpcs:ignore WordPress.DB
+    $wpdb->query($sql); // phpcs:ignore WordPress.DB -- nosemgrep: wpdb-query-without-prepare -- integration test, DDL from TableDefinitions with the fixed lvtest2_* names above; no values
     test_ok("  $table created", $wpdb->last_error === '', $wpdb->last_error);
 }
 $wpdb->suppress_errors(false);
@@ -61,7 +61,7 @@ test_ok('every second-site table carries its FK', $missing === [], 'missing: ' .
 
 // Children first: the translation tables reference their parents.
 foreach (array_reverse(array_keys($create)) as $table) {
-    $wpdb->query('DROP TABLE IF EXISTS ' . $table); // phpcs:ignore WordPress.DB
+    $wpdb->query('DROP TABLE IF EXISTS ' . $table); // phpcs:ignore WordPress.DB -- nosemgrep: wpdb-interpolated-sql -- integration test, table name from the fixed lvtest2_* map above
 }
 test_ok('test tables dropped', (int) $wpdb->get_var(
     $wpdb->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE %s', 'lvtest2\_%')
