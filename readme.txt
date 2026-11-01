@@ -1,10 +1,10 @@
 === Linvara – Multilingual & AI Translation ===
 Contributors: masayagh
 Tags: multilingual, translation, localization, ai translation
-Requires at least: 6.2
+Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.3
+Stable tag: 1.6.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,14 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.6.4 =
+
+* Translation files for plugins and themes now live in your uploads folder (wp-content/uploads/linvara/languages/). Existing files are moved there automatically on update; nothing to re-translate.
+* Multisite: Linvara now activates on every site of a network, not only the first one.
+* Other plugins' admin notices are no longer hidden on Linvara's screens; they show above the app.
+* Language switcher styles are now loaded through WordPress's standard style system.
+* Requires WordPress 6.9 or later (bundled Action Scheduler 4.2).
 
 = 1.6.3 =
 
