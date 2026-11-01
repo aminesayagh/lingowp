@@ -25,8 +25,11 @@
  *   4. Off-site and admin/login destinations: never touched.
  *   5. Non-front-end current request (e.g. admin): untouched even when the
  *      active language is translated.
- *   6. correctedPrefixSlug(): case-mismatch recovered, already-correct and
- *      unknown prefixes left alone.
+ *   6. correctedPrefixSlug() / miscasedPrefixTarget(): case-mismatch recovered,
+ *      already-correct and unknown prefixes left alone.
+ *   8. Subfolder install (/blog): redirect targets keep the folder once with
+ *      the prefix right after it; /blog/wp-login.php untouched; miscased
+ *      prefix found behind the folder.
  *
  * Run: wp eval-file tests/db/multilingual_redirects_it.php
  */
@@ -233,6 +236,18 @@ test_ok(
     $plain->correctedPrefixSlug('xx') === null
 );
 
+// miscasedPrefixTarget(): the full redirect target, split out of
+// redirectMiscasedPrefix() (which exits) so it is testable. Root install.
+test_ok(
+    'miscasedPrefixTarget: /ZZ/about/?a=1 -> /zz/about/?a=1 (slash shape + query kept)',
+    $plain->miscasedPrefixTarget('/ZZ/lingowp-test-about/?a=1') === '/zz/lingowp-test-about/?a=1',
+    var_export($plain->miscasedPrefixTarget('/ZZ/lingowp-test-about/?a=1'), true)
+);
+test_ok(
+    'miscasedPrefixTarget: correctly-cased or non-language first segment -> null',
+    $plain->miscasedPrefixTarget('/zz/lingowp-test-about/') === null && $plain->miscasedPrefixTarget('/lingowp-test-about/') === null
+);
+
 // ── 7. redirect_canonical(): the paged-singular loop ─────────────────────────
 // The one case in this file that DOES drive core's own function, because the
 // bug being guarded is core's behavior, not ours: redirect_canonical() is
@@ -366,6 +381,64 @@ if (substr($pagedPath, -1) === '/') {
 
 $wp_query               = $restoreQuery;
 $GLOBALS['wp_query']    = $restoreQuery;
+$_SERVER['REQUEST_URI'] = $restoreUri;
+set_query_var('lingowp_lang', '');
+
+// ── 8. Subfolder install (home_url() ends in /blog) ─────────────────────────
+//
+// Reproduces what a real /blog install did (2026-10-04, subfolder test site):
+// /blog/fr/?p=4 301'd to /blog/blog/fr/blog/fr/about/, and /blog/FR/about/
+// landed on the English page. On a subfolder install every redirect target
+// WordPress builds already carries /blog; the language prefix belongs right
+// after it, the folder must appear once, and system paths behind the folder
+// (/blog/wp-login.php) stay untouched like they do at the root.
+
+test_section('Subfolder install (home_url() ends in /blog)');
+
+// Faithful to a real /blog install: home_url() is the site address + /blog +
+// the given path, ALWAYS — so a path that already carries /blog comes back
+// doubled, exactly like the real subfolder site did. (An earlier version only
+// added /blog when missing, which hid that doubling.)
+$subfolder = static function (string $url, $path = ''): string {
+    $tail = (is_string($path) && $path !== '') ? '/' . ltrim($path, '/') : '';
+
+    return substr($url, 0, strlen($url) - strlen($tail)) . '/blog' . $tail;
+};
+add_filter('home_url', $subfolder, 10, 2);
+
+$pq = static function ($url): string {
+    $path  = (string) wp_parse_url((string) $url, PHP_URL_PATH);
+    $query = (string) wp_parse_url((string) $url, PHP_URL_QUERY);
+    return $path . ($query !== '' ? '?' . $query : '');
+};
+
+test_ok('home_url() really is in /blog (setup)', str_ends_with(rtrim(home_url('/'), '/'), '/blog'), home_url('/'));
+
+set_query_var('lingowp_lang', 'zz_ZZ');
+$_SERVER['REQUEST_URI'] = '/blog/zz/lingowp-test-redirect-page/';
+$sub = test_redirects($registry, $context);
+
+$target = $sub->preserveLanguagePrefix(home_url('/lingowp-test-old-slug/'), 301);
+test_ok('absolute target (as core builds it) -> /blog/zz/lingowp-test-old-slug/', $pq($target) === '/blog/zz/lingowp-test-old-slug/', (string) $target);
+
+$target = $sub->preserveLanguagePrefix('/blog/lingowp-test-old-slug/', 301);
+test_ok('relative target -> /blog/zz/lingowp-test-old-slug/', $target === '/blog/zz/lingowp-test-old-slug/', (string) $target);
+
+$target = $sub->preserveLanguagePrefix(home_url('/?p=4'), 301);
+test_ok('shortlink-style target keeps its query -> /blog/zz/?p=4', $pq($target) === '/blog/zz/?p=4', (string) $target);
+
+$already = home_url('/zz/lingowp-test-old-slug/');
+$target  = $sub->preserveLanguagePrefix($already, 301);
+test_ok('already-prefixed target is left exactly as built', $target === $already, (string) $target);
+
+$login  = home_url('/wp-login.php?action=lostpassword');
+$target = $sub->preserveLanguagePrefix($login, 302);
+test_ok('/blog/wp-login.php is never prefixed', $target === $login, (string) $target);
+
+$target = $sub->miscasedPrefixTarget('/blog/ZZ/lingowp-test-about/?a=1');
+test_ok('miscasedPrefixTarget: /blog/ZZ/about/ -> /blog/zz/about/ (folder kept, prefix fixed)', $target === '/blog/zz/lingowp-test-about/?a=1', var_export($target, true));
+
+remove_filter('home_url', $subfolder, 10);
 $_SERVER['REQUEST_URI'] = $restoreUri;
 set_query_var('lingowp_lang', '');
 

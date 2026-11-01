@@ -164,9 +164,9 @@ final class PublicLinkRewriter
         $localizedPath = $this->urlBuilder->addPrefix($path, $targetLang);
 
         if ($isAbsolute) {
-            return function_exists('home_url')
-                ? (string) home_url($localizedPath . $suffix)
-                : $localizedPath . $suffix;
+            // absoluteUrl(), not home_url(): $localizedPath already carries any
+            // site folder, and home_url() would add it again (/blog/blog/fr/…).
+            return $this->urlBuilder->absoluteUrl($localizedPath . $suffix);
         }
 
         return $localizedPath . $suffix;
@@ -191,7 +191,15 @@ final class PublicLinkRewriter
 
     private function shouldRewritePath(string $path): bool
     {
-        $path = strtolower(trim(rawurldecode($path), '/'));
+        // Judge the path after any site folder: on a /blog install the first
+        // segment of /blog/wp-admin/ is "wp-admin", not "blog". A link outside
+        // the folder is not a WordPress URL at all.
+        $split = $this->urlBuilder->splitSiteFolder($path);
+        if ($split === null) {
+            return false;
+        }
+
+        $path = strtolower(trim(rawurldecode($split[1]), '/'));
         if ($path === '') {
             return true;
         }
@@ -234,6 +242,6 @@ final class PublicLinkRewriter
      */
     private function urlParts(string $url)
     {
-        return function_exists('wp_parse_url') ? wp_parse_url($url) : parse_url($url);
+        return function_exists('wp_parse_url') ? wp_parse_url($url) : wp_parse_url($url);
     }
 }

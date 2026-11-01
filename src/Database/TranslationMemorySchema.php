@@ -33,14 +33,11 @@ class TranslationMemorySchema
     public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option', 'user'];
 
     /**
-     * parent_id children (meta, term_meta): FK constraint name => parent table key.
-     * Public (like HASH_LINK_CHILDREN): WpDbSourceRepository loops over its values
-     * to stay generic across every parent_id table, not just 'meta'.
+     * parent_id children (meta, term_meta): parent table keys whose child is
+     * FK'd back by parent_id. Public (like HASH_LINK_CHILDREN): WpDbSourceRepository
+     * loops over it to stay generic across every parent_id table, not just 'meta'.
      */
-    public const PARENT_ID_CHILD_FKS = [
-        'fk_meta_tr_parent'      => 'meta',
-        'fk_term_meta_tr_parent' => 'term_meta',
-    ];
+    public const PARENT_ID_CHILD_FKS = ['meta', 'term_meta'];
 
     public static function maybeUpgrade(): void
     {
@@ -72,6 +69,7 @@ class TranslationMemorySchema
         $p  = self::parentTables();
 
         // 1. Create the seven parent tables first — they are the child FK targets.
+        // phpcs:disable PluginCheck.Security.DirectDB -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
@@ -79,24 +77,28 @@ class TranslationMemorySchema
         $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::user($p['user'], $wpdb->users, $cc));                         // phpcs:ignore WordPress.DB
         $wpdb->query(TableDefinitions::termMeta($p['term_meta'], $wpdb->terms, $cc));                // phpcs:ignore WordPress.DB
+        // phpcs:enable
 
         // 2a. Hash-link children (post/term/html/option/user): keyed by original_hash, no FK.
         foreach (self::HASH_LINK_CHILDREN as $parentKey) {
+            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::hashLinkTranslation($p[$parentKey] . '_translation', $cc)
             );
+            // phpcs:enable
         }
 
         // 2b. parent_id children (meta, term_meta): FK'd back to their parent id.
-        foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
+        foreach (self::PARENT_ID_CHILD_FKS as $parentKey) {
+            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
             $wpdb->query( // phpcs:ignore WordPress.DB
                 TableDefinitions::parentIdTranslation(
                     $p[$parentKey] . '_translation',
                     $p[$parentKey],
-                    $fkName,
                     $cc
                 )
             );
+            // phpcs:enable
         }
 
         // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
@@ -105,13 +107,17 @@ class TranslationMemorySchema
         // 4. On any missing FK: drop the tables (children first), then fail.
         if ($missing !== []) {
             foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
                 $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+                // phpcs:enable
             }
             foreach ($p as $table) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
                 $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+                // phpcs:enable
             }
 
-            throw SchemaFailure::missingForeignKeys($missing);
+            throw SchemaFailure::missingForeignKeys($missing); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- escaped where it is shown: Activator wp_die(esc_html($failure->getMessage())).
         }
 
         // 5. Gettext source-string tracking (Plugins & Themes board) — no FK,
@@ -121,7 +127,9 @@ class TranslationMemorySchema
         // ignores are snapshotted and re-seeded there. Then fold any
         // pre-existing ignored-units option data into it, once.
         self::migrateGettextUnitV6($cc);
+        // phpcs:disable PluginCheck.Security.DirectDB -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         $wpdb->query(TableDefinitions::gettextUnit(self::gettextUnitTable(), $cc)); // phpcs:ignore WordPress.DB
+        // phpcs:enable
         self::migrateGettextIgnoredUnits();
 
         // 6. Version is written only after verification passes.
@@ -168,21 +176,25 @@ class TranslationMemorySchema
 
         $table = self::gettextUnitTable();
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $exists = (bool) $wpdb->get_var($wpdb->prepare(
             'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s',
             DB_NAME,
             $table
         ));
+        // phpcs:enable
         if (! $exists) {
             return;
         }
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $hasNormHash = (bool) $wpdb->get_var($wpdb->prepare(
             'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s',
             DB_NAME,
             $table,
             'norm_hash'
         ));
+        // phpcs:enable
         if ($hasNormHash) {
             return;
         }
@@ -192,12 +204,15 @@ class TranslationMemorySchema
         // (deliberately, so a real rescan never overwrites status), so a blank
         // msgid inserted here would stay blank forever instead of being filled
         // in by that rescan.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery -- table name only, from the schema map
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table name only, from the schema map
         $ignored = (array) $wpdb->get_results("SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM {$table} WHERE status = -1", ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
+        // phpcs:enable
 
+        // phpcs:disable PluginCheck.Security.DirectDB -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
         // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         $wpdb->query("DROP TABLE IF EXISTS {$table}"); // phpcs:ignore WordPress.DB -- table name only
         $wpdb->query(TableDefinitions::gettextUnit($table, $charsetCollate)); // phpcs:ignore WordPress.DB
+        // phpcs:enable
 
         $now = current_time('mysql', true);
         foreach ($ignored as $row) {
@@ -214,6 +229,7 @@ class TranslationMemorySchema
             }
             $args[] = $now;
             $args[] = $now;
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $wpdb->query($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name only
                 "INSERT INTO {$table} (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
@@ -221,6 +237,7 @@ class TranslationMemorySchema
                  ON DUPLICATE KEY UPDATE status = -1",
                 ...$args
             ));
+            // phpcs:enable
         }
 
         delete_option('lingowp_gettext_scanned_domains');
@@ -282,7 +299,7 @@ class TranslationMemorySchema
                 $args[] = $now;
                 $args[] = $now;
 
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQLPlaceholders, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $wpdb->query($wpdb->prepare(
                     "INSERT INTO {$table}
                         (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
@@ -290,6 +307,7 @@ class TranslationMemorySchema
                      ON DUPLICATE KEY UPDATE status = -1, updated_at = VALUES(updated_at)",
                     ...$args
                 ));
+                // phpcs:enable
             }
         }
 
@@ -298,24 +316,27 @@ class TranslationMemorySchema
 
     /**
      * Every FK this schema must contain: four parent→WordPress owners plus the
-     * one parent_id child→parent link. Hash-link children have no FK.
+     * one parent_id child→parent link. Hash-link children have no FK. Keyed by
+     * table, not constraint name: the FKs are unnamed (see TableDefinitions).
      *
-     * @return array<string, string> constraint_name => table_name
+     * @return array<string, string> table carrying the FK => table it references
      */
     public static function expectedForeignKeys(): array
     {
+        global $wpdb;
+
         $p        = self::parentTables();
         $expected = [
-            'fk_post_owner'      => $p['post'],
-            'fk_meta_owner'      => $p['meta'],
-            'fk_term_owner'      => $p['term'],
-            'fk_option_owner'    => $p['option'],
-            'fk_user_owner'      => $p['user'],
-            'fk_term_meta_owner' => $p['term_meta'],
+            $p['post']      => $wpdb->posts,
+            $p['meta']      => $wpdb->posts,
+            $p['term']      => $wpdb->term_taxonomy,
+            $p['option']    => $wpdb->options,
+            $p['user']      => $wpdb->users,
+            $p['term_meta'] => $wpdb->terms,
         ];
 
-        foreach (self::PARENT_ID_CHILD_FKS as $fkName => $parentKey) {
-            $expected[$fkName] = $p[$parentKey] . '_translation';
+        foreach (self::PARENT_ID_CHILD_FKS as $parentKey) {
+            $expected[$p[$parentKey] . '_translation'] = $p[$parentKey];
         }
 
         return $expected;
@@ -335,7 +356,7 @@ class TranslationMemorySchema
             $engine = self::engineOf($table);
 
             if ($engine !== null && strtoupper($engine) !== 'INNODB') {
-                throw SchemaFailure::parentNotInnoDB($table, $engine);
+                throw SchemaFailure::parentNotInnoDB($table, $engine); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- escaped where it is shown: Activator wp_die(esc_html($failure->getMessage())).
             }
         }
     }
@@ -438,22 +459,53 @@ class TranslationMemorySchema
      * (FK-safe, same order as uninstall.php's DROP), plus gettext_unit (no
      * FK, so its position relative to the rest doesn't matter).
      */
-    public static function dropAllTables(\wpdb $wpdb): void
+    /**
+     * Every table of the current site, children before parents, so each DROP
+     * succeeds despite the FKs.
+     *
+     * @return string[]
+     */
+    public static function allTablesInDropOrder(): array
     {
         // array_values: childTables() and parentTables() share the same string
         // keys (post, meta, …), so unpacking them directly makes the parent
         // entries overwrite the children and no *_translation table is ever
         // dropped — plus the two parent_id parents then survive on their child
         // FK. Re-index to plain lists first.
-        $tables = [
+        return [
             ...array_values(self::childTables()),
             ...array_values(self::parentTables()),
             self::gettextUnitTable(),
         ];
+    }
 
-        foreach ($tables as $table) {
+    /** True once install() has completed on the current site. */
+    public static function isInstalled(): bool
+    {
+        return get_option(self::OPTION_DB_VERSION) !== false;
+    }
+
+    /**
+     * wpmu_drop_tables: deleting a network site drops Linvara's tables first.
+     * Their FKs reference the site's posts/options/terms tables, so core's own
+     * DROPs failed and left 19 tables behind. Core runs this switched into the
+     * site being deleted, so the names carry its prefix.
+     *
+     * @param string[] $tables
+     * @return string[]
+     */
+    public static function addTablesForSiteDeletion($tables): array
+    {
+        return array_merge(self::allTablesInDropOrder(), (array) $tables);
+    }
+
+    public static function dropAllTables(\wpdb $wpdb): void
+    {
+        foreach (self::allTablesInDropOrder() as $table) {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
             $wpdb->query('DROP TABLE IF EXISTS ' . $table);
+            // phpcs:enable
         }
     }
 

@@ -12,6 +12,7 @@
 require __DIR__ . '/_harness.php';
 
 use LingoWP\AiTranslation\AiResultCollector;
+use LingoWP\AiTranslation\AiScopeUnits;
 use LingoWP\AiTranslation\AiTaskSubmitter;
 use LingoWP\Backend\TranslationBackendPort;
 use LingoWP\Board\CollectionBoard;
@@ -124,6 +125,8 @@ $units = [
 $result = $submitter->submit($units, [$LANG]);
 test_ok('submit reports no error', $result['error'] === null, var_export($result['error'], true));
 test_ok('backend received the submit payload', count($backend->submitted) === 1);
+test_ok('first-time submit sends no previous translation',
+    ! array_key_exists('previous', $backend->submitted[0]['texts'][0]) && ! array_key_exists('previous', $backend->submitted[0]['texts'][1]));
 
 $plainHash  = $hex($PLAIN_TEXT);
 $markerHash = $hex($MARKER_TEXT);
@@ -181,5 +184,25 @@ test_ok('title unit status is needs_review (AI-written, unreviewed)', $titleUnit
 test_ok('meta unit found on the board', $metaUnit !== null);
 test_ok('meta unit status reverted to missing (no text, pending cleared)', $metaUnit !== null && $metaUnit['status'] === 'missing');
 test_ok('meta unit surfaces the ai_error', $metaUnit !== null && $metaUnit['ai_error'] === 'ERR_PROTECTED_TOKEN_STRUCTURE');
+
+// ── 4. Re-translate sends the current translation as `previous` ─────────────
+
+test_section('Re-translate (scope text) carries the previous translation:');
+
+$scopeUnits = new AiScopeUnits($repo);
+$OTHER      = 'de'; // no translation in this language -- must be left out of the map
+
+$retitle = $scopeUnits->forScope('text', $LANG, '', SourceRef::make('post', $postRowId), [$LANG, $OTHER]);
+test_ok('text scope reads the current translation per language',
+    $retitle !== null && ($retitle[0]['previous'] ?? null) === [$LANG => 'Texte partage'],
+    var_export($retitle[0]['previous'] ?? null, true));
+
+$remeta = $scopeUnits->forScope('text', $LANG, '', SourceRef::make('meta', $metaRowId), [$LANG]);
+test_ok('untranslated text has an empty previous map', $remeta !== null && ($remeta[0]['previous'] ?? null) === []);
+
+$submitter->submit(array_merge($retitle, $remeta), [$LANG]);
+$sent = end($backend->submitted)['texts'];
+test_ok('payload carries previous for the translated text', ($sent[0]['previous'] ?? null) === [$LANG => 'Texte partage']);
+test_ok('payload omits previous for the untranslated text', ! array_key_exists('previous', $sent[1]));
 
 test_done();

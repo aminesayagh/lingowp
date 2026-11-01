@@ -33,7 +33,7 @@ $schema  = DB_NAME;
 test_section('foreign keys (enumerated from information_schema):');
 
 $rows = $wpdb->get_results($wpdb->prepare(
-    "SELECT CONSTRAINT_NAME AS name, TABLE_NAME AS tbl, REFERENCED_TABLE_NAME AS ref
+    "SELECT TABLE_NAME AS tbl, REFERENCED_TABLE_NAME AS ref
      FROM information_schema.KEY_COLUMN_USAGE
      WHERE TABLE_SCHEMA = %s
        AND REFERENCED_TABLE_NAME IS NOT NULL
@@ -42,28 +42,30 @@ $rows = $wpdb->get_results($wpdb->prepare(
     $wpdb->prefix . 'lingowp\_%'
 ), ARRAY_A);
 
+// Keyed by table: the FKs are unnamed (MySQL names are unique per database,
+// so fixed names broke multisite), and each table carries exactly one.
 $found = [];
 foreach ((array) $rows as $r) {
-    $found[(string) $r['name']] = (string) $r['tbl'];
+    $found[(string) $r['tbl']][] = (string) $r['ref'];
 }
 
 $expectedFks = [
     // parent -> WordPress
-    'fk_post_owner'      => $parents['post'],
-    'fk_meta_owner'      => $parents['meta'],
-    'fk_term_owner'      => $parents['term'],
-    'fk_option_owner'    => $parents['option'],
-    'fk_user_owner'      => $parents['user'],
-    'fk_term_meta_owner' => $parents['term_meta'],
+    $parents['post']      => $wpdb->posts,
+    $parents['meta']      => $wpdb->posts,
+    $parents['term']      => $wpdb->term_taxonomy,
+    $parents['option']    => $wpdb->options,
+    $parents['user']      => $wpdb->users,
+    $parents['term_meta'] => $wpdb->terms,
     // child -> parent
-    'fk_meta_tr_parent'      => $parents['meta'] . '_translation',
-    'fk_term_meta_tr_parent' => $parents['term_meta'] . '_translation',
+    $parents['meta'] . '_translation'      => $parents['meta'],
+    $parents['term_meta'] . '_translation' => $parents['term_meta'],
 ];
 
-foreach ($expectedFks as $name => $table) {
-    test_ok("  $name exists on $table",
-        isset($found[$name]) && $found[$name] === $table,
-        isset($found[$name]) ? "found on {$found[$name]}" : 'NOT FOUND');
+foreach ($expectedFks as $table => $ref) {
+    test_ok("  $table has one FK to $ref",
+        ($found[$table] ?? []) === [$ref],
+        'found ' . json_encode($found[$table] ?? []));
 }
 
 $unexpected = array_diff_key($found, $expectedFks);
@@ -74,9 +76,9 @@ $verifier = new ConstraintVerifier($wpdb);
 $missing  = $verifier->findMissing(TranslationMemorySchema::expectedForeignKeys());
 test_ok('ConstraintVerifier reports nothing missing', $missing === [], 'missing: ' . json_encode($missing));
 
-test_ok('expectedForeignKeys() covers every enumerated FK above',
-    count(TranslationMemorySchema::expectedForeignKeys()) === count($expectedFks),
-    'expected ' . count($expectedFks) . ', got ' . count(TranslationMemorySchema::expectedForeignKeys()));
+test_ok('expectedForeignKeys() matches the enumerated set above',
+    TranslationMemorySchema::expectedForeignKeys() == $expectedFks,
+    json_encode(TranslationMemorySchema::expectedForeignKeys()));
 
 // ── B. Hash-link children have NO foreign key, by design ─────────────────────
 

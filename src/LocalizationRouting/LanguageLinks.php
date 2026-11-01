@@ -159,7 +159,6 @@ class LanguageLinks
 
         $path    = $this->prefixer->stripPrefix($this->currentPath());
         $query   = $this->currentQuery();
-        $origin  = $this->origin();
 
         $rows = [];
         foreach ($ordered as $code) {
@@ -174,7 +173,9 @@ class LanguageLinks
             $rows[] = [
                 'code'         => $code,
                 'slug'         => $this->resolver->slugForLanguage($code),
-                'url'          => $origin . $localized . $query,
+                // The request path carries any site folder (/blog/…), and the
+                // builder keeps it in place; absoluteUrl() adds only scheme+host.
+                'url'          => $this->prefixer->absoluteUrl($localized . $query),
                 'native_name'  => $this->languages->nativeLabel($code),
                 'english_name' => $this->languages->label($code),
                 'dir'          => $this->languages->direction($code),
@@ -202,15 +203,17 @@ class LanguageLinks
             $byCode[$row['code']] = $row;
         }
 
+        // Keyed by code, so a locale listed twice ("fr_FR,fr_FR") appears once,
+        // at its first position. PHP keeps insertion order for string keys.
         $out = [];
         foreach ($codes as $code) {
             $code = (string) $code;
-            if (isset($byCode[$code])) {
-                $out[] = $byCode[$code];
+            if (isset($byCode[$code]) && !isset($out[$code])) {
+                $out[$code] = $byCode[$code];
             }
         }
 
-        return $out;
+        return array_values($out);
     }
 
     private function currentPath(): string
@@ -227,24 +230,5 @@ class LanguageLinks
         $query = (string) wp_parse_url($uri, PHP_URL_QUERY);
 
         return $query !== '' ? '?' . $query : '';
-    }
-
-    /**
-     * Scheme + host (+ port) of this site, e.g. "https://example.com" — from
-     * home_url() so it is proxy-correct, but WITHOUT its path: the request path
-     * already carries any subdirectory, and re-adding it via home_url('/fr/…')
-     * would double it on a subdirectory or multisite install.
-     */
-    private function origin(): string
-    {
-        $parts = wp_parse_url(home_url('/'));
-        if (!is_array($parts) || empty($parts['host'])) {
-            return '';
-        }
-
-        $scheme = $parts['scheme'] ?? ((function_exists('is_ssl') && is_ssl()) ? 'https' : 'http');
-        $port   = isset($parts['port']) ? ':' . $parts['port'] : '';
-
-        return $scheme . '://' . $parts['host'] . $port;
     }
 }

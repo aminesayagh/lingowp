@@ -92,6 +92,7 @@ final class OrphanTranslationSweep
             }
             $child = $parent . '_translation';
 
+            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $rows = (int) $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
                 "DELETE FROM {$child}
                  WHERE created_at < %s
@@ -103,6 +104,7 @@ final class OrphanTranslationSweep
                 $cutoff,
                 self::BATCH
             ));
+            // phpcs:enable
 
             $deleted += $rows;
             $hitLimit = $hitLimit || $rows >= self::BATCH;

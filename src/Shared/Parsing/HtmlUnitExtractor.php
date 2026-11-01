@@ -3,6 +3,7 @@
 namespace LingoWP\Shared\Parsing;
 
 use Masterminds\HTML5;
+use LingoWP\Shared\Text\TranslatableText;
 
 /**
  * The single block-level unit extractor (type-5 parsing spec §2-§5, reused by
@@ -15,6 +16,10 @@ use Masterminds\HTML5;
  *   - render()     → split-field the_content: replace each unit by its translation.
  *   - walkNode()   → the type-5 page renderer (HtmlRenderer) drives the same walk
  *                    over the page <body>, keying by DOM selector instead of text.
+ *
+ * Plus one attribute pass (walkAttributes()): alt/title/aria-label/placeholder/
+ * button value text becomes its own unit. units()/render() include it; the page
+ * renderer calls it after walkNode().
  *
  * Fail-open everywhere: any parse/DOM error leaves the HTML (or the block) as-is.
  * See BLOCK_TAGS/STANDALONE_TEXT_TAGS/isPruned()'s doc comments for the Verse/
@@ -72,6 +77,27 @@ final class HtmlUnitExtractor
         'cite' => true, 'summary' => true,
     ];
 
+    /**
+     * Attributes holding text a visitor sees (alt when an image fails, title
+     * tooltip, placeholder, a submit button's label) or a screen reader
+     * announces (alt, aria-label). Each value is its own unit, keyed by its text
+     * hash like any block unit. Tag list null = any element; `value` is further
+     * narrowed to button-like inputs and `alt` on an input to type=image in
+     * textAttributes() — every other `value` is form data, not text.
+     */
+    private const TEXT_ATTRIBUTES = [
+        'alt'         => ['img' => true, 'area' => true, 'input' => true],
+        'title'       => null,
+        'aria-label'  => null,
+        'placeholder' => ['input' => true, 'textarea' => true],
+        'value'       => ['input' => true],
+    ];
+
+    /** Pruned tags whose own attributes are never visitor text either. */
+    private const NO_ATTRIBUTE_TAGS = [
+        'script' => true, 'style' => true, 'noscript' => true, 'template' => true,
+    ];
+
     private TranslationUnitCodec $codec;
 
     public function __construct(TranslationUnitCodec $codec)
@@ -88,9 +114,8 @@ final class HtmlUnitExtractor
     public function units(string $html): array
     {
         $units = [];
-        $this->renderFragment($html, static function (\DOMElement $block, array $encoded) use (&$units): ?string {
-            unset($block);
-            $units[] = $encoded['unit'];
+        $this->renderFragment($html, static function (string $unit) use (&$units): ?string {
+            $units[] = $unit;
 
             return null; // collect only — no replacement
         });
@@ -107,11 +132,7 @@ final class HtmlUnitExtractor
      */
     public function render(string $html, callable $translate): string
     {
-        return $this->renderFragment($html, static function (\DOMElement $block, array $encoded) use ($translate): ?string {
-            unset($block);
-
-            return $translate($encoded['unit']);
-        });
+        return $this->renderFragment($html, $translate);
     }
 
     /**
@@ -193,9 +214,13 @@ final class HtmlUnitExtractor
      * and serialize back. Used by units()/render(); the page renderer loads a
      * full document and calls walkNode() directly.
      *
-     * @param callable(\DOMElement, array{unit:string, tags:array}):?string $onUnit
+     * Block units first, then attribute units (see walkAttributes()) — in that
+     * order, because a translated block is rebuilt from its original inline
+     * markup, which would put an already-translated inline <img alt> back.
+     *
+     * @param callable(string):?string $translate unit string => translation or null
      */
-    private function renderFragment(string $html, callable $onUnit): string
+    private function renderFragment(string $html, callable $translate): string
     {
         if ($html === '' || !class_exists(HTML5::class)) {
             return $html;
@@ -209,12 +234,92 @@ final class HtmlUnitExtractor
                 return $html;
             }
 
-            $this->walkNode($fragment, $html5, $dom, $onUnit);
+            $this->walkNode($fragment, $html5, $dom, static fn(\DOMElement $block, array $encoded): ?string => $translate($encoded['unit']));
+            $this->walkAttributes($fragment, static fn(\DOMElement $element, string $name, string $unit): ?string => $translate($unit));
 
             return $html5->saveHTML($fragment);
         } catch (\Throwable $e) {
             return $html;
         }
+    }
+
+    /**
+     * Attribute units: for every element under $node carrying an allow-listed
+     * attribute (TEXT_ATTRIBUTES) with translatable text, call
+     * $onAttribute($element, $name, $unit); a non-null/non-empty return
+     * replaces the attribute value (setAttribute escapes it — the translation is
+     * plain text, never markup).
+     *
+     * Opted-out subtrees (translate="no", notranslate, …) are skipped whole. A
+     * pruned element (iframe, svg, textarea, …) keeps its contents skipped as in
+     * walkNode(), but its OWN attributes are still read: an iframe's title or a
+     * textarea's placeholder is shown or announced like any other.
+     *
+     * @param callable(\DOMElement, string, string):?string $onAttribute
+     */
+    public function walkAttributes(\DOMNode $node, callable $onAttribute): void
+    {
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $tag = strtolower($child->tagName);
+            if ($this->isOptedOut($child) || isset(self::NO_ATTRIBUTE_TAGS[$tag])) {
+                continue;
+            }
+
+            foreach ($this->textAttributes($child, $tag) as $name => $unit) {
+                try {
+                    $translated = $onAttribute($child, $name, $unit);
+                    if ($translated !== null && $translated !== '') {
+                        $child->setAttribute($name, $translated);
+                    }
+                } catch (\Throwable $e) {
+                    // fail-open: leave the attribute as-is
+                }
+            }
+
+            if (!$this->isPruned($child, $tag)) {
+                $this->walkAttributes($child, $onAttribute);
+            }
+        }
+    }
+
+    /**
+     * The element's allow-listed attributes as unit strings (whitespace tidied
+     * like a block unit), machine values (URLs, file names, no letters) left out
+     * by the same gate every other source uses.
+     *
+     * @return array<string, string> attribute name => unit
+     */
+    private function textAttributes(\DOMElement $element, string $tag): array
+    {
+        $units = [];
+        $type  = strtolower(trim($element->getAttribute('type')));
+
+        foreach (self::TEXT_ATTRIBUTES as $name => $tags) {
+            if (($tags !== null && !isset($tags[$tag])) || !$element->hasAttribute($name)) {
+                continue;
+            }
+            // A named submit sends its value with the form ($_POST['action'] ===
+            // 'Delete'), so only an unnamed button's value is display-only. Not
+            // trimmed: browsers submit any non-empty name, even name=" ".
+            if ($tag === 'input' && $name === 'value'
+                && (!in_array($type, ['submit', 'button', 'reset'], true) || $element->getAttribute('name') !== '')) {
+                continue;
+            }
+            if ($tag === 'input' && $name === 'alt' && $type !== 'image') {
+                continue;
+            }
+
+            $unit = trim((string) preg_replace('/\s+/u', ' ', $element->getAttribute($name)));
+            if (TranslatableText::isTranslatable($unit)) {
+                $units[$name] = $unit;
+            }
+        }
+
+        return $units;
     }
 
     public function isPruned(\DOMElement $element, string $tag): bool
@@ -227,6 +332,13 @@ final class HtmlUnitExtractor
         if (!($tag === 'pre' && $this->hasClass($element, 'wp-block-verse')) && isset(self::PRUNE_TAGS[$tag])) {
             return true;
         }
+
+        return $this->isOptedOut($element);
+    }
+
+    /** Explicit "never translate this subtree" markers, plus the admin bar. */
+    private function isOptedOut(\DOMElement $element): bool
+    {
         if ($element->hasAttribute('data-lingowp-skip') || $element->hasAttribute('data-lingowp-region')) {
             return true;
         }

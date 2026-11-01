@@ -48,10 +48,12 @@ final class AiTaskSubmitter
             'source_lang'  => $this->registry->getDefaultLanguage(),
             'target_langs' => $langs,
             'languages'    => $this->metadata->providerConfig($langs),
+            // `previous` (lang => current translation) only on a re-translate,
+            // so the backend asks for a different wording; omitted otherwise.
             'texts'        => array_map(static fn (array $u): array => [
                 'text'     => $u['original'],
                 'group_id' => $u['group_id'],
-            ], $units),
+            ] + (empty($u['previous']) ? [] : ['previous' => $u['previous']]), $units),
         ];
 
         $res = $this->backend->submitTasks($payload);

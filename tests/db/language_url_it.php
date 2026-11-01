@@ -10,12 +10,12 @@
  *   2. The URL matrix: front page, singular, paginated, date archive, search,
  *      query strings, already-prefixed paths, trailing-slash variants,
  *      double-switch idempotence.
- *   3. SwitcherRenderer — markup contract, dropdown <details>, aria-current,
- *      is-current, RTL dir, empty output with < 2 languages.
- *   4. The lingowp_language_links filter dropping a language.
+ *   3. The lingowp_language_links filter dropping a language.
+ *   4. No links with fewer than 2 languages.
  *   5. LanguageHtmlAttributes — <html lang>/dir swap on translated requests.
- *   6. FlagResolver + flag_url/region on rows, and the switcher's flag slot
- *      (img / globe / code fallback), flags="only", label/id args, no menu role.
+ *   6. FlagResolver — region, fallback map, unmapped locale.
+ *
+ * The switcher markup itself is covered by tests/db/switcher_*_it.php.
  *
  * Run: wp eval-file tests/db/language_url_it.php
  */
@@ -31,7 +31,6 @@ use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use LingoWP\Language\Infrastructure\SupportedLanguages;
 use LingoWP\LocalizationRouting\LanguageLinks;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
-use LingoWP\LocalizationRouting\SwitcherRenderer;
 use LingoWP\Resolution\RequestContext;
 use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
 
@@ -147,31 +146,7 @@ $once  = $builder->addPrefix($builder->stripPrefix('/zz/about/'), 'zz_ZZ');
 $twice = $builder->addPrefix($builder->stripPrefix($once), 'zz_ZZ');
 test_ok('addPrefix/stripPrefix is idempotent', $once === $twice, "$once vs $twice");
 
-// ── 3. SwitcherRenderer ────────────────────────────────────────────────────
-
-test_section('SwitcherRenderer — markup contract');
-
-$_SERVER['REQUEST_URI'] = '/about/';
-set_query_var('lingowp_lang', 'zz_ZZ');
-$resolver = new ResolveRequestLanguage($registry);
-$renderer = new SwitcherRenderer(new LanguageLinks($resolver, new LocalizedUrlBuilder($resolver), $langs));
-
-$dropdown = $renderer->render(['display' => 'code', 'layout' => 'dropdown']);
-test_ok('nav wrapper + aria-label', preg_match('/<nav class="lingowp-switcher lingowp-switcher--dropdown [^"]*" data-lingowp-switcher aria-label="Language">/', $dropdown) === 1, $dropdown);
-test_ok('dropdown uses <details>', str_contains($dropdown, '<details class="lingowp-switcher__details">') && str_contains($dropdown, '<summary class="lingowp-switcher__current">'));
-test_ok('active item carries aria-current', preg_match('/data-lingowp-lang="zz_ZZ"[^>]*aria-current="true"/', $dropdown) === 1, $dropdown);
-test_ok('active item carries is-current class', str_contains($dropdown, '<li class="lingowp-switcher__item is-current">'));
-test_ok('no per-row dir attribute (switcher follows page direction)', !str_contains($dropdown, ' dir="rtl"') && !str_contains($dropdown, ' dir="ltr"'), $dropdown);
-test_ok('links are absolute + escaped', preg_match('#href="https?://[^"]+/zz/about/"#', $dropdown) === 1, $dropdown);
-
-$inline = $renderer->render(['layout' => 'inline']);
-test_ok('inline layout has no <details>', !str_contains($inline, '<details'));
-test_ok('inline layout class', str_contains($inline, 'lingowp-switcher--inline'));
-
-$hidden = $renderer->render(['hide_current' => true]);
-test_ok('hide_current drops the active language', !str_contains($hidden, 'data-lingowp-lang="zz_ZZ"'));
-
-// ── 4. lingowp_language_links filter ───────────────────────────────────────
+// ── 3. lingowp_language_links filter ───────────────────────────────────────
 
 test_section('lingowp_language_links filter');
 
@@ -183,13 +158,9 @@ add_filter('lingowp_language_links', $dropZz);
 $rows = test_links_for('/about/', $registry, $langs, 'yy_YY');
 test_ok('filter removes zz_ZZ from the data', test_row($rows, 'zz_ZZ') === null);
 
-$resolver = new ResolveRequestLanguage($registry);
-$filtered = (new SwitcherRenderer(new LanguageLinks($resolver, new LocalizedUrlBuilder($resolver), $langs)))->render();
-test_ok('filter removes zz_ZZ from the markup', !str_contains($filtered, 'data-lingowp-lang="zz_ZZ"'));
-
 remove_filter('lingowp_language_links', $dropZz);
 
-// ── 5. Fewer than 2 languages ─────────────────────────────────────────────
+// ── 4. Fewer than 2 languages ─────────────────────────────────────────────
 
 test_section('gating: < 2 enabled languages');
 
@@ -212,9 +183,8 @@ $singleRegistry = new class ($default) implements LanguageRegistry {
 $singleResolver = new ResolveRequestLanguage($singleRegistry);
 $singleLinks    = new LanguageLinks($singleResolver, new LocalizedUrlBuilder($singleResolver), $langs);
 test_ok('links() is empty with 1 language', $singleLinks->links() === []);
-test_ok('renderer is empty with 1 language', (new SwitcherRenderer($singleLinks))->render() === '');
 
-// ── 6. LanguageHtmlAttributes ─────────────────────────────────────────────
+// ── 5. LanguageHtmlAttributes ─────────────────────────────────────────────
 
 test_section('LanguageHtmlAttributes — <html lang>/dir');
 
@@ -235,9 +205,9 @@ test_ok('RTL target drops an inherited LTR dir', $attrsRr->filter('dir="ltr" lan
 
 set_query_var('lingowp_lang', '');
 
-// ── 7. Flags: FlagResolver + switcher flag slot ───────────────────────────
+// ── 6. Flags: FlagResolver ─────────────────────────────────────────────
 
-test_section('FlagResolver + switcher flag slot');
+test_section('FlagResolver');
 
 // Direct resolver: region from the locale, curated fallback map, unmapped.
 test_ok('en_US -> us.svg', FlagResolver::url('en_US') === LINGOWP_URL . 'assets/flags/us.svg', (string) FlagResolver::url('en_US'));
@@ -245,47 +215,6 @@ test_ok('pt_BR -> br.svg (region beats language)', FlagResolver::url('pt_BR') ==
 test_ok('ar -> arab.svg (fallback map, no region)', FlagResolver::url('ar') === LINGOWP_URL . 'assets/flags/arab.svg', (string) FlagResolver::url('ar'));
 test_ok('eo -> eo.svg (fallback map, constructed language)', FlagResolver::url('eo') === LINGOWP_URL . 'assets/flags/eo.svg', (string) FlagResolver::url('eo'));
 test_ok('zz_ZZ -> null (no such flag file)', FlagResolver::url('zz_ZZ') === null, var_export(FlagResolver::url('zz_ZZ'), true));
-
-$_SERVER['REQUEST_URI'] = '/about/';
-set_query_var('lingowp_lang', 'zz_ZZ');
-$resolver  = new ResolveRequestLanguage($registry);
-$flagRender = new SwitcherRenderer(new LanguageLinks($resolver, new LocalizedUrlBuilder($resolver), $langs));
-
-// flags=true (dropdown default): flagged rows get an <img>, unmapped rows the globe.
-$withFlags = $flagRender->render(['display' => 'code', 'flags' => true]);
-test_ok('flag slot present', str_contains($withFlags, '<span class="lingowp-switcher__flag">'));
-test_ok('source row renders a flag <img>', preg_match('#<img class="lingowp-switcher__flag-img" src="https?://[^"]+/us\.svg"#', $withFlags) === 1, $withFlags);
-test_ok('unmapped zz_ZZ falls back to the inline globe', str_contains($withFlags, 'lingowp-switcher__globe'));
-test_ok('no menu/listbox role on the list (disclosure pattern)', !str_contains($withFlags, 'role="menu"') && !str_contains($withFlags, 'role="listbox"'));
-
-// flags=false: no flag slot at all.
-$noFlags = $flagRender->render(['flags' => false]);
-test_ok('flags=false removes the flag slot', !str_contains($noFlags, 'lingowp-switcher__flag'));
-
-// flags="only": text label kept for screen readers, wrapped.
-$only = $flagRender->render(['display' => 'code', 'flags' => 'only']);
-test_ok('flags="only" keeps an SR-only label', str_contains($only, '<span class="lingowp-switcher__sr">'));
-
-// flag_fallback=code: unmapped row shows its region code, not a globe.
-$codeFallback = $flagRender->render(['flags' => true, 'flag_fallback' => 'code']);
-test_ok('flag_fallback=code shows the code chip', str_contains($codeFallback, 'lingowp-switcher__flag--code') && str_contains($codeFallback, '>ZZ<'));
-test_ok('flag_fallback=code has no globe', !str_contains($codeFallback, 'lingowp-switcher__globe'));
-
-// flag_fallback=none: unmapped row has an empty slot (flagged rows still show img).
-$noneFallback = $flagRender->render(['flags' => true, 'flag_fallback' => 'none']);
-test_ok('flag_fallback=none: no globe, no code chip', !str_contains($noneFallback, 'lingowp-switcher__globe') && !str_contains($noneFallback, 'lingowp-switcher__flag--code'));
-test_ok('flag_fallback=none: flagged rows still render an <img>', str_contains($noneFallback, 'lingowp-switcher__flag-img'));
-
-// label + id args land on the wrapper.
-$labelled = $flagRender->render(['label' => 'Idioma', 'id' => 'ls-demo']);
-test_ok('label arg overrides aria-label', str_contains($labelled, 'aria-label="Idioma"'));
-test_ok('id arg lands on the nav', str_contains($labelled, ' id="ls-demo"') && str_contains($labelled, 'lingowp-switcher--dropdown'));
-
-// size + shadow modifiers.
-test_ok('default is the lg size with a shadow', str_contains($flagRender->render([]), 'lingowp-switcher--lg') && str_contains($flagRender->render([]), 'lingowp-switcher--shadow'));
-test_ok('size="sm" swaps the size class', str_contains($flagRender->render(['size' => 'sm']), 'lingowp-switcher--sm') && !str_contains($flagRender->render(['size' => 'sm']), 'lingowp-switcher--lg'));
-test_ok('unknown size falls back to lg', str_contains($flagRender->render(['size' => 'huge']), 'lingowp-switcher--lg'));
-test_ok('shadow=false drops the shadow class', !str_contains($flagRender->render(['shadow' => false]), 'lingowp-switcher--shadow'));
 
 set_query_var('lingowp_lang', '');
 

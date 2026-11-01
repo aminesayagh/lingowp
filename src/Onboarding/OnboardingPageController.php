@@ -67,8 +67,8 @@ final class OnboardingPageController
     public function addMenu(): void
     {
         $hook = add_menu_page(
-            __('LingoWP', 'lingowp'),
-            __('LingoWP', 'lingowp'),
+            __('Linvara', 'linvara'),
+            __('Linvara', 'linvara'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage'],
@@ -78,8 +78,8 @@ final class OnboardingPageController
 
         add_submenu_page(
             self::SLUG,
-            __('LingoWP', 'lingowp'),
-            __('Workspace', 'lingowp'),
+            __('Linvara', 'linvara'),
+            __('Workspace', 'linvara'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
@@ -87,8 +87,8 @@ final class OnboardingPageController
 
         $insightsHook = self::INSIGHTS_ENABLED ? add_submenu_page(
             self::SLUG,
-            __('Insights', 'lingowp'),
-            __('Insights', 'lingowp'),
+            __('Insights', 'linvara'),
+            __('Insights', 'linvara'),
             self::CAPABILITY,
             self::INSIGHTS_SLUG,
             [$this, 'renderInsightsPage']
@@ -96,8 +96,8 @@ final class OnboardingPageController
 
         $accountHook = add_submenu_page(
             self::SLUG,
-            __('Account', 'lingowp'),
-            __('Account', 'lingowp'),
+            __('Account', 'linvara'),
+            __('Account', 'linvara'),
             self::CAPABILITY,
             self::ACCOUNT_SLUG,
             [$this, 'renderAccountPage']
@@ -126,28 +126,28 @@ final class OnboardingPageController
     public function renderPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'linvara'));
         }
 
-        echo '<div class="wrap"><div id="lingowp-app"></div></div>';
+        echo '<div class="wrap"><hr class="wp-header-end"><div id="lingowp-app"></div></div>';
     }
 
     public function renderAccountPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'linvara'));
         }
 
-        echo '<div class="wrap"><div id="lingowp-account-app"></div></div>';
+        echo '<div class="wrap"><hr class="wp-header-end"><div id="lingowp-account-app"></div></div>';
     }
 
     public function renderInsightsPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'linvara'));
         }
 
-        echo '<div class="wrap"><div id="lingowp-insights-app"></div></div>';
+        echo '<div class="wrap"><hr class="wp-header-end"><div id="lingowp-insights-app"></div></div>';
     }
 
     public function enqueue(string $hook): void
@@ -163,7 +163,7 @@ final class OnboardingPageController
         if (!is_readable($asset)) {
             add_action('admin_notices', static function (): void {
                 echo '<div class="notice notice-error"><p>'
-                    . esc_html__('LingoWP admin assets are not built. Run "npm install && npm run build" in the plugin.', 'lingowp')
+                    . esc_html__('Linvara admin assets are not built. Run "npm install && npm run build" in the plugin.', 'linvara')
                     . '</p></div>';
             });
             return;
@@ -195,6 +195,14 @@ final class OnboardingPageController
 
         $notifyEmail = $this->notifyEmailResolver->resolve();
 
+        // Account page, "Language switcher" tab: WordPress's own CodeMirror
+        // CSS editor (as in Additional CSS) for the custom CSS field. False
+        // when the user turned syntax highlighting off in their profile — the
+        // tab then keeps a plain text box.
+        $cssEditor = $hook === $this->accountHookSuffix
+            ? wp_enqueue_code_editor(['type' => 'text/css'])
+            : false;
+
         wp_localize_script(self::HANDLE, 'LingoWP', [
             'rest'                => esc_url_raw(rest_url('lingowp/v1')),
             'nonce'               => wp_create_nonce('wp_rest'),
@@ -210,6 +218,13 @@ final class OnboardingPageController
                 (new BackendEndpointResolver())->baseUrl() . '/addons/icons/'
             ),
             'account_url'         => esc_url_raw(admin_url('admin.php?page=' . self::ACCOUNT_SLUG)),
+            // A migration add-on (e.g. lingowp-translatepress) fills this in when
+            // there is something to migrate from on this site: { source, label,
+            // migrated }. Null hides the Account page's Migration tab and the
+            // dashboard's "migrate" toast. A boot flag, not a REST call, so the
+            // tab never flickers and screens pay nothing when it's absent.
+            'migration'           => apply_filters('lingowp_admin_migration', null),
+            'css_editor'          => $cssEditor,
             'notify_email'        => $notifyEmail['email'],
             'notify_email_source' => $notifyEmail['source'],
             // The canonical published pages. They stay filterable so a
@@ -226,6 +241,6 @@ final class OnboardingPageController
             )),
         ]);
 
-        wp_set_script_translations(self::HANDLE, 'lingowp', LINGOWP_DIR . 'languages');
+        wp_set_script_translations(self::HANDLE, 'linvara', LINGOWP_DIR . 'languages');
     }
 }

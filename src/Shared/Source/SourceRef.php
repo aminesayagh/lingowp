@@ -39,7 +39,7 @@ final class SourceRef
     public static function make(string $kind, int $id): self
     {
         if (!isset(self::TABLES[$kind])) {
-            throw new InvalidArgumentException("SourceRef: unknown kind '{$kind}'.");
+            throw new InvalidArgumentException("SourceRef: unknown kind '{$kind}'."); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- developer-facing invariant on a value set in code; this class runs without WordPress (tests/source_identity_check.php).
         }
         if ($id <= 0) {
             throw new InvalidArgumentException('SourceRef: id must be positive.');
@@ -53,7 +53,7 @@ final class SourceRef
     {
         $kind = array_search($tableKey, self::TABLES, true);
         if ($kind === false) {
-            throw new InvalidArgumentException("SourceRef: unknown table '{$tableKey}'.");
+            throw new InvalidArgumentException("SourceRef: unknown table '{$tableKey}'."); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- developer-facing invariant on a value set in code; this class runs without WordPress (tests/source_identity_check.php).
         }
 
         return $kind;

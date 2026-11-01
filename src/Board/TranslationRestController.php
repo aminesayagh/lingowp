@@ -91,7 +91,8 @@ final class TranslationRestController
 
     /**
      * Single-text action: ignore / restore (source-global), clear (this
-     * language), review (flag needs_review), reviewed (mark reviewed).
+     * language), review (flag needs_review), reviewed (mark reviewed),
+     * manual (drop the provider: an imported or AI translation becomes manual).
      */
     public function status(WP_REST_Request $request): WP_REST_Response
     {
@@ -135,6 +136,11 @@ final class TranslationRestController
                 break;
             case 'reviewed':
                 $this->repo->setTranslationStatus($ref, $lang, TranslationStatus::REVIEWED);
+                break;
+            case 'manual':
+                if (!$this->repo->clearTranslationProvider($ref, $lang)) {
+                    return new WP_REST_Response(['ok' => false, 'error' => 'ERR_SAVE_FAILED'], 500);
+                }
                 break;
             default:
                 return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);

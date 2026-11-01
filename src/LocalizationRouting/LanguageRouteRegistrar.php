@@ -159,7 +159,7 @@ class LanguageRouteRegistrar
         // non-Latin URL 404ed.
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- restored verbatim; normalizeOne() reads a sanitized copy for every decision.
         $rawUri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
-        $newUri = $rawUri === '' ? null : $this->normalizeOne($rawUri);
+        $newUri = $rawUri === '' ? null : $this->normalizeOne($rawUri, true);
 
         if ($newUri !== null) {
             $this->originalRequestUri = $rawUri;
@@ -169,7 +169,7 @@ class LanguageRouteRegistrar
         if (isset($_SERVER['PATH_INFO'])) {
             // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- same raw/restore contract as REQUEST_URI above.
             $rawPathInfo = (string) $_SERVER['PATH_INFO'];
-            $newPathInfo = $rawPathInfo === '' ? null : $this->normalizeOne($rawPathInfo);
+            $newPathInfo = $rawPathInfo === '' ? null : $this->normalizeOne($rawPathInfo, false);
 
             if ($newPathInfo !== null) {
                 $this->originalPathInfo = $rawPathInfo;
@@ -190,7 +190,7 @@ class LanguageRouteRegistrar
      * came back with both occurrences changed and the query no longer agreed
      * with the already-parsed $_GET.
      */
-    private function normalizeOne(string $raw): ?string
+    private function normalizeOne(string $raw, bool $hasSiteFolder): ?string
     {
         $cut     = strcspn($raw, '?#');
         $rawPath = substr($raw, 0, $cut);
@@ -203,6 +203,19 @@ class LanguageRouteRegistrar
         // visitor never sent.
         if (esc_url_raw(wp_unslash($rawPath)) !== $rawPath) {
             return null;
+        }
+
+        // REQUEST_URI carries any site folder (/blog/fr/a-propos/), and the
+        // language prefix is the segment AFTER it; PATH_INFO is relative to
+        // index.php and never carries one. Set the folder aside, map what
+        // follows, and put it back as it arrived. "" on a root install.
+        $folder = '';
+        if ($hasSiteFolder) {
+            $split = LocalizedUrlBuilder::splitSiteFolder($rawPath);
+            if ($split === null) {
+                return null; // outside the WordPress folder: not ours to map
+            }
+            [$folder, $rawPath] = $split;
         }
 
         $trimmed = trim($rawPath, '/');
@@ -233,7 +246,7 @@ class LanguageRouteRegistrar
             return null;
         }
 
-        return '/' . $prefix . $sourceRest . $suffix;
+        return $folder . '/' . $prefix . $sourceRest . $suffix;
     }
 
     /**

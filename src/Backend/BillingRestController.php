@@ -97,7 +97,8 @@ final class BillingRestController
      * 'fr-CA' -> 'fr'). The catalog is tier-based: `tier` (top-level) is the
      * licence's plan, each add-on carries `tier` (lowest plan including it)
      * and `included`. This site adds the two facts only it can know —
-     * `relevant` (its `detects` list hits an active plugin/theme here) and
+     * `relevant` (its `detects` list hits an active plugin/theme here; for a
+     * migration add-on, a plugin merely installed, active or not) and
      * `installed` (the lingowp-<product> plugin is active here) — plus
      * `recently_activated`, the read-once list of third-party activations
      * since the last LingoWP screen load, which drives the one-shot toast.
@@ -115,7 +116,10 @@ final class BillingRestController
 
         $addons = [];
         foreach ((array) ($result['data']['addons'] ?? []) as $addon) {
-            $addon['relevant']  = $this->addonMatcher->isRelevant((array) ($addon['detects'] ?? []));
+            $detects            = (array) ($addon['detects'] ?? []);
+            $addon['relevant']  = in_array('migration', (array) ($addon['categories'] ?? []), true)
+                ? $this->addonMatcher->isPresent($detects)
+                : $this->addonMatcher->isRelevant($detects);
             $addon['installed'] = $this->addonMatcher->isInstalled((string) ($addon['product'] ?? ''));
             $addons[]           = $addon;
         }

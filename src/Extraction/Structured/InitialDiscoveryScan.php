@@ -23,6 +23,22 @@ final class InitialDiscoveryScan
     public const GROUP       = 'lingowp';
     public const OPTION_FLAG = 'lingowp_needs_initial_scan';
 
+    /**
+     * Bumped when discovery starts producing units it did not before
+     * (2: text inside HTML attributes). Existing content is then rescanned once,
+     * on its own: left to each post's next save, the new units would land in
+     * the same reconcile as the editor's change, and reconcile's
+     * one-removed/one-inserted carry-forward would copy a just-deleted
+     * paragraph's translation onto an unrelated alt.
+     *
+     * The version is stamped only when a full pass completes (runBatch()); a
+     * pass that never started or died mid-chain is re-requested, at most once
+     * a day (RETRY_TRANSIENT), so a batch that keeps failing cannot loop.
+     */
+    public const DISCOVERY_VERSION = 2;
+    public const VERSION_OPTION    = 'lingowp_discovery_version';
+    public const RETRY_TRANSIENT   = 'lingowp_discovery_rescan_requested';
+
     private const BATCH = 200;
 
     private \wpdb $wpdb;
@@ -45,9 +61,18 @@ final class InitialDiscoveryScan
         add_action('init', [$this, 'maybeEnqueue']);
     }
 
-    /** Kick off the first batch once, when activation requested a scan. */
+    /** Kick off the first batch once, when activation or a discovery upgrade requested a scan. */
     public function maybeEnqueue(): void
     {
+        if ((int) get_option(self::VERSION_OPTION, 0) < self::DISCOVERY_VERSION
+            && get_transient(self::RETRY_TRANSIENT) === false
+            && function_exists('as_has_scheduled_action')
+            && !as_has_scheduled_action(self::HOOK, null, self::GROUP)
+        ) {
+            set_transient(self::RETRY_TRANSIENT, 1, DAY_IN_SECONDS);
+            update_option(self::OPTION_FLAG, 1);
+        }
+
         if (!get_option(self::OPTION_FLAG)) {
             return;
         }
@@ -60,11 +85,21 @@ final class InitialDiscoveryScan
     }
 
     /**
-     * @param array{phase?: string, after?: int} $cursor
+     * @param array{phase?: string, after?: int, v?: int} $cursor
      */
     public function runBatch($cursor = []): void
     {
         $cursor = is_array($cursor) ? $cursor : [];
+
+        // A chain queued by an older discovery (no or lower 'v' — e.g. an
+        // activation scan still running when the plugin was updated) already
+        // skipped the posts behind its cursor with the old rules. Restart it as
+        // a full current pass rather than let it stamp the new version.
+        if ((int) ($cursor['v'] ?? 1) < self::DISCOVERY_VERSION) {
+            $this->enqueue(['phase' => 'posts', 'after' => 0]);
+            return;
+        }
+
         $phase  = $cursor['phase'] ?? 'posts';
         $after  = (int) ($cursor['after'] ?? 0);
 
@@ -87,6 +122,7 @@ final class InitialDiscoveryScan
             // plus widget/theme_mod rows, tens of rows not thousands. Batch it like
             // posts if a site ever shows up with a pathological widget count.
             $this->optionScanner->scan();
+            update_option(self::VERSION_OPTION, self::DISCOVERY_VERSION);
             return; // done
         }
         foreach ($terms as [$ttId, $taxonomy, $name, $description]) {
@@ -101,6 +137,8 @@ final class InitialDiscoveryScan
      */
     private function enqueue(array $cursor): void
     {
+        $cursor['v'] = self::DISCOVERY_VERSION; // which discovery rules this chain runs
+
         if (function_exists('as_enqueue_async_action')) {
             as_enqueue_async_action(self::HOOK, ['cursor' => $cursor], self::GROUP);
         }
@@ -111,6 +149,7 @@ final class InitialDiscoveryScan
      */
     private function nextPostIds(int $after): array
     {
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $ids = $this->wpdb->get_col( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT ID FROM {$this->wpdb->posts}
@@ -121,6 +160,7 @@ final class InitialDiscoveryScan
                 self::BATCH
             )
         );
+        // phpcs:enable
 
         return array_map('intval', (array) $ids);
     }
@@ -130,6 +170,7 @@ final class InitialDiscoveryScan
      */
     private function nextTerms(int $after): array
     {
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
                 "SELECT tt.term_taxonomy_id AS tt_id, tt.taxonomy AS taxonomy,
@@ -144,6 +185,7 @@ final class InitialDiscoveryScan
             ),
             ARRAY_A
         );
+        // phpcs:enable
 
         return array_map(
             static fn(array $r): array => [

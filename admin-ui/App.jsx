@@ -10,6 +10,8 @@ import Dashboard from './screens/Dashboard'
 import AddLanguagesPicker from './screens/AddLanguagesPicker'
 import SupportBubble from './screens/SupportBubble'
 import AddonActivationToast from './screens/AddonActivationToast'
+import MigrationToast from './screens/MigrationToast'
+import SwitcherSetupToast from './screens/SwitcherSetupToast'
 
 // Gap between finishing onboarding and the "add your first language" step
 // appearing — the dialog itself never closes in between (see the Modal
@@ -137,7 +139,7 @@ function AppInner() {
 						title={
 							step === 'add-language'
 								? 'Add languages'
-								: 'Finish setting up LingoWP'
+								: 'Finish setting up Linvara'
 						}
 					>
 						{ step === 'onboarding' && state && (
@@ -197,6 +199,10 @@ function AppInner() {
 					</Modal>
 					<SupportBubble />
 					<AddonActivationToast />
+					<MigrationToast
+						ready={ !! state && !! state.onboarding_completed }
+					/>
+					<SwitcherSetupToast />
 				</Frame>
 			</PortalsManager>
 		</AppProvider>

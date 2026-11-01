@@ -57,8 +57,9 @@ final class OwnedStringIndex
         }
         $sql = implode(' UNION ALL ', $selects);
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_col($this->wpdb->prepare($sql, ...$args));
+        // phpcs:enable
 
         $owned = [];
         foreach ((array) $rows as $hex) {

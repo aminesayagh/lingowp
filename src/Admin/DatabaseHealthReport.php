@@ -12,7 +12,7 @@ use LingoWP\Database\TranslationMemorySchema;
  * self-service diagnosis saves support hours. This reports, in Tools → Site
  * Health:
  *   - wp_posts / wp_term_taxonomy storage engines
- *   - the five foreign keys (fk_post_owner, fk_meta_owner, fk_term_owner, fk_option_owner, fk_meta_tr_parent)
+ *   - the foreign key each FK-carrying table must have (listed by table: the FKs are unnamed)
  *   - deferred-index suggestion with the current translation row count
  *   - last orphan sweep run
  *
@@ -72,29 +72,29 @@ final class DatabaseHealthReport
             ],
         ];
 
-        foreach (array_keys(TranslationMemorySchema::expectedForeignKeys()) as $fk) {
-            $fields[$fk] = [
-                'label' => $fk,
-                'value' => $this->fkLabel($fk, $state['missing_fks']),
+        foreach (TranslationMemorySchema::expectedForeignKeys() as $table => $referenced) {
+            $fields['fk_' . $table] = [
+                'label' => $table . ' → ' . $referenced,
+                'value' => $this->fkLabel($table, $state['missing_fks']),
             ];
         }
 
         $info['lingowp_db'] = [
-            'label'       => __('LingoWP DB integrity', 'lingowp'),
-            'description' => __('Storage engines, foreign keys, and maintenance state for the LingoWP translation tables.', 'lingowp'),
+            'label'       => __('Linvara DB integrity', 'linvara'),
+            'description' => __('Storage engines, foreign keys, and maintenance state for the Linvara translation tables.', 'linvara'),
             'fields'      => $fields + [
                 'deferred_indexes' => [
-                    'label' => __('Deferred indexes', 'lingowp'),
+                    'label' => __('Deferred indexes', 'linvara'),
                     'value' => $state['deferred_indexes_suggested']
                         /* translators: %s: translation row count. */
-                        ? sprintf(__('suggested (row count: %s)', 'lingowp'), number_format_i18n($state['translation_rows']))
-                        : __('not needed', 'lingowp'),
+                        ? sprintf(__('suggested (row count: %s)', 'linvara'), number_format_i18n($state['translation_rows']))
+                        : __('not needed', 'linvara'),
                 ],
                 'orphan_sweep' => [
-                    'label' => __('Orphan sweep (types 4-5)', 'lingowp'),
+                    'label' => __('Orphan sweep (types 4-5)', 'linvara'),
                     'value' => $state['last_sweep'] !== ''
                         ? $state['last_sweep']
-                        : __('never run', 'lingowp'),
+                        : __('never run', 'linvara'),
                 ],
             ],
         ];
@@ -111,7 +111,7 @@ final class DatabaseHealthReport
     public function addStatusTest(array $tests): array
     {
         $tests['direct']['lingowp_db_integrity'] = [
-            'label' => __('LingoWP database integrity', 'lingowp'),
+            'label' => __('Linvara database integrity', 'linvara'),
             'test'  => [$this, 'runIntegrityTest'],
         ];
 
@@ -131,13 +131,13 @@ final class DatabaseHealthReport
         $critical = $myisam !== [] || $state['missing_fks'] !== [];
 
         $result = [
-            'label'       => __('LingoWP translation tables are healthy', 'lingowp'),
+            'label'       => __('Linvara translation tables are healthy', 'linvara'),
             'status'      => 'good',
             'badge'       => [
-                'label' => __('LingoWP', 'lingowp'),
+                'label' => __('Linvara', 'linvara'),
                 'color' => 'blue',
             ],
-            'description' => '<p>' . esc_html__('Parent tables are InnoDB and all foreign keys are present.', 'lingowp') . '</p>',
+            'description' => '<p>' . esc_html__('Parent tables are InnoDB and all foreign keys are present.', 'linvara') . '</p>',
             'actions'     => '',
             'test'        => 'lingowp_db_integrity',
         ];
@@ -146,23 +146,23 @@ final class DatabaseHealthReport
             $problems = [];
             foreach ($myisam as $table => $engine) {
                 /* translators: 1: table name, 2: storage engine. */
-                $problems[] = sprintf(esc_html__('%1$s uses %2$s instead of InnoDB.', 'lingowp'), esc_html($table), esc_html((string) $engine));
+                $problems[] = sprintf(esc_html__('%1$s uses %2$s instead of InnoDB.', 'linvara'), esc_html($table), esc_html((string) $engine));
             }
             if ($state['missing_fks'] !== []) {
                 /* translators: %s: comma-separated list of foreign key names. */
-                $problems[] = sprintf(esc_html__('Missing foreign keys: %s.', 'lingowp'), esc_html(implode(', ', $state['missing_fks'])));
+                $problems[] = sprintf(esc_html__('Missing foreign keys: %s.', 'linvara'), esc_html(implode(', ', $state['missing_fks'])));
             }
 
             $result['status']        = 'critical';
-            $result['label']         = __('LingoWP translation tables have integrity problems', 'lingowp');
+            $result['label']         = __('Linvara translation tables have integrity problems', 'linvara');
             $result['description']   = '<p>' . implode('<br>', $problems) . '</p>';
             $result['badge']['color'] = 'red';
         } elseif ($state['deferred_indexes_suggested']) {
             $result['status']      = 'recommended';
-            $result['label']       = __('LingoWP large-site indexes are recommended', 'lingowp');
+            $result['label']       = __('Linvara large-site indexes are recommended', 'linvara');
             $result['description'] = '<p>' . sprintf(
                 /* translators: %s: translation row count. */
-                esc_html__('Your translation table has %s rows; enabling the deferred large-site indexes will keep admin screens fast.', 'lingowp'),
+                esc_html__('Your translation table has %s rows; enabling the deferred large-site indexes will keep admin screens fast.', 'linvara'),
                 esc_html(number_format_i18n($state['translation_rows']))
             ) . '</p>';
         }
@@ -173,7 +173,7 @@ final class DatabaseHealthReport
     private function engineLabel(?string $engine): string
     {
         if ($engine === null) {
-            return __('unknown', 'lingowp');
+            return __('unknown', 'linvara');
         }
 
         return strtoupper($engine) === 'INNODB' ? 'InnoDB ✔' : $engine . ' ✘';
@@ -182,6 +182,6 @@ final class DatabaseHealthReport
     /** @param string[] $missing */
     private function fkLabel(string $fk, array $missing): string
     {
-        return in_array($fk, $missing, true) ? __('missing ✘', 'lingowp') : __('exists ✔', 'lingowp');
+        return in_array($fk, $missing, true) ? __('missing ✘', 'linvara') : __('exists ✔', 'linvara');
     }
 }

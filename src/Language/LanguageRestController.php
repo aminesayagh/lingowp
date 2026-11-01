@@ -187,6 +187,10 @@ final class LanguageRestController
             'direction'         => $catalog['direction'],
         ]);
 
+        // The site goes from no published language to one: the admin UI
+        // points the user at the language switcher settings.
+        $firstPublished = $status === 'active' && $this->registry->getTargetLanguages() === [];
+
         // A draft language exists in metadata only; an active one is enabled for
         // runtime routing.
         if ($status === 'active') {
@@ -196,9 +200,10 @@ final class LanguageRestController
         }
 
         return rest_ensure_response([
-            'ok'       => true,
-            'language' => $this->store->get($code),
-            'next'     => 'dashboard_workspace',
+            'ok'              => true,
+            'language'        => $this->store->get($code),
+            'next'            => 'dashboard_workspace',
+            'first_published' => $firstPublished,
         ]);
     }
 
@@ -225,6 +230,8 @@ final class LanguageRestController
         $aiModel          = (string) ($request->get_param('ai_model') ?: 'auto');
         $aiStyle          = (string) $request->get_param('ai_style');
         $status           = $request->get_param('status') === 'active' ? 'active' : 'draft';
+        // Read before the loop enables anything (see create()).
+        $wasUnpublished   = $this->registry->getTargetLanguages() === [];
 
         $created = [];
         // Every locale the client asked for that didn't become a language,
@@ -319,10 +326,11 @@ final class LanguageRestController
         }
 
         return rest_ensure_response([
-            'ok'        => true,
-            'languages' => $created,
-            'skipped'   => $skipped,
-            'next'      => 'dashboard_workspace',
+            'ok'              => true,
+            'languages'       => $created,
+            'skipped'         => $skipped,
+            'next'            => 'dashboard_workspace',
+            'first_published' => $status === 'active' && $wasUnpublished,
         ]);
     }
 
@@ -402,6 +410,8 @@ final class LanguageRestController
 
         // status active↔draft = enabled/disabled for runtime routing.
         $status = $request->get_param('status');
+        // See create(): no published language before this one.
+        $firstPublished = $status === 'active' && $this->registry->getTargetLanguages() === [];
         if ($status === 'active') {
             $this->registry->enableLanguage($code);
             $this->invalidateLanguageRoutes();
@@ -415,9 +425,10 @@ final class LanguageRestController
         }
 
         return rest_ensure_response([
-            'ok'       => true,
-            'language' => $this->store->get($code),
-            'enabled'  => in_array($code, $this->registry->getTargetLanguages(), true),
+            'ok'              => true,
+            'language'        => $this->store->get($code),
+            'enabled'         => in_array($code, $this->registry->getTargetLanguages(), true),
+            'first_published' => $firstPublished,
         ]);
     }
 

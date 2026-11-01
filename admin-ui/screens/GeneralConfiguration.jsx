@@ -238,7 +238,7 @@ export default function GeneralConfiguration( { defaultLanguage, onSaved } ) {
 							/>
 							<Text as="p" tone="subdued" variant="bodySm">
 								This also changes WordPress’s Site Language and
-								the source language used by LingoWP.
+								the source language used by Linvara.
 							</Text>
 						</BlockStack>
 

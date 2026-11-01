@@ -36,6 +36,7 @@ class PluginDataCleanup
         'lingowp_rewrite_rules_version',
         'lingowp_age_out_last_run',
         'lingowp_needs_initial_scan',
+        'lingowp_discovery_version',
         'lingowp_needs_html_crawl',
         // Behavior toggles (reciprocal of TranslationMemorySchema::setDefaultOptions()).
         'lingowp_enabled_languages',
@@ -45,6 +46,8 @@ class PluginDataCleanup
         'lingowp_auto_redirect',
         'lingowp_translate_slugs',
         'lingowp_slug_map_version',
+        // Language switcher design (colors, border, radius, custom CSS).
+        'lingowp_switcher_settings',
         // Source / target language state.
         'lingowp_source_locale',
         'lingowp_source_language',
@@ -68,7 +71,8 @@ class PluginDataCleanup
         // Gettext workspace.
         'lingowp_gettext_domains',
         'lingowp_gettext_ignored_units',
-        'lingowp_gettext_scanned_domains',
+        'lingowp_gettext_scanned_domains', // pre-v2 scan markers, see GettextUnitRepository::OPTION_SCANNED
+        'lingowp_gettext_scanned_v2',
         'lingowp_gettext_translated_counts',
     ];
 
@@ -78,6 +82,7 @@ class PluginDataCleanup
         'lingowp_backend_status',
         'lingowp_entitlements_cache',
         'lingowp_wplang_transition_notice',
+        'lingowp_discovery_rescan_requested',
     ];
 
     /** Transients whose names carry a hashed suffix — matched by prefix. */
@@ -106,26 +111,15 @@ class PluginDataCleanup
     }
 
     /**
-     * Every `.mo` LingoWP ever wrote lives under one folder of its own
+     * Every `.mo` Linvara ever wrote lives under one folder of its own
      * (GettextPoImporter::baseDir()), so removing it is the whole cleanup and
      * cannot touch a translation file that core or another plugin installed.
+     * The pre-uploads folder too, in case its one-time move never ran.
      */
     private static function removeTranslationFiles(): void
     {
-        $root = \LingoWP\GettextDomains\GettextPoImporter::baseDir();
-        if (!is_dir($root)) {
-            return;
-        }
-
-        $files = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($files as $file) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions -- deleting the plugin's own files on uninstall
-            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
-        }
-        rmdir($root); // phpcs:ignore WordPress.WP.AlternativeFunctions
+        \LingoWP\GettextDomains\GettextPoImporter::removeTree(\LingoWP\GettextDomains\GettextPoImporter::baseDir());
+        \LingoWP\GettextDomains\GettextPoImporter::removeTree(\LingoWP\GettextDomains\GettextPoImporter::legacyDir());
     }
 
     private static function cancelScheduledActions(): void
@@ -145,6 +139,7 @@ class PluginDataCleanup
         foreach (self::TRANSIENT_PREFIXES as $prefix) {
             $likeValue   = $wpdb->esc_like('_transient_' . $prefix) . '%';
             $likeTimeout = $wpdb->esc_like('_transient_timeout_' . $prefix) . '%';
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $wpdb->query(
                 $wpdb->prepare(
                     "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
@@ -152,6 +147,7 @@ class PluginDataCleanup
                     $likeTimeout
                 )
             );
+            // phpcs:enable
         }
     }
 }

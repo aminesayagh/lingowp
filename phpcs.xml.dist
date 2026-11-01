@@ -33,18 +33,18 @@
 	<rule ref="WordPress.WP.GlobalVariablesOverride"/>
 
 	<!--
-		WordPress.DB.PreparedSQL* is deliberately NOT enabled.
+		WordPress.DB.PreparedSQL* is deliberately NOT enabled here, but it is NOT
+		blind to `$this->wpdb`: Plugin Check (what WordPress.org runs) reports it.
+		Every query therefore sits in a `phpcs:disable` block that names its
+		sniffs and states a reason, closed by a matching
+		`phpcs:enable` block. A one-line `phpcs:ignore` is not enough: it covers
+		only the next line, and a multi-line prepare() is reported on its
+		argument lines. Keep the blocks when editing queries.
 
-		Both sniffs only recognise a global `$wpdb`. This plugin injects the
-		connection as `$this->wpdb`, so the sniff cannot see the surrounding
-		prepare() call and reports every token of a correctly-prepared query
-		(296 findings, all false, verified 2026-07-27). PreparedSQLPlaceholders
-		is blind for a second reason: placeholder lists built with
-		implode(array_fill(...)) read as "no placeholders".
-
-		SQL coverage is provided instead by security/semgrep-wp.yml, rule
-		`wpdb-query-without-prepare`, which matches any object holding wpdb.
-		Re-enable these sniffs if the plugin ever switches to global $wpdb.
+		Gate: `composer run security:plugin-check` must report only the three
+		name/slug warnings (verified 2026-10-16, 1.6.1).
+		SQL also stays covered by security/semgrep-wp.yml, rule
+		`wpdb-query-without-prepare`.
 	-->
 
 	<!-- bin/ is developer CLI tooling: echo to a terminal is not output escaping. -->

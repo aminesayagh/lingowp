@@ -1321,9 +1321,11 @@ function GettextUnitList( {
 			noUnitsText = `No string matches “${ search }” here.`
 		}
 		return (
-			<Text as="p" tone="subdued" variant="bodySm">
-				{ noUnitsText }
-			</Text>
+			<Box paddingBlockStart="300">
+				<Text as="p" tone="subdued" variant="bodySm">
+					{ noUnitsText }
+				</Text>
+			</Box>
 		)
 	}
 

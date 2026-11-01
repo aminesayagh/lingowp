@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Builds the plugin zip, drops it in the backend's plugin/ folder (where the
-# public download route picks up the highest version automatically), then
-# publishes the same tree to the public distribution repository in release/.
+# The one delivery command. Runs every suite, then builds BOTH archives:
 #
-# This builds the comment-stripped "client" variant, not the WordPress.org
-# submission — customers download this one, and the implementation notes in the
-# source are not for them. The WordPress.org archive is built by running
-# build-release-zip.sh on its own, with comments left intact for the reviewer.
+#   dist/linvara-<v>.zip          WordPress.org submission. Comments intact for
+#                                 the reviewer, and it carries admin-ui/ plus the
+#                                 build config — Guideline 4 requires the source
+#                                 of the minified bundles either in the plugin or
+#                                 behind a public link, and this is the "in the
+#                                 plugin" half of that choice. Upload by hand.
+#   release/linvara-<v>-client.zip  Direct download. Comments stripped, no admin
+#                                 source: customers get neither the notes nor the
+#                                 build inputs. Copied to the backend's plugin/
+#                                 folder, and release/ doubles as the working copy
+#                                 of the public distribution repository.
+#
+# Both come from the same commit, so they only ever differ in those two ways —
+# the check after the builds enforces exactly that.
 #
 # An earlier client variant was dropped because stripping every comment also
 # removed the ones machines read: the phpcs:ignore annotations that keep
@@ -55,9 +63,8 @@ step() {
 # own clean check. build-release-zip.sh rebuilds the assets in its temp dir
 # anyway, so a broken admin build still fails the deploy, one step later.
 #
-# `security:plugin-check` is also absent: it shells out to a bare `wp` and needs
-# the Plugin Check plugin installed on the site. Run it by hand before a
-# WordPress.org submission.
+# Plugin Check runs after the builds instead (bin/plugin-check.sh), against the
+# WordPress.org archive itself on the QA site, not this dev folder.
 step "Unit checks (PHP, no WordPress)"     composer run --no-interaction test
 step "Unit checks (JS)"                    npm test
 step "Lint (JS)"                           npm run lint:js
@@ -66,15 +73,46 @@ step "Security scanners (needs Docker)"    composer run --no-interaction securit
 step "Integration checks (needs the wordpress container)" \
   composer run --no-interaction test:db
 
-# Stages the client tree into release/ and writes the zip next to it.
-LINGOWP_STRIP_COMMENTS=1 "$ROOT_DIR/bin/build-release-zip.sh"
+# Two passes over build-release-zip.sh. Each re-runs npm ci and composer
+# install in its own temp dir, so this is the slow part — worth it to keep the
+# two archives from ever drifting out of one command.
+step "WordPress.org archive (dist/)" "$ROOT_DIR/bin/build-release-zip.sh"
+step "Client archive (release/)" env LINGOWP_STRIP_COMMENTS=1 "$ROOT_DIR/bin/build-release-zip.sh"
+
+# Guard the one mistake that costs a review round: shipping the source-free
+# client zip to WordPress.org. An earlier submission was pended because the
+# readme pointed at a 404 instead of carrying the source, so this is checked
+# rather than remembered.
+WPORG_ZIP="$ROOT_DIR/dist/linvara-${VERSION}.zip"
+CLIENT_ZIP="$RELEASE_DIR/linvara-${VERSION}-client.zip"
+# Listed into variables and matched with `case`, deliberately: piping into
+# `grep -q` under `set -o pipefail` reports a SUCCESSFUL match as a failure,
+# because grep exits on the first hit and unzip then dies of SIGPIPE.
+WPORG_ENTRIES="$(unzip -Z1 "$WPORG_ZIP")"
+CLIENT_ENTRIES="$(unzip -Z1 "$CLIENT_ZIP")"
+case "$WPORG_ENTRIES" in
+  *linvara/admin-ui/*) ;;
+  *) echo "The WordPress.org archive has no admin-ui/ — Guideline 4 needs it." >&2; exit 1 ;;
+esac
+case "$CLIENT_ENTRIES" in
+  *linvara/admin-ui/*) echo "The client archive carries admin-ui/ — customers should not get it." >&2; exit 1 ;;
+esac
+echo "==> Both archives verified: source in dist/, absent from release/."
+
+# Before anything is copied out: the WordPress.org archive must activate
+# cleanly and pass Plugin Check on the QA site, as the review team checks it.
+step "Plugin Check + clean activation (QA site)" "$ROOT_DIR/bin/plugin-check.sh"
+# Same archive on the local multisite network: per-site and network
+# activation, site creation and deletion, nothing in debug.log.
+step "Multisite lifecycle (linvara-multisite network)" "$ROOT_DIR/bin/multisite-check.sh"
 
 # The backend parses the version out of the filename with -(\d+(\.\d+)*)\.zip$
 # and serves the highest match; a name it cannot parse is silently skipped — so
 # the "-client" build is copied to the plain versioned name it expects.
-cp -f "$RELEASE_DIR/lingowp-${VERSION}-client.zip" "$ARTIFACT_DIR/lingowp-${VERSION}.zip"
+cp -f "$RELEASE_DIR/linvara-${VERSION}-client.zip" "$ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Deployed: $ARTIFACT_DIR/lingowp-${VERSION}.zip"
 echo "==> Publish with: cd $(dirname "$ARTIFACT_DIR") && ./deploy/addons.sh"
+echo "==> WordPress.org archive ready to upload: $WPORG_ZIP"
 
 # The build only stages release/; committing and pushing happens here, on a
 # message typed at the prompt, so nothing reaches the public remote without a
@@ -120,4 +158,4 @@ fi
 git -C "$RELEASE_DIR" push origin HEAD
 git -C "$RELEASE_DIR" push origin "v${VERSION}"
 echo "==> Published v${VERSION}."
-echo "==> Attach $RELEASE_DIR/lingowp-${VERSION}-client.zip to the GitHub release by hand."
+echo "==> Attach $RELEASE_DIR/linvara-${VERSION}-client.zip to the GitHub release by hand."

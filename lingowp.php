@@ -1,16 +1,16 @@
 <?php
 /**
- * Plugin Name:       LingoWP
+ * Plugin Name:       Linvara – Multilingual & AI Translation
  * Plugin URI:        https://www.lingowp.com/
  * Description:       Create multilingual WordPress sites with local manual translation and optional AI-assisted translation.
- * Version:           1.4.1
- * Requires at least: 6.2
+ * Version:           1.6.4
+ * Requires at least: 6.9
  * Requires PHP:      7.4
  * Author:            Mohamed Amine Sayagh
  * Author URI:        https://github.com/aminesayagh
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       lingowp
+ * Text Domain:       linvara
  *
  * @package LingoWP
  */
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('LINGOWP_VERSION', '1.4.1');
+define('LINGOWP_VERSION', '1.6.4');
 define('LINGOWP_FILE', __FILE__);
 define('LINGOWP_DIR', plugin_dir_path(__FILE__));
 define('LINGOWP_URL', plugin_dir_url(__FILE__));
@@ -62,6 +62,11 @@ require_once LINGOWP_DIR . 'functions.php';
     */
 register_activation_hook(__FILE__, [\LingoWP\Setup\Activator::class, 'run']);
 register_deactivation_hook(__FILE__, [\LingoWP\Setup\Deactivator::class, 'run']);
+
+// Multisite: set up a site created while network-active (after core's own
+// setup at 10), and drop Linvara's tables before core's when a site is deleted.
+add_action('wp_initialize_site', [\LingoWP\Setup\Activator::class, 'initializeSite'], 200);
+add_filter('wpmu_drop_tables', [\LingoWP\Database\TranslationMemorySchema::class, 'addTablesForSiteDeletion']);
 
 /*
     * Boot the plugin after all plugins are loaded.

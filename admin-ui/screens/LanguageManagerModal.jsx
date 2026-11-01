@@ -64,7 +64,7 @@ const PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic' }
 export function aiModelOptions( { hasSubscription, providerKeys } ) {
 	const opts = []
 	if ( hasSubscription ) {
-		opts.push( { label: 'LingoWP model', value: 'internal' } )
+		opts.push( { label: 'Linvara model', value: 'internal' } )
 	}
 	for ( const key of Array.isArray( providerKeys ) ? providerKeys : [] ) {
 		if ( PROVIDER_LABELS[ key.provider ] ) {
@@ -799,7 +799,7 @@ function LanguageForm( {
 							onChange={ setAiModel }
 							helpText={
 								hasSubscription && providerKeys.length > 0
-									? 'The LingoWP model bills to your subscription; your own key bills to your provider account.'
+									? 'The Linvara model bills to your subscription; your own key bills to your provider account.'
 									: undefined
 							}
 						/>

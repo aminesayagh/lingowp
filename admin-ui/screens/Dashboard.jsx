@@ -564,7 +564,7 @@ export default function Dashboard( {
 	const providerMenuItems = []
 	if ( hasSubscription && ! billingBlocked && ownKeyProviders.length > 0 ) {
 		providerMenuItems.push( {
-			content: 'Use LingoWP AI model',
+			content: 'Use Linvara AI model',
 			disabled:
 				! langsReady || allLangsOn( 'internal' ) || !! applyingProvider,
 			onAction: () => {
@@ -591,7 +591,7 @@ export default function Dashboard( {
 					window.location.assign( `${ cfg.account_url }&tab=token` ),
 			},
 			{
-				content: 'Subscribe to LingoWP',
+				content: 'Subscribe to Linvara',
 				onAction: () => window.location.assign( cfg.account_url ),
 			}
 		)
@@ -879,7 +879,7 @@ export default function Dashboard( {
 		if ( ! ai.available ) {
 			showToast(
 				'warning',
-				ai.error || 'AI unavailable — connect LingoWP to enable it.'
+				ai.error || 'AI unavailable — connect Linvara to enable it.'
 			)
 			return
 		}
@@ -958,7 +958,7 @@ export default function Dashboard( {
 		if ( ! ai.available ) {
 			showToast(
 				'warning',
-				ai.error || 'AI unavailable — connect LingoWP to enable it.'
+				ai.error || 'AI unavailable — connect Linvara to enable it.'
 			)
 			return
 		}
@@ -999,7 +999,7 @@ export default function Dashboard( {
 		if ( ! ai.available ) {
 			showToast(
 				'warning',
-				ai.error || 'AI unavailable — connect LingoWP to enable it.'
+				ai.error || 'AI unavailable — connect Linvara to enable it.'
 			)
 			return
 		}
@@ -1041,7 +1041,7 @@ export default function Dashboard( {
 			{ code: lang.code, ai_model: 'internal' },
 			{
 				onSuccess: () =>
-					showToast( 'success', 'Now using the LingoWP model.' ),
+					showToast( 'success', 'Now using the Linvara model.' ),
 			}
 		)
 	}
@@ -2297,7 +2297,7 @@ export default function Dashboard( {
 											/>
 										) }
 										<Text as="span" variant="headingMd">
-											LingoWP
+											Linvara
 										</Text>
 									</InlineStack>
 									<Popover
@@ -2857,7 +2857,7 @@ export default function Dashboard( {
 						{ showNeedsOnboarding && (
 							<Box padding="500">
 								<EmptyState
-									heading="Finish setting up LingoWP"
+									heading="Finish setting up Linvara"
 									action={ {
 										content: 'Continue setup',
 										onAction: onStartOnboarding,
@@ -3935,6 +3935,10 @@ function TextUnitRow( {
 			// unit.status was never touched — dropping the override reverts it.
 			setOptimistic( null )
 			onActionError( 'Could not update the review status. Try again.' )
+		} else if ( action === 'manual' ) {
+			onActionError(
+				'Could not mark the translation as manual. Try again.'
+			)
 		}
 	}
 
@@ -4268,6 +4272,45 @@ function TextUnitRow( {
 								>
 									{ SEO_FIELD_BADGE[ unit.seo_field ] }
 								</Badge>
+							) }
+							{ /* Turns an imported translation into a manual one; its
+							     status stays as it is. A mouse needs a double-click
+							     (one click is too easy to make by accident); the
+							     keyboard (Enter/Space) and assistive technology (a
+							     click with no pointer behind it, detail 0) act at once. */ }
+							{ unit.origin === 'imported' && (
+								<span
+									role="button"
+									tabIndex={ 0 }
+									aria-label="Imported translation. Activate to mark it as manual."
+									onDoubleClick={ () => doStatus( 'manual' ) }
+									onClick={ ( event ) => {
+										if ( event.detail === 0 ) {
+											doStatus( 'manual' )
+										}
+									} }
+									onKeyDown={ ( event ) => {
+										if (
+											event.key === 'Enter' ||
+											event.key === ' '
+										) {
+											event.preventDefault()
+											doStatus( 'manual' )
+										}
+									} }
+									style={ {
+										cursor: 'pointer',
+										userSelect: 'none',
+									} }
+								>
+									<Badge
+										tone="info"
+										size="small"
+										className="text-nowrap"
+									>
+										Imported
+									</Badge>
+								</span>
 							) }
 							{ badge && (
 								<span

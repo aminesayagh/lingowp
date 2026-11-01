@@ -3,7 +3,7 @@
 namespace LingoWP\Setup;
 
 use LingoWP\Admin\AdminAssets;
-use LingoWP\Admin\ForeignNoticeSuppressor;
+use LingoWP\Admin\AdminBarTranslateLink;
 use LingoWP\GettextDomains\InstalledGettextComponentDiscovery;
 use LingoWP\Language\Application\ResolveRequestLanguage;
 use LingoWP\Language\Application\SourceLanguageTransition;
@@ -13,6 +13,7 @@ use LingoWP\Resolution\GettextResolver;
 use LingoWP\Resolution\DateResolver;
 use LingoWP\Resolution\NumberResolver;
 use LingoWP\Resolution\Seo\HreflangPresenter;
+use LingoWP\Resolution\Seo\LanguageSitemapProvider;
 use LingoWP\LocalizationRouting\MultilingualRedirects;
 use LingoWP\Resolution\HtmlRenderer;
 use LingoWP\Shared\Parsing\HtmlUnitExtractor;
@@ -21,10 +22,12 @@ use LingoWP\Resolution\PageOwnedHashes;
 use LingoWP\Extraction\OwnedStringIndex;
 use LingoWP\LocalizationRouting\LanguageRouteRegistrar;
 use LingoWP\LocalizationRouting\LanguageLinks;
-use LingoWP\LocalizationRouting\LanguageSwitcherShortcode;
-use LingoWP\LocalizationRouting\SwitcherRenderer;
 use LingoWP\LocalizationRouting\LocalizedUrlBuilder;
 use LingoWP\LocalizationRouting\SlugMap;
+use LingoWP\Switcher\Switcher;
+use LingoWP\Switcher\SwitcherSettings;
+use LingoWP\Switcher\SwitcherSettingsRestController;
+use LingoWP\Switcher\SwitcherShortcode;
 use LingoWP\Resolution\Seo\LanguageHtmlAttributes;
 use LingoWP\Admin\PermalinkNotice;
 use LingoWP\Resolution\PublicLinkRewriter;
@@ -149,6 +152,9 @@ class Plugin
         if (is_admin()) {
             $this->bootAdmin($wpdb, $languageRegistry);
         }
+
+        // Front end and wp-admin both show the admin bar, so not in bootAdmin().
+        (new AdminBarTranslateLink(new ConnectionRepository(), $languageResolver))->register();
     }
 
     /**
@@ -162,6 +168,7 @@ class Plugin
     {
         // If the version is current or higher, do nothing. Otherwise, run a full install.
         TranslationMemorySchema::maybeUpgrade();
+        GettextPoImporter::migrateLegacyDir();
 
         $languageRegistry = new OptionLanguageRegistry();
 
@@ -193,7 +200,7 @@ class Plugin
 
     /**
      * Language-prefixed permalinks, the language-links API (lingowp_get_language_links()),
-     * the bundled switcher renderer, and the [lingowp_language_switcher] shortcode.
+     * the language switcher, and the [lingowp_language_switcher] shortcode.
      */
     private function bootLocalizationRouting(
         ResolveRequestLanguage $languageResolver,
@@ -211,11 +218,14 @@ class Plugin
         );
         LanguageLinks::prime($languageLinks);
 
-        $switcherRenderer = new SwitcherRenderer($languageLinks);
-        SwitcherRenderer::prime($switcherRenderer);
-        $switcherRenderer->register();
+        $switcher = new Switcher($languageLinks);
+        Switcher::prime($switcher);
+        $switcher->register();
 
-        (new LanguageSwitcherShortcode($switcherRenderer))->register();
+        (new SwitcherShortcode($switcher))->register();
+
+        // Saved site-wide switcher design (CSS variables + custom CSS in <head>).
+        SwitcherSettings::register();
     }
 
     /**
@@ -296,6 +306,10 @@ class Plugin
         (new HreflangPresenter($languageResolver, $urlBuilder, $context))->register();
         (new MultilingualRedirects($languageResolver, $urlBuilder, $context))->register();
         (new LanguageAwareRobotsMeta($languageResolver, $context, $sourceRepository))->register();
+
+        // Translated URLs in core's wp-sitemap.xml — same URLs as hreflang,
+        // minus the pages the robots rule above marks noindex.
+        (new LanguageSitemapProvider($languageResolver, $urlBuilder, $sourceRepository))->register();
 
         // <html lang>/dir for the current request's language on translated pages.
         (new LanguageHtmlAttributes($languageResolver, $context, new SupportedLanguages(new LanguageMetadataStore())))->register();
@@ -380,6 +394,7 @@ class Plugin
         $addonMatcher->register();
         (new BillingRestController($backendClient, $billingEntitlements, $connection, $addonMatcher))->register();
         (new LanguageRestController($languageMetadata, $languageRegistry, $sourceRepository))->register();
+        (new SwitcherSettingsRestController())->register();
 
         $gettextComponents = new InstalledGettextComponentDiscovery();
         $collectionBoard   = new CollectionBoard($sourceRepository, $languageRegistry);
@@ -425,7 +440,6 @@ class Plugin
     {
         (new DatabaseHealthReport(new DatabaseHealthCheck($wpdb)))->register();
         (new AdminAssets())->register();
-        (new ForeignNoticeSuppressor())->register();
         (new OnboardingPageController(new NotifyEmailResolver()))->register();
         (new PermalinkNotice($languageRegistry))->register();
 

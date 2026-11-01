@@ -47,8 +47,13 @@ final class FlagResolver
     /**
      * Absolute URL of the bundled flag SVG for a locale, or null when nothing
      * maps or the file is not actually bundled.
+     *
+     * $shape '1x1' asks for the square version (assets/flags/1x1/, the
+     * flag-icons 1x1 set, redrawn for a square rather than cropped). When a
+     * flag has no square file (eo), the 4x3 one is returned and the caller
+     * crops it with CSS.
      */
-    public static function url(string $locale): ?string
+    public static function url(string $locale, string $shape = '4x3'): ?string
     {
         $cc = LocaleNormalizer::region($locale);
         if ($cc === '') {
@@ -59,6 +64,11 @@ final class FlagResolver
         }
 
         $file = strtolower($cc) . '.svg';
+
+        if ($shape === '1x1' && file_exists(LINGOWP_DIR . 'assets/flags/1x1/' . $file)) {
+            return LINGOWP_URL . 'assets/flags/1x1/' . $file;
+        }
+
         if (!file_exists(LINGOWP_DIR . 'assets/flags/' . $file)) {
             return null;
         }

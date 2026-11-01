@@ -34,6 +34,11 @@ namespace LingoWP\Database;
  * column with no FK. Methods return CREATE TABLE SQL with FK clauses inlined —
  * never dbDelta() (it mangles FOREIGN KEY clauses).
  *
+ * FKs are deliberately unnamed: MySQL constraint names are unique per
+ * DATABASE, so a fixed name (fk_post_owner) made every multisite site after
+ * the first fail to install. InnoDB names them `<table>_ibfk_N`, unique by
+ * construction; ConstraintVerifier checks them by table, not by name.
+ *
  * An eighth table, gettextUnit(), sits outside this parent/child model
  * entirely: it tracks original strings + ignore status for the Plugins &
  * Themes (gettext) board, which has no per-language child table at all —
@@ -60,7 +65,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_source (post_id, field, original_hash),
     KEY idx_hash (original_hash),
     KEY idx_queue (status, id),
-    CONSTRAINT fk_post_owner FOREIGN KEY (post_id)
+    FOREIGN KEY (post_id)
         REFERENCES {$postsTable} (ID) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
@@ -84,7 +89,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_source (post_id, meta_key_hash, context_hash, original_hash),
     KEY idx_hash (original_hash),
     KEY idx_queue (status, id),
-    CONSTRAINT fk_meta_owner FOREIGN KEY (post_id)
+    FOREIGN KEY (post_id)
         REFERENCES {$postsTable} (ID) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
@@ -112,7 +117,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_source (term_id, meta_key_hash, context_hash, original_hash),
     KEY idx_hash (original_hash),
     KEY idx_queue (status, id),
-    CONSTRAINT fk_term_meta_owner FOREIGN KEY (term_id)
+    FOREIGN KEY (term_id)
         REFERENCES {$termsTable} (term_id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
@@ -135,7 +140,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_source (option_id, option_path_hash, original_hash),
     KEY idx_hash (original_hash),
     KEY idx_queue (status, id),
-    CONSTRAINT fk_option_owner FOREIGN KEY (option_id)
+    FOREIGN KEY (option_id)
         REFERENCES {$optionsTable} (option_id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
@@ -156,7 +161,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_source (term_taxonomy_id, field, original_hash),
     KEY idx_hash (original_hash),
     KEY idx_queue (status, id),
-    CONSTRAINT fk_term_owner FOREIGN KEY (term_taxonomy_id)
+    FOREIGN KEY (term_taxonomy_id)
         REFERENCES {$termTaxonomyTable} (term_taxonomy_id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
@@ -177,7 +182,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_source (user_id, field, original_hash),
     KEY idx_hash (original_hash),
     KEY idx_queue (status, id),
-    CONSTRAINT fk_user_owner FOREIGN KEY (user_id)
+    FOREIGN KEY (user_id)
         REFERENCES {$usersTable} (ID) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }
@@ -246,13 +251,10 @@ final class TableDefinitions
     /**
      * parent_id child (meta): one translation per (parent_id, lang_code). The
      * position owns its translation; parent deletion cascades.
-     *
-     * @param string $fkName unique FK constraint name for this child→parent link
      */
     public static function parentIdTranslation(
         string $table,
         string $parentTable,
-        string $fkName,
         string $charsetCollate
     ): string {
         return "CREATE TABLE IF NOT EXISTS {$table} (
@@ -270,7 +272,7 @@ final class TableDefinitions
     UNIQUE KEY uniq_translation (parent_id, lang_code),
     KEY idx_queue (lang_code, status, id),
     KEY idx_ai_pending (ai_pending_since),
-    CONSTRAINT {$fkName} FOREIGN KEY (parent_id)
+    FOREIGN KEY (parent_id)
         REFERENCES {$parentTable} (id) ON DELETE CASCADE
 ) ENGINE=InnoDB {$charsetCollate}";
     }

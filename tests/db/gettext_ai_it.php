@@ -10,7 +10,7 @@
  * GettextAiQueue depends on the interface, not BackendClient (same pattern
  * as tests/db/ai_result_applier_it.php).
  *
- * saveUnit() writes a real `.mo` file under WP_LANG_DIR — outside the DB
+ * saveUnit() writes a real `.mo` file under GettextPoImporter::baseDir() — outside the DB
  * transaction, so this file cleans those up itself before test_done().
  */
 
@@ -307,8 +307,8 @@ foreach ($writtenMoFiles as $f) {
         @unlink($f);
     }
 }
-$scanned = json_decode((string) get_option('lingowp_gettext_scanned_domains', '[]'), true);
+$scanned = json_decode((string) get_option(GettextUnitRepository::OPTION_SCANNED, '[]'), true);
 $scanned = is_array($scanned) ? array_values(array_diff($scanned, ["$type:$domain"])) : [];
-update_option('lingowp_gettext_scanned_domains', wp_json_encode($scanned));
+update_option(GettextUnitRepository::OPTION_SCANNED, wp_json_encode($scanned));
 
 test_done();

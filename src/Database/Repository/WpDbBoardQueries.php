@@ -63,7 +63,7 @@ final class WpDbBoardQueries
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
@@ -71,6 +71,7 @@ final class WpDbBoardQueries
             ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map([$this, 'collectionRow'], (array) $rows);
     }
@@ -99,7 +100,7 @@ final class WpDbBoardQueries
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn})){$match}
                 ORDER BY " . self::FIELD_SORT . ", p.field, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
@@ -108,6 +109,7 @@ final class WpDbBoardQueries
             ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map([$this, 'textUnitRow'], (array) $rows);
     }
@@ -143,13 +145,14 @@ final class WpDbBoardQueries
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn}))
                 ORDER BY p.post_id, " . self::FIELD_SORT . ", p.field, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit            = $this->textUnitRow($r);
@@ -174,13 +177,14 @@ final class WpDbBoardQueries
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A) ?: [];
+        // phpcs:enable
 
         return $this->summaryRow($row);
     }
@@ -201,13 +205,14 @@ final class WpDbBoardQueries
                 WHERE p.status = %d{$match}
                 ORDER BY p.option_name, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit               = $this->textUnitRow($r);
@@ -233,13 +238,14 @@ final class WpDbBoardQueries
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A) ?: [];
+        // phpcs:enable
 
         return $this->summaryRow($row);
     }
@@ -264,13 +270,14 @@ final class WpDbBoardQueries
                 WHERE p.status = %d{$match}
                 ORDER BY u.display_name, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit                 = $this->textUnitRow($r);
@@ -304,13 +311,14 @@ final class WpDbBoardQueries
                 GROUP BY p.term_taxonomy_id, tx.taxonomy, tm.name
                 ORDER BY tx.taxonomy, tm.name";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(static fn (array $r): array => [
             'term_taxonomy_id' => (int) $r['term_taxonomy_id'],
@@ -337,13 +345,14 @@ final class WpDbBoardQueries
                 WHERE p.term_taxonomy_id = %d AND p.status = %d
                 ORDER BY " . self::FIELD_SORT . ", p.field, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             $termTaxonomyId,
             TranslationStatus::SOURCE_DISCOVERED
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map([$this, 'textUnitRow'], (array) $rows);
     }
@@ -368,7 +377,7 @@ final class WpDbBoardQueries
                 WHERE tx.taxonomy = %s AND p.status = %d{$match}
                 ORDER BY tm.name, " . self::FIELD_SORT . ", p.field, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
@@ -376,6 +385,7 @@ final class WpDbBoardQueries
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit            = $this->textUnitRow($r);
@@ -408,7 +418,7 @@ final class WpDbBoardQueries
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
@@ -416,6 +426,7 @@ final class WpDbBoardQueries
             ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map([$this, 'collectionRow'], (array) $rows);
     }
@@ -441,7 +452,7 @@ final class WpDbBoardQueries
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn})){$match}
                 ORDER BY p.meta_key, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
@@ -450,6 +461,7 @@ final class WpDbBoardQueries
             ...$statusArgs,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit          = $this->textUnitRow($r);
@@ -484,13 +496,14 @@ final class WpDbBoardQueries
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn}))
                 ORDER BY p.post_id, p.meta_key, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit            = $this->textUnitRow($r);
@@ -528,13 +541,14 @@ final class WpDbBoardQueries
                 WHERE p.status = %d{$match}
                 GROUP BY tx.taxonomy";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(static fn (array $r): array => [
             'taxonomy'     => (string) $r['taxonomy'],
@@ -564,7 +578,7 @@ final class WpDbBoardQueries
                 WHERE tx.taxonomy = %s AND p.status = %d{$match}
                 ORDER BY p.meta_key, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
@@ -572,6 +586,7 @@ final class WpDbBoardQueries
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit            = $this->textUnitRow($r);
@@ -604,8 +619,9 @@ final class WpDbBoardQueries
 
         $args = array_merge([$langCode], $statusArgs, [TranslationStatus::SOURCE_DISCOVERED], $matchArgs);
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit             = $this->textUnitRow($r);
@@ -637,8 +653,9 @@ final class WpDbBoardQueries
 
         $args = array_merge([$langCode], $statusArgs, [TranslationStatus::SOURCE_DISCOVERED], $matchArgs);
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit            = $this->textUnitRow($r);
@@ -666,13 +683,14 @@ final class WpDbBoardQueries
                 LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
         ), ARRAY_A) ?: [];
+        // phpcs:enable
 
         return $this->summaryRow($row);
     }
@@ -705,13 +723,14 @@ final class WpDbBoardQueries
                 WHERE p.status = %d{$match}
                 ORDER BY p.selector, p.id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $langCode,
             $status,
             ...$matchArgs
         ), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit               = $this->textUnitRow($r);
@@ -765,8 +784,9 @@ final class WpDbBoardQueries
         }
         $sql = implode("\nUNION ALL\n", $selects) . "\nORDER BY kind, field, id";
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        // phpcs:enable
 
         return array_map(function (array $r): array {
             $unit         = $this->textUnitRow($r);
@@ -867,8 +887,9 @@ final class WpDbBoardQueries
             $sql = "SELECT COUNT(*) FROM {$parent} p WHERE p.status = %d";
         }
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         return (int) $this->wpdb->get_var($this->wpdb->prepare($sql, ...$args));
+        // phpcs:enable
     }
 
     /**
@@ -915,8 +936,9 @@ final class WpDbBoardQueries
                     GROUP BY t.lang_code";
         }
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        // phpcs:enable
 
         $out = [];
         foreach ((array) $rows as $r) {
@@ -961,8 +983,9 @@ final class WpDbBoardQueries
             $args[] = TranslationStatus::SOURCE_DISCOVERED;
         }
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
+        // phpcs:enable
 
         return [(int) ($row['total'] ?? 0), (int) ($row['done'] ?? 0)];
     }
@@ -1063,7 +1086,7 @@ final class WpDbBoardQueries
                     $originClauses[] = 't.id IS NULL';
                     break;
                 default:
-                    throw new \RuntimeException('Unhandled match case: ' . var_export($origin, true));
+                    throw new \RuntimeException('Unhandled match case: ' . esc_html((string) wp_json_encode($origin)));
             }
         }
         if ($originClauses !== []) {
@@ -1092,7 +1115,7 @@ final class WpDbBoardQueries
                         > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15))';
                     break;
                 default:
-                    throw new \RuntimeException('Unhandled match case: ' . var_export($length, true));
+                    throw new \RuntimeException('Unhandled match case: ' . esc_html((string) wp_json_encode($length)));
             }
         }
         if ($lengthClauses !== []) {

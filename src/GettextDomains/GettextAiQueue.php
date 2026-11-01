@@ -136,7 +136,7 @@ final class GettextAiQueue
         foreach ($units as $u) {
             $normHex = bin2hex(TranslationKey::currentHash((string) $u['msgid']));
 
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query($this->wpdb->prepare(
                 "UPDATE {$table}
                  SET norm_hash = UNHEX(%s),
@@ -159,6 +159,7 @@ final class GettextAiQueue
                 (string) $u['domain'],
                 (string) $u['unit_hash']
             ));
+            // phpcs:enable
             // updated_at/ai_pending_since always change, so rows_affected is a
             // reliable "the row exists" signal (mysqli, no CLIENT_FOUND_ROWS).
             if ((int) $this->wpdb->rows_affected > 0) {
@@ -177,7 +178,7 @@ final class GettextAiQueue
     {
         $table = TranslationMemorySchema::gettextUnitTable();
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         return (bool) $this->wpdb->get_var($this->wpdb->prepare(
             "SELECT EXISTS(SELECT 1 FROM {$table}
              WHERE type = %s AND domain = %s AND unit_hash = UNHEX(%s) AND status = 0)",
@@ -185,6 +186,7 @@ final class GettextAiQueue
             $domain,
             $unitHashHex
         ));
+        // phpcs:enable
     }
 
     /**
@@ -229,8 +231,9 @@ final class GettextAiQueue
     {
         $table = TranslationMemorySchema::gettextUnitTable();
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         return (bool) $this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$table} WHERE ai_pending_since IS NOT NULL)"); // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::gettextUnitTable()
+        // phpcs:enable
     }
 
     public function tryPullLock(): bool
@@ -309,7 +312,7 @@ final class GettextAiQueue
     {
         $table = TranslationMemorySchema::gettextUnitTable();
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = (array) $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT type, domain, LOWER(HEX(unit_hash)) AS uh, msgid, context, ai_pending_locales
              FROM {$table}
@@ -317,6 +320,7 @@ final class GettextAiQueue
             $srcHashHex,
             '%|' . $this->wpdb->esc_like($locale) . '|%'
         ), ARRAY_A);
+        // phpcs:enable
 
         $now = current_time('mysql', true);
         $ok  = true;
@@ -353,7 +357,7 @@ final class GettextAiQueue
             $pendingSinceCol = $remaining === '' ? 'NULL' : 'ai_pending_since';
 
             if ($failCode === null) {
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $this->wpdb->query($this->wpdb->prepare(
                     "UPDATE {$table}
                      SET ai_pending_locales = %s, ai_pending_since = {$pendingSinceCol}, ai_error = NULL, updated_at = %s
@@ -364,8 +368,9 @@ final class GettextAiQueue
                     $domain,
                     (string) $row['uh']
                 ));
+                // phpcs:enable
             } else {
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $this->wpdb->query($this->wpdb->prepare(
                     "UPDATE {$table}
                      SET ai_pending_locales = %s, ai_pending_since = {$pendingSinceCol}, ai_error = %s, updated_at = %s
@@ -377,6 +382,7 @@ final class GettextAiQueue
                     $domain,
                     (string) $row['uh']
                 ));
+                // phpcs:enable
             }
         }
 
@@ -395,7 +401,7 @@ final class GettextAiQueue
     {
         $table = TranslationMemorySchema::gettextUnitTable();
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = (array) $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT LOWER(HEX(unit_hash)) AS uh, ai_pending_locales, ai_pending_since, ai_error
              FROM {$table}
@@ -403,6 +409,7 @@ final class GettextAiQueue
             $type,
             $domain
         ), ARRAY_A);
+        // phpcs:enable
 
         $now = time();
         $out = [];

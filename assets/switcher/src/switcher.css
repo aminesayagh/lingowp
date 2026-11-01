@@ -1,0 +1,403 @@
+/*
+ * LingoWP language switcher — structure, plus a design driven entirely by CSS
+ * variables on .lingowp-switcher (see "Design" below). With no variable set
+ * the switcher stays neutral: it takes the look of the surrounding text.
+ */
+
+/* Elements styled with display: flex would otherwise ignore [hidden]. */
+.lingowp-switcher [hidden] {
+	display: none !important;
+}
+
+.lingowp-switcher__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.lingowp-switcher--horizontal .lingowp-switcher__list {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.lingowp-switcher__trigger,
+.lingowp-switcher__link {
+	display: inline-flex;
+	align-items: center;
+	color: var(--lingowp-switcher-text, inherit);
+	text-decoration: none;
+}
+
+/*
+ * Block-level link: fills its whole row in the dropdown and vertical list, so
+ * the entire row is clickable — not just the flag and text. In the
+ * horizontal list each item is a flex child sized to its content, so nothing
+ * changes there.
+ */
+.lingowp-switcher__link {
+	display: flex;
+
+	/* Space between flag and text in each item (item_gap, 10px default). */
+	gap: var(--lingowp-switcher-item-gap, 10px);
+}
+
+/*
+ * Neutral starting point: drop the browser's button chrome (gray fill, black
+ * border, system font) and the theme's link underline, so theming starts from
+ * the surrounding text. Scoped to the switcher's own classes — nothing else on
+ * the page is touched. Focus outlines are deliberately left to the browser.
+ */
+.lingowp-switcher__trigger {
+	appearance: none;
+	margin: 0;
+	padding: 0;
+	font: inherit;
+	line-height: inherit;
+	cursor: pointer;
+
+	/*
+	 * Browsers center a <button>'s text; start it like the rest of the page
+	 * (left, or right on right-to-left pages) — visible once the name stretches
+	 * (full-width button).
+	 */
+	text-align: start;
+
+	/*
+	 * Space between flag and text (button_gap, 10px default) — also the space
+	 * before the dropdown arrow, which sits in the same row.
+	 */
+	gap: var(--lingowp-switcher-button-gap, 10px);
+}
+
+/*
+ * The current language is text, not a link: show the normal arrow cursor
+ * over it, not the text I-beam, so the row reads as "selected", not as
+ * something to select or click.
+ */
+span.lingowp-switcher__link {
+	cursor: default;
+}
+
+/*
+ * Square flags (flag_radius above 8px; the server swaps in the 1x1 files):
+ * the same height as a 4:3 flag (1.25em x 3/4), so rows do not grow. cover
+ * crops the rare flag that has no square file to the same square. Two
+ * classes, so it beats the base .lingowp-switcher__flag size in any order.
+ */
+.lingowp-switcher__flag.lingowp-switcher__flag--square {
+	width: 0.9375em;
+	height: 0.9375em;
+	object-fit: cover;
+}
+
+/*
+ * In a dropdown the language name takes the row's free space, so a flag placed
+ * after it (flag_position="after") lands at the end of the row: in the open
+ * list every flag lines up in one column, and on a full-width button the flag
+ * sits at the far end before the arrow. With the flag before the name nothing
+ * moves — the name was already at the start.
+ */
+.lingowp-switcher--dropdown .lingowp-switcher__text {
+	flex: 1 1 auto;
+}
+
+.lingowp-switcher__flag {
+	width: 1.25em;
+	height: auto;
+	flex-shrink: 0;
+
+	/* Slightly softened corners by default; flag_radius overrides (0 = square). */
+	border-radius: var(--lingowp-switcher-flag-radius, 2px);
+}
+
+/*
+ * Design. Every value is a CSS variable on .lingowp-switcher: the saved
+ * site-wide settings (SwitcherSettings prints them in <head>) or one
+ * switcher's own shortcode overrides (inline style on its nav, which wins).
+ * The fallbacks are the neutral look: transparent, inherited text, no border,
+ * square corners.
+ *
+ * Box (background, border, corners): the dropdown's button and open panel,
+ * or the whole list in the horizontal/vertical layouts.
+ */
+.lingowp-switcher--horizontal .lingowp-switcher__list,
+.lingowp-switcher--vertical .lingowp-switcher__list,
+.lingowp-switcher__trigger,
+.lingowp-switcher--dropdown.is-enhanced .lingowp-switcher__list {
+	background: var(--lingowp-switcher-bg, transparent);
+	border: var(--lingowp-switcher-border-width, 0) solid var(--lingowp-switcher-border-color, currentColor);
+	border-radius: var(--lingowp-switcher-radius, 0);
+}
+
+/*
+ * Padding, sized by size="sm|md|lg" (md by default), in em so it follows the
+ * text size. Applied to the items of the horizontal and vertical lists always
+ * — it is what separates one language from the next, and it must be clearly
+ * wider than the flag-to-text gap inside an item — and wherever else there is
+ * a visible box around the text:
+ * - the button and the items once the switcher has a border, a background or
+ *   a hover background (the server adds .lingowp-switcher--boxed — CSS cannot
+ *   test whether a variable is set);
+ * - the items of an OPEN dropdown list, always: that list floats over the
+ *   page with its own background (Canvas by default), so it is a box even
+ *   when nothing is configured.
+ */
+.lingowp-switcher {
+	--lingowp-switcher-padding-y: 0.4em;
+	--lingowp-switcher-padding-x: 0.75em;
+}
+
+.lingowp-switcher--sm {
+	--lingowp-switcher-padding-y: 0.25em;
+	--lingowp-switcher-padding-x: 0.5em;
+}
+
+.lingowp-switcher--lg {
+	--lingowp-switcher-padding-y: 0.6em;
+	--lingowp-switcher-padding-x: 1em;
+}
+
+.lingowp-switcher--horizontal .lingowp-switcher__link,
+.lingowp-switcher--vertical .lingowp-switcher__link,
+.lingowp-switcher--boxed .lingowp-switcher__trigger,
+.lingowp-switcher--boxed .lingowp-switcher__link,
+.lingowp-switcher--dropdown.is-enhanced .lingowp-switcher__link {
+	padding: var(--lingowp-switcher-padding-y) var(--lingowp-switcher-padding-x);
+}
+
+/* Hover and keyboard focus. Only real links: the current language is text. */
+.lingowp-switcher__trigger:hover,
+.lingowp-switcher__trigger:focus-visible {
+	color: var(--lingowp-switcher-text-hover, var(--lingowp-switcher-text, inherit));
+	background: var(--lingowp-switcher-bg-hover, var(--lingowp-switcher-bg, transparent));
+}
+
+a.lingowp-switcher__link:hover,
+a.lingowp-switcher__link:focus-visible {
+	color: var(--lingowp-switcher-text-hover, var(--lingowp-switcher-text, inherit));
+	background: var(--lingowp-switcher-bg-hover, transparent);
+}
+
+/*
+ * Hover colors fade in and out instead of jumping (0.15s) — not for visitors
+ * who ask for reduced motion. A micro-interaction, so it does not depend on
+ * dropdown_animation, which governs the list opening.
+ */
+@media (prefers-reduced-motion: no-preference) {
+
+	.lingowp-switcher__trigger,
+	a.lingowp-switcher__link {
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+}
+
+/*
+ * Dropdown arrow, after the label (on the right, or the left on RTL pages).
+ * A rotated square's two borders, in the text color — so it follows hover
+ * too. Points up while the list is open. Present only with
+ * .lingowp-switcher--arrow (show_arrow, on by default).
+ */
+.lingowp-switcher--arrow .lingowp-switcher__trigger::after {
+	content: "";
+	flex-shrink: 0;
+	width: 0.35em;
+	height: 0.35em;
+	margin-inline-start: 0.15em;
+	border-right: 0.12em solid currentcolor;
+	border-bottom: 0.12em solid currentcolor;
+	transform: translateY(-0.1em) rotate(45deg);
+}
+
+.lingowp-switcher--arrow .lingowp-switcher__trigger[aria-expanded="true"]::after {
+	transform: translateY(0.1em) rotate(-135deg);
+}
+
+/*
+ * Open animation (dropdown_animation, off by default; the server adds
+ * .lingowp-switcher--animate): the list fades and slides in, the arrow turns
+ * smoothly. Never for visitors who ask for reduced motion. Closing stays
+ * instant. The keyframes replay each time the list is unhidden.
+ */
+@keyframes lingowp-switcher-open {
+
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+	.lingowp-switcher--animate.lingowp-switcher--arrow .lingowp-switcher__trigger::after {
+		transition: transform 0.15s ease;
+	}
+
+	.lingowp-switcher--animate.is-enhanced .lingowp-switcher__list:not([hidden]) {
+		animation: lingowp-switcher-open 0.15s ease-out;
+	}
+}
+
+/*
+ * Full-width button (button_width="full"; the server adds the class only for
+ * a dropdown with a box). The button fills its container: flag at the start,
+ * the name taking the free space (the dropdown rule above gives it flex: 1,
+ * text aligned to the start), the arrow at the end — mirrored on right-to-left
+ * pages. switcher.js gives the open list at least the button's width.
+ */
+.lingowp-switcher--full .lingowp-switcher__trigger {
+	box-sizing: border-box;
+	width: 100%;
+}
+
+/* Floating UI writes top/left; the panel needs a box to scroll inside. */
+.lingowp-switcher--dropdown.is-enhanced .lingowp-switcher__list {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: var(--lingowp-switcher-z, 9999);
+	overflow-y: auto;
+
+	/* min-width set by switcher.js (full width) includes padding and border. */
+	box-sizing: border-box;
+
+	/* An open panel floats over the page: never see-through by default. */
+	background: var(--lingowp-switcher-bg, Canvas);
+
+	/*
+	 * Its own corner rounding (dropdown_radius, 4px by default), separate
+	 * from the button's border_radius.
+	 */
+	border-radius: var(--lingowp-switcher-dropdown-radius, 4px);
+
+	/* dropdown_shadow: none | sm | md | lg (md by default), set below. */
+	box-shadow: var(--lingowp-switcher-dropdown-shadow, none);
+
+	/*
+	 * A little room under the last language: half the items' own vertical
+	 * padding, so it follows size="sm|md|lg".
+	 */
+	padding-bottom: calc(var(--lingowp-switcher-padding-y) / 2);
+
+	/*
+	 * When the list is taller than the room it has, it scrolls: a thin, quiet
+	 * scrollbar — the thumb in the list's own text color at low opacity (so it
+	 * suits light and dark designs), no track.
+	 */
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, currentcolor 30%, transparent) transparent;
+}
+
+/* Same scrollbar for browsers that only know the WebKit pseudo-elements. */
+.lingowp-switcher--dropdown.is-enhanced .lingowp-switcher__list::-webkit-scrollbar {
+	width: 6px;
+}
+
+.lingowp-switcher--dropdown.is-enhanced .lingowp-switcher__list::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.lingowp-switcher--dropdown.is-enhanced .lingowp-switcher__list::-webkit-scrollbar-thumb {
+	border-radius: 3px;
+	background-color: color-mix(in srgb, currentcolor 30%, transparent);
+}
+
+/*
+ * Shadow levels for the open list. The server adds the class (dropdowns only,
+ * none adds nothing); the value lives in a variable so custom CSS can tune it.
+ */
+.lingowp-switcher--shadow-sm {
+	--lingowp-switcher-dropdown-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.lingowp-switcher--shadow-md {
+	--lingowp-switcher-dropdown-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.lingowp-switcher--shadow-lg {
+	--lingowp-switcher-dropdown-shadow: 0 4px 8px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.lingowp-switcher__sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/*
+ * Floating switcher (floating_enabled; the server adds the classes): fixed in
+ * a bottom corner, the distance from the edges (floating_offset, 20px) plus
+ * the phone's safe area (notch, home bar). Always boxed; with no background
+ * set it takes the page's own (Canvas) and the dropdown shadow level, so it
+ * stays readable over photos and text. It opens upward (switcher.js), so its
+ * arrow points up while closed.
+ */
+.lingowp-switcher--floating {
+	position: fixed;
+	bottom: calc(var(--lingowp-switcher-floating-offset, 20px) + env(safe-area-inset-bottom, 0px));
+	z-index: var(--lingowp-switcher-z, 9999);
+}
+
+.lingowp-switcher--floating-right {
+	right: calc(var(--lingowp-switcher-floating-offset, 20px) + env(safe-area-inset-right, 0px));
+}
+
+.lingowp-switcher--floating-left {
+	left: calc(var(--lingowp-switcher-floating-offset, 20px) + env(safe-area-inset-left, 0px));
+}
+
+.lingowp-switcher--floating .lingowp-switcher__trigger {
+	background: var(--lingowp-switcher-bg, Canvas);
+	box-shadow: var(--lingowp-switcher-dropdown-shadow, none);
+}
+
+
+.lingowp-switcher--floating.lingowp-switcher--arrow .lingowp-switcher__trigger::after {
+	transform: translateY(0.1em) rotate(-135deg);
+}
+
+.lingowp-switcher--floating.lingowp-switcher--arrow .lingowp-switcher__trigger[aria-expanded="true"]::after {
+	transform: translateY(-0.1em) rotate(45deg);
+}
+
+/*
+ * First paint. A <head> script sets .lingowp-js on <html> before anything is
+ * drawn (Switcher::printJsFlag), so the dropdown shows closed from the first
+ * frame instead of flashing the full list until switcher.js runs.
+ * Without JavaScript the class never appears: the button stays hidden and the
+ * list stays as plain links.
+ */
+html:not(.lingowp-js) .lingowp-switcher__trigger {
+	display: none;
+}
+
+.lingowp-js .lingowp-switcher--dropdown:not(.is-enhanced) .lingowp-switcher__list {
+	display: none;
+}
+
+/*
+ * Block themes ring every focused element, mouse clicks included
+ * (:where(.wp-site-blocks *:focus) in WordPress global styles). Drop the ring
+ * for pointer focus only; :focus-visible keeps it for keyboard users, who need
+ * it to see where they are.
+ */
+.lingowp-switcher__trigger:focus:not(:focus-visible),
+.lingowp-switcher__link:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* Keeps the hover background, which the default above would otherwise cover. */
+.lingowp-switcher--floating .lingowp-switcher__trigger:hover,
+.lingowp-switcher--floating .lingowp-switcher__trigger:focus-visible {
+	background: var(--lingowp-switcher-bg-hover, var(--lingowp-switcher-bg, Canvas));
+}

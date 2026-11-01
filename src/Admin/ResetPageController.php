@@ -49,8 +49,8 @@ class ResetPageController
         // bring the "Reset Data" nav item back.
         add_submenu_page(
             null,
-            __('Reset Translation Data', 'lingowp'),
-            __('Reset Data', 'lingowp'),
+            __('Reset Translation Data', 'linvara'),
+            __('Reset Data', 'linvara'),
             self::CAPABILITY,
             self::SLUG,
             [$this, 'renderPage']
@@ -60,7 +60,7 @@ class ResetPageController
     public function renderPage(): void
     {
         if (!current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'lingowp'));
+            wp_die(esc_html__('You do not have permission to access this page.', 'linvara'));
         }
 
         PhpTemplateRenderer::render('reset.php', []);
@@ -77,7 +77,7 @@ class ResetPageController
             || !isset($_POST['lingowp_reset_nonce'])
             || !wp_verify_nonce(sanitize_key($_POST['lingowp_reset_nonce']), 'lingowp_reset_data')
         ) {
-            wp_die(esc_html__('Security check failed. Please try again.', 'lingowp'));
+            wp_die(esc_html__('Security check failed. Please try again.', 'linvara'));
         }
 
         PluginDataCleanup::run($this->wpdb);

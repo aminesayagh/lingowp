@@ -181,7 +181,7 @@ export function LanguageRow( {
 		// passes onSwitchToInternal in that case, so this just checks the value.
 		onSwitchToInternal &&
 			( lang.ai_model === 'openai' || lang.ai_model === 'anthropic' ) && {
-				content: 'Switch to LingoWP model',
+				content: 'Switch to Linvara model',
 				onAction: () => {
 					setMenuOpen( false )
 					onSwitchToInternal()

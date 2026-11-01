@@ -1,21 +1,25 @@
 {
 	"name": "lingowp-admin",
-	"version": "1.4.1",
+	"version": "1.6.4",
 	"private": true,
 	"description": "LingoWP admin board (React, @wordpress/scripts).",
 	"scripts": {
-		"build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build",
+		"build": "wp-scripts build admin-ui/index.js --output-path=assets/admin/build && vite build",
+		"build:switcher": "vite build",
 		"format": "wp-scripts format",
 		"lint:js": "wp-scripts lint-js",
 		"start": "wp-scripts start admin-ui/index.js --output-path=assets/admin/build",
 		"watch": "NODE_ENV=development wp-scripts start admin-ui/index.js --output-path=assets/admin/build --watch",
+		"watch:switcher": "vite build --watch --mode development",
 		"test": "node tests/inline_chip_grouping_check.mjs && node tests/addon_lists_check.mjs"
 	},
 	"devDependencies": {
+		"@floating-ui/dom": "^1.8.0",
 		"@tailwindcss/postcss": "^4.3.3",
 		"@wordpress/scripts": "^30.0.0",
 		"flag-icons": "^7.5.0",
-		"tailwindcss": "^4.3.3"
+		"tailwindcss": "^4.3.3",
+		"vite": "^7.3.6"
 	},
 	"dependencies": {
 		"@shopify/polaris": "^13.9.5",

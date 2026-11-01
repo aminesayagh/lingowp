@@ -71,7 +71,7 @@ final class HtmlSource extends SourceRecord
             return null;
         }
 
-        $parts = parse_url($sourceUrl);
+        $parts = parse_url($sourceUrl); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- this class runs without WordPress (tests/source_identity_check.php); PHP 7.4+ parses consistently.
         if ($parts === false) {
             return null;
         }

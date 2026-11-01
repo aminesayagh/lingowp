@@ -232,11 +232,11 @@ final class GettextTranslationUnitsService
         wp_mkdir_p(dirname($target));
         $staging = wp_tempnam(basename($target));
         if (! $mo->export_to_file($staging)) {
-            @unlink($staging);
+            wp_delete_file($staging);
             return false;
         }
 
-        if (! rename($staging, $target)) {
+        if (! rename($staging, $target)) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic swap, so WordPress never loads a half-written .mo; the target is Linvara's own uploads/linvara/languages folder (see GettextPoImporter::baseDir()).
             return false;
         }
 
@@ -267,6 +267,13 @@ final class GettextTranslationUnitsService
         $scanned = $this->scanner->scan($path, $domain);
         if ($scanned === null) {
             return false;
+        }
+
+        // Zero strings is only remembered when the scanner proves it can find
+        // strings at all; otherwise the next open scans again instead of the
+        // component being cached as empty forever.
+        if ($scanned === [] && ! $this->scanner->isWorking()) {
+            return true;
         }
 
         $this->repository->bulkUpsert($type, $domain, $scanned);

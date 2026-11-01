@@ -91,7 +91,7 @@ final class PublicRenderPipeline
         // itself filterable, and Elementor vetoes it unconditionally on 6.9+
         // (includes/frontend.php, __return_false). So ask core for its final
         // answer, and only rely on it when the answer is yes.
-        if (function_exists('wp_start_template_enhancement_output_buffer')) {
+        if (function_exists('wp_start_template_enhancement_output_buffer') && function_exists('wp_should_output_buffer_template_for_enhancement')) {
             add_filter('wp_template_enhancement_output_buffer', [$this, 'finish'], 10, 1);
             if (wp_should_output_buffer_template_for_enhancement()) {
                 return;
@@ -160,6 +160,9 @@ final class PublicRenderPipeline
             null,
             function (\DOMDocument $dom) use ($lang): void {
                 $this->seoHead->translate($dom, $lang);
+                // After the body is translated: core's lightbox froze the
+                // source alt into Interactivity state at block render.
+                (new ImageLightboxState())->sync($dom);
             }
         );
 

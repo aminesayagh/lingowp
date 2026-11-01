@@ -91,7 +91,7 @@ final class AiTranslationController
         // for building the unit list and pinning the top-level summary keys.
         $primary = $langs[0];
 
-        $units = $this->unitsForScope($scope, $request, $primary);
+        $units = $this->unitsForScope($scope, $request, $primary, $langs);
         if ($units === null) {
             return new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400);
         }
@@ -179,11 +179,11 @@ final class AiTranslationController
      * Parse the scope's request params, then hand off to AiScopeUnits. The kind
      * vocabulary and every DB read live there; this is just the HTTP half.
      */
-    private function unitsForScope(string $scope, WP_REST_Request $request, string $lang): ?array
+    private function unitsForScope(string $scope, WP_REST_Request $request, string $lang, array $langs): ?array
     {
         if ($scope === 'text') {
             $ref = SourceRef::parse(urldecode((string) $request->get_param('ref')));
-            return $ref === null ? null : $this->units->forScope('text', $lang, '', $ref);
+            return $ref === null ? null : $this->units->forScope('text', $lang, '', $ref, $langs);
         }
         if ($scope === 'collection') {
             return $this->units->forScope('collection', $lang, urldecode((string) $request->get_param('id')));

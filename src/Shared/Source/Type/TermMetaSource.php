@@ -70,7 +70,7 @@ final class TermMetaSource extends SourceRecord
     public function row(): array
     {
         return $this->identity() + [
-            'meta_key'      => $this->metaKey,
+            'meta_key'      => $this->metaKey, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a result array key, not a WP_Query argument.
             'context'       => $this->context,
             'original_text' => $this->originalText(),
         ];

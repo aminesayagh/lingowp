@@ -91,17 +91,17 @@ ok('gallery produces one unit per caption, not merged',
     $galleryUnits === ['First gallery caption', 'Second gallery caption'],
     'got ' . json_encode($galleryUnits));
 
-// 7. Checklist §3: an inline <img>'s alt/title attributes never become their
-// own unit and never leak into the surrounding block's unit text — that text
-// belongs to the attachment's own fields, not to every place the image is
-// embedded. <img> is a VOID element (TranslationUnitCodec::VOID): it becomes
-// a bare {n/} marker, carrying no text into the unit string.
+// 7. Checklist §3: an inline <img>'s alt/title never leak into the
+// surrounding block's unit text — <img> is a VOID element
+// (TranslationUnitCodec::VOID): a bare {n/} marker, no text. They ARE their
+// own attribute units (HtmlUnitExtractor::walkAttributes()): the image block
+// copies the alt into post_content at insert time and WordPress never re-reads
+// the attachment's alt for it, so the attachment's own translated alt never
+// reaches an embedded copy.
 $imgHtml = '<p>Intro text <img src="a.jpg" alt="inline alt text" title="inline title text"/> more text</p>';
 $imgUnits = $ex->units($imgHtml);
-ok('inline img alt/title text never appears in the unit',
-    count($imgUnits) === 1
-        && !str_contains($imgUnits[0], 'inline alt text')
-        && !str_contains($imgUnits[0], 'inline title text'),
+ok('inline img alt/title never leak into the paragraph unit, and are their own units',
+    $imgUnits === ['Intro text {1/} more text', 'inline alt text', 'inline title text'],
     'got ' . json_encode($imgUnits));
 ok('the img becomes a bare void marker, not a text-bearing tag pair',
     $imgUnits[0] === 'Intro text {1/} more text',

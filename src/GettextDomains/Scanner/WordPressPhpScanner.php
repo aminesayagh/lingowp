@@ -7,7 +7,8 @@ namespace LingoWP\GettextDomains\Scanner;
  *
  * The upstream package bundles a PHP scanner and a JavaScript scanner and
  * requires both parsers. LingoWP only scans PHP, so the two PHP-side files
- * are carried here unchanged apart from the namespace, and the plugin depends
+ * are carried here unchanged apart from the namespace and getFunctionsScanner()
+ * (see the note there: works with php-parser v4 or v5), and the plugin depends
  * on gettext/php-scanner directly. That keeps gettext/js-scanner and its
  * parser (mck89/peast, ~1.1 MB) out of the release entirely.
  *
@@ -19,6 +20,7 @@ use Gettext\Translation;
 use Gettext\Scanner\CodeScanner;
 use Gettext\Scanner\PhpFunctionsScanner;
 use Gettext\Scanner\FunctionsScannerInterface;
+use PhpParser\NodeTraverser;
 
 /**
  * WordPress PHP scanner class.
@@ -62,7 +64,28 @@ class WordPressPhpScanner extends CodeScanner
      */
     public function getFunctionsScanner(): FunctionsScannerInterface
     {
-        return new PhpFunctionsScanner(array_keys($this->functions));
+        // LingoWP change (not upstream): another plugin can load its own,
+        // older nikic/php-parser first (Plugin Check ships v4), and PHP then
+        // uses that copy. Upstream's `new NodeTraverser($visitor)` relies on
+        // v5's constructor; v4's takes no arguments and silently drops the
+        // visitor, so every file scans as zero strings. addVisitor() exists
+        // in both versions.
+        return new class (array_keys($this->functions)) extends PhpFunctionsScanner {
+            public function scan(string $code, string $filename): array
+            {
+                $ast = $this->parser->parse($code);
+                if (empty($ast)) {
+                    return [];
+                }
+
+                $visitor   = $this->createNodeVisitor($filename);
+                $traverser = new NodeTraverser();
+                $traverser->addVisitor($visitor);
+                $traverser->traverse($ast);
+
+                return $visitor->getFunctions();
+            }
+        };
     }
 
     /**

@@ -10,7 +10,7 @@
  * outside the rollback (belt-and-suspenders: test_begin() already rolls
  * everything back, this is just extra safety for the option writes below,
  * which the rollback does NOT cover — see _harness.php's isolation contract,
- * point 3 — so this file deletes lingowp_gettext_scanned_domains' own test
+ * point 3 — so this file deletes GettextUnitRepository::OPTION_SCANNED's own test
  * entry manually before test_done()).
  */
 
@@ -177,8 +177,8 @@ test_ok('scannedGroupKeys() reflects markScanned()', in_array($key, $repo->scann
 // Surgically remove only this file's own entry: the option is a shared,
 // site-wide list of every real scanned domain, so delete_option() here would
 // wipe real production scan state instead of just this test's fixture.
-$scanned = json_decode((string) get_option('lingowp_gettext_scanned_domains', '[]'), true);
+$scanned = json_decode((string) get_option(GettextUnitRepository::OPTION_SCANNED, '[]'), true);
 $scanned = is_array($scanned) ? array_values(array_diff($scanned, ["$type:$domain"])) : [];
-update_option('lingowp_gettext_scanned_domains', wp_json_encode($scanned));
+update_option(GettextUnitRepository::OPTION_SCANNED, wp_json_encode($scanned));
 
 test_done();

@@ -86,4 +86,21 @@ export const qk = {
 	scan: {
 		status: () => [ 'scan', 'status' ],
 	},
+
+	// Migration from another translation plugin (Account page, "Migration"
+	// tab), served by a migration add-on such as lingowp-translatepress.
+	migration: {
+		all: [ 'migration' ],
+		status: ( source ) => [ 'migration', 'status', source ],
+		preview: ( source ) => [ 'migration', 'preview', source ],
+	},
+
+	// Language switcher design (Account page, "Language switcher" tab).
+	switcher: {
+		all: [ 'switcher' ],
+		settings: () => [ 'switcher', 'settings' ], // GET /switcher-settings
+		// POST /switcher-settings/preview — keyed by the draft + layout, so an
+		// unchanged draft reuses the last render.
+		preview: ( params ) => [ 'switcher', 'preview', params ],
+	},
 }
