@@ -51,6 +51,13 @@ final class OptionSourceScanner
      */
     public function scan(?string $onlyOption = null): void
     {
+        // A network site being created writes its default options before
+        // Linvara's tables exist there (Activator::initializeSite() runs after);
+        // scanning then logged "table doesn't exist". Its own activation scans.
+        if (! \LingoWP\Database\TranslationMemorySchema::isInstalled()) {
+            return;
+        }
+
         foreach ($this->allowlist() as $optionName => $paths) {
             $optionName = (string) $optionName;
             if ($onlyOption !== null && $optionName !== $onlyOption) {

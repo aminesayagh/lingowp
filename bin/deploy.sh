@@ -102,6 +102,9 @@ echo "==> Both archives verified: source in dist/, absent from release/."
 # Before anything is copied out: the WordPress.org archive must activate
 # cleanly and pass Plugin Check on the QA site, as the review team checks it.
 step "Plugin Check + clean activation (QA site)" "$ROOT_DIR/bin/plugin-check.sh"
+# Same archive on the local multisite network: per-site and network
+# activation, site creation and deletion, nothing in debug.log.
+step "Multisite lifecycle (linvara-multisite network)" "$ROOT_DIR/bin/multisite-check.sh"
 
 # The backend parses the version out of the filename with -(\d+(\.\d+)*)\.zip$
 # and serves the highest match; a name it cannot parse is silently skipped — so

@@ -63,6 +63,11 @@ require_once LINGOWP_DIR . 'functions.php';
 register_activation_hook(__FILE__, [\LingoWP\Setup\Activator::class, 'run']);
 register_deactivation_hook(__FILE__, [\LingoWP\Setup\Deactivator::class, 'run']);
 
+// Multisite: set up a site created while network-active (after core's own
+// setup at 10), and drop Linvara's tables before core's when a site is deleted.
+add_action('wp_initialize_site', [\LingoWP\Setup\Activator::class, 'initializeSite'], 200);
+add_filter('wpmu_drop_tables', [\LingoWP\Database\TranslationMemorySchema::class, 'addTablesForSiteDeletion']);
+
 /*
     * Boot the plugin after all plugins are loaded.
     */

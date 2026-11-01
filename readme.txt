@@ -127,7 +127,7 @@ Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site
 = 1.6.4 =
 
 * Translation files for plugins and themes now live in your uploads folder (wp-content/uploads/linvara/languages/). Existing files are moved there automatically on update; nothing to re-translate.
-* Multisite: Linvara now activates on every site of a network, not only the first one.
+* Multisite: Linvara now activates on every site of a network, not only the first one. "Network Activate" sets up every existing site and each site created later, and deleting a site removes its Linvara tables cleanly.
 * Other plugins' admin notices are no longer hidden on Linvara's screens; they show above the app.
 * Language switcher styles are now loaded through WordPress's standard style system.
 * Requires WordPress 6.9 or later (bundled Action Scheduler 4.2).

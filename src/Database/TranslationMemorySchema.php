@@ -459,20 +459,49 @@ class TranslationMemorySchema
      * (FK-safe, same order as uninstall.php's DROP), plus gettext_unit (no
      * FK, so its position relative to the rest doesn't matter).
      */
-    public static function dropAllTables(\wpdb $wpdb): void
+    /**
+     * Every table of the current site, children before parents, so each DROP
+     * succeeds despite the FKs.
+     *
+     * @return string[]
+     */
+    public static function allTablesInDropOrder(): array
     {
         // array_values: childTables() and parentTables() share the same string
         // keys (post, meta, …), so unpacking them directly makes the parent
         // entries overwrite the children and no *_translation table is ever
         // dropped — plus the two parent_id parents then survive on their child
         // FK. Re-index to plain lists first.
-        $tables = [
+        return [
             ...array_values(self::childTables()),
             ...array_values(self::parentTables()),
             self::gettextUnitTable(),
         ];
+    }
 
-        foreach ($tables as $table) {
+    /** True once install() has completed on the current site. */
+    public static function isInstalled(): bool
+    {
+        return get_option(self::OPTION_DB_VERSION) !== false;
+    }
+
+    /**
+     * wpmu_drop_tables: deleting a network site drops Linvara's tables first.
+     * Their FKs reference the site's posts/options/terms tables, so core's own
+     * DROPs failed and left 19 tables behind. Core runs this switched into the
+     * site being deleted, so the names carry its prefix.
+     *
+     * @param string[] $tables
+     * @return string[]
+     */
+    public static function addTablesForSiteDeletion($tables): array
+    {
+        return array_merge(self::allTablesInDropOrder(), (array) $tables);
+    }
+
+    public static function dropAllTables(\wpdb $wpdb): void
+    {
+        foreach (self::allTablesInDropOrder() as $table) {
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
             $wpdb->query('DROP TABLE IF EXISTS ' . $table);
