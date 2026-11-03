@@ -84,7 +84,7 @@
 			"./wp eval-file tests/db/gettext_scanner_it.php",
 			"./wp eval-file tests/db/gettext_merge_it.php",
 			"./wp eval-file tests/db/gettext_ai_it.php",
-			"./wp eval-file tests/db/gettext_legacy_dir_it.php",
+			"./wp eval-file tests/db/gettext_mo_dir_it.php",
 			"./wp eval-file tests/db/no_auto_connect_it.php",
 			"./wp eval-file tests/db/admin_bar_translate_link_it.php"
 		],

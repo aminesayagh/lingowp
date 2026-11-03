@@ -2,8 +2,8 @@
 
 Linvara includes or compiles code and assets from third-party projects. The
 release archive retains the license files shipped by Composer dependencies in
-`vendor/`. JavaScript dependency metadata and license texts are available from
-the human-readable source repository and its lockfile.
+`vendor/`. JavaScript dependencies, with their exact versions, are listed in
+`package.json` and `package-lock.json`, which ship with the human-readable source.
 
 ## Runtime PHP packages
 
@@ -29,6 +29,14 @@ the human-readable source repository and its lockfile.
 - Motion — MIT license.
 - nuqs — MIT license.
 - WordPress Scripts and its build dependencies — licenses declared by their packages.
+
+## Front-end language switcher
+
+- Floating UI (`@floating-ui/dom` 1.8.0, with `@floating-ui/core` 1.8.0 and
+  `@floating-ui/utils` 0.2.12) by Floating UI contributors — MIT license.
+  https://github.com/floating-ui/floating-ui. Compiled into
+  `assets/switcher/build/switcher.js` (source: `assets/switcher/src/`).
+- Vite — MIT license. Build tool only; not shipped.
 
 ## Flag assets
 

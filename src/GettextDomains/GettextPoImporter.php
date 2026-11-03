@@ -75,46 +75,6 @@ final class GettextPoImporter
         return wp_upload_dir(null, false)['basedir'] . '/linvara/languages';
     }
 
-    /** Where 1.6.3 and earlier wrote; emptied by migrateLegacyDir(). */
-    public static function legacyDir(): string
-    {
-        return WP_LANG_DIR . '/lingowp';
-    }
-
-    /**
-     * One-time move of the files written before baseDir() moved to uploads.
-     * They are the only copy of hand-saved and imported strings, so they are
-     * moved, never dropped: the old folder is deleted only once every file has
-     * landed. A file already in the new folder is newer and wins. Main site
-     * only — the old folder was shared by every site of a network.
-     */
-    public static function migrateLegacyDir(): void
-    {
-        $old = self::legacyDir();
-        if (! is_dir($old) || ! is_main_site()) {
-            return;
-        }
-
-        $allMoved = true;
-        foreach (['plugins', 'themes'] as $sub) {
-            foreach (glob($old . '/' . $sub . '/*.mo') ?: [] as $file) {
-                $target = self::baseDir() . '/' . $sub . '/' . basename($file);
-                if (file_exists($target)) {
-                    continue;
-                }
-                wp_mkdir_p(dirname($target));
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- moving Linvara's own files out of the old location into uploads.
-                $allMoved = rename($file, $target) && $allMoved;
-            }
-        }
-
-        // ponytail: a failed move leaves the old folder in place and retries on
-        // the next main-site request — one is_dir() + glob() until it succeeds.
-        if ($allMoved) {
-            self::removeTree($old);
-        }
-    }
-
     /** Recursively delete a folder Linvara owns. */
     public static function removeTree(string $root): void
     {
