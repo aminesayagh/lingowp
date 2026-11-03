@@ -6,10 +6,10 @@
 #   backend           copied to the backend's plugin/ folder
 #   public mirror     release/, refreshed with the archive's tree by the build
 #
-# It carries the human-readable source of both bundles (Guideline 4), and its own
-# PHP has its comments stripped. Until 1.6.5 a second, source-free "client"
-# archive went to the backend and the mirror; it was dropped after it was
-# uploaded to WordPress.org by mistake and failed review for the missing source.
+# It keeps comments and carries the human-readable source of both bundles —
+# Guideline 4. Until 1.6.5 a second, comment-stripped "client" archive went to
+# the backend and the mirror; it was dropped after it was uploaded to
+# WordPress.org by mistake and failed review for the missing source.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
