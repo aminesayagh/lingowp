@@ -21,6 +21,10 @@ const noRawApiImport = {
 
 module.exports = {
 	...wordpressConfig,
+	// Build outputs: release/ is the public mirror, a copy of the archive's
+	// tree (admin-ui/ included), so linting it would report every source file
+	// twice and trip the queries/** override above on the copy's paths.
+	ignorePatterns: [ 'release/', 'dist/' ],
 	globals: {
 		...wordpressConfig.globals,
 		getComputedStyle: 'readonly',
