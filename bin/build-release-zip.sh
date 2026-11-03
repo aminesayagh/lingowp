@@ -3,11 +3,11 @@
 #
 # The same archive goes everywhere — WordPress.org, the backend download, and the
 # public mirror in release/ (its own .git, ignored by this repository's). It
-# keeps comments and ships the human-readable source of both compiled bundles,
-# because Guideline 4 requires it. A second, comment-stripped "client" variant
-# existed until 1.6.5; it was dropped after the source-free one was uploaded to
-# WordPress.org by mistake, and once the plugin is on WordPress.org the full
-# source is public anyway.
+# ships the human-readable source of both compiled bundles, because Guideline 4
+# requires it, and the plugin's own PHP with its comments stripped (machine-read
+# ones kept — see bin/strip-comments.php). Until 1.6.5 a second "client" variant
+# was the only stripped one; it was dropped after the source-free one was
+# uploaded to WordPress.org by mistake. Every channel now gets this one file.
 set -euo pipefail
 
 PLUGIN_SLUG="linvara"
@@ -158,6 +158,13 @@ if grep -rnE '\b(unzip_file|activate_plugin)\s*\(' "$BUILD_DIR/src" "$BUILD_DIR/
   echo "Release contains remote-install primitives (see above). WordPress.org rejects these." >&2
   exit 1
 fi
+
+# Runs last, after every removal, so it only ever sees files that actually ship,
+# and before the mirror copy and timestamp normalisation below so both carry the
+# stripped tree and the archive stays reproducible. Fails the build if any file's
+# code (tokens minus comments) would change, or a machine-read comment is lost.
+echo "==> Stripping comments from the plugin's own PHP"
+php "$ROOT_DIR/bin/strip-comments.php" "$BUILD_DIR"
 
 # The public distribution repository: the exact tree the archive holds. Its
 # contents are replaced wholesale on every build so `git status` in there shows

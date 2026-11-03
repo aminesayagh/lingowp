@@ -5,7 +5,8 @@ declare(strict_types=1);
 /*
  * Strips comments from the plugin's own PHP files inside a staged build tree.
  *
- * Used only for the direct-download ("client") archive. Comments a machine reads
+ * Run by bin/build-release-zip.sh on the one release archive (WordPress.org,
+ * backend download and public mirror alike). Comments a machine reads
  * are kept verbatim, because an earlier attempt at this stripped them and broke
  * things quietly:
  *   - phpcs:ignore / analyser directives  — WordPress.org's Plugin Check reads
