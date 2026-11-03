@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Builds the one production zip, reproducibly: dist/linvara-<version>.zip.
 #
-# The same archive goes everywhere — WordPress.org, the backend download, and the
-# public mirror in release/ (its own .git, ignored by this repository's). It
+# The same archive goes everywhere — WordPress.org and the backend download. It
 # keeps comments and ships the human-readable source of both compiled bundles,
 # because Guideline 4 requires it. Until 1.6.5 a second, comment-stripped
 # "client" variant existed; it was dropped after the source-free one was
@@ -17,7 +16,6 @@ BUILD_DIR="$(mktemp -d)"
 STAGE_PARENT="$(mktemp -d)"
 STAGE_DIR="$STAGE_PARENT/$PLUGIN_SLUG"
 DIST_DIR="$ROOT_DIR/dist"
-RELEASE_DIR="$ROOT_DIR/release"
 DEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.zip"
 MANIFEST="$DIST_DIR/${PLUGIN_SLUG}-${VERSION}.sha256"
 
@@ -158,22 +156,6 @@ if grep -rnE '\b(unzip_file|activate_plugin)\s*\(' "$BUILD_DIR/src" "$BUILD_DIR/
   echo "Release contains remote-install primitives (see above). WordPress.org rejects these." >&2
   exit 1
 fi
-
-# The public distribution repository: the exact tree the archive holds. Its
-# contents are replaced wholesale on every build so `git status` in there shows
-# exactly what changed between releases; .git is the one thing that survives,
-# because it holds the history and the remote. This repository ignores
-# release/, so the two never interleave.
-echo "==> Refreshing the public mirror: $RELEASE_DIR"
-mkdir -p "$RELEASE_DIR"
-find "$RELEASE_DIR" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -a "$BUILD_DIR"/. "$RELEASE_DIR"/
-cat > "$RELEASE_DIR/.gitignore" <<'MIRROR_IGNORE'
-# The archive is attached to a GitHub release, not committed — a binary of this
-# size in every commit would outgrow the source it ships within a few releases.
-*.zip
-*.sha256
-MIRROR_IGNORE
 
 SOURCE_DATE_EPOCH="$(git -C "$ROOT_DIR" show -s --format=%ct HEAD)"
 find "$BUILD_DIR" -exec touch -d "@$SOURCE_DATE_EPOCH" {} +

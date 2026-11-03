@@ -4,16 +4,17 @@
 #
 #   WordPress.org     uploaded by hand (printed at the end)
 #   backend           copied to the backend's plugin/ folder
-#   public mirror     release/, refreshed with the archive's tree by the build
+#
+# The development repository itself is public (github.com/aminesayagh/lingowp),
+# so there is no separate source mirror; one used to live in release/.
 #
 # It keeps comments and carries the human-readable source of both bundles —
 # Guideline 4. Until 1.6.5 a second, comment-stripped "client" archive went to
-# the backend and the mirror; it was dropped after it was uploaded to
+# the backend; it was dropped after it was uploaded to
 # WordPress.org by mistake and failed review for the missing source.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RELEASE_DIR="$ROOT_DIR/release"
 ARTIFACT_DIR="/home/amine/projects/translangs/backend/plugin"
 VERSION="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$ROOT_DIR/lingowp.php" | head -n 1)"
 
@@ -62,7 +63,7 @@ step "Integration checks (needs the wordpress container)" \
   composer run --no-interaction test:db
 
 # Re-runs npm ci and composer install in its own temp dir: the slow part.
-step "Release archive (dist/, mirrored to release/)" "$ROOT_DIR/bin/build-release-zip.sh"
+step "Release archive (dist/)" "$ROOT_DIR/bin/build-release-zip.sh"
 
 # The mistake that cost a review round: an archive without the source reached
 # WordPress.org. build-release-zip.sh refuses to package without it; this
@@ -97,49 +98,3 @@ echo
 echo "===================================================================="
 echo "==> Upload THIS file to WordPress.org: $ZIP"
 echo "===================================================================="
-
-# The build only stages release/; committing and pushing happens here, on a
-# message typed at the prompt, so nothing reaches the public remote without a
-# person naming the release. Every early exit below is 0 on purpose: the backend
-# deploy above has already succeeded, and the tree stays staged for a later
-# `git commit` by hand.
-echo
-echo "===================================================================="
-echo "==> Public mirror: $RELEASE_DIR"
-echo "===================================================================="
-
-if [[ ! -d "$RELEASE_DIR/.git" ]]; then
-  echo "No git repository in release/ yet. Set it up once, then re-run deploy:"
-  echo "  git -C $RELEASE_DIR init -b main"
-  echo "  git -C $RELEASE_DIR remote add origin <public repository URL>"
-  exit 0
-fi
-if [[ ! -t 0 ]]; then
-  echo "Not an interactive terminal; skipping the publish. Tree is staged."
-  exit 0
-fi
-
-git -C "$RELEASE_DIR" add -A
-git -C "$RELEASE_DIR" diff --cached --stat | tail -n 1
-read -r -p "Commit message for v${VERSION} (empty to skip publishing): " MESSAGE
-if [[ -z "$MESSAGE" ]]; then
-  echo "==> Skipped. Publish later with: git -C release commit && git -C release push"
-  exit 0
-fi
-
-if git -C "$RELEASE_DIR" diff --cached --quiet; then
-  echo "==> Nothing changed since the last publish; not committing."
-else
-  git -C "$RELEASE_DIR" commit -m "$MESSAGE"
-fi
-
-if git -C "$RELEASE_DIR" rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
-  echo "==> Tag v${VERSION} already exists; leaving it alone."
-else
-  git -C "$RELEASE_DIR" tag -a "v${VERSION}" -m "$MESSAGE"
-fi
-
-git -C "$RELEASE_DIR" push origin HEAD
-git -C "$RELEASE_DIR" push origin "v${VERSION}"
-echo "==> Published v${VERSION}."
-echo "==> Attach $ZIP to the GitHub release by hand."
