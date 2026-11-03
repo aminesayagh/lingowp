@@ -28,8 +28,6 @@ CHECK="$NET_DIR/site/lv-multisite-check.php"
 
 cd "$NET_DIR"
 net_wp() { ./bin/wp "$@"; }
-MAIN="$(net_wp option get home 2>/dev/null)"
-MAIN="${MAIN%/}"
 
 RUNNING="$(docker compose ps --status running --services)"
 case "$RUNNING" in
@@ -37,6 +35,10 @@ case "$RUNNING" in
   *) ./bin/start >/dev/null ;;
 esac
 for _ in $(seq 1 30); do net_wp core is-installed --network 2>/dev/null && break; sleep 2; done
+# Read only once the network is up: with the containers stopped this exits
+# the script silently under set -e.
+MAIN="$(net_wp option get home 2>/dev/null)"
+MAIN="${MAIN%/}"
 
 echo "==> Installing $(basename "$ZIP")${LINVARA_FROM_TREE:+ + working-tree src/} (v$VERSION)"
 if net_wp plugin is-active linvara --network 2>/dev/null; then net_wp plugin deactivate linvara --network --quiet; fi
