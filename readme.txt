@@ -64,7 +64,7 @@ That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` 
 
 == Installation ==
 
-1. Upload the `lingowp` folder to `/wp-content/plugins/`, or install it through the WordPress Plugins screen.
+1. Upload the `linvara` folder to `/wp-content/plugins/`, or install it through the WordPress Plugins screen.
 2. Activate Linvara.
 3. Open Linvara in wp-admin and choose the source and target languages.
 4. Choose whether to connect to Linvara Cloud (for AI translation, billing, and account features) or continue without connecting. You can connect later from the Workspace or Account page, and disconnect anytime from Account → Danger zone.
@@ -131,7 +131,7 @@ Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site
 
 = 1.6.5 =
 
-* Linvara no longer reads or changes anything in wp-content/languages. Plugin and theme translations saved with version 1.6.3 or earlier, in wp-content/languages/lingowp/, are no longer used; that folder can be deleted.
+* Linvara no longer stores its own files in wp-content/languages. Plugin and theme translations saved with version 1.6.3 or earlier, in wp-content/languages/lingowp/, are no longer used; that folder can be deleted.
 * One release archive: the direct download is now identical to the WordPress.org one, including the human-readable source of the admin screens and of the language switcher.
 
 = 1.6.4 =
