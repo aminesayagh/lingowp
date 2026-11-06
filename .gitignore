@@ -47,3 +47,7 @@ dist/
 release/
 .VSCode/
 .senera/
+
+# Internal notes (WordPress.org review emails, audits): local only, never in
+# the public repository.
+docs/

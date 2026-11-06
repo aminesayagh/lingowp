@@ -51,6 +51,9 @@ final class GettextPoImporter
         }
 
         $target = $this->targetPath($type, $domain, $locale);
+        if ($target === null) {
+            return false;
+        }
         wp_mkdir_p(dirname($target));
 
         $staging = wp_tempnam(basename($target));
@@ -75,46 +78,6 @@ final class GettextPoImporter
         return wp_upload_dir(null, false)['basedir'] . '/linvara/languages';
     }
 
-    /** Where 1.6.3 and earlier wrote; emptied by migrateLegacyDir(). */
-    public static function legacyDir(): string
-    {
-        return WP_LANG_DIR . '/lingowp';
-    }
-
-    /**
-     * One-time move of the files written before baseDir() moved to uploads.
-     * They are the only copy of hand-saved and imported strings, so they are
-     * moved, never dropped: the old folder is deleted only once every file has
-     * landed. A file already in the new folder is newer and wins. Main site
-     * only — the old folder was shared by every site of a network.
-     */
-    public static function migrateLegacyDir(): void
-    {
-        $old = self::legacyDir();
-        if (! is_dir($old) || ! is_main_site()) {
-            return;
-        }
-
-        $allMoved = true;
-        foreach (['plugins', 'themes'] as $sub) {
-            foreach (glob($old . '/' . $sub . '/*.mo') ?: [] as $file) {
-                $target = self::baseDir() . '/' . $sub . '/' . basename($file);
-                if (file_exists($target)) {
-                    continue;
-                }
-                wp_mkdir_p(dirname($target));
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- moving Linvara's own files out of the old location into uploads.
-                $allMoved = rename($file, $target) && $allMoved;
-            }
-        }
-
-        // ponytail: a failed move leaves the old folder in place and retries on
-        // the next main-site request — one is_dir() + glob() until it succeeds.
-        if ($allMoved) {
-            self::removeTree($old);
-        }
-    }
-
     /** Recursively delete a folder Linvara owns. */
     public static function removeTree(string $root): void
     {
@@ -133,9 +96,30 @@ final class GettextPoImporter
         rmdir($root); // phpcs:ignore WordPress.WP.AlternativeFunctions
     }
 
-    /** @param 'plugin'|'theme' $type */
-    public function targetPath(string $type, string $domain, string $locale): string
+    /**
+     * The `.mo` path for a plugin/theme domain + locale, or null when any part
+     * is not a plain identifier. Every read and write of a translation file
+     * goes through here, so this is the one place a crafted domain or locale
+     * (`../../x`, `a/b`) is stopped: with no `/`, `\` or `..` allowed, the
+     * path cannot leave baseDir().
+     *
+     * @param 'plugin'|'theme' $type
+     */
+    public function targetPath(string $type, string $domain, string $locale): ?string
     {
+        if (! in_array($type, ['plugin', 'theme'], true)) {
+            return null;
+        }
+        // Text domains: letters, digits, `-`, `_`, `.` (e.g. woocommerce,
+        // wpforms-lite, _private); never a leading dot or `-`, nor a `..` run.
+        if (! preg_match('/^[A-Za-z0-9_][A-Za-z0-9._-]*$/', $domain) || strpos($domain, '..') !== false) {
+            return null;
+        }
+        // WordPress locales: fr_FR, de_DE_formal, pt_PT_ao90, ar.
+        if (! preg_match('/^[A-Za-z]{2,3}(_[A-Za-z0-9]+)*$/', $locale)) {
+            return null;
+        }
+
         $sub = $type === 'theme' ? 'themes' : 'plugins';
 
         return self::baseDir() . '/' . $sub . '/' . $domain . '-' . $locale . '.mo';

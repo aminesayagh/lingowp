@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.4
+Stable tag: 1.6.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,18 +48,23 @@ Linvara can also contact WordPress.org language-pack APIs when an administrator 
 
 = Human-readable source =
 
-Everything in `assets/admin/build/` is compiled output. The human-readable JavaScript and CSS source it is built from ships in this package: the `admin-ui/` directory, together with `package.json`, `package-lock.json`, `webpack.config.js`, and `postcss.config.js`.
+The plugin ships two compiled bundles. The human-readable JavaScript and CSS source of both is included in this package:
 
-To reproduce the compiled files from that source, with Node.js 20 or newer, run from the plugin directory:
+* `assets/admin/build/` (the admin screens) is built with `@wordpress/scripts` (webpack) from the `admin-ui/` directory, using `webpack.config.js` and `postcss.config.js`.
+* `assets/switcher/build/` (the front-end language switcher, `switcher.js` and `switcher.css`) is built with Vite from the `assets/switcher/src/` directory, using `vite.config.mjs`. It bundles the third-party library Floating UI (`@floating-ui/dom` 1.8.0, MIT license, https://github.com/floating-ui/floating-ui) to position the dropdown.
+
+`package.json` and `package-lock.json` list every build tool and dependency with its exact version.
+
+To reproduce both bundles from that source, with Node.js 20 or newer, run from the plugin directory:
 
 `npm ci`
 `npm run build`
 
-That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` and writes the same bundles shipped here.
+That runs `wp-scripts build admin-ui/index.js --output-path=assets/admin/build` followed by `vite build`, and writes the same files shipped here.
 
 == Installation ==
 
-1. Upload the `lingowp` folder to `/wp-content/plugins/`, or install it through the WordPress Plugins screen.
+1. Upload the `linvara` folder to `/wp-content/plugins/`, or install it through the WordPress Plugins screen.
 2. Activate Linvara.
 3. Open Linvara in wp-admin and choose the source and target languages.
 4. Choose whether to connect to Linvara Cloud (for AI translation, billing, and account features) or continue without connecting. You can connect later from the Workspace or Account page, and disconnect anytime from Account → Danger zone.
@@ -123,6 +128,16 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.6.6 =
+
+* Security: translation file paths for plugins and themes are now built only from validated values (type, text domain and locale), so a crafted request can no longer write outside wp-content/uploads/linvara/.
+* Translated titles, excerpts and author bios are escaped where Linvara returns them.
+
+= 1.6.5 =
+
+* Linvara no longer stores its own files in wp-content/languages. Plugin and theme translations saved with version 1.6.3 or earlier, in wp-content/languages/lingowp/, are no longer used; that folder can be deleted.
+* One release archive: the direct download is now identical to the WordPress.org one, including the human-readable source of the admin screens and of the language switcher.
 
 = 1.6.4 =
 

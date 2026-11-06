@@ -113,7 +113,7 @@ test_ok('an unregistered block type is silently skipped, no crash',
 
 test_section('render (blockAttributes()):');
 
-// Render resolves purely by hash of the CURRENT attrs value (hashValue()), with no
+// Render resolves purely by hash of the CURRENT attrs value (translation()), with no
 // parent-row dependency — so the translation only needs to exist in the hash-link
 // child table, inserted directly by hash, matching exactly what render looks up.
 $searchHash = TranslationKey::currentHash('LINGOWP_TEST render label');
@@ -143,6 +143,42 @@ test_ok('a dynamic block\'s content attribute resolves to its translation',
 $staticResult = $resolver->blockAttributes(['blockName' => 'core/paragraph', 'attrs' => ['content' => 'LINGOWP_TEST render label']]);
 test_ok('a static block\'s attrs are never touched, even with a matching translation available',
     ($staticResult['attrs']['content'] ?? null) === 'LINGOWP_TEST render label', 'got ' . json_encode($staticResult));
+
+// ── 5b. Output escaping at each filter's own return (WordPress.org review) ───
+
+test_section('escaping (title, excerpt, block label):');
+
+$xssHash = TranslationKey::currentHash('LINGOWP_TEST xss source');
+$wpdb->query($wpdb->prepare(
+    "INSERT IGNORE INTO {$parents['post']}_translation (original_hash, lang_code, translated_text, status, created_at, updated_at) VALUES (UNHEX(%s), %s, %s, 1, NOW(), NOW())",
+    bin2hex($xssHash), 'fr', 'Titre <script>alert(1)</script><em onclick="x()">ok</em> & co'
+));
+
+$title = (string) $resolver->title('LINGOWP_TEST xss source', 0);
+test_ok('title: a script in the translation is removed', strpos($title, '<script') === false, $title);
+test_ok('title: an event attribute is removed', strpos($title, 'onclick') === false, $title);
+test_ok('title: allowed inline markup and the text survive', strpos($title, '<em>ok</em>') !== false && strpos($title, 'Titre') === 0, $title);
+
+$excerpt = (string) $resolver->excerpt('LINGOWP_TEST xss source', null);
+test_ok('excerpt: same escaping', strpos($excerpt, '<script') === false && strpos($excerpt, '<em>ok</em>') !== false, $excerpt);
+
+$label = $resolver->blockAttributes(['blockName' => 'core/search', 'attrs' => ['label' => 'LINGOWP_TEST xss source']]);
+test_ok('block label: same escaping', strpos((string) ($label['attrs']['label'] ?? ''), '<script') === false, json_encode($label));
+
+test_ok('an untranslated title comes back exactly as given',
+    $resolver->title('LINGOWP_TEST <b>untranslated</b> title', 0) === 'LINGOWP_TEST <b>untranslated</b> title');
+
+// Content: only the translated text is escaped; the post's own markup (an
+// embed's iframe here) is kept, which wp_kses_post() over the whole would strip.
+$contentHash = TranslationKey::currentHash('LINGOWP_TEST content source');
+$wpdb->query($wpdb->prepare(
+    "INSERT IGNORE INTO {$parents['post']}_translation (original_hash, lang_code, translated_text, status, created_at, updated_at) VALUES (UNHEX(%s), %s, %s, 1, NOW(), NOW())",
+    bin2hex($contentHash), 'fr', 'Bonjour <script>alert(1)</script>'
+));
+$content = (string) $resolver->content('<p>LINGOWP_TEST content source</p><iframe src="https://www.youtube.com/embed/x" title="video"></iframe>');
+test_ok('content: a script in the translation is shown as text, never as a tag', strpos($content, '<script') === false && strpos($content, '&lt;script') !== false, $content);
+test_ok('content: the translated text is there', strpos($content, 'Bonjour') !== false, $content);
+test_ok('content: the post\'s own embed iframe is kept', strpos($content, '<iframe') !== false, $content);
 
 // ── 6. Schema helper sanity ───────────────────────────────────────────────────
 

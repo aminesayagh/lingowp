@@ -114,12 +114,10 @@ class PluginDataCleanup
      * Every `.mo` Linvara ever wrote lives under one folder of its own
      * (GettextPoImporter::baseDir()), so removing it is the whole cleanup and
      * cannot touch a translation file that core or another plugin installed.
-     * The pre-uploads folder too, in case its one-time move never ran.
      */
     private static function removeTranslationFiles(): void
     {
         \LingoWP\GettextDomains\GettextPoImporter::removeTree(\LingoWP\GettextDomains\GettextPoImporter::baseDir());
-        \LingoWP\GettextDomains\GettextPoImporter::removeTree(\LingoWP\GettextDomains\GettextPoImporter::legacyDir());
     }
 
     private static function cancelScheduledActions(): void

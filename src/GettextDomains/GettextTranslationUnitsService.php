@@ -214,6 +214,9 @@ final class GettextTranslationUnitsService
         }
 
         $target = $this->paths->targetPath($type, $domain, $locale);
+        if ($target === null) {
+            return false;
+        }
 
         $mo = new \MO();
         if (file_exists($target)) {
@@ -286,7 +289,7 @@ final class GettextTranslationUnitsService
     private function readExisting(string $type, string $domain, string $locale): array
     {
         $target = $this->paths->targetPath($type, $domain, $locale);
-        if (! file_exists($target)) {
+        if ($target === null || ! file_exists($target)) {
             return [];
         }
 
@@ -315,7 +318,7 @@ final class GettextTranslationUnitsService
     private function countTranslatedInFile(string $type, string $domain, string $locale): int
     {
         $target = $this->paths->targetPath($type, $domain, $locale);
-        if (! file_exists($target)) {
+        if ($target === null || ! file_exists($target)) {
             return 0;
         }
 

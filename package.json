@@ -1,6 +1,6 @@
 {
 	"name": "lingowp-admin",
-	"version": "1.6.4",
+	"version": "1.6.6",
 	"private": true,
 	"description": "LingoWP admin board (React, @wordpress/scripts).",
 	"scripts": {

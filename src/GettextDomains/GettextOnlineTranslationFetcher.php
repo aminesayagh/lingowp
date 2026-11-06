@@ -140,6 +140,9 @@ final class GettextOnlineTranslationFetcher
     private function write(string $type, string $domain, string $locale, string $moBytes): bool
     {
         $target = $this->paths->targetPath($type, $domain, $locale);
+        if ($target === null) {
+            return false;
+        }
         wp_mkdir_p(dirname($target));
 
         $staging = wp_tempnam(basename($target));
