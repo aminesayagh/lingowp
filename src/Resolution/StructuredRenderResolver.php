@@ -89,12 +89,12 @@ final class StructuredRenderResolver
     public function register(): void
     {
         add_filter('the_posts', [$this, 'preloadPosts'], 10, 2);
-        // Output escaping happens where a translation is substituted, per context
-        // (see hashValue() and content()): a plain value is run through
-        // wp_kses_post(), a content unit is rebuilt from the post's own markup
-        // with the translated text passed through htmlspecialchars() by the
-        // codec. The filter return values are therefore already escaped;
-        // escaping them again here would double-encode content.
+        // Every callback escapes the translation it returns, per context: a
+        // plain value (title, excerpt, bio, block label) through wp_kses_post()
+        // at its own return; a content unit is rebuilt from the post's own
+        // markup with only the translated text escaped (htmlspecialchars() in
+        // TranslationUnitCodec::decode()) — see content() for why that one
+        // cannot be wrapped in wp_kses_post() as a whole.
         add_filter('the_title', [$this, 'title'], 10, 2);
         add_filter('the_content', [$this, 'content'], 10, 1);
         add_filter('render_block_data', [$this, 'blockAttributes'], 10, 1);
@@ -180,7 +180,9 @@ final class StructuredRenderResolver
             return $title;
         }
 
-        return $this->hashValue('post', (string) $title);
+        $translated = $this->translation('post', (string) $title);
+
+        return $translated === null ? $title : wp_kses_post($translated);
     }
 
     /**
@@ -204,6 +206,11 @@ final class StructuredRenderResolver
         }
         $this->ensureHashLoaded('post', $hashes);
 
+        // Escaped per translated piece, not as a whole: TranslationUnitCodec::
+        // decode() htmlspecialchars() each translated text and re-inserts only
+        // the post's own tags around it. Wrapping the result in wp_kses_post()
+        // would also strip the post's own trusted markup — by now (priority
+        // 10) autoembed has turned embeds into <iframe>, which it removes.
         return $this->unitExtractor->render(
             $content,
             fn(string $unit): ?string => $this->hashMap[$this->hashKey('post', TranslationKey::currentHash($unit))] ?? null
@@ -236,7 +243,10 @@ final class StructuredRenderResolver
         foreach (BlockContentAttributes::contentKeys($name) as $key) {
             $value = $parsedBlock['attrs'][$key] ?? null;
             if (is_string($value) && $value !== '') {
-                $parsedBlock['attrs'][$key] = $this->hashValue('post', $value);
+                $translated = $this->translation('post', $value);
+                if ($translated !== null) {
+                    $parsedBlock['attrs'][$key] = wp_kses_post($translated);
+                }
             }
         }
 
@@ -255,7 +265,9 @@ final class StructuredRenderResolver
             return $excerpt;
         }
 
-        return $this->hashValue('post', (string) $excerpt);
+        $translated = $this->translation('post', (string) $excerpt);
+
+        return $translated === null ? $excerpt : wp_kses_post($translated);
     }
 
     // ── scalar post meta (parent_id) ──────────────────────────────────────────
@@ -407,15 +419,19 @@ final class StructuredRenderResolver
             return $description;
         }
 
-        return $this->hashValue('user', (string) $description);
+        $translated = $this->translation('user', (string) $description);
+
+        return $translated === null ? $description : wp_kses_post($translated);
     }
 
     // ── internals ─────────────────────────────────────────────────────────────
 
     /**
-     * Hash-link lookup: hash the original text, read the map, fall back to original.
+     * Hash-link lookup: hash the original text, read the map. Returns the raw
+     * stored translation, or null when there is none — every caller escapes
+     * it at its own return, with wp_kses_post().
      *
-     * The translation is sanitized here, at output, and not when it is saved:
+     * The translation is sanitized at output, and not when it is saved:
      * one stored row can serve both a title (printed raw by the_title()) and
      * an identical paragraph (rebuilt by the codec, which htmlspecialchars()
      * every text node). Sanitizing at save would be double-escaped by the
@@ -426,14 +442,12 @@ final class StructuredRenderResolver
      * also closes the one path where text arrives without a capability
      * check: AI results written by applyQueueResult().
      */
-    private function hashValue(string $tableKey, string $original): string
+    private function translation(string $tableKey, string $original): ?string
     {
         $hash = TranslationKey::currentHash($original);
         $this->ensureHashLoaded($tableKey, [$hash]);
 
-        $key = $this->hashKey($tableKey, $hash);
-
-        return isset($this->hashMap[$key]) ? wp_kses_post($this->hashMap[$key]) : $original;
+        return $this->hashMap[$this->hashKey($tableKey, $hash)] ?? null;
     }
 
     /**
@@ -459,7 +473,7 @@ final class StructuredRenderResolver
             $nameKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->name));
             $descKey = $this->hashKey('term', TranslationKey::currentHash((string) $term->description));
             if (isset($this->hashMap[$nameKey])) {
-                $term->name = wp_kses_post($this->hashMap[$nameKey]); // plain output, see hashValue()
+                $term->name = wp_kses_post($this->hashMap[$nameKey]); // plain output, see translation()
             }
             if (isset($this->hashMap[$descKey])) {
                 $term->description = wp_kses_post($this->hashMap[$descKey]);
@@ -539,7 +553,7 @@ final class StructuredRenderResolver
             foreach ($remaining as $key => $lookup) {
                 if (isset($fetched[$key])) {
                     // Every leaf is a plain value patched into the meta as-is
-                    // (no codec), so sanitize here once — see hashValue().
+                    // (no codec), so sanitize here once — see translation().
                     $this->metaLeafMap[$key] = array_map('wp_kses_post', $fetched[$key]);
                     unset($remaining[$key]);
                 }

@@ -312,7 +312,7 @@ final class GettextDomainRestController
         $locale = (string) $request->get_param('locale');
 
         $path = $this->importer->targetPath($type, $domain, $locale);
-        $po   = $this->importer->exportAsPo($path);
+        $po   = $path === null ? null : $this->importer->exportAsPo($path);
         if ($po === null) {
             status_header(404);
             wp_send_json(['ok' => false, 'error' => 'ERR_NOT_FOUND']);
@@ -472,7 +472,8 @@ final class GettextDomainRestController
         $stored = $this->registry->get($type, $domain, $locale);
         $status = $stored['status'] ?? null;
 
-        if ($status !== null && ! file_exists($this->importer->targetPath($type, $domain, $locale))) {
+        $path = $this->importer->targetPath($type, $domain, $locale);
+        if ($status !== null && ($path === null || ! file_exists($path))) {
             return [null, null];
         }
 
@@ -730,7 +731,9 @@ final class GettextDomainRestController
         $domain = (string) $request->get_param('domain');
         $locale = (string) $request->get_param('locale');
 
-        if (! in_array($type, ['plugin', 'theme'], true) || $domain === '' || $locale === '') {
+        // Same rule every .mo path is built with: a domain or locale that is
+        // not a plain identifier is refused here, before anything runs.
+        if ($this->importer->targetPath($type, $domain, $locale) === null) {
             return ['', '', '', new WP_REST_Response(['ok' => false, 'error' => 'ERR_INVALID_INPUT'], 400)];
         }
 

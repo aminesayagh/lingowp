@@ -51,6 +51,9 @@ final class GettextPoImporter
         }
 
         $target = $this->targetPath($type, $domain, $locale);
+        if ($target === null) {
+            return false;
+        }
         wp_mkdir_p(dirname($target));
 
         $staging = wp_tempnam(basename($target));
@@ -93,9 +96,30 @@ final class GettextPoImporter
         rmdir($root); // phpcs:ignore WordPress.WP.AlternativeFunctions
     }
 
-    /** @param 'plugin'|'theme' $type */
-    public function targetPath(string $type, string $domain, string $locale): string
+    /**
+     * The `.mo` path for a plugin/theme domain + locale, or null when any part
+     * is not a plain identifier. Every read and write of a translation file
+     * goes through here, so this is the one place a crafted domain or locale
+     * (`../../x`, `a/b`) is stopped: with no `/`, `\` or `..` allowed, the
+     * path cannot leave baseDir().
+     *
+     * @param 'plugin'|'theme' $type
+     */
+    public function targetPath(string $type, string $domain, string $locale): ?string
     {
+        if (! in_array($type, ['plugin', 'theme'], true)) {
+            return null;
+        }
+        // Text domains: letters, digits, `-`, `_`, `.` (e.g. woocommerce,
+        // wpforms-lite, _private); never a leading dot or `-`, nor a `..` run.
+        if (! preg_match('/^[A-Za-z0-9_][A-Za-z0-9._-]*$/', $domain) || strpos($domain, '..') !== false) {
+            return null;
+        }
+        // WordPress locales: fr_FR, de_DE_formal, pt_PT_ao90, ar.
+        if (! preg_match('/^[A-Za-z]{2,3}(_[A-Za-z0-9]+)*$/', $locale)) {
+            return null;
+        }
+
         $sub = $type === 'theme' ? 'themes' : 'plugins';
 
         return self::baseDir() . '/' . $sub . '/' . $domain . '-' . $locale . '.mo';

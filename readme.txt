@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.5
+Stable tag: 1.6.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -128,6 +128,11 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.6.6 =
+
+* Security: translation file paths for plugins and themes are now built only from validated values (type, text domain and locale), so a crafted request can no longer write outside wp-content/uploads/linvara/.
+* Translated titles, excerpts and author bios are escaped where Linvara returns them.
 
 = 1.6.5 =
 
