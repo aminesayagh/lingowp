@@ -85,6 +85,10 @@ rm -rf \
   "$BUILD_DIR"/phpcs.xml.dist \
   "$BUILD_DIR"/AGENTS.md \
   "$BUILD_DIR"/CLAUDE.md \
+  "$BUILD_DIR"/README.md \
+  "$BUILD_DIR"/ARCHITECTURE.md \
+  "$BUILD_DIR"/CONTRIBUTING.md \
+  "$BUILD_DIR"/SECURITY.md \
   "$BUILD_DIR"/wp \
   "$BUILD_DIR"/test
 
