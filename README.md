@@ -4,6 +4,8 @@ Translate a WordPress site into any language from one workspace: posts, pages,
 menus, widgets, theme and plugin text, SEO fields and WooCommerce products.
 Translate by hand for free, or connect to Linvara Cloud for AI translation.
 
+[![Watch the 1-minute demo: from adding languages to a translated site](.github/assets/demo-poster.jpg)](https://cdn.lingowp.com/lingowp_record.mp4)
+
 **[Website](https://www.lingowp.com)** ·
 **[Watch the demo (video)](https://cdn.lingowp.com/lingowp_record.mp4)** ·
 **[Architecture](ARCHITECTURE.md)** ·
