@@ -17,7 +17,10 @@ release archive retains the license files shipped by Composer dependencies in
 - Masterminds HTML5 — MIT license.
 - Gettext PHP Scanner, Gettext and Gettext Languages (php-gettext) — MIT license.
 - Two files from Gettext WordPress Scanner by 10 Quality, carried in src/GettextDomains/Scanner/ with their attribution — MIT license.
-- PHP Parser by Nikita Popov — BSD-3-Clause license.
+- PHP Parser by Nikita Popov — BSD-3-Clause license. A runtime dependency,
+  not a development tool: Gettext PHP Scanner uses it to read the PHP source
+  of the plugins and themes installed on the site, which is how the Plugins &
+  Themes board finds their translatable strings.
 
 ## Admin application
 

@@ -55,6 +55,10 @@ The plugin ships two compiled bundles. The human-readable JavaScript and CSS sou
 
 `package.json` and `package-lock.json` list every build tool and dependency with its exact version.
 
+= Bundled PHP libraries =
+
+`vendor/` holds the PHP libraries the plugin runs with, installed by Composer from `composer.json` and `composer.lock`: Action Scheduler (background jobs), Masterminds HTML5 (HTML parsing), and Gettext with Gettext PHP Scanner. Gettext PHP Scanner depends on PHP Parser (`vendor/nikic/php-parser`), which is needed at runtime, not only for development: the Plugins & Themes board uses it to read the PHP source of your installed plugins and themes and find their translatable strings. Their licenses are listed in `THIRD-PARTY-NOTICES.txt`.
+
 To reproduce both bundles from that source, with Node.js 20 or newer, run from the plugin directory:
 
 `npm ci`

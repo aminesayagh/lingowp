@@ -12,6 +12,12 @@ namespace LingoWP\GettextDomains\Scanner;
  * on gettext/php-scanner directly. That keeps gettext/js-scanner and its
  * parser (mck89/peast, ~1.1 MB) out of the release entirely.
  *
+ * vendor/nikic/php-parser is a RUNTIME dependency, not a development tool:
+ * gettext/php-scanner parses PHP with it, and this scanner is how the Plugins
+ * & Themes board finds the translatable strings (__(), _e(), _x(), …) in the
+ * source of the plugins and themes installed on the site. Without it that
+ * board finds nothing. It must ship in the release archive.
+ *
  * Copyright (c) 10 Quality Studio <http://www.10quality.com>
  * Licensed under the MIT License — see THIRD-PARTY-NOTICES.txt.
  */
