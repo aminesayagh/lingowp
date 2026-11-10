@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.6
+Stable tag: 1.6.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -132,6 +132,12 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.6.7 =
+
+* Linvara now activates on every supported database. Where foreign keys are not available (WordPress tables on MyISAM, or a host that refuses them), it runs without them; the only difference is that deleting a post, term, option or user then leaves its translations in place. Site Health explains this when it applies.
+* Database queries pass every table and column name through WordPress's identifier placeholder.
+* The release archive no longer includes command-line scripts from bundled libraries.
 
 = 1.6.6 =
 
