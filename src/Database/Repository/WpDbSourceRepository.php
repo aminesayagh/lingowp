@@ -121,7 +121,9 @@ final class WpDbSourceRepository
         $table   = $this->parent($tableKey);
         $columns = array_keys($records[0]->row());
         $now     = current_time('mysql');
-        $colList = implode(', ', array_merge($columns, ['status', 'created_at', 'updated_at']));
+        // Column names go through %i like the table: identifiers, never values.
+        $colNames = array_merge($columns, ['status', 'created_at', 'updated_at']);
+        $colList  = implode(', ', array_fill(0, count($colNames), '%i'));
         $count   = 0;
 
         foreach (array_chunk($records, self::INSERT_CHUNK) as $chunk) {
@@ -141,10 +143,10 @@ final class WpDbSourceRepository
                 $tuples[] = '(' . implode(', ', $cells) . ')';
             }
 
-            $sql = "INSERT IGNORE INTO {$table} ({$colList}) VALUES " . implode(', ', $tuples);
+            $sql = "INSERT IGNORE INTO %i ({$colList}) VALUES " . implode(', ', $tuples);
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $result = $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+            $result = $this->wpdb->query($this->wpdb->prepare($sql, $table, ...$colNames, ...$args));
             // phpcs:enable
             if (is_int($result) && $result > 0) {
                 $count += $result;
@@ -184,14 +186,14 @@ final class WpDbSourceRepository
             }
 
             $incoming = implode(' UNION ALL ', $selects);
-            $sql = "UPDATE {$table} p
+            $sql = "UPDATE %i p
                     INNER JOIN ({$incoming}) incoming
                        ON incoming.original_hash = p.original_hash
                     SET p.source_url = incoming.source_url
                     WHERE NOT (p.source_url <=> incoming.source_url)";
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+            $this->wpdb->query($this->wpdb->prepare($sql, $table, ...$args));
             // phpcs:enable
         }
     }
@@ -218,10 +220,10 @@ final class WpDbSourceRepository
 
         foreach (array_chunk(array_values($hashes), self::SELECT_CHUNK) as $chunk) {
             $placeholders = implode(', ', array_fill(0, count($chunk), 'UNHEX(%s)'));
-            $args         = array_merge([$langCode], array_map('bin2hex', $chunk));
+            $args         = array_merge([$child, $langCode], array_map('bin2hex', $chunk));
 
             $sql = "SELECT LOWER(HEX(original_hash)) AS h, translated_text
-                    FROM {$child}
+                    FROM %i
                     WHERE lang_code = %s
                       AND translated_text IS NOT NULL
                       AND original_hash IN ({$placeholders})";
@@ -252,10 +254,10 @@ final class WpDbSourceRepository
 
         $child = $this->parent($parentTableKey) . '_translation';
         $sql   = "SELECT LOWER(HEX(original_hash)) AS h, translated_text
-                  FROM {$child} WHERE lang_code = %s AND translated_text IS NOT NULL";
+                  FROM %i WHERE lang_code = %s AND translated_text IS NOT NULL";
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $langCode), ARRAY_A);
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $child, $langCode), ARRAY_A);
         // phpcs:enable
 
         $out = [];
@@ -285,24 +287,27 @@ final class WpDbSourceRepository
         $parent  = $this->parent($parentTableKey);
         $child   = $parent . '_translation';
         $columns = array_keys($lookups[0]);
-        $select  = $this->selectIdentity($columns);
-        $out     = [];
+        [$select, $selectArgs] = $this->selectIdentity($columns);
+        $columnList            = '(' . implode(', ', array_fill(0, count($columns), '%i')) . ')';
+        $out                   = [];
 
         foreach (array_chunk($lookups, self::SELECT_CHUNK) as $chunk) {
             $tuples = [];
-            $args   = [$langCode];
+            $values = [];
             foreach ($chunk as $lookup) {
                 $cells = [];
                 foreach ($columns as $column) {
-                    $cells[] = $this->cell($column, $lookup[$column], $args);
+                    $cells[] = $this->cell($column, $lookup[$column], $values);
                 }
                 $tuples[] = '(' . implode(', ', $cells) . ')';
             }
-            $tupleList = '(' . implode(', ', $columns) . ') IN (' . implode(', ', $tuples) . ')';
+            $tupleList = $columnList . ' IN (' . implode(', ', $tuples) . ')';
+            // In query order: SELECT columns, parent, child, language, tuple columns, tuple values.
+            $args = array_merge($selectArgs, [$parent, $child, $langCode], $columns, $values);
 
             $sql = "SELECT {$select}, tr.translated_text AS test_text
-                    FROM {$parent} p
-                    INNER JOIN {$child} tr ON tr.parent_id = p.id AND tr.lang_code = %s
+                    FROM %i p
+                    INNER JOIN %i tr ON tr.parent_id = p.id AND tr.lang_code = %s
                         AND tr.translated_text IS NOT NULL
                     WHERE p.status = 0 AND {$tupleList}";
 
@@ -338,24 +343,27 @@ final class WpDbSourceRepository
         $parent  = $this->parent($parentTableKey);
         $child   = $parent . '_translation';
         $columns = array_keys($lookups[0]);
-        $select  = $this->selectIdentity($columns);
-        $out     = [];
+        [$select, $selectArgs] = $this->selectIdentity($columns);
+        $columnList            = '(' . implode(', ', array_fill(0, count($columns), '%i')) . ')';
+        $out                   = [];
 
         foreach (array_chunk($lookups, self::SELECT_CHUNK) as $chunk) {
             $tuples = [];
-            $args   = [$langCode];
+            $values = [];
             foreach ($chunk as $lookup) {
                 $cells = [];
                 foreach ($columns as $column) {
-                    $cells[] = $this->cell($column, $lookup[$column], $args);
+                    $cells[] = $this->cell($column, $lookup[$column], $values);
                 }
                 $tuples[] = '(' . implode(', ', $cells) . ')';
             }
-            $tupleList = '(' . implode(', ', $columns) . ') IN (' . implode(', ', $tuples) . ')';
+            $tupleList = $columnList . ' IN (' . implode(', ', $tuples) . ')';
+            // In query order: SELECT columns, parent, child, language, tuple columns, tuple values.
+            $args = array_merge($selectArgs, [$parent, $child, $langCode], $columns, $values);
 
             $sql = "SELECT {$select}, p.context AS context, tr.translated_text AS translated_text
-                    FROM {$parent} p
-                    INNER JOIN {$child} tr ON tr.parent_id = p.id AND tr.lang_code = %s
+                    FROM %i p
+                    INNER JOIN %i tr ON tr.parent_id = p.id AND tr.lang_code = %s
                         AND tr.translated_text IS NOT NULL
                     WHERE p.status = 0 AND {$tupleList}";
 
@@ -386,7 +394,8 @@ final class WpDbSourceRepository
     {
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $raw = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT meta_value FROM {$this->wpdb->postmeta} WHERE post_id = %d AND meta_key = %s LIMIT 1",
+            'SELECT meta_value FROM %i WHERE post_id = %d AND meta_key = %s LIMIT 1',
+            $this->wpdb->postmeta,
             $postId,
             $metaKey
         ));
@@ -400,7 +409,8 @@ final class WpDbSourceRepository
     {
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $raw = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT meta_value FROM {$this->wpdb->termmeta} WHERE term_id = %d AND meta_key = %s LIMIT 1",
+            'SELECT meta_value FROM %i WHERE term_id = %d AND meta_key = %s LIMIT 1',
+            $this->wpdb->termmeta,
             $termId,
             $metaKey
         ));
@@ -429,10 +439,10 @@ final class WpDbSourceRepository
 
         foreach (array_chunk(array_values($parentIds), self::SELECT_CHUNK) as $chunk) {
             $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
-            $args         = array_merge([$langCode], $chunk);
+            $args         = array_merge([$child, $langCode], $chunk);
 
             $sql = "SELECT parent_id, translated_text
-                    FROM {$child}
+                    FROM %i
                     WHERE lang_code = %s
                       AND translated_text IS NOT NULL
                       AND parent_id IN ({$placeholders})";
@@ -764,10 +774,10 @@ final class WpDbSourceRepository
         $hexes        = array_map('bin2hex', array_values(array_unique($rawHashes)));
         $placeholders = implode(', ', array_fill(0, count($hexes), 'UNHEX(%s)'));
 
-        $sql = "UPDATE {$parent} SET last_seen_at = %s WHERE original_hash IN ({$placeholders})";
+        $sql = "UPDATE %i SET last_seen_at = %s WHERE original_hash IN ({$placeholders})";
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $this->wpdb->query($this->wpdb->prepare($sql, current_time('mysql'), ...$hexes));
+        $this->wpdb->query($this->wpdb->prepare($sql, $parent, current_time('mysql'), ...$hexes));
         // phpcs:enable
     }
 
@@ -783,7 +793,7 @@ final class WpDbSourceRepository
     {
         $parent = $this->parent('html');
 
-        $sql = "UPDATE {$parent}
+        $sql = "UPDATE %i
                     SET status = %d
                   WHERE status = %d
                     AND last_seen_at IS NOT NULL
@@ -792,6 +802,7 @@ final class WpDbSourceRepository
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $result = $this->wpdb->query($this->wpdb->prepare(
             $sql,
+            $parent,
             TranslationStatus::SOURCE_STALE,
             TranslationStatus::SOURCE_DISCOVERED,
             $graceDays
@@ -819,11 +830,12 @@ final class WpDbSourceRepository
         $parent       = $this->parent('html');
         $placeholders = implode(', ', array_fill(0, count($ids), '%d'));
 
-        $sql = "DELETE FROM {$parent} WHERE status = %d AND id IN ({$placeholders})";
+        $sql = "DELETE FROM %i WHERE status = %d AND id IN ({$placeholders})";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $result = $this->wpdb->query($this->wpdb->prepare(
             $sql,
+            $parent,
             TranslationStatus::SOURCE_STALE,
             ...$ids
         ));
@@ -841,7 +853,8 @@ final class WpDbSourceRepository
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "SELECT original_text FROM {$parent} WHERE id = %d AND status = %d",
+                "SELECT original_text FROM %i WHERE id = %d AND status = %d",
+                $parent,
                 $ref->id,
                 TranslationStatus::SOURCE_DISCOVERED
             )
@@ -871,14 +884,14 @@ final class WpDbSourceRepository
         // post_title/post_excerpt.
         $isMeta = in_array($ref->parentTableKey(), TranslationMemorySchema::PARENT_ID_CHILD_FKS, true);
         $isPost = $ref->kind === 'post';
-        $selected = $isMeta ? 'original_text, meta_key' : ($isPost ? 'original_text, field, post_id' : 'original_text');
+        $columns  = $isMeta ? ['original_text', 'meta_key'] : ($isPost ? ['original_text', 'field', 'post_id'] : ['original_text']);
+        $selected = implode(', ', array_fill(0, count($columns), '%i'));
 
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "SELECT {$selected} FROM {$parent} WHERE id = %d AND status = %d",
-                $ref->id,
-                TranslationStatus::SOURCE_DISCOVERED
+                "SELECT {$selected} FROM %i WHERE id = %d AND status = %d",
+                ...array_merge($columns, [$parent, $ref->id, TranslationStatus::SOURCE_DISCOVERED])
             ),
             ARRAY_A
         );
@@ -929,8 +942,8 @@ final class WpDbSourceRepository
 
         $sql = "SELECT p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.post_id = %d AND p.status = %d
                   AND p.context_hash = UNHEX(%s)
                   AND p.meta_key IN ({$keySet})";
@@ -938,6 +951,8 @@ final class WpDbSourceRepository
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             $postId,
             TranslationStatus::SOURCE_DISCOVERED,
@@ -990,12 +1005,12 @@ final class WpDbSourceRepository
             $child  = $parent . '_translation';
             $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
 
-            $sql = "SELECT DISTINCT p.post_id FROM {$parent} p
-                    JOIN {$child} t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
+            $sql = "SELECT DISTINCT p.post_id FROM %i p
+                    JOIN %i t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
                     WHERE p.status = %d";
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, $langCode, TranslationStatus::SOURCE_DISCOVERED)) as $id) {
+            foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, $parent, $child, $langCode, TranslationStatus::SOURCE_DISCOVERED)) as $id) {
             // phpcs:enable
                 $ids[(int) $id] = (int) $id;
             }
@@ -1012,14 +1027,16 @@ final class WpDbSourceRepository
         $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
 
         $sql = "SELECT EXISTS(
-                    SELECT 1 FROM {$parent} p
-                    JOIN {$child} t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
+                    SELECT 1 FROM %i p
+                    JOIN %i t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
                     WHERE p.post_id = %d AND p.status = %d
                 )";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         return (bool) $this->wpdb->get_var($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             $postId,
             TranslationStatus::SOURCE_DISCOVERED
@@ -1064,18 +1081,19 @@ final class WpDbSourceRepository
 
         // parent_id: INSERT … SELECT guards against a missing parent.
         $providerExpr = $provider === null ? 'NULL' : '%s';
-        $args         = [$langCode, $text, $status];
+        $args         = [$child, $langCode, $text, $status];
         if ($provider !== null) {
             $args[] = $provider;
         }
         $args[] = $now;
         $args[] = $now;
+        $args[] = $this->parent($tableKey);
         $args[] = $ref->id;
 
-        $sql = "INSERT INTO {$child}
+        $sql = "INSERT INTO %i
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
                 SELECT p.id, %s, %s, %d, {$providerExpr}, %s, %s
-                FROM {$this->parent($tableKey)} p WHERE p.id = %d {$update}";
+                FROM %i p WHERE p.id = %d {$update}";
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         return $this->wpdb->query($this->wpdb->prepare($sql, ...$args)) !== false;
@@ -1091,14 +1109,14 @@ final class WpDbSourceRepository
         $now   = current_time('mysql');
 
         $providerExpr = $provider === null ? 'NULL' : '%s';
-        $args         = [$hashHex, $langCode, $text, $status];
+        $args         = [$child, $hashHex, $langCode, $text, $status];
         if ($provider !== null) {
             $args[] = $provider;
         }
         $args[] = $now;
         $args[] = $now;
 
-        $sql = "INSERT INTO {$child}
+        $sql = "INSERT INTO %i
                     (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
                 VALUES (UNHEX(%s), %s, %s, %d, {$providerExpr}, %s, %s)
                 ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
@@ -1145,7 +1163,8 @@ final class WpDbSourceRepository
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $owns = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "SELECT EXISTS(SELECT 1 FROM {$parent} WHERE original_hash = UNHEX(%s) AND field = %s)",
+                "SELECT EXISTS(SELECT 1 FROM %i WHERE original_hash = UNHEX(%s) AND field = %s)",
+                $parent,
                 $hashHex,
                 $field
             )
@@ -1178,7 +1197,7 @@ final class WpDbSourceRepository
         foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) { // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::parentTables(); no values interpolated
+            if ($this->wpdb->get_var($this->wpdb->prepare('SELECT EXISTS(SELECT 1 FROM %i WHERE ai_pending_since IS NOT NULL)', $child))) { // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::parentTables(); no values interpolated
             // phpcs:enable
                 return true;
             }
@@ -1187,7 +1206,7 @@ final class WpDbSourceRepository
         foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-            if ($this->wpdb->get_var("SELECT EXISTS(SELECT 1 FROM {$child} WHERE ai_pending_since IS NOT NULL)")) { // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::parentTables(); no values interpolated
+            if ($this->wpdb->get_var($this->wpdb->prepare('SELECT EXISTS(SELECT 1 FROM %i WHERE ai_pending_since IS NOT NULL)', $child))) { // nosemgrep: wpdb-interpolated-sql -- table name only, from TranslationMemorySchema::parentTables(); no values interpolated
             // phpcs:enable
                 return true;
             }
@@ -1240,20 +1259,21 @@ final class WpDbSourceRepository
 
                 foreach ($langs as $lang) {
                     if ($this->isHashLink($tableKey)) {
-                        $sql = "INSERT INTO {$child} (original_hash, lang_code, ai_pending_since, created_at, updated_at)
+                        $sql = "INSERT INTO %i (original_hash, lang_code, ai_pending_since, created_at, updated_at)
                                 SELECT original_hash, %s, %s, %s, %s
-                                FROM {$this->parent($tableKey)} WHERE id IN ({$placeholders})
+                                FROM %i WHERE id IN ({$placeholders})
                                 ON DUPLICATE KEY UPDATE ai_pending_since = VALUES(ai_pending_since),
                                     ai_error = NULL, updated_at = VALUES(updated_at)";
                     } else {
-                        $sql = "INSERT INTO {$child} (parent_id, lang_code, ai_pending_since, created_at, updated_at)
+                        $sql = "INSERT INTO %i (parent_id, lang_code, ai_pending_since, created_at, updated_at)
                                 SELECT id, %s, %s, %s, %s
-                                FROM {$this->parent($tableKey)} WHERE id IN ({$placeholders})
+                                FROM %i WHERE id IN ({$placeholders})
                                 ON DUPLICATE KEY UPDATE ai_pending_since = VALUES(ai_pending_since),
                                     ai_error = NULL, updated_at = VALUES(updated_at)";
                     }
 
-                    $args = array_merge([$lang, $now, $now, $now], $chunk);
+                    // In query order: child, the four values, parent, the ids.
+                    $args = array_merge([$child, $lang, $now, $now, $now, $this->parent($tableKey)], $chunk);
                     // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                     $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
                     // phpcs:enable
@@ -1287,7 +1307,7 @@ final class WpDbSourceRepository
             $parent = $this->parent($tableKey);
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $row    = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
-                $this->wpdb->prepare("SELECT original_text FROM {$parent} WHERE original_hash = UNHEX(%s) LIMIT 1", $hashHex),
+                $this->wpdb->prepare("SELECT original_text FROM %i WHERE original_hash = UNHEX(%s) LIMIT 1", $parent, $hashHex),
                 ARRAY_A
             );
             // phpcs:enable
@@ -1301,7 +1321,7 @@ final class WpDbSourceRepository
             $parent = $this->parent($tableKey);
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $rows   = $this->wpdb->get_results( // phpcs:ignore WordPress.DB
-                $this->wpdb->prepare("SELECT id, meta_key, original_text FROM {$parent} WHERE original_hash = UNHEX(%s)", $hashHex),
+                $this->wpdb->prepare("SELECT id, meta_key, original_text FROM %i WHERE original_hash = UNHEX(%s)", $parent, $hashHex),
                 ARRAY_A
             );
             // phpcs:enable
@@ -1353,15 +1373,15 @@ final class WpDbSourceRepository
         $now   = current_time('mysql');
 
         if ($this->isHashLink($tableKey)) {
-            $sql = "INSERT INTO {$child} (original_hash, lang_code, ai_error, created_at, updated_at)
+            $sql = "INSERT INTO %i (original_hash, lang_code, ai_error, created_at, updated_at)
                     VALUES (UNHEX(%s), %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE ai_error = VALUES(ai_error), ai_pending_since = NULL, updated_at = VALUES(updated_at)";
-            $args = [$hashHex, $langCode, $errorMessage, $now, $now];
+            $args = [$child, $hashHex, $langCode, $errorMessage, $now, $now];
         } else {
-            $sql = "INSERT INTO {$child} (parent_id, lang_code, ai_error, created_at, updated_at)
-                    SELECT id, %s, %s, %s, %s FROM {$this->parent($tableKey)} WHERE id = %d
+            $sql = "INSERT INTO %i (parent_id, lang_code, ai_error, created_at, updated_at)
+                    SELECT id, %s, %s, %s, %s FROM %i WHERE id = %d
                     ON DUPLICATE KEY UPDATE ai_error = VALUES(ai_error), ai_pending_since = NULL, updated_at = VALUES(updated_at)";
-            $args = [$langCode, $errorMessage, $now, $now, $parentId];
+            $args = [$child, $langCode, $errorMessage, $now, $now, $this->parent($tableKey), $parentId];
         }
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
@@ -1393,7 +1413,8 @@ final class WpDbSourceRepository
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "DELETE FROM {$child} WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    "DELETE FROM %i WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    $child,
                     $hashHex,
                     $langCode
                 )
@@ -1407,7 +1428,7 @@ final class WpDbSourceRepository
 
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $this->wpdb->query( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare("DELETE FROM {$child} WHERE parent_id = %d AND lang_code = %s", $ref->id, $langCode)
+            $this->wpdb->prepare("DELETE FROM %i WHERE parent_id = %d AND lang_code = %s", $child, $ref->id, $langCode)
         );
         // phpcs:enable
     }
@@ -1433,7 +1454,8 @@ final class WpDbSourceRepository
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             return false !== $this->wpdb->query( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "UPDATE {$child} SET provider = NULL, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s AND translated_text IS NOT NULL",
+                    "UPDATE %i SET provider = NULL, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s AND translated_text IS NOT NULL",
+                    $child,
                     $now,
                     $hashHex,
                     $langCode
@@ -1445,7 +1467,8 @@ final class WpDbSourceRepository
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         return false !== $this->wpdb->query( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "UPDATE {$child} SET provider = NULL, updated_at = %s WHERE parent_id = %d AND lang_code = %s AND translated_text IS NOT NULL",
+                "UPDATE %i SET provider = NULL, updated_at = %s WHERE parent_id = %d AND lang_code = %s AND translated_text IS NOT NULL",
+                $child,
                 $now,
                 $ref->id,
                 $langCode
@@ -1477,7 +1500,8 @@ final class WpDbSourceRepository
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "UPDATE {$child} SET status = %d, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s AND translated_text IS NOT NULL",
+                    "UPDATE %i SET status = %d, updated_at = %s WHERE original_hash = UNHEX(%s) AND lang_code = %s AND translated_text IS NOT NULL",
+                    $child,
                     $status,
                     $now,
                     $hashHex,
@@ -1492,7 +1516,8 @@ final class WpDbSourceRepository
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $this->wpdb->query( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "UPDATE {$child} SET status = %d, updated_at = %s WHERE parent_id = %d AND lang_code = %s AND translated_text IS NOT NULL",
+                "UPDATE %i SET status = %d, updated_at = %s WHERE parent_id = %d AND lang_code = %s AND translated_text IS NOT NULL",
+                $child,
                 $status,
                 $now,
                 $ref->id,
@@ -1543,18 +1568,20 @@ final class WpDbSourceRepository
 
         foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
-            $sql   = "INSERT IGNORE INTO {$child}
+            $sql   = "INSERT IGNORE INTO %i
                         (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
                     SELECT original_hash, %s, translated_text, %d, provider, %s, %s
-                    FROM {$child} WHERE lang_code = %s AND translated_text IS NOT NULL";
+                    FROM %i WHERE lang_code = %s AND translated_text IS NOT NULL";
 
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $result = $this->wpdb->query($this->wpdb->prepare(
                 $sql,
+                $child,
                 $toLang,
                 TranslationStatus::NEEDS_REVIEW,
                 $now,
                 $now,
+                $child,
                 $fromLang
             ));
             // phpcs:enable
@@ -1563,18 +1590,20 @@ final class WpDbSourceRepository
 
         foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
-            $sql   = "INSERT IGNORE INTO {$child}
+            $sql   = "INSERT IGNORE INTO %i
                         (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
                     SELECT parent_id, %s, translated_text, %d, provider, %s, %s
-                    FROM {$child} WHERE lang_code = %s AND translated_text IS NOT NULL";
+                    FROM %i WHERE lang_code = %s AND translated_text IS NOT NULL";
 
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $result = $this->wpdb->query($this->wpdb->prepare(
                 $sql,
+                $child,
                 $toLang,
                 TranslationStatus::NEEDS_REVIEW,
                 $now,
                 $now,
+                $child,
                 $fromLang
             ));
             // phpcs:enable
@@ -1606,14 +1635,14 @@ final class WpDbSourceRepository
 
         foreach (TranslationMemorySchema::HASH_LINK_CHILDREN as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
-            $sql   = "SELECT 1 FROM {$child} t1
-                    LEFT JOIN {$child} t2 ON t2.original_hash = t1.original_hash AND t2.lang_code = %s
+            $sql   = "SELECT 1 FROM %i t1
+                    LEFT JOIN %i t2 ON t2.original_hash = t1.original_hash AND t2.lang_code = %s
                         AND t2.translated_text IS NOT NULL
                     WHERE t1.lang_code = %s AND t1.translated_text IS NOT NULL AND t2.id IS NULL
                     LIMIT 1";
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            if ($this->wpdb->get_var($this->wpdb->prepare($sql, $toLang, $fromLang)) !== null) {
+            if ($this->wpdb->get_var($this->wpdb->prepare($sql, $child, $child, $toLang, $fromLang)) !== null) {
             // phpcs:enable
                 return true;
             }
@@ -1621,14 +1650,14 @@ final class WpDbSourceRepository
 
         foreach (array_values(TranslationMemorySchema::PARENT_ID_CHILD_FKS) as $tableKey) {
             $child = $this->parent($tableKey) . '_translation';
-            $sql   = "SELECT 1 FROM {$child} t1
-                    LEFT JOIN {$child} t2 ON t2.parent_id = t1.parent_id AND t2.lang_code = %s
+            $sql   = "SELECT 1 FROM %i t1
+                    LEFT JOIN %i t2 ON t2.parent_id = t1.parent_id AND t2.lang_code = %s
                         AND t2.translated_text IS NOT NULL
                     WHERE t1.lang_code = %s AND t1.translated_text IS NOT NULL AND t2.id IS NULL
                     LIMIT 1";
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            if ($this->wpdb->get_var($this->wpdb->prepare($sql, $toLang, $fromLang)) !== null) {
+            if ($this->wpdb->get_var($this->wpdb->prepare($sql, $child, $child, $toLang, $fromLang)) !== null) {
             // phpcs:enable
                 return true;
             }
@@ -1663,7 +1692,8 @@ final class WpDbSourceRepository
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $this->wpdb->query( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "UPDATE {$parent} SET status = %d, updated_at = %s WHERE id = %d",
+                "UPDATE %i SET status = %d, updated_at = %s WHERE id = %d",
+                $parent,
                 TranslationStatus::SOURCE_IGNORED,
                 current_time('mysql'),
                 $ref->id
@@ -1676,7 +1706,7 @@ final class WpDbSourceRepository
             if ($hashHex !== null) {
                 // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $this->wpdb->query( // phpcs:ignore WordPress.DB
-                    $this->wpdb->prepare("DELETE FROM {$child} WHERE original_hash = UNHEX(%s)", $hashHex)
+                    $this->wpdb->prepare("DELETE FROM %i WHERE original_hash = UNHEX(%s)", $child, $hashHex)
                 );
                 // phpcs:enable
             }
@@ -1687,7 +1717,7 @@ final class WpDbSourceRepository
 
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $this->wpdb->query( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare("DELETE FROM {$child} WHERE parent_id = %d", $ref->id)
+            $this->wpdb->prepare("DELETE FROM %i WHERE parent_id = %d", $child, $ref->id)
         );
         // phpcs:enable
     }
@@ -1705,11 +1735,12 @@ final class WpDbSourceRepository
             $parent       = $this->parent($tableKey);
             $placeholders = implode(', ', array_fill(0, count($ids), '%d'));
 
-            $sql = "UPDATE {$parent} SET status = %d, updated_at = %s WHERE status = %d AND id IN ({$placeholders})";
+            $sql = "UPDATE %i SET status = %d, updated_at = %s WHERE status = %d AND id IN ({$placeholders})";
 
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query($this->wpdb->prepare(
                 $sql,
+                $parent,
                 TranslationStatus::SOURCE_DISCOVERED,
                 $now,
                 TranslationStatus::SOURCE_IGNORED,
@@ -1742,7 +1773,8 @@ final class WpDbSourceRepository
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "SELECT translated_text FROM {$child} WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    "SELECT translated_text FROM %i WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    $child,
                     $hashHex,
                     $langCode
                 )
@@ -1752,7 +1784,8 @@ final class WpDbSourceRepository
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "SELECT translated_text FROM {$child} WHERE parent_id = %d AND lang_code = %s",
+                    "SELECT translated_text FROM %i WHERE parent_id = %d AND lang_code = %s",
+                    $child,
                     $ref->id,
                     $langCode
                 )
@@ -1776,7 +1809,8 @@ final class WpDbSourceRepository
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "SELECT updated_at FROM {$child} WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    "SELECT updated_at FROM %i WHERE original_hash = UNHEX(%s) AND lang_code = %s",
+                    $child,
                     $hashHex,
                     $langCode
                 )
@@ -1786,7 +1820,8 @@ final class WpDbSourceRepository
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
                 $this->wpdb->prepare(
-                    "SELECT updated_at FROM {$child} WHERE parent_id = %d AND lang_code = %s",
+                    "SELECT updated_at FROM %i WHERE parent_id = %d AND lang_code = %s",
+                    $child,
                     $ref->id,
                     $langCode
                 )
@@ -1929,8 +1964,8 @@ final class WpDbSourceRepository
         if ($records === []) {
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query($this->wpdb->prepare(
-                "DELETE FROM {$parent} WHERE {$scopeSql} AND status = %d",
-                ...array_merge($scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])
+                "DELETE FROM %i WHERE {$scopeSql} AND status = %d",
+                ...array_merge([$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])
             ));
             // phpcs:enable
             return;
@@ -1950,15 +1985,12 @@ final class WpDbSourceRepository
             $current[IdentityKey::of($record->identity())] = true;
         }
 
-        $select = ['id'];
-        foreach ($identityCols as $column) {
-            $select[] = $this->isBinaryColumn($column) ? "HEX({$column}) AS {$column}" : $column;
-        }
-        $sql = 'SELECT ' . implode(', ', $select) . " FROM {$parent} WHERE {$scopeSql} AND status = %d";
+        [$select, $selectArgs] = $this->identityColumns(array_merge(['id'], $identityCols));
+        $sql = "SELECT {$select} FROM %i WHERE {$scopeSql} AND status = %d";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = (array) $this->wpdb->get_results(
-            $this->wpdb->prepare($sql, ...array_merge($scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])),
+            $this->wpdb->prepare($sql, ...array_merge($selectArgs, [$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])),
             ARRAY_A
         );
         // phpcs:enable
@@ -1999,7 +2031,7 @@ final class WpDbSourceRepository
         if ($staleIds !== []) {
             $placeholders = implode(', ', array_fill(0, count($staleIds), '%d'));
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $this->wpdb->query($this->wpdb->prepare("DELETE FROM {$parent} WHERE id IN ({$placeholders})", ...$staleIds));
+            $this->wpdb->query($this->wpdb->prepare("DELETE FROM %i WHERE id IN ({$placeholders})", $parent, ...$staleIds));
             // phpcs:enable
         }
     }
@@ -2018,15 +2050,12 @@ final class WpDbSourceRepository
     {
         $parent = $this->parent($tableKey);
 
-        $select = [];
-        foreach ($identityCols as $column) {
-            $select[] = $this->isBinaryColumn($column) ? "HEX({$column}) AS {$column}" : $column;
-        }
-        $sql = 'SELECT ' . implode(', ', $select) . " FROM {$parent} WHERE {$scopeSql} AND status = %d";
+        [$select, $selectArgs] = $this->identityColumns($identityCols);
+        $sql = "SELECT {$select} FROM %i WHERE {$scopeSql} AND status = %d";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = (array) $this->wpdb->get_results(
-            $this->wpdb->prepare($sql, ...array_merge($scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])),
+            $this->wpdb->prepare($sql, ...array_merge($selectArgs, [$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])),
             ARRAY_A
         );
         // phpcs:enable
@@ -2053,24 +2082,24 @@ final class WpDbSourceRepository
         $now   = current_time('mysql');
 
         if ($hashLink) {
-            $sql = "INSERT IGNORE INTO {$child}
+            $sql = "INSERT IGNORE INTO %i
                         (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
                     SELECT UNHEX(%s), lang_code, translated_text, %d, provider, created_at, %s
-                    FROM {$child} WHERE original_hash = UNHEX(%s) AND translated_text IS NOT NULL";
+                    FROM %i WHERE original_hash = UNHEX(%s) AND translated_text IS NOT NULL";
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $this->wpdb->query($this->wpdb->prepare($sql, $target['hash'], TranslationStatus::NEEDS_REVIEW, $now, $stale['hash']));
+            $this->wpdb->query($this->wpdb->prepare($sql, $child, $target['hash'], TranslationStatus::NEEDS_REVIEW, $now, $child, $stale['hash']));
             // phpcs:enable
             return;
         }
 
-        $sql = "INSERT IGNORE INTO {$child}
+        $sql = "INSERT IGNORE INTO %i
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
                 SELECT %d, lang_code, translated_text, %d, provider, created_at, %s
-                FROM {$child} WHERE parent_id = %d AND translated_text IS NOT NULL";
+                FROM %i WHERE parent_id = %d AND translated_text IS NOT NULL";
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $this->wpdb->query($this->wpdb->prepare($sql, $target['id'], TranslationStatus::NEEDS_REVIEW, $now, $stale['id']));
+        $this->wpdb->query($this->wpdb->prepare($sql, $child, $target['id'], TranslationStatus::NEEDS_REVIEW, $now, $child, $stale['id']));
         // phpcs:enable
     }
 
@@ -2142,15 +2171,44 @@ final class WpDbSourceRepository
         return '%s';
     }
 
-    /** SELECT clause returning each identity column (HEX for binary), p-qualified. */
-    private function selectIdentity(array $columns): string
+    /**
+     * SELECT clause returning each identity column (HEX for binary), p-qualified,
+     * with every column name as a %i placeholder.
+     *
+     * @return array{0: string, 1: string[]} [SQL fragment, its identifier arguments in order]
+     */
+    private function selectIdentity(array $columns): array
     {
         $parts = [];
+        $args  = [];
         foreach ($columns as $column) {
-            $parts[] = $this->isBinaryColumn($column) ? "HEX(p.{$column}) AS {$column}" : "p.{$column} AS {$column}";
+            $parts[] = $this->isBinaryColumn($column) ? 'HEX(p.%i) AS %i' : 'p.%i AS %i';
+            array_push($args, $column, $column);
         }
 
-        return implode(', ', $parts);
+        return [implode(', ', $parts), $args];
+    }
+
+    /**
+     * Unqualified column list (HEX for binary) with every name as a %i placeholder.
+     *
+     * @return array{0: string, 1: string[]} [SQL fragment, its identifier arguments in order]
+     */
+    private function identityColumns(array $columns): array
+    {
+        $parts = [];
+        $args  = [];
+        foreach ($columns as $column) {
+            if ($this->isBinaryColumn($column)) {
+                $parts[] = 'HEX(%i) AS %i';
+                array_push($args, $column, $column);
+            } else {
+                $parts[] = '%i';
+                $args[]  = $column;
+            }
+        }
+
+        return [implode(', ', $parts), $args];
     }
 
     /** Rebuild IdentityKey::of() for a returned row, decoding HEX binary columns. */

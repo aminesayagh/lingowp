@@ -474,7 +474,8 @@ test_ok('a failed read of the dictionary stops the import', $stopped);
 $resetTrp();
 $unit('ZQTRPIT context read');
 $trp('ZQTRPIT context read', 'ZQ lecture du contexte');
-$stopped = $withFailingQuery("SELECT original_text FROM {$HP} WHERE id", static function () use ($import): bool {
+// The repository names tables and columns through %i, which backtick-quotes them.
+$stopped = $withFailingQuery("FROM `{$HP}` WHERE id = ", static function () use ($import): bool {
     try {
         $import();
     } catch (ImportStopped $e) {
