@@ -481,17 +481,17 @@ final class SlugMap
 
             $sql = "SELECT wp.ID AS owner_id, wp.post_name AS src, wp.post_title AS owner_text,
                            p.original_text AS original_text, c.translated_text AS dst
-                    FROM {$this->wpdb->posts} wp
-                    LEFT JOIN {$postParent} p
+                    FROM %i wp
+                    LEFT JOIN %i p
                            ON p.post_id = wp.ID AND p.field = 'post_title' AND p.status = 0
-                    LEFT JOIN {$postChild} c
+                    LEFT JOIN %i c
                            ON c.original_hash = p.original_hash AND c.lang_code = %s
                     WHERE wp.post_name <> ''
                       AND wp.post_status IN (" . $this->placeholders($statuses) . ")
                       AND wp.post_type IN (" . $this->placeholders($postTypes) . ')
                     ORDER BY wp.ID';
 
-            $args = array_merge([$lang], $statuses, $postTypes);
+            $args = array_merge([$this->wpdb->posts, $postParent, $postChild, $lang], $statuses, $postTypes);
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $postRows = (array) $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table names from TranslationMemorySchema::parentTables()/$wpdb; every value is a placeholder
@@ -507,17 +507,17 @@ final class SlugMap
 
             $sql = "SELECT t.term_id AS owner_id, t.slug AS src, t.name AS owner_text,
                            p.original_text AS original_text, c.translated_text AS dst
-                    FROM {$this->wpdb->terms} t
-                    INNER JOIN {$this->wpdb->term_taxonomy} tt ON tt.term_id = t.term_id
-                    LEFT JOIN {$termParent} p
+                    FROM %i t
+                    INNER JOIN %i tt ON tt.term_id = t.term_id
+                    LEFT JOIN %i p
                            ON p.term_taxonomy_id = tt.term_taxonomy_id AND p.field = 'name' AND p.status = 0
-                    LEFT JOIN {$termChild} c
+                    LEFT JOIN %i c
                            ON c.original_hash = p.original_hash AND c.lang_code = %s
                     WHERE t.slug <> ''
                       AND tt.taxonomy IN (" . $this->placeholders($taxonomies) . ')
                     ORDER BY t.term_id';
 
-            $args = array_merge([$lang], $taxonomies);
+            $args = array_merge([$this->wpdb->terms, $this->wpdb->term_taxonomy, $termParent, $termChild, $lang], $taxonomies);
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $termRows = (array) $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table names from TranslationMemorySchema::parentTables()/$wpdb; every value is a placeholder
@@ -644,13 +644,13 @@ final class SlugMap
         $slugs = [];
 
         if ($types !== []) {
-            $sql = "SELECT post_name FROM {$this->wpdb->posts}
+            $sql = "SELECT post_name FROM %i
                      WHERE post_name <> ''
                        AND post_status NOT IN ('auto-draft', 'trash')
                        AND post_type IN (" . $this->placeholders($types) . ')';
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, ...$types)) as $slug) { // nosemgrep: wpdb-interpolated-sql -- $wpdb table name; every value is a placeholder
+            foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, $this->wpdb->posts, ...$types)) as $slug) { // nosemgrep: wpdb-interpolated-sql -- $wpdb table name; every value is a placeholder
             // phpcs:enable
                 $slugs[rawurldecode(sanitize_title((string) $slug))] = true;
             }
@@ -659,7 +659,7 @@ final class SlugMap
         // Renamed posts keep answering their old URLs through this meta.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-        $oldSlugs = (array) $this->wpdb->get_col("SELECT meta_value FROM {$this->wpdb->postmeta} WHERE meta_key = '_wp_old_slug'"); // nosemgrep: wpdb-interpolated-sql -- the only interpolation is $wpdb->postmeta, a WordPress-provided table name; the meta key is a literal and no value is interpolated
+        $oldSlugs = (array) $this->wpdb->get_col($this->wpdb->prepare('SELECT meta_value FROM %i WHERE meta_key = %s', $this->wpdb->postmeta, '_wp_old_slug')); // nosemgrep: wpdb-interpolated-sql -- the only interpolation is $wpdb->postmeta, a WordPress-provided table name; the meta key is a literal and no value is interpolated
         // phpcs:enable
         foreach ($oldSlugs as $slug) {
             if ((string) $slug !== '') {
@@ -668,7 +668,7 @@ final class SlugMap
         }
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-        foreach ((array) $this->wpdb->get_col("SELECT slug FROM {$this->wpdb->terms} WHERE slug <> ''") as $slug) { // nosemgrep: wpdb-interpolated-sql -- $wpdb table name only
+        foreach ((array) $this->wpdb->get_col($this->wpdb->prepare("SELECT slug FROM %i WHERE slug <> ''", $this->wpdb->terms)) as $slug) { // nosemgrep: wpdb-interpolated-sql -- $wpdb table name only
         // phpcs:enable
             $slugs[rawurldecode(sanitize_title((string) $slug))] = true;
         }

@@ -52,8 +52,8 @@ final class OwnedStringIndex
         $args    = [];
         foreach (self::STRUCTURED as $key) {
             $selects[] = "SELECT LOWER(HEX(original_hash)) AS h
-                          FROM {$tables[$key]} WHERE original_hash IN ({$placeholders})";
-            array_push($args, ...$hexes);
+                          FROM %i WHERE original_hash IN ({$placeholders})";
+            array_push($args, $tables[$key], ...$hexes);
         }
         $sql = implode(' UNION ALL ', $selects);
 

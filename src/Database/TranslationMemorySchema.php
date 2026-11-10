@@ -180,12 +180,12 @@ class TranslationMemorySchema
         // msgid inserted here would stay blank forever instead of being filled
         // in by that rescan.
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table name only, from the schema map
-        $ignored = (array) $wpdb->get_results("SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM {$table} WHERE status = -1", ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
+        $ignored = (array) $wpdb->get_results($wpdb->prepare('SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM %i WHERE status = -1', $table), ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         // phpcs:enable
 
         // phpcs:disable PluginCheck.Security.DirectDB -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
         // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
-        $wpdb->query("DROP TABLE IF EXISTS {$table}"); // phpcs:ignore WordPress.DB -- table name only
+        $wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $table)); // phpcs:ignore WordPress.DB -- table name only
         $wpdb->query(TableDefinitions::gettextUnit($table, $charsetCollate)); // phpcs:ignore WordPress.DB
         // phpcs:enable
 
@@ -207,9 +207,10 @@ class TranslationMemorySchema
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $wpdb->query($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name only
-                "INSERT INTO {$table} (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
+                "INSERT INTO %i (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
                  VALUES (%s, %s, UNHEX(%s), %s, " . ($context === null ? 'NULL' : '%s') . ", -1, %s, %s)
                  ON DUPLICATE KEY UPDATE status = -1",
+                $table,
                 ...$args
             ));
             // phpcs:enable
@@ -276,10 +277,11 @@ class TranslationMemorySchema
 
                 // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQLPlaceholders, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $wpdb->query($wpdb->prepare(
-                    "INSERT INTO {$table}
+                    "INSERT INTO %i
                         (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
                      VALUES (%s, %s, UNHEX(%s), %s, {$contextExpr}, -1, %s, %s)
                      ON DUPLICATE KEY UPDATE status = -1, updated_at = VALUES(updated_at)",
+                    $table,
                     ...$args
                 ));
                 // phpcs:enable
@@ -534,7 +536,7 @@ class TranslationMemorySchema
         foreach (self::allTablesInDropOrder() as $table) {
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
-            $wpdb->query('DROP TABLE IF EXISTS ' . $table);
+            $wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $table));
             // phpcs:enable
         }
     }

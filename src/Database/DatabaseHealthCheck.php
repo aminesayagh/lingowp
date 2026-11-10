@@ -44,7 +44,7 @@ final class DatabaseHealthCheck
         $rows = 0;
         foreach (TranslationMemorySchema::childTables() as $table) {
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-            $rows += (int) $this->wpdb->get_var('SELECT COUNT(*) FROM ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            $rows += (int) $this->wpdb->get_var($this->wpdb->prepare('SELECT COUNT(*) FROM %i', $table)); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             // phpcs:enable
         }
 

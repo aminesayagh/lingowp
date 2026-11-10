@@ -247,10 +247,11 @@ final class HtmlDiscoveryCrawl
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $ids = $this->wpdb->get_col( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "SELECT ID FROM {$this->wpdb->posts}
+                "SELECT ID FROM %i
                  WHERE ID > %d AND post_type IN ('post', 'page') AND post_status = 'publish'
                  ORDER BY ID ASC
                  LIMIT %d",
+                $this->wpdb->posts,
                 $after,
                 self::BATCH
             )
@@ -279,12 +280,12 @@ final class HtmlDiscoveryCrawl
         $placeholders = implode(', ', array_fill(0, count($taxonomies), '%s'));
 
         $sql = "SELECT tt.term_taxonomy_id AS tt_id, tt.term_id AS term_id, tt.taxonomy AS taxonomy
-                FROM {$this->wpdb->term_taxonomy} tt
+                FROM %i tt
                 WHERE tt.term_taxonomy_id > %d AND tt.taxonomy IN ({$placeholders})
                 ORDER BY tt.term_taxonomy_id ASC
                 LIMIT %d";
 
-        $args = array_merge([$after], array_values($taxonomies), [self::BATCH]);
+        $args = array_merge([$this->wpdb->term_taxonomy, $after], array_values($taxonomies), [self::BATCH]);
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);

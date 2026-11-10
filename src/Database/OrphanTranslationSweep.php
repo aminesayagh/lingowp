@@ -94,14 +94,19 @@ final class OrphanTranslationSweep
 
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $rows = (int) $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
-                "DELETE FROM {$child}
+                // The child is named twice (%i): a single-table DELETE with LIMIT
+                // cannot take an alias portably across MySQL and MariaDB.
+                "DELETE FROM %i
                  WHERE created_at < %s
                    AND NOT EXISTS (
-                       SELECT 1 FROM {$parent} p
-                       WHERE p.original_hash = {$child}.original_hash
+                       SELECT 1 FROM %i p
+                       WHERE p.original_hash = %i.original_hash
                    )
                  LIMIT %d",
+                $child,
                 $cutoff,
+                $parent,
+                $child,
                 self::BATCH
             ));
             // phpcs:enable

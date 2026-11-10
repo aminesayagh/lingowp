@@ -152,10 +152,11 @@ final class InitialDiscoveryScan
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $ids = $this->wpdb->get_col( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "SELECT ID FROM {$this->wpdb->posts}
+                "SELECT ID FROM %i
                  WHERE ID > %d AND post_status IN ('publish', 'inherit')
                  ORDER BY ID ASC
                  LIMIT %d",
+                $this->wpdb->posts,
                 $after,
                 self::BATCH
             )
@@ -175,11 +176,13 @@ final class InitialDiscoveryScan
             $this->wpdb->prepare(
                 "SELECT tt.term_taxonomy_id AS tt_id, tt.taxonomy AS taxonomy,
                         t.name AS name, tt.description AS description
-                 FROM {$this->wpdb->term_taxonomy} tt
-                 INNER JOIN {$this->wpdb->terms} t ON t.term_id = tt.term_id
+                 FROM %i tt
+                 INNER JOIN %i t ON t.term_id = tt.term_id
                  WHERE tt.term_taxonomy_id > %d
                  ORDER BY tt.term_taxonomy_id ASC
                  LIMIT %d",
+                $this->wpdb->term_taxonomy,
+                $this->wpdb->terms,
                 $after,
                 self::BATCH
             ),
