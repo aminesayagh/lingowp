@@ -886,13 +886,12 @@ final class WpDbSourceRepository
         $isPost = $ref->kind === 'post';
         $columns  = $isMeta ? ['original_text', 'meta_key'] : ($isPost ? ['original_text', 'field', 'post_id'] : ['original_text']);
         $selected = implode(', ', array_fill(0, count($columns), '%i'));
+        $sql      = "SELECT {$selected} FROM %i WHERE id = %d AND status = %d";
+        $args     = array_merge($columns, [$parent, $ref->id, TranslationStatus::SOURCE_DISCOVERED]);
 
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare(
-                "SELECT {$selected} FROM %i WHERE id = %d AND status = %d",
-                ...array_merge($columns, [$parent, $ref->id, TranslationStatus::SOURCE_DISCOVERED])
-            ),
+            $this->wpdb->prepare($sql, ...$args),
             ARRAY_A
         );
         // phpcs:enable
@@ -1962,11 +1961,10 @@ final class WpDbSourceRepository
         $parent = $this->parent($tableKey);
 
         if ($records === []) {
+            $sql  = "DELETE FROM %i WHERE {$scopeSql} AND status = %d";
+            $args = array_merge([$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED]);
             // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $this->wpdb->query($this->wpdb->prepare(
-                "DELETE FROM %i WHERE {$scopeSql} AND status = %d",
-                ...array_merge([$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])
-            ));
+            $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
             // phpcs:enable
             return;
         }
