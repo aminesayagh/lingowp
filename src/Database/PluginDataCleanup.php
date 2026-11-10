@@ -32,6 +32,7 @@ class PluginDataCleanup
     private const OPTIONS = [
         // Schema + rewrite/scan bookkeeping.
         'lingowp_db_version',
+        'lingowp_foreign_keys',
         'lingowp_url_structure_initialized',
         'lingowp_rewrite_rules_version',
         'lingowp_age_out_last_run',

@@ -7,7 +7,6 @@ use LingoWP\Language\Infrastructure\OptionLanguageRegistry;
 use LingoWP\LocalizationRouting\LanguageRouteRegistrar;
 use LingoWP\Extraction\Html\HtmlDiscoveryCrawl;
 use LingoWP\Extraction\Structured\InitialDiscoveryScan;
-use LingoWP\Database\SchemaFailure;
 use LingoWP\Database\TranslationMemorySchema;
 
 /**
@@ -82,18 +81,9 @@ class Activator
     /** Tables, defaults and first-run flags for the current site. */
     private static function activateSite(): void
     {
-        // Abort activation with a specific, human-readable message rather than a
-        // white screen or raw SQL error when the DB prerequisites are not met
-        // (non-InnoDB parent tables, or FKs that could not be created — §10).
-        try {
-            TranslationMemorySchema::install();
-        } catch (SchemaFailure $failure) {
-            wp_die(
-                esc_html($failure->getMessage()),
-                esc_html__('Linvara activation failed', 'linvara'),
-                ['back_link' => true]
-            );
-        }
+        // Never aborts on the database's capabilities: without foreign-key
+        // support the tables are created without them (see install()).
+        TranslationMemorySchema::install();
 
         TranslationMemorySchema::setDefaultOptions();
 

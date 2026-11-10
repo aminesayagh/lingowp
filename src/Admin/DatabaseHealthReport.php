@@ -40,6 +40,7 @@ final class DatabaseHealthReport
      * @return array{
      *     posts_engine: ?string,
      *     tt_engine: ?string,
+     *     foreign_keys: bool,
      *     missing_fks: string[],
      *     translation_rows: int,
      *     deferred_indexes_suggested: bool,
@@ -72,7 +73,14 @@ final class DatabaseHealthReport
             ],
         ];
 
-        foreach (TranslationMemorySchema::expectedForeignKeys() as $table => $referenced) {
+        if (!$state['foreign_keys']) {
+            $fields['foreign_keys'] = [
+                'label' => __('Foreign keys', 'linvara'),
+                'value' => __('not available on this database', 'linvara'),
+            ];
+        }
+
+        foreach ($state['foreign_keys'] ? TranslationMemorySchema::expectedForeignKeys() : [] as $table => $referenced) {
             $fields['fk_' . $table] = [
                 'label' => $table . ' → ' . $referenced,
                 'value' => $this->fkLabel($table, $state['missing_fks']),
@@ -128,7 +136,10 @@ final class DatabaseHealthReport
             ['wp_posts' => $state['posts_engine'], 'wp_term_taxonomy' => $state['tt_engine']],
             fn(?string $engine): bool => $engine !== null && strtoupper($engine) !== 'INNODB'
         );
-        $critical = $myisam !== [] || $state['missing_fks'] !== [];
+        // Missing foreign keys on a site that uses them is breakage. A database
+        // that cannot hold them at all (MyISAM, or a host refusing them) is a
+        // supported setup with one known limit, so it is only a recommendation.
+        $critical = $state['missing_fks'] !== [];
 
         $result = [
             'label'       => __('Linvara translation tables are healthy', 'linvara'),
@@ -143,20 +154,25 @@ final class DatabaseHealthReport
         ];
 
         if ($critical) {
-            $problems = [];
-            foreach ($myisam as $table => $engine) {
-                /* translators: 1: table name, 2: storage engine. */
-                $problems[] = sprintf(esc_html__('%1$s uses %2$s instead of InnoDB.', 'linvara'), esc_html($table), esc_html((string) $engine));
-            }
-            if ($state['missing_fks'] !== []) {
-                /* translators: %s: comma-separated list of foreign key names. */
-                $problems[] = sprintf(esc_html__('Missing foreign keys: %s.', 'linvara'), esc_html(implode(', ', $state['missing_fks'])));
-            }
+            /* translators: %s: comma-separated list of table names. */
+            $problems = [sprintf(esc_html__('Missing foreign keys on: %s.', 'linvara'), esc_html(implode(', ', $state['missing_fks'])))];
 
             $result['status']        = 'critical';
             $result['label']         = __('Linvara translation tables have integrity problems', 'linvara');
             $result['description']   = '<p>' . implode('<br>', $problems) . '</p>';
             $result['badge']['color'] = 'red';
+        } elseif (!$state['foreign_keys']) {
+            $notes = [];
+            foreach ($myisam as $table => $engine) {
+                /* translators: 1: table name, 2: storage engine. */
+                $notes[] = sprintf(esc_html__('%1$s uses %2$s instead of InnoDB.', 'linvara'), esc_html($table), esc_html((string) $engine));
+            }
+            $notes[] = esc_html__('This database does not support foreign keys, so Linvara works without them: when a post, term, option or user is deleted, its translations are not removed automatically. Everything else works normally.', 'linvara');
+
+            $result['status']         = 'recommended';
+            $result['label']          = __('Linvara runs without foreign keys on this database', 'linvara');
+            $result['description']    = '<p>' . implode('<br>', $notes) . '</p>';
+            $result['badge']['color'] = 'orange';
         } elseif ($state['deferred_indexes_suggested']) {
             $result['status']      = 'recommended';
             $result['label']       = __('Linvara large-site indexes are recommended', 'linvara');

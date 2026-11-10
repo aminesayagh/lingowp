@@ -3,7 +3,6 @@
 namespace LingoWP\Database;
 
 use LingoWP\Database\ConstraintVerifier;
-use LingoWP\Database\SchemaFailure;
 use LingoWP\Database\TableDefinitions;
 
 /**
@@ -28,6 +27,8 @@ class TranslationMemorySchema
 {
     public const DB_VERSION        = '6';
     public const OPTION_DB_VERSION = 'lingowp_db_version';
+    /** '1' when the content tables carry foreign keys, '0' when the database refused them. */
+    public const OPTION_FOREIGN_KEYS = 'lingowp_foreign_keys';
 
     /** Children keyed by original_hash with no FK to their parent — see OrphanTranslationSweep. */
     public const HASH_LINK_CHILDREN = ['post', 'term', 'html', 'option', 'user'];
@@ -55,72 +56,46 @@ class TranslationMemorySchema
      * Full install: verify parent engines → create seven parents → create
      * seven children → verify every FK → bump version.
      *
-     * @throws SchemaFailure if a WordPress parent table is not InnoDB, or if any
-     *                       FK constraint is absent after creation. Created
-     *                       tables are dropped before throwing on FK failure.
+     * Never throws for the database's capabilities: without InnoDB parents or
+     * foreign-key support, the tables are created without foreign keys.
      */
     public static function install(): void
     {
         global $wpdb;
 
-        self::assertParentTablesAreInnoDB();
-
         $cc = $wpdb->get_charset_collate();
-        $p  = self::parentTables();
 
-        // 1. Create the seven parent tables first — they are the child FK targets.
-        // phpcs:disable PluginCheck.Security.DirectDB -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-        $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc));                         // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc));                 // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::html($p['html'], $cc));                                       // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc));                   // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::user($p['user'], $wpdb->users, $cc));                         // phpcs:ignore WordPress.DB
-        $wpdb->query(TableDefinitions::termMeta($p['term_meta'], $wpdb->terms, $cc));                // phpcs:ignore WordPress.DB
-        // phpcs:enable
+        // Foreign keys where the database supports them. They need WordPress's
+        // own tables on InnoDB and a server that accepts them; when either is
+        // missing, the content tables are created without them instead of
+        // aborting activation (WordPress.org review). Without them a deleted
+        // post, term, option or user keeps its translations: an accepted
+        // limit on those databases. A site already installed without them
+        // stays that way — never re-attempted, since that path drops tables.
+        $useForeignKeys = get_option(self::OPTION_FOREIGN_KEYS) !== '0' && self::parentTablesAreInnoDB();
 
-        // 2a. Hash-link children (post/term/html/option/user): keyed by original_hash, no FK.
-        foreach (self::HASH_LINK_CHILDREN as $parentKey) {
-            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-            $wpdb->query( // phpcs:ignore WordPress.DB
-                TableDefinitions::hashLinkTranslation($p[$parentKey] . '_translation', $cc)
-            );
-            // phpcs:enable
-        }
+        // Tables already present hold data: the fallback below never drops one.
+        $existing = array_filter(self::contentTables(), static fn(string $table): bool => self::tableExists($table));
 
-        // 2b. parent_id children (meta, term_meta): FK'd back to their parent id.
-        foreach (self::PARENT_ID_CHILD_FKS as $parentKey) {
-            // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-            $wpdb->query( // phpcs:ignore WordPress.DB
-                TableDefinitions::parentIdTranslation(
-                    $p[$parentKey] . '_translation',
-                    $p[$parentKey],
-                    $cc
-                )
-            );
-            // phpcs:enable
-        }
+        self::createContentTables($cc, $useForeignKeys);
 
-        // 3. Verify every FK exists in information_schema (parent owners + parent_id child links).
-        $missing = (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys());
-
-        // 4. On any missing FK: drop the tables (children first), then fail.
-        if ($missing !== []) {
-            foreach ([...self::HASH_LINK_CHILDREN, ...array_values(self::PARENT_ID_CHILD_FKS)] as $parentKey) {
-                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
-                $wpdb->query('DROP TABLE IF EXISTS ' . $p[$parentKey] . '_translation'); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-                // phpcs:enable
+        if ($useForeignKeys && (new ConstraintVerifier($wpdb))->findMissing(self::expectedForeignKeys()) !== []) {
+            // The server refused them. Drop only what this run just created
+            // (children first), then create it again without foreign keys.
+            foreach (array_reverse(self::contentTables()) as $table) {
+                if (!in_array($table, $existing, true)) {
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- the plugin's own table, created a moment ago in this same run and still empty.
+                    $wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $table));
+                    // phpcs:enable
+                }
             }
-            foreach ($p as $table) {
-                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
-                $wpdb->query('DROP TABLE IF EXISTS ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-                // phpcs:enable
-            }
-
-            throw SchemaFailure::missingForeignKeys($missing); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- escaped where it is shown: Activator wp_die(esc_html($failure->getMessage())).
+            $useForeignKeys = false;
+            self::createContentTables($cc, false);
         }
 
-        // 5. Gettext source-string tracking (Plugins & Themes board) — no FK,
+        update_option(self::OPTION_FOREIGN_KEYS, $useForeignKeys ? '1' : '0', false);
+
+        // Gettext source-string tracking (Plugins & Themes board) — no FK,
         // no per-language child, deliberately outside the FK chain verified
         // above so it never participates in that rollback. On the < 6 upgrade
         // the table is dropped and rebuilt (adds the ai_* columns); manual
@@ -132,7 +107,7 @@ class TranslationMemorySchema
         // phpcs:enable
         self::migrateGettextIgnoredUnits();
 
-        // 6. Version is written only after verification passes.
+        // Version last, once every table is in place.
         update_option(self::OPTION_DB_VERSION, self::DB_VERSION);
     }
 
@@ -343,12 +318,10 @@ class TranslationMemorySchema
     }
 
     /**
-     * Abort before creating tables if wp_posts, wp_term_taxonomy, wp_options,
-     * wp_users or wp_terms is not InnoDB — the FK chain that makes translation
-     * orphans impossible cannot be built otherwise (§10). Throws a
-     * human-readable SchemaFailure.
+     * Whether wp_posts, wp_term_taxonomy, wp_options, wp_users and wp_terms are
+     * all InnoDB — a foreign key can only reference an InnoDB table.
      */
-    private static function assertParentTablesAreInnoDB(): void
+    private static function parentTablesAreInnoDB(): bool
     {
         global $wpdb;
 
@@ -356,9 +329,66 @@ class TranslationMemorySchema
             $engine = self::engineOf($table);
 
             if ($engine !== null && strtoupper($engine) !== 'INNODB') {
-                throw SchemaFailure::parentNotInnoDB($table, $engine); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- escaped where it is shown: Activator wp_die(esc_html($failure->getMessage())).
+                return false;
             }
         }
+
+        return true;
+    }
+
+    /** Whether foreign keys are in use on this site (see install()). */
+    public static function usesForeignKeys(): bool
+    {
+        return get_option(self::OPTION_FOREIGN_KEYS) !== '0';
+    }
+
+    /**
+     * The fourteen content tables, parents first: the order they are created
+     * in, and the reverse of the order they can be dropped in.
+     *
+     * @return string[]
+     */
+    private static function contentTables(): array
+    {
+        $p = self::parentTables();
+
+        return [...array_values($p), ...array_map(static fn(string $t): string => $t . '_translation', array_values($p))];
+    }
+
+    private static function tableExists(string $table): bool
+    {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- schema introspection during install, run once.
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) === $table;
+    }
+
+    /** Parents first (they are the children's foreign-key targets), then children. */
+    private static function createContentTables(string $cc, bool $foreignKeys): void
+    {
+        global $wpdb;
+
+        $p = self::parentTables();
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL, PluginCheck.Security.DirectDB -- CREATE TABLE IF NOT EXISTS from TableDefinitions: table names from $wpdb and the plugin's schema map, no values.
+        $wpdb->query(TableDefinitions::post($p['post'], $wpdb->posts, $cc, $foreignKeys));
+        $wpdb->query(TableDefinitions::meta($p['meta'], $wpdb->posts, $cc, $foreignKeys));
+        $wpdb->query(TableDefinitions::term($p['term'], $wpdb->term_taxonomy, $cc, $foreignKeys));
+        $wpdb->query(TableDefinitions::html($p['html'], $cc));
+        $wpdb->query(TableDefinitions::option($p['option'], $wpdb->options, $cc, $foreignKeys));
+        $wpdb->query(TableDefinitions::user($p['user'], $wpdb->users, $cc, $foreignKeys));
+        $wpdb->query(TableDefinitions::termMeta($p['term_meta'], $wpdb->terms, $cc, $foreignKeys));
+
+        // Hash-link children (post/term/html/option/user): keyed by original_hash, never a foreign key.
+        foreach (self::HASH_LINK_CHILDREN as $parentKey) {
+            $wpdb->query(TableDefinitions::hashLinkTranslation($p[$parentKey] . '_translation', $cc));
+        }
+
+        // parent_id children (meta, term_meta): linked back to their parent row.
+        foreach (self::PARENT_ID_CHILD_FKS as $parentKey) {
+            $wpdb->query(TableDefinitions::parentIdTranslation($p[$parentKey] . '_translation', $p[$parentKey], $cc, $foreignKeys));
+        }
+        // phpcs:enable
     }
 
     /** Storage engine of one table per information_schema, or null if unknown. */

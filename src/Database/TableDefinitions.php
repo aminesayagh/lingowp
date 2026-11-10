@@ -34,6 +34,12 @@ namespace LingoWP\Database;
  * column with no FK. Methods return CREATE TABLE SQL with FK clauses inlined —
  * never dbDelta() (it mangles FOREIGN KEY clauses).
  *
+ * Foreign keys are used where the database supports them and skipped where
+ * it does not (WordPress's own tables on MyISAM, or a host that refuses
+ * them): see TranslationMemorySchema::install(). Without them the plugin
+ * works the same, except that deleting a post, term, option or user no
+ * longer removes its translations — an accepted limit for those databases.
+ *
  * FKs are deliberately unnamed: MySQL constraint names are unique per
  * DATABASE, so a fixed name (fk_post_owner) made every multisite site after
  * the first fail to install. InnoDB names them `<table>_ibfk_N`, unique by
@@ -50,8 +56,10 @@ final class TableDefinitions
     private function __construct() {}
 
     /** wp_lingowp_post — identity (post_id, field, original_hash). post_content rows are fragments. */
-    public static function post(string $table, string $postsTable, string $charsetCollate): string
+    public static function post(string $table, string $postsTable, string $charsetCollate, bool $foreignKey = true): string
     {
+        $fk = self::foreignKey($foreignKey, 'post_id', $postsTable, 'ID');
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
     post_id                bigint unsigned  NOT NULL,
@@ -64,15 +72,15 @@ final class TableDefinitions
     PRIMARY KEY (id),
     UNIQUE KEY uniq_source (post_id, field, original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id),
-    FOREIGN KEY (post_id)
-        REFERENCES {$postsTable} (ID) ON DELETE CASCADE
+    KEY idx_queue (status, id){$fk}
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_meta — identity (post_id, meta_key_hash, context_hash, original_hash). */
-    public static function meta(string $table, string $postsTable, string $charsetCollate): string
+    public static function meta(string $table, string $postsTable, string $charsetCollate, bool $foreignKey = true): string
     {
+        $fk = self::foreignKey($foreignKey, 'post_id', $postsTable, 'ID');
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
     post_id                bigint unsigned  NOT NULL,
@@ -88,9 +96,7 @@ final class TableDefinitions
     PRIMARY KEY (id),
     UNIQUE KEY uniq_source (post_id, meta_key_hash, context_hash, original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id),
-    FOREIGN KEY (post_id)
-        REFERENCES {$postsTable} (ID) ON DELETE CASCADE
+    KEY idx_queue (status, id){$fk}
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -99,8 +105,10 @@ final class TableDefinitions
      * Owner FK to wp_terms(term_id) — matches get_term_meta()/update_term_meta()'s own
      * relationship, distinct from wp_lingowp_term's FK to wp_term_taxonomy.
      */
-    public static function termMeta(string $table, string $termsTable, string $charsetCollate): string
+    public static function termMeta(string $table, string $termsTable, string $charsetCollate, bool $foreignKey = true): string
     {
+        $fk = self::foreignKey($foreignKey, 'term_id', $termsTable, 'term_id');
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
     term_id                bigint unsigned  NOT NULL,
@@ -116,15 +124,15 @@ final class TableDefinitions
     PRIMARY KEY (id),
     UNIQUE KEY uniq_source (term_id, meta_key_hash, context_hash, original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id),
-    FOREIGN KEY (term_id)
-        REFERENCES {$termsTable} (term_id) ON DELETE CASCADE
+    KEY idx_queue (status, id){$fk}
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_option — identity (option_id, option_path_hash, original_hash). Owner FK to wp_options. */
-    public static function option(string $table, string $optionsTable, string $charsetCollate): string
+    public static function option(string $table, string $optionsTable, string $charsetCollate, bool $foreignKey = true): string
     {
+        $fk = self::foreignKey($foreignKey, 'option_id', $optionsTable, 'option_id');
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
     option_id              bigint unsigned  NOT NULL,
@@ -139,15 +147,15 @@ final class TableDefinitions
     PRIMARY KEY (id),
     UNIQUE KEY uniq_source (option_id, option_path_hash, original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id),
-    FOREIGN KEY (option_id)
-        REFERENCES {$optionsTable} (option_id) ON DELETE CASCADE
+    KEY idx_queue (status, id){$fk}
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_term — identity (term_taxonomy_id, field, original_hash). */
-    public static function term(string $table, string $termTaxonomyTable, string $charsetCollate): string
+    public static function term(string $table, string $termTaxonomyTable, string $charsetCollate, bool $foreignKey = true): string
     {
+        $fk = self::foreignKey($foreignKey, 'term_taxonomy_id', $termTaxonomyTable, 'term_taxonomy_id');
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
     term_taxonomy_id       bigint unsigned  NOT NULL,
@@ -160,15 +168,15 @@ final class TableDefinitions
     PRIMARY KEY (id),
     UNIQUE KEY uniq_source (term_taxonomy_id, field, original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id),
-    FOREIGN KEY (term_taxonomy_id)
-        REFERENCES {$termTaxonomyTable} (term_taxonomy_id) ON DELETE CASCADE
+    KEY idx_queue (status, id){$fk}
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_user — identity (user_id, field, original_hash). Owner FK to wp_users. */
-    public static function user(string $table, string $usersTable, string $charsetCollate): string
+    public static function user(string $table, string $usersTable, string $charsetCollate, bool $foreignKey = true): string
     {
+        $fk = self::foreignKey($foreignKey, 'user_id', $usersTable, 'ID');
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
     user_id                bigint unsigned  NOT NULL,
@@ -181,9 +189,7 @@ final class TableDefinitions
     PRIMARY KEY (id),
     UNIQUE KEY uniq_source (user_id, field, original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id),
-    FOREIGN KEY (user_id)
-        REFERENCES {$usersTable} (ID) ON DELETE CASCADE
+    KEY idx_queue (status, id){$fk}
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -255,8 +261,11 @@ final class TableDefinitions
     public static function parentIdTranslation(
         string $table,
         string $parentTable,
-        string $charsetCollate
+        string $charsetCollate,
+        bool $foreignKey = true
     ): string {
+        $fk = self::foreignKey($foreignKey, 'parent_id', $parentTable, 'id');
+
         return "CREATE TABLE IF NOT EXISTS {$table} (
     id                bigint unsigned  NOT NULL AUTO_INCREMENT,
     parent_id         bigint unsigned  NOT NULL,
@@ -271,9 +280,7 @@ final class TableDefinitions
     PRIMARY KEY (id),
     UNIQUE KEY uniq_translation (parent_id, lang_code),
     KEY idx_queue (lang_code, status, id),
-    KEY idx_ai_pending (ai_pending_since),
-    FOREIGN KEY (parent_id)
-        REFERENCES {$parentTable} (id) ON DELETE CASCADE
+    KEY idx_ai_pending (ai_pending_since){$fk}
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -335,5 +342,18 @@ final class TableDefinitions
     KEY idx_ai_pending (ai_pending_since),
     KEY idx_ai_norm (norm_hash)
 ) ENGINE=InnoDB {$charsetCollate}";
+    }
+
+    /**
+     * The trailing `ON DELETE CASCADE` clause linking a table to its owner, or
+     * nothing when foreign keys are not used on this database.
+     */
+    private static function foreignKey(bool $enabled, string $column, string $referencedTable, string $referencedColumn): string
+    {
+        if (!$enabled) {
+            return '';
+        }
+
+        return ",\n    FOREIGN KEY ({$column})\n        REFERENCES {$referencedTable} ({$referencedColumn}) ON DELETE CASCADE";
     }
 }
