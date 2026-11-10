@@ -2116,7 +2116,8 @@ final class WpDbSourceRepository
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $value = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                'SELECT LOWER(HEX(original_hash)) FROM ' . $this->parent($ref->parentTableKey()) . ' WHERE id = %d',
+                'SELECT LOWER(HEX(original_hash)) FROM %i WHERE id = %d',
+                $this->parent($ref->parentTableKey()),
                 $ref->id
             )
         );

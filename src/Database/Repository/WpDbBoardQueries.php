@@ -56,9 +56,9 @@ final class WpDbBoardQueries
                        SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
                        SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
                        SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
-                FROM {$parent} p
-                JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d AND wp.post_status IN ({$statusIn}){$match}
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
@@ -66,6 +66,9 @@ final class WpDbBoardQueries
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $posts,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs,
@@ -93,9 +96,9 @@ final class WpDbBoardQueries
                        LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.post_id = %d AND p.status = %d
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn})){$match}
                 ORDER BY " . self::FIELD_SORT . ", p.field, p.id";
@@ -103,6 +106,9 @@ final class WpDbBoardQueries
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $posts,
+            $child,
             $langCode,
             $postId,
             TranslationStatus::SOURCE_DISCOVERED,
@@ -138,9 +144,9 @@ final class WpDbBoardQueries
                        LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn}))
                 ORDER BY p.post_id, " . self::FIELD_SORT . ", p.field, p.id";
@@ -148,6 +154,9 @@ final class WpDbBoardQueries
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $posts,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs
@@ -173,13 +182,15 @@ final class WpDbBoardQueries
                        SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
                        SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
                        SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -200,14 +211,16 @@ final class WpDbBoardQueries
                        LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}
                 ORDER BY p.option_name, p.id";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -234,13 +247,15 @@ final class WpDbBoardQueries
                        SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
                        SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
                        SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -264,15 +279,18 @@ final class WpDbBoardQueries
                        LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                JOIN {$users} u ON u.ID = p.user_id
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                JOIN %i u ON u.ID = p.user_id
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}
                 ORDER BY u.display_name, p.id";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $users,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -303,10 +321,10 @@ final class WpDbBoardQueries
                        SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
                        SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
                        SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
-                FROM {$parent} p
-                JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
-                JOIN {$terms} tm ON tm.term_id = tx.term_id
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                JOIN %i tx ON tx.term_taxonomy_id = p.term_taxonomy_id
+                JOIN %i tm ON tm.term_id = tx.term_id
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}
                 GROUP BY p.term_taxonomy_id, tx.taxonomy, tm.name
                 ORDER BY tx.taxonomy, tm.name";
@@ -314,6 +332,10 @@ final class WpDbBoardQueries
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $tt,
+            $terms,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -340,14 +362,16 @@ final class WpDbBoardQueries
         $sql = "SELECT p.id AS id, p.field AS field, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.term_taxonomy_id = %d AND p.status = %d
                 ORDER BY " . self::FIELD_SORT . ", p.field, p.id";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             $termTaxonomyId,
             TranslationStatus::SOURCE_DISCOVERED
@@ -370,16 +394,20 @@ final class WpDbBoardQueries
                        LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                JOIN {$tt} tx ON tx.term_taxonomy_id = p.term_taxonomy_id
-                JOIN {$terms} tm ON tm.term_id = tx.term_id
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                JOIN %i tx ON tx.term_taxonomy_id = p.term_taxonomy_id
+                JOIN %i tm ON tm.term_id = tx.term_id
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE tx.taxonomy = %s AND p.status = %d{$match}
                 ORDER BY tm.name, " . self::FIELD_SORT . ", p.field, p.id";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $tt,
+            $terms,
+            $child,
             $langCode,
             $taxonomy,
             TranslationStatus::SOURCE_DISCOVERED,
@@ -411,9 +439,9 @@ final class WpDbBoardQueries
                        SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
                        SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
                        SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
-                FROM {$parent} p
-                JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                FROM %i p
+                JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.status = %d AND wp.post_status IN ({$statusIn}){$match}
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
@@ -421,6 +449,9 @@ final class WpDbBoardQueries
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $posts,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs,
@@ -445,9 +476,9 @@ final class WpDbBoardQueries
         $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.post_id = %d AND p.status = %d
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn})){$match}
                 ORDER BY p.meta_key, p.id";
@@ -455,6 +486,9 @@ final class WpDbBoardQueries
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $posts,
+            $child,
             $langCode,
             $postId,
             TranslationStatus::SOURCE_DISCOVERED,
@@ -489,9 +523,9 @@ final class WpDbBoardQueries
         $sql = "SELECT p.id AS id, p.post_id AS post_id, p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                LEFT JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.status = %d
                       AND (wp.ID IS NULL OR wp.post_status IN ({$statusIn}))
                 ORDER BY p.post_id, p.meta_key, p.id";
@@ -499,6 +533,9 @@ final class WpDbBoardQueries
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $posts,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$statusArgs
@@ -535,15 +572,18 @@ final class WpDbBoardQueries
                        SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
                        SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
                        SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
-                FROM {$parent} p
-                JOIN {$tt} tx ON tx.term_id = p.term_id
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                FROM %i p
+                JOIN %i tx ON tx.term_id = p.term_id
+                LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.status = %d{$match}
                 GROUP BY tx.taxonomy";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $tt,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -572,15 +612,18 @@ final class WpDbBoardQueries
         $sql = "SELECT p.id AS id, p.term_id AS term_id, p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                JOIN {$tt} tx ON tx.term_id = p.term_id
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                FROM %i p
+                JOIN %i tx ON tx.term_id = p.term_id
+                LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE tx.taxonomy = %s AND p.status = %d{$match}
                 ORDER BY p.meta_key, p.id";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $tt,
+            $child,
             $langCode,
             $taxonomy,
             TranslationStatus::SOURCE_DISCOVERED,
@@ -609,9 +652,9 @@ final class WpDbBoardQueries
         $sql = "SELECT p.id AS id, p.field AS field, p.post_id AS post_id, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE wp.post_type = 'attachment' AND wp.post_mime_type LIKE 'image/%%'
                       AND wp.post_status IN ({$statusIn})
                       AND p.status = %d{$match}
@@ -620,7 +663,7 @@ final class WpDbBoardQueries
         $args = array_merge([$langCode], $statusArgs, [TranslationStatus::SOURCE_DISCOVERED], $matchArgs);
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $parent, $posts, $child, ...$args), ARRAY_A);
         // phpcs:enable
 
         return array_map(function (array $r): array {
@@ -643,9 +686,9 @@ final class WpDbBoardQueries
         $sql = "SELECT p.id AS id, p.meta_key AS meta_key, p.post_id AS post_id, p.original_text AS original_text,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                JOIN {$posts} wp ON wp.ID = p.post_id
-                LEFT JOIN {$child} t ON t.parent_id = p.id AND t.lang_code = %s
+                FROM %i p
+                JOIN %i wp ON wp.ID = p.post_id
+                LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE wp.post_type = 'attachment' AND wp.post_mime_type LIKE 'image/%%'
                       AND wp.post_status IN ({$statusIn})
                       AND p.status = %d{$match}
@@ -654,7 +697,7 @@ final class WpDbBoardQueries
         $args = array_merge([$langCode], $statusArgs, [TranslationStatus::SOURCE_DISCOVERED], $matchArgs);
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $parent, $posts, $child, ...$args), ARRAY_A);
         // phpcs:enable
 
         return array_map(function (array $r): array {
@@ -679,13 +722,15 @@ final class WpDbBoardQueries
                        SUM(t.translated_text IS NOT NULL AND t.status != -1) AS translated,
                        SUM(t.id IS NOT NULL AND t.translated_text IS NULL AND t.ai_pending_since IS NOT NULL) AS pending,
                        SUM(t.id IS NULL OR (t.translated_text IS NULL AND t.ai_pending_since IS NULL))        AS missing
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             TranslationStatus::SOURCE_DISCOVERED,
             ...$matchArgs
@@ -718,14 +763,16 @@ final class WpDbBoardQueries
                        LOWER(HEX(p.original_hash)) AS original_hash,
                        t.translated_text AS translated_text, t.status AS status, t.provider AS provider,
                        t.ai_pending_since AS ai_pending_since, t.ai_error AS ai_error
-                FROM {$parent} p
-                LEFT JOIN {$child} t ON t.original_hash = p.original_hash AND t.lang_code = %s
+                FROM %i p
+                LEFT JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s
                 WHERE p.status = %d{$match}
                 ORDER BY p.selector, p.id";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
+            $parent,
+            $child,
             $langCode,
             $status,
             ...$matchArgs
@@ -749,8 +796,9 @@ final class WpDbBoardQueries
      * no fallbacks. Each row carries its `kind` so CollectionBoard can build the
      * right SourceRef for the row-level Restore action.
      *
-     * The per-table `kind` literal and column names are compile-time constants
-     * from this method, never request input — spliced, not bound, like FIELD_SORT.
+     * The kind label is bound as a value and the table and field column as %i
+     * identifiers; only the original_hash expression (one of two fixed SQL
+     * expressions above) is spliced, like FIELD_SORT.
      */
     public function listIgnoredTexts(string $search = ''): array
     {
@@ -770,17 +818,19 @@ final class WpDbBoardQueries
         $selects = [];
         $args    = [];
         foreach ($sources as $kind => [$table, $fieldCol, $hashExpr]) {
+            // In query order: kind (value), field column, table, then the WHERE values.
+            array_push($args, $kind, $fieldCol, $table);
             $where  = 'status = %d';
             $args[] = TranslationStatus::SOURCE_IGNORED;
             if ($like !== null) {
                 $where .= ' AND original_text LIKE %s';
                 $args[] = $like;
             }
-            $selects[] = "SELECT '{$kind}' AS kind, id AS id, original_text AS original_text,
-                                 {$hashExpr} AS original_hash, {$fieldCol} AS field,
+            $selects[] = "SELECT %s AS kind, id AS id, original_text AS original_text,
+                                 {$hashExpr} AS original_hash, %i AS field,
                                  NULL AS translated_text, NULL AS status, NULL AS provider,
                                  NULL AS ai_pending_since, NULL AS ai_error
-                          FROM {$table} WHERE {$where}";
+                          FROM %i WHERE {$where}";
         }
         $sql = implode("\nUNION ALL\n", $selects) . "\nORDER BY kind, field, id";
 
@@ -879,16 +929,18 @@ final class WpDbBoardQueries
         if ($tableKey === 'post' || $tableKey === 'meta') {
             $posts = $this->wpdb->posts;
             [$statusIn, $statusArgs] = $this->postStatusClause();
-            $sql = "SELECT COUNT(*) FROM {$parent} p
-                    JOIN {$posts} wp ON wp.ID = p.post_id
+            $sql = "SELECT COUNT(*) FROM %i p
+                    JOIN %i wp ON wp.ID = p.post_id
                     WHERE p.status = %d AND wp.post_status IN ({$statusIn})";
+            $tables = [$parent, $posts];
             array_push($args, ...$statusArgs);
         } else {
-            $sql = "SELECT COUNT(*) FROM {$parent} p WHERE p.status = %d";
+            $sql    = "SELECT COUNT(*) FROM %i p WHERE p.status = %d";
+            $tables = [$parent];
         }
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        return (int) $this->wpdb->get_var($this->wpdb->prepare($sql, ...$args));
+        return (int) $this->wpdb->get_var($this->wpdb->prepare($sql, ...$tables, ...$args));
         // phpcs:enable
     }
 
@@ -912,7 +964,7 @@ final class WpDbBoardQueries
         // AiQueueConfig::isFreshPending() -- an abandoned stamp must stop
         // counting as queued, or the rail would poll itself forever.
         $fresh  = gmdate('Y-m-d H:i:s', (int) current_time('timestamp') - (AiQueueConfig::PENDING_TTL_HOURS * 3600));
-        $args   = [$fresh, TranslationStatus::SOURCE_DISCOVERED];
+        $after  = [TranslationStatus::SOURCE_DISCOVERED];
 
         if ($tableKey === 'post' || $tableKey === 'meta') {
             $posts = $this->wpdb->posts;
@@ -920,24 +972,27 @@ final class WpDbBoardQueries
             $sql = "SELECT t.lang_code AS lang_code,
                            SUM(t.translated_text IS NOT NULL) AS done,
                            SUM(t.translated_text IS NULL AND t.ai_pending_since > %s) AS queued
-                    FROM {$parent} p
-                    JOIN {$posts} wp ON wp.ID = p.post_id
-                    JOIN {$child} t ON {$join}
+                    FROM %i p
+                    JOIN %i wp ON wp.ID = p.post_id
+                    JOIN %i t ON {$join}
                     WHERE p.status = %d AND wp.post_status IN ({$statusIn})
                     GROUP BY t.lang_code";
-            array_push($args, ...$statusArgs);
+            $tables = [$parent, $posts, $child];
+            array_push($after, ...$statusArgs);
         } else {
             $sql = "SELECT t.lang_code AS lang_code,
                            SUM(t.translated_text IS NOT NULL) AS done,
                            SUM(t.translated_text IS NULL AND t.ai_pending_since > %s) AS queued
-                    FROM {$parent} p
-                    JOIN {$child} t ON {$join}
+                    FROM %i p
+                    JOIN %i t ON {$join}
                     WHERE p.status = %d
                     GROUP BY t.lang_code";
+            $tables = [$parent, $child];
         }
 
+        // In query order: the freshness cutoff (in the SELECT), the tables, then the WHERE values.
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+        $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $fresh, ...$tables, ...$after), ARRAY_A);
         // phpcs:enable
 
         $out = [];
@@ -969,22 +1024,24 @@ final class WpDbBoardQueries
             [$statusIn, $statusArgs] = $this->postStatusClause();
 
             $sql = "SELECT COUNT(*) AS total, SUM(t.translated_text IS NOT NULL) AS done
-                    FROM {$parent} p
-                    JOIN {$posts} wp ON wp.ID = p.post_id
-                    LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
+                    FROM %i p
+                    JOIN %i wp ON wp.ID = p.post_id
+                    LEFT JOIN %i t ON {$join} AND t.lang_code = %s
                     WHERE p.status = %d AND wp.post_status IN ({$statusIn})";
+            $tables = [$parent, $posts, $child];
             $args[] = TranslationStatus::SOURCE_DISCOVERED;
             array_push($args, ...$statusArgs);
         } else {
             $sql = "SELECT COUNT(*) AS total, SUM(t.translated_text IS NOT NULL) AS done
-                    FROM {$parent} p
-                    LEFT JOIN {$child} t ON {$join} AND t.lang_code = %s
+                    FROM %i p
+                    LEFT JOIN %i t ON {$join} AND t.lang_code = %s
                     WHERE p.status = %d";
+            $tables = [$parent, $child];
             $args[] = TranslationStatus::SOURCE_DISCOVERED;
         }
 
         // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $row = $this->wpdb->get_row($this->wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
+        $row = $this->wpdb->get_row($this->wpdb->prepare($sql, ...$tables, ...$args), ARRAY_A) ?: [];
         // phpcs:enable
 
         return [(int) ($row['total'] ?? 0), (int) ($row['done'] ?? 0)];
