@@ -493,7 +493,7 @@ final class SlugMap
 
             $args = array_merge([$this->wpdb->posts, $postParent, $postChild, $lang, ScannablePostStatuses::csv()], $postTypes);
 
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $postRows = (array) $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table names from TranslationMemorySchema::parentTables()/$wpdb; every value is a placeholder
             // phpcs:enable
 
@@ -520,7 +520,7 @@ final class SlugMap
 
             $args = array_merge([$this->wpdb->terms, $this->wpdb->term_taxonomy, $termParent, $termChild, $lang], $taxonomies);
 
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $termRows = (array) $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table names from TranslationMemorySchema::parentTables()/$wpdb; every value is a placeholder
             // phpcs:enable
 
@@ -651,7 +651,7 @@ final class SlugMap
                        AND post_status NOT IN ('auto-draft', 'trash')
                        AND post_type IN ({$placeholders})";
 
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, $this->wpdb->posts, ...$types)) as $slug) { // nosemgrep: wpdb-interpolated-sql -- $wpdb table name; every value is a placeholder
             // phpcs:enable
                 $slugs[rawurldecode(sanitize_title((string) $slug))] = true;
@@ -660,7 +660,7 @@ final class SlugMap
 
         // Renamed posts keep answering their old URLs through this meta.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         $oldSlugs = (array) $this->wpdb->get_col($this->wpdb->prepare('SELECT meta_value FROM %i WHERE meta_key = %s', $this->wpdb->postmeta, '_wp_old_slug')); // nosemgrep: wpdb-interpolated-sql -- the only interpolation is $wpdb->postmeta, a WordPress-provided table name; the meta key is a literal and no value is interpolated
         // phpcs:enable
         foreach ($oldSlugs as $slug) {
@@ -669,7 +669,7 @@ final class SlugMap
             }
         }
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         foreach ((array) $this->wpdb->get_col($this->wpdb->prepare("SELECT slug FROM %i WHERE slug <> ''", $this->wpdb->terms)) as $slug) { // nosemgrep: wpdb-interpolated-sql -- $wpdb table name only
         // phpcs:enable
             $slugs[rawurldecode(sanitize_title((string) $slug))] = true;

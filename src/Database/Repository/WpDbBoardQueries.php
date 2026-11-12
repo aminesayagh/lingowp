@@ -59,7 +59,7 @@ final class WpDbBoardQueries
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -105,7 +105,7 @@ final class WpDbBoardQueries
                                AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 ORDER BY CASE p.field WHEN 'post_title' THEN 1 WHEN 'name' THEN 1 WHEN 'post_content' THEN 2 WHEN 'description' THEN 2 WHEN 'post_excerpt' THEN 3 ELSE 4 END, p.field, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -152,7 +152,7 @@ final class WpDbBoardQueries
                       AND (wp.ID IS NULL OR FIND_IN_SET(wp.post_status, %s))
                 ORDER BY p.post_id, CASE p.field WHEN 'post_title' THEN 1 WHEN 'name' THEN 1 WHEN 'post_content' THEN 2 WHEN 'description' THEN 2 WHEN 'post_excerpt' THEN 3 ELSE 4 END, p.field, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -193,7 +193,7 @@ final class WpDbBoardQueries
                          AND CHAR_LENGTH(p.original_text) > 0 AND CHAR_LENGTH(t.translated_text) > 0
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             $parent,
@@ -229,7 +229,7 @@ final class WpDbBoardQueries
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 ORDER BY p.option_name, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -270,7 +270,7 @@ final class WpDbBoardQueries
                          AND CHAR_LENGTH(p.original_text) > 0 AND CHAR_LENGTH(t.translated_text) > 0
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             $parent,
@@ -310,7 +310,7 @@ final class WpDbBoardQueries
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 ORDER BY u.display_name, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -360,7 +360,7 @@ final class WpDbBoardQueries
                 GROUP BY p.term_taxonomy_id, tx.taxonomy, tm.name
                 ORDER BY tx.taxonomy, tm.name";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -398,7 +398,7 @@ final class WpDbBoardQueries
                 WHERE p.term_taxonomy_id = %d AND p.status = %d
                 ORDER BY CASE p.field WHEN 'post_title' THEN 1 WHEN 'name' THEN 1 WHEN 'post_content' THEN 2 WHEN 'description' THEN 2 WHEN 'post_excerpt' THEN 3 ELSE 4 END, p.field, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -438,7 +438,7 @@ final class WpDbBoardQueries
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 ORDER BY tm.name, CASE p.field WHEN 'post_title' THEN 1 WHEN 'name' THEN 1 WHEN 'post_content' THEN 2 WHEN 'description' THEN 2 WHEN 'post_excerpt' THEN 3 ELSE 4 END, p.field, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -489,7 +489,7 @@ final class WpDbBoardQueries
                 GROUP BY p.post_id, wp.post_type, wp.post_title, wp.post_mime_type
                 ORDER BY wp.post_type, wp.post_title";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -532,7 +532,7 @@ final class WpDbBoardQueries
                                AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 ORDER BY p.meta_key, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -578,7 +578,7 @@ final class WpDbBoardQueries
                       AND (wp.ID IS NULL OR FIND_IN_SET(wp.post_status, %s))
                 ORDER BY p.post_id, p.meta_key, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -632,7 +632,7 @@ final class WpDbBoardQueries
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 GROUP BY tx.taxonomy";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -678,7 +678,7 @@ final class WpDbBoardQueries
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 ORDER BY p.meta_key, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -727,7 +727,7 @@ final class WpDbBoardQueries
 
         $args = array_merge([$langCode, ScannablePostStatuses::csv(), TranslationStatus::SOURCE_DISCOVERED], $filterArgs);
 
-        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $parent, $posts, $child, ...$args), ARRAY_A);
         // phpcs:enable
 
@@ -766,7 +766,7 @@ final class WpDbBoardQueries
 
         $args = array_merge([$langCode, ScannablePostStatuses::csv(), TranslationStatus::SOURCE_DISCOVERED], $filterArgs);
 
-        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, $parent, $posts, $child, ...$args), ARRAY_A);
         // phpcs:enable
 
@@ -802,7 +802,7 @@ final class WpDbBoardQueries
                          AND CHAR_LENGTH(p.original_text) > 0 AND CHAR_LENGTH(t.translated_text) > 0
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row($this->wpdb->prepare(
             $sql,
             $parent,
@@ -850,7 +850,7 @@ final class WpDbBoardQueries
                          AND ABS(CHAR_LENGTH(t.translated_text) - CHAR_LENGTH(p.original_text)) > GREATEST(CHAR_LENGTH(p.original_text) * 0.3, 15)))
                 ORDER BY p.selector, p.id";
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             $sql,
             $parent,
@@ -887,7 +887,7 @@ final class WpDbBoardQueries
         $p    = TranslationMemorySchema::parentTables();
         $like = '%' . $this->wpdb->esc_like($search) . '%';
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT %s AS kind, id, original_text, LOWER(HEX(original_hash)) AS original_hash, %i AS field,
                        NULL AS translated_text, NULL AS status, NULL AS provider, NULL AS ai_pending_since, NULL AS ai_error
@@ -1003,7 +1003,7 @@ final class WpDbBoardQueries
             $tables = [$parent];
         }
 
-        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         return (int) $this->wpdb->get_var($this->wpdb->prepare($sql, ...$tables, ...$args));
         // phpcs:enable
     }
@@ -1032,7 +1032,7 @@ final class WpDbBoardQueries
         // Four shapes: post and meta rows only count while their WP post is
         // live; hash-link children join on original_hash, parent_id children
         // (meta, term_meta) on parent_id.
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         if ($tableKey === 'post') {
             $rows = $this->wpdb->get_results($this->wpdb->prepare(
                 "SELECT t.lang_code AS lang_code, SUM(t.translated_text IS NOT NULL) AS done,

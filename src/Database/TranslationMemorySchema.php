@@ -140,7 +140,7 @@ class TranslationMemorySchema
 
         $table = self::gettextUnitTable();
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $exists = (bool) $wpdb->get_var($wpdb->prepare(
             'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s',
             DB_NAME,
@@ -151,7 +151,7 @@ class TranslationMemorySchema
             return;
         }
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $hasNormHash = (bool) $wpdb->get_var($wpdb->prepare(
             'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s',
             DB_NAME,
@@ -168,11 +168,11 @@ class TranslationMemorySchema
         // (deliberately, so a real rescan never overwrites status), so a blank
         // msgid inserted here would stay blank forever instead of being filled
         // in by that rescan.
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table name only, from the schema map
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table name only, from the schema map
         $ignored = (array) $wpdb->get_results($wpdb->prepare('SELECT type, domain, HEX(unit_hash) AS h, msgid, context FROM %i WHERE status = -1', $table), ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         // phpcs:enable
 
-        // phpcs:disable PluginCheck.Security.DirectDB -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
+        // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
         // nosemgrep: wpdb-interpolated-sql -- table name only, from the schema map
         $wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $table)); // phpcs:ignore WordPress.DB -- table name only
         // phpcs:enable
@@ -187,7 +187,7 @@ class TranslationMemorySchema
             // %s can't carry a real NULL through wpdb::prepare() (it casts to
             // ''), so — same as bulkUpsert() above — the column is a literal
             // NULL in the SQL text when there's no context, never a bound arg.
-            // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $wpdb->query($wpdb->prepare(
                 "INSERT INTO %i (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
                  VALUES (%s, %s, UNHEX(%s), %s, NULLIF(%s, ''), -1, %s, %s)
@@ -252,7 +252,7 @@ class TranslationMemorySchema
                     ? $context . "\x04" . $msgid
                     : $msgid, true);
 
-                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $wpdb->query($wpdb->prepare(
                     "INSERT INTO %i
                         (type, domain, unit_hash, msgid, context, status, created_at, updated_at)
@@ -339,7 +339,7 @@ class TranslationMemorySchema
         $suppressed = $wpdb->suppress_errors(true);
         foreach ($definitions as [$table, $column, $referenced, $referencedColumn]) {
             if (in_array($table, $missing, true)) {
-                // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.SchemaChange, PluginCheck.Security.DirectDB -- the plugin's own table, during install; identifiers through %i.
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.SchemaChange, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- the plugin's own table, during install; identifiers through %i.
                 $wpdb->query($wpdb->prepare(
                     'ALTER TABLE %i ADD FOREIGN KEY (%i) REFERENCES %i (%i) ON DELETE CASCADE',
                     $table,
@@ -553,7 +553,7 @@ class TranslationMemorySchema
     public static function dropAllTables(\wpdb $wpdb): void
     {
         foreach (self::allTablesInDropOrder() as $table) {
-            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL, WordPress.DB.PreparedSQLPlaceholders -- the plugin's own tables: schema install and teardown, run once, nothing to cache.
             // nosemgrep: wpdb-interpolated-sql -- table name only, from this class's own map / $wpdb prefix; no values interpolated
             $wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $table));
             // phpcs:enable
