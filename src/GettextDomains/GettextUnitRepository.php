@@ -30,7 +30,7 @@ final class GettextUnitRepository
     private const INSERT_CHUNK   = 100;
     // "_v2": the previous key, lingowp_gettext_scanned_domains, was written
     // by a scanner that silently found nothing whenever another plugin's
-    // older php-parser was loaded (see WordPressPhpScanner), so its "scanned"
+    // older php-parser was loaded (the pre-1.6.8 scanner), so its "scanned"
     // entries can't be trusted. A new key makes every component scan once
     // more with the fixed scanner, on every site, with no migration. The old
     // key is left in place and removed by PluginDataCleanup on uninstall.

@@ -68,8 +68,7 @@ composer install --no-dev --optimize-autoloader --no-interaction \
   --working-dir="$BUILD_DIR" >/dev/null
 
 # Composer's bin proxies (vendor/bin/) and each package's own bin/ folder
-# (gettext/languages' export-plural-rules and import-cldr-data, with .bat
-# twins; php-parser's php-parse; html5's entities.php generator) are
+# (html5's entities.php generator) are
 # command-line tools nothing in WordPress ever loads. WordPress.org rejects
 # them as "not permitted files" (review of 1.6.6).
 rm -rf "$BUILD_DIR"/vendor/bin "$BUILD_DIR"/vendor/*/*/bin
@@ -104,7 +103,7 @@ rm -rf \
 # travels inside the archive and depends on no URL.
 #
 # composer.json and composer.lock stay too. They describe vendor/, so a tree
-# carrying nikic/, mck89/ and gettext/ with no manifest saying why is exactly
+# carrying third-party packages with no manifest saying why is exactly
 # what a reader objects to.
 REQUIRED=(
   lingowp.php

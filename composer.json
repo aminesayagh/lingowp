@@ -8,8 +8,7 @@
 	"require": {
 		"php": ">=7.4",
 		"masterminds/html5": "^2.12",
-		"woocommerce/action-scheduler": "^4.2",
-		"gettext/php-scanner": "^2.0"
+		"woocommerce/action-scheduler": "^4.2"
 	},
 	"require-dev": {
 		"squizlabs/php_codesniffer": "^3.13",
@@ -39,6 +38,7 @@
 			"@php tests/ai_queue_logic_check.php",
 			"@php tests/fallback_chain_check.php",
 			"@php tests/gettext_hash_check.php",
+			"@php tests/gettext_scanner_check.php",
 			"@php tests/gettext_ai_hash_check.php",
 			"@php tests/support_payload_check.php",
 			"@php tests/split_field_check.php",
