@@ -17,10 +17,12 @@ use LingoWP\Database\TranslationMemorySchema;
  *  - set default options
  *  - flush rewrite rules a single time (after rules are registered)
  *
- * Multisite: "Network Activate" runs the hook once, on the main site only, so
- * every site of the network is set up here in turn, and a site created later
- * is set up by initializeSite(). Local setup only — no connection, no licence
- * check: each site still connects to the backend through its own onboarding.
+ * Multisite: "Network Activate" sets up the current site only — looping over
+ * every site in that one request could time out on a large network and leave
+ * it half set up (WordPress.org review). Every other site sets itself up on
+ * its own first request (setUpOnFirstLoad()), and a site created later is set
+ * up by initializeSite(). Local setup only — no connection, no licence check:
+ * each site still connects to the backend through its own onboarding.
  */
 class Activator
 {
@@ -45,18 +47,28 @@ class Activator
             );
         }
 
-        if (is_multisite() && $networkWide) {
-            // ponytail: one pass over every site in this request; move to a
-            // background job if very large networks time out here.
-            foreach (get_sites(['fields' => 'ids', 'number' => 0]) as $siteId) {
-                switch_to_blog((int) $siteId);
-                self::activateSite();
-                restore_current_blog();
-            }
+        // Network-wide or not, only this site now: see the class doc.
+        unset($networkWide);
+        self::activateSite();
+    }
+
+    /**
+     * A site of a network where Linvara is network-active, reached for the
+     * first time since "Network Activate": give it the full single-site setup
+     * (tables, defaults, first-scan flag, rewrite rules) once. Called on every
+     * boot, so the common path is a single read of an autoloaded option.
+     */
+    public static function setUpOnFirstLoad(): void
+    {
+        if (! is_multisite() || get_option(TranslationMemorySchema::OPTION_DB_VERSION) !== false) {
             return;
         }
-
-        self::activateSite();
+        if (! function_exists('is_plugin_active_for_network')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        if (is_plugin_active_for_network(LINGOWP_BASENAME)) {
+            self::activateSite();
+        }
     }
 
     /**

@@ -166,7 +166,10 @@ class Plugin
      */
     private function bootLanguage(\wpdb $wpdb): array
     {
-        // If the version is current or higher, do nothing. Otherwise, run a full install.
+        // A network site's first request after "Network Activate" gets its full
+        // setup here (see Activator). Then: if the version is current or
+        // higher, do nothing; otherwise, run a full install.
+        Activator::setUpOnFirstLoad();
         TranslationMemorySchema::maybeUpgrade();
 
         $languageRegistry = new OptionLanguageRegistry();

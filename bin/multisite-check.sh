@@ -6,7 +6,8 @@
 #      every site after the first used to fail on duplicate FK names),
 #      and on a site whose WordPress tables are MyISAM (it must activate,
 #      without foreign keys, instead of aborting),
-#   2. "Network Activate", with one site created before it and one after,
+#   2. "Network Activate", with one site created before it (set up on its own
+#      first load, never in the activation request) and one after,
 #   3. deleting those sites drops every table, Linvara's and core's,
 #
 # and fails on any debug.log line from the run. Each site must end up with its
@@ -132,8 +133,17 @@ net_wp plugin deactivate linvara --url="$MAIN/$E/" --quiet
 echo "==> 2. Network Activate (one site before, one after)"
 net_wp site create --slug="$C" --quiet >/dev/null
 net_wp plugin activate linvara --network --quiet
+# Activation must not loop over the network (WordPress.org review: a large
+# network could time out): an existing site is set up on its own first load.
+CBEFORE="$(state "$MAIN/" "$C")"
+case "$CBEFORE" in
+  *"tables=0 "*) echo "  ✔ $C not set up by Network Activate itself (no loop over sites)" ;;
+  *) echo "  ✘ $C was set up during Network Activate: $CBEFORE"; FAILED=1 ;;
+esac
+net_wp eval 'echo "";' --url="$MAIN/$C/" >/dev/null 2>&1 || true   # its first request
+expect_ok "existing site fully set up on its first load" "$(state "$MAIN/" "$C")"
 net_wp site create --slug="$D" --quiet >/dev/null
-expect_ok "existing and new sites fully set up, before any page load" "$(state "$MAIN/" "$C" "$D")"
+expect_ok "site created afterwards fully set up immediately" "$(state "$MAIN/" "$D")"
 
 echo "==> 3. Deleting the test sites drops every table"
 for s in "$A" "$B" "$C" "$D" "$E"; do
