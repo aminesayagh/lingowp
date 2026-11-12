@@ -31,19 +31,14 @@ namespace LingoWP\Database;
  * so child status alone drives the admin queue.
  *
  * Languages stay option-backed (no languages table), so lang_code is a plain
- * column with no FK. Methods return CREATE TABLE SQL with FK clauses inlined —
- * never dbDelta() (it mangles FOREIGN KEY clauses).
- *
- * Foreign keys are used where the database supports them and skipped where
- * it does not (WordPress's own tables on MyISAM, or a host that refuses
- * them): see TranslationMemorySchema::install(). Without them the plugin
- * works the same, except that deleting a post, term, option or user no
- * longer removes its translations — an accepted limit for those databases.
- *
- * FKs are deliberately unnamed: MySQL constraint names are unique per
- * DATABASE, so a fixed name (fk_post_owner) made every multisite site after
- * the first fail to install. InnoDB names them `<table>_ibfk_N`, unique by
- * construction; ConstraintVerifier checks them by table, not by name.
+ * column with no FK. Methods return CREATE TABLE SQL in the format dbDelta()
+ * requires (one space between a column's name and its type, two after
+ * PRIMARY KEY). dbDelta() cannot create foreign keys, so they are added
+ * afterwards by TranslationMemorySchema::addForeignKeys(), where the
+ * database supports them (WordPress's own tables on InnoDB, a server that
+ * accepts them). Without them the plugin works the same, except that
+ * deleting a post, term, option or user no longer removes its translations
+ * — an accepted limit for those databases.
  *
  * An eighth table, gettextUnit(), sits outside this parent/child model
  * entirely: it tracks original strings + ignore status for the Plugins &
@@ -56,47 +51,43 @@ final class TableDefinitions
     private function __construct() {}
 
     /** wp_lingowp_post — identity (post_id, field, original_hash). post_content rows are fragments. */
-    public static function post(string $table, string $postsTable, string $charsetCollate, bool $foreignKey = true): string
+    public static function post(string $table, string $charsetCollate): string
     {
-        $fk = self::foreignKey($foreignKey, 'post_id', $postsTable, 'ID');
-
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    post_id                bigint unsigned  NOT NULL,
-    field                  varchar(32)      NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (post_id, field, original_hash),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    post_id bigint unsigned NOT NULL,
+    field varchar(32) NOT NULL,
+    original_hash binary(32) NOT NULL,
+    original_text longtext NOT NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_source (post_id,field,original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id){$fk}
+    KEY idx_queue (status,id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_meta — identity (post_id, meta_key_hash, context_hash, original_hash). */
-    public static function meta(string $table, string $postsTable, string $charsetCollate, bool $foreignKey = true): string
+    public static function meta(string $table, string $charsetCollate): string
     {
-        $fk = self::foreignKey($foreignKey, 'post_id', $postsTable, 'ID');
-
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    post_id                bigint unsigned  NOT NULL,
-    meta_key               varchar(191)     NOT NULL,
-    meta_key_hash          binary(32)       NOT NULL,
-    context                text             NULL,
-    context_hash           binary(32)       NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (post_id, meta_key_hash, context_hash, original_hash),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    post_id bigint unsigned NOT NULL,
+    meta_key varchar(191) NOT NULL,
+    meta_key_hash binary(32) NOT NULL,
+    context text NULL,
+    context_hash binary(32) NOT NULL,
+    original_hash binary(32) NOT NULL,
+    original_text longtext NOT NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_source (post_id,meta_key_hash,context_hash,original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id){$fk}
+    KEY idx_queue (status,id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -105,91 +96,83 @@ final class TableDefinitions
      * Owner FK to wp_terms(term_id) — matches get_term_meta()/update_term_meta()'s own
      * relationship, distinct from wp_lingowp_term's FK to wp_term_taxonomy.
      */
-    public static function termMeta(string $table, string $termsTable, string $charsetCollate, bool $foreignKey = true): string
+    public static function termMeta(string $table, string $charsetCollate): string
     {
-        $fk = self::foreignKey($foreignKey, 'term_id', $termsTable, 'term_id');
-
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    term_id                bigint unsigned  NOT NULL,
-    meta_key               varchar(191)     NOT NULL,
-    meta_key_hash          binary(32)       NOT NULL,
-    context                text             NULL,
-    context_hash           binary(32)       NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (term_id, meta_key_hash, context_hash, original_hash),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    term_id bigint unsigned NOT NULL,
+    meta_key varchar(191) NOT NULL,
+    meta_key_hash binary(32) NOT NULL,
+    context text NULL,
+    context_hash binary(32) NOT NULL,
+    original_hash binary(32) NOT NULL,
+    original_text longtext NOT NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_source (term_id,meta_key_hash,context_hash,original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id){$fk}
+    KEY idx_queue (status,id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_option — identity (option_id, option_path_hash, original_hash). Owner FK to wp_options. */
-    public static function option(string $table, string $optionsTable, string $charsetCollate, bool $foreignKey = true): string
+    public static function option(string $table, string $charsetCollate): string
     {
-        $fk = self::foreignKey($foreignKey, 'option_id', $optionsTable, 'option_id');
-
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    option_id              bigint unsigned  NOT NULL,
-    option_name            varchar(191)     NOT NULL,
-    option_path            text             NULL,
-    option_path_hash       binary(32)       NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (option_id, option_path_hash, original_hash),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    option_id bigint unsigned NOT NULL,
+    option_name varchar(191) NOT NULL,
+    option_path text NULL,
+    option_path_hash binary(32) NOT NULL,
+    original_hash binary(32) NOT NULL,
+    original_text longtext NOT NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_source (option_id,option_path_hash,original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id){$fk}
+    KEY idx_queue (status,id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_term — identity (term_taxonomy_id, field, original_hash). */
-    public static function term(string $table, string $termTaxonomyTable, string $charsetCollate, bool $foreignKey = true): string
+    public static function term(string $table, string $charsetCollate): string
     {
-        $fk = self::foreignKey($foreignKey, 'term_taxonomy_id', $termTaxonomyTable, 'term_taxonomy_id');
-
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    term_taxonomy_id       bigint unsigned  NOT NULL,
-    field                  varchar(32)      NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (term_taxonomy_id, field, original_hash),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    term_taxonomy_id bigint unsigned NOT NULL,
+    field varchar(32) NOT NULL,
+    original_hash binary(32) NOT NULL,
+    original_text longtext NOT NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_source (term_taxonomy_id,field,original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id){$fk}
+    KEY idx_queue (status,id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
     /** wp_lingowp_user — identity (user_id, field, original_hash). Owner FK to wp_users. */
-    public static function user(string $table, string $usersTable, string $charsetCollate, bool $foreignKey = true): string
+    public static function user(string $table, string $charsetCollate): string
     {
-        $fk = self::foreignKey($foreignKey, 'user_id', $usersTable, 'ID');
-
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    user_id                bigint unsigned  NOT NULL,
-    field                  varchar(32)      NOT NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_source (user_id, field, original_hash),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    user_id bigint unsigned NOT NULL,
+    field varchar(32) NOT NULL,
+    original_hash binary(32) NOT NULL,
+    original_text longtext NOT NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_source (user_id,field,original_hash),
     KEY idx_hash (original_hash),
-    KEY idx_queue (status, id){$fk}
+    KEY idx_queue (status,id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -212,19 +195,19 @@ final class TableDefinitions
      */
     public static function html(string $table, string $charsetCollate): string
     {
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    selector               varchar(255)     NOT NULL,
-    source_url             text             NULL,
-    original_hash          binary(32)       NOT NULL,
-    original_text          longtext         NOT NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    last_seen_at           datetime         NULL,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    selector varchar(255) NOT NULL,
+    source_url text NULL,
+    original_hash binary(32) NOT NULL,
+    original_text longtext NOT NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    last_seen_at datetime NULL,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
     UNIQUE KEY uniq_source (original_hash),
-    KEY idx_queue (status, id)
+    KEY idx_queue (status,id)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -236,20 +219,20 @@ final class TableDefinitions
      */
     public static function hashLinkTranslation(string $table, string $charsetCollate): string
     {
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                bigint unsigned  NOT NULL AUTO_INCREMENT,
-    original_hash     binary(32)       NOT NULL,
-    lang_code         varchar(20)      NOT NULL,
-    translated_text   longtext         NULL,
-    status            tinyint          NOT NULL DEFAULT 1,
-    provider          varchar(50)      NULL,
-    ai_pending_since  datetime         NULL,
-    ai_error          varchar(190)     NULL,
-    created_at        datetime         NOT NULL,
-    updated_at        datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_translation (original_hash, lang_code),
-    KEY idx_queue (lang_code, status, id),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    original_hash binary(32) NOT NULL,
+    lang_code varchar(20) NOT NULL,
+    translated_text longtext NULL,
+    status tinyint NOT NULL DEFAULT 1,
+    provider varchar(50) NULL,
+    ai_pending_since datetime NULL,
+    ai_error varchar(190) NULL,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_translation (original_hash,lang_code),
+    KEY idx_queue (lang_code,status,id),
     KEY idx_ai_pending (ai_pending_since)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
@@ -258,29 +241,23 @@ final class TableDefinitions
      * parent_id child (meta): one translation per (parent_id, lang_code). The
      * position owns its translation; parent deletion cascades.
      */
-    public static function parentIdTranslation(
-        string $table,
-        string $parentTable,
-        string $charsetCollate,
-        bool $foreignKey = true
-    ): string {
-        $fk = self::foreignKey($foreignKey, 'parent_id', $parentTable, 'id');
-
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                bigint unsigned  NOT NULL AUTO_INCREMENT,
-    parent_id         bigint unsigned  NOT NULL,
-    lang_code         varchar(20)      NOT NULL,
-    translated_text   longtext         NULL,
-    status            tinyint          NOT NULL DEFAULT 1,
-    provider          varchar(50)      NULL,
-    ai_pending_since  datetime         NULL,
-    ai_error          varchar(190)     NULL,
-    created_at        datetime         NOT NULL,
-    updated_at        datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_translation (parent_id, lang_code),
-    KEY idx_queue (lang_code, status, id),
-    KEY idx_ai_pending (ai_pending_since){$fk}
+    public static function parentIdTranslation(string $table, string $charsetCollate): string
+    {
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    parent_id bigint unsigned NOT NULL,
+    lang_code varchar(20) NOT NULL,
+    translated_text longtext NULL,
+    status tinyint NOT NULL DEFAULT 1,
+    provider varchar(50) NULL,
+    ai_pending_since datetime NULL,
+    ai_error varchar(190) NULL,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_translation (parent_id,lang_code),
+    KEY idx_queue (lang_code,status,id),
+    KEY idx_ai_pending (ai_pending_since)
 ) ENGINE=InnoDB {$charsetCollate}";
     }
 
@@ -321,39 +298,26 @@ final class TableDefinitions
      */
     public static function gettextUnit(string $table, string $charsetCollate): string
     {
-        return "CREATE TABLE IF NOT EXISTS {$table} (
-    id                     bigint unsigned  NOT NULL AUTO_INCREMENT,
-    type                   varchar(10)      NOT NULL,
-    domain                 varchar(191)     NOT NULL,
-    unit_hash              binary(32)       NOT NULL,
-    norm_hash              binary(32)       NULL,
-    msgid                  longtext         NOT NULL,
-    context                text             NULL,
-    status                 tinyint          NOT NULL DEFAULT 0,
-    ai_pending_locales     varchar(255)     NOT NULL DEFAULT '',
-    ai_pending_since       datetime         NULL,
-    ai_error               varchar(190)     NULL,
-    last_seen_at           datetime         NULL,
-    created_at             datetime         NOT NULL,
-    updated_at             datetime         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_unit (type, domain, unit_hash),
-    KEY idx_domain_status (type, domain, status, id),
+        return "CREATE TABLE {$table} (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    type varchar(10) NOT NULL,
+    domain varchar(191) NOT NULL,
+    unit_hash binary(32) NOT NULL,
+    norm_hash binary(32) NULL,
+    msgid longtext NOT NULL,
+    context text NULL,
+    status tinyint NOT NULL DEFAULT 0,
+    ai_pending_locales varchar(255) NOT NULL DEFAULT '',
+    ai_pending_since datetime NULL,
+    ai_error varchar(190) NULL,
+    last_seen_at datetime NULL,
+    created_at datetime NOT NULL,
+    updated_at datetime NOT NULL,
+    PRIMARY KEY  (id),
+    UNIQUE KEY uniq_unit (type,domain,unit_hash),
+    KEY idx_domain_status (type,domain,status,id),
     KEY idx_ai_pending (ai_pending_since),
     KEY idx_ai_norm (norm_hash)
 ) ENGINE=InnoDB {$charsetCollate}";
-    }
-
-    /**
-     * The trailing `ON DELETE CASCADE` clause linking a table to its owner, or
-     * nothing when foreign keys are not used on this database.
-     */
-    private static function foreignKey(bool $enabled, string $column, string $referencedTable, string $referencedColumn): string
-    {
-        if (!$enabled) {
-            return '';
-        }
-
-        return ",\n    FOREIGN KEY ({$column})\n        REFERENCES {$referencedTable} ({$referencedColumn}) ON DELETE CASCADE";
     }
 }

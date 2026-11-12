@@ -118,35 +118,74 @@ final class WpDbSourceRepository
             return 0;
         }
 
-        $table   = $this->parent($tableKey);
-        $columns = array_keys($records[0]->row());
-        $now     = current_time('mysql');
-        // Column names go through %i like the table: identifiers, never values.
-        $colNames = array_merge($columns, ['status', 'created_at', 'updated_at']);
-        $colList  = implode(', ', array_fill(0, count($colNames), '%i'));
-        $count   = 0;
+        $table = $this->parent($tableKey);
+        $now   = current_time('mysql');
+        $count = 0;
 
         foreach (array_chunk($records, self::INSERT_CHUNK) as $chunk) {
-            $tuples = [];
-            $args   = [];
-            foreach ($chunk as $record) {
-                $row   = $record->row();
-                $cells = [];
-                foreach ($columns as $column) {
-                    $cells[] = $this->cell($column, $row[$column], $args);
-                }
-                $cells[]  = (string) TranslationStatus::SOURCE_DISCOVERED;
-                $cells[]  = '%s';
-                $cells[]  = '%s';
-                $args[]   = $now;
-                $args[]   = $now;
-                $tuples[] = '(' . implode(', ', $cells) . ')';
+            // One INSERT per table shape, written out: the column list, and one
+            // row of placeholders per record. Binary *_hash columns go in as
+            // hex through UNHEX(); a nullable text column ('' or null) is
+            // stored as NULL through NULLIF(), since prepare() cannot bind NULL.
+            switch ($tableKey) {
+                case 'post':
+                    $columns      = ['post_id', 'field', 'original_hash', 'original_text'];
+                    $placeholders = implode(', ', array_fill(0, count($chunk), '(%d, %s, UNHEX(%s), %s, %d, %s, %s)'));
+                    $sql          = "INSERT IGNORE INTO %i (post_id, field, original_hash, original_text, status, created_at, updated_at)
+                                     VALUES {$placeholders}";
+                    break;
+                case 'term':
+                    $columns      = ['term_taxonomy_id', 'field', 'original_hash', 'original_text'];
+                    $placeholders = implode(', ', array_fill(0, count($chunk), '(%d, %s, UNHEX(%s), %s, %d, %s, %s)'));
+                    $sql          = "INSERT IGNORE INTO %i (term_taxonomy_id, field, original_hash, original_text, status, created_at, updated_at)
+                                     VALUES {$placeholders}";
+                    break;
+                case 'user':
+                    $columns      = ['user_id', 'field', 'original_hash', 'original_text'];
+                    $placeholders = implode(', ', array_fill(0, count($chunk), '(%d, %s, UNHEX(%s), %s, %d, %s, %s)'));
+                    $sql          = "INSERT IGNORE INTO %i (user_id, field, original_hash, original_text, status, created_at, updated_at)
+                                     VALUES {$placeholders}";
+                    break;
+                case 'meta':
+                    $columns      = ['post_id', 'meta_key_hash', 'context_hash', 'original_hash', 'meta_key', 'context', 'original_text'];
+                    $placeholders = implode(', ', array_fill(0, count($chunk), "(%d, UNHEX(%s), UNHEX(%s), UNHEX(%s), %s, NULLIF(%s, ''), %s, %d, %s, %s)"));
+                    $sql          = "INSERT IGNORE INTO %i (post_id, meta_key_hash, context_hash, original_hash, meta_key, context, original_text, status, created_at, updated_at)
+                                     VALUES {$placeholders}";
+                    break;
+                case 'term_meta':
+                    $columns      = ['term_id', 'meta_key_hash', 'context_hash', 'original_hash', 'meta_key', 'context', 'original_text'];
+                    $placeholders = implode(', ', array_fill(0, count($chunk), "(%d, UNHEX(%s), UNHEX(%s), UNHEX(%s), %s, NULLIF(%s, ''), %s, %d, %s, %s)"));
+                    $sql          = "INSERT IGNORE INTO %i (term_id, meta_key_hash, context_hash, original_hash, meta_key, context, original_text, status, created_at, updated_at)
+                                     VALUES {$placeholders}";
+                    break;
+                case 'option':
+                    $columns      = ['option_id', 'option_path_hash', 'original_hash', 'option_name', 'option_path', 'original_text'];
+                    $placeholders = implode(', ', array_fill(0, count($chunk), '(%d, UNHEX(%s), UNHEX(%s), %s, %s, %s, %d, %s, %s)'));
+                    $sql          = "INSERT IGNORE INTO %i (option_id, option_path_hash, original_hash, option_name, option_path, original_text, status, created_at, updated_at)
+                                     VALUES {$placeholders}";
+                    break;
+                case 'html':
+                    $columns      = ['original_hash', 'selector', 'source_url', 'original_text'];
+                    $placeholders = implode(', ', array_fill(0, count($chunk), "(UNHEX(%s), %s, NULLIF(%s, ''), %s, %d, %s, %s)"));
+                    $sql          = "INSERT IGNORE INTO %i (original_hash, selector, source_url, original_text, status, created_at, updated_at)
+                                     VALUES {$placeholders}";
+                    break;
+                default:
+                    throw new \RuntimeException('Unknown source table: ' . esc_html($tableKey));
             }
 
-            $sql = "INSERT IGNORE INTO %i ({$colList}) VALUES " . implode(', ', $tuples);
+            $args = [$table];
+            foreach ($chunk as $record) {
+                $row = $record->row();
+                foreach ($columns as $column) {
+                    $value  = $row[$column] ?? '';
+                    $args[] = $this->isBinaryColumn($column) ? bin2hex((string) $value) : $value;
+                }
+                array_push($args, TranslationStatus::SOURCE_DISCOVERED, $now, $now);
+            }
 
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $result = $this->wpdb->query($this->wpdb->prepare($sql, $table, ...$colNames, ...$args));
+            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- $placeholders is a list of placeholders only; table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            $result = $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
             // phpcs:enable
             if (is_int($result) && $result > 0) {
                 $count += $result;
@@ -175,25 +214,24 @@ final class WpDbSourceRepository
 
         $table = $this->parent('html');
         foreach (array_chunk($records, self::INSERT_CHUNK) as $chunk) {
-            $selects = [];
-            $args    = [];
+            // One "SELECT hash, url" row of placeholders per record, joined as
+            // a derived table of incoming values.
+            $placeholders = implode(' UNION ALL ', array_fill(0, count($chunk), 'SELECT UNHEX(%s) AS original_hash, %s AS source_url'));
+            $args         = [$table];
             foreach ($chunk as $record) {
                 /** @var HtmlSource $record */
-                $identity  = $record->identity();
-                $selects[] = 'SELECT UNHEX(%s) AS original_hash, %s AS source_url';
-                $args[]    = bin2hex($identity['original_hash']);
-                $args[]    = $record->sourceUrl();
+                $args[] = bin2hex($record->identity()['original_hash']);
+                $args[] = $record->sourceUrl();
             }
 
-            $incoming = implode(' UNION ALL ', $selects);
-            $sql = "UPDATE %i p
-                    INNER JOIN ({$incoming}) incoming
-                       ON incoming.original_hash = p.original_hash
-                    SET p.source_url = incoming.source_url
-                    WHERE NOT (p.source_url <=> incoming.source_url)";
-
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $this->wpdb->query($this->wpdb->prepare($sql, $table, ...$args));
+            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- $placeholders is a list of placeholders only; table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            $this->wpdb->query($this->wpdb->prepare(
+                "UPDATE %i p
+                 INNER JOIN ({$placeholders}) incoming ON incoming.original_hash = p.original_hash
+                 SET p.source_url = incoming.source_url
+                 WHERE NOT (p.source_url <=> incoming.source_url)",
+                ...$args
+            ));
             // phpcs:enable
         }
     }
@@ -270,62 +308,8 @@ final class WpDbSourceRepository
 
 
     /**
-     * Render read for parent_id types (meta): join each parent lookup
-     * (parent.status = 0) to its child for $langCode. Keyed by
-     * IdentityKey::of(lookup) => translated_text.
-     *
-     * @param string                           $parentTableKey e.g. 'meta'
-     * @param array<int, array<string,scalar>> $lookups        list of identity-column maps
-     * @return array<string, string>
-     */
-    public function fetchParentTranslations(string $parentTableKey, array $lookups, string $langCode): array
-    {
-        if ($lookups === [] || $langCode === '') {
-            return [];
-        }
-
-        $parent  = $this->parent($parentTableKey);
-        $child   = $parent . '_translation';
-        $columns = array_keys($lookups[0]);
-        [$select, $selectArgs] = $this->selectIdentity($columns);
-        $columnList            = '(' . implode(', ', array_fill(0, count($columns), '%i')) . ')';
-        $out                   = [];
-
-        foreach (array_chunk($lookups, self::SELECT_CHUNK) as $chunk) {
-            $tuples = [];
-            $values = [];
-            foreach ($chunk as $lookup) {
-                $cells = [];
-                foreach ($columns as $column) {
-                    $cells[] = $this->cell($column, $lookup[$column], $values);
-                }
-                $tuples[] = '(' . implode(', ', $cells) . ')';
-            }
-            $tupleList = $columnList . ' IN (' . implode(', ', $tuples) . ')';
-            // In query order: SELECT columns, parent, child, language, tuple columns, tuple values.
-            $args = array_merge($selectArgs, [$parent, $child, $langCode], $columns, $values);
-
-            $sql = "SELECT {$select}, tr.translated_text AS test_text
-                    FROM %i p
-                    INNER JOIN %i tr ON tr.parent_id = p.id AND tr.lang_code = %s
-                        AND tr.translated_text IS NOT NULL
-                    WHERE p.status = 0 AND {$tupleList}";
-
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
-            // phpcs:enable
-            foreach ((array) $rows as $row) {
-                $out[$this->rowIdentityKey($columns, $row)] = (string) $row['test_text'];
-            }
-        }
-
-        return $out;
-    }
-
-    /**
-     * Render read for parent_id types, widened past a single leaf: unlike
-     * fetchParentTranslations(), $lookups omit context_hash (just the owner
-     * column + meta_key_hash), so this returns EVERY context row under that
+     * Render read for parent_id types: $lookups name a location (the owner
+     * column + meta_key_hash, no context_hash), so this returns EVERY context row under that
      * location — a render lookup doesn't know in advance whether a value
      * holds one leaf (a plain scalar, context '') or many (a repeater, a JSON
      * blob), so it has to ask for all of them and let the caller decide.
@@ -340,40 +324,51 @@ final class WpDbSourceRepository
             return [];
         }
 
-        $parent  = $this->parent($parentTableKey);
-        $child   = $parent . '_translation';
-        $columns = array_keys($lookups[0]);
-        [$select, $selectArgs] = $this->selectIdentity($columns);
-        $columnList            = '(' . implode(', ', array_fill(0, count($columns), '%i')) . ')';
-        $out                   = [];
+        $parent   = $this->parent($parentTableKey);
+        $child    = $parent . '_translation';
+        $ownerCol = (string) array_key_first($lookups[0]); // post_id (meta) or term_id (term_meta)
+        $out      = [];
 
         foreach (array_chunk($lookups, self::SELECT_CHUNK) as $chunk) {
-            $tuples = [];
-            $values = [];
+            $wanted = [];
+            $owners = [];
+            $keys   = [];
             foreach ($chunk as $lookup) {
-                $cells = [];
-                foreach ($columns as $column) {
-                    $cells[] = $this->cell($column, $lookup[$column], $values);
-                }
-                $tuples[] = '(' . implode(', ', $cells) . ')';
+                $wanted[IdentityKey::of($lookup)]                = true;
+                $owners[(int) $lookup[$ownerCol]]                = true;
+                $keys[bin2hex((string) $lookup['meta_key_hash'])] = true;
             }
-            $tupleList = $columnList . ' IN (' . implode(', ', $tuples) . ')';
-            // In query order: SELECT columns, parent, child, language, tuple columns, tuple values.
-            $args = array_merge($selectArgs, [$parent, $child, $langCode], $columns, $values);
+            $owners = array_keys($owners);
+            $keys   = array_keys($keys);
 
-            $sql = "SELECT {$select}, p.context AS context, tr.translated_text AS translated_text
-                    FROM %i p
-                    INNER JOIN %i tr ON tr.parent_id = p.id AND tr.lang_code = %s
-                        AND tr.translated_text IS NOT NULL
-                    WHERE p.status = 0 AND {$tupleList}";
+            // Owners IN (…) AND keys IN (…) can also match an owner/key pair
+            // nobody asked for; those rows are dropped below by $wanted.
+            $ownerPlaceholders = implode(', ', array_fill(0, count($owners), '%d'));
+            $keyPlaceholders   = implode(', ', array_fill(0, count($keys), 'UNHEX(%s)'));
 
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $rows = $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A);
+            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- the two $…Placeholders are lists of placeholders only; table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            $rows = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT p.%i AS owner_id, p.meta_key_hash AS meta_key_hash, p.context AS context,
+                        tr.translated_text AS translated_text
+                 FROM %i p
+                 INNER JOIN %i tr ON tr.parent_id = p.id AND tr.lang_code = %s AND tr.translated_text IS NOT NULL
+                 WHERE p.status = %d AND p.%i IN ({$ownerPlaceholders}) AND p.meta_key_hash IN ({$keyPlaceholders})",
+                $ownerCol,
+                $parent,
+                $child,
+                $langCode,
+                TranslationStatus::SOURCE_DISCOVERED,
+                $ownerCol,
+                ...$owners,
+                ...$keys
+            ), ARRAY_A);
             // phpcs:enable
+
             foreach ((array) $rows as $row) {
-                $identityKey = $this->rowIdentityKey($columns, $row);
-                $context     = (string) ($row['context'] ?? '');
-                $out[$identityKey][$context] = (string) $row['translated_text'];
+                $identityKey = IdentityKey::of([$ownerCol => $row['owner_id'], 'meta_key_hash' => $row['meta_key_hash']]);
+                if (isset($wanted[$identityKey])) {
+                    $out[$identityKey][(string) ($row['context'] ?? '')] = (string) $row['translated_text'];
+                }
             }
         }
 
@@ -884,14 +879,10 @@ final class WpDbSourceRepository
         // post_title/post_excerpt.
         $isMeta = in_array($ref->parentTableKey(), TranslationMemorySchema::PARENT_ID_CHILD_FKS, true);
         $isPost = $ref->kind === 'post';
-        $columns  = $isMeta ? ['original_text', 'meta_key'] : ($isPost ? ['original_text', 'field', 'post_id'] : ['original_text']);
-        $selected = implode(', ', array_fill(0, count($columns), '%i'));
-        $sql      = "SELECT {$selected} FROM %i WHERE id = %d AND status = %d";
-        $args     = array_merge($columns, [$parent, $ref->id, TranslationStatus::SOURCE_DISCOVERED]);
 
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $row = $this->wpdb->get_row( // phpcs:ignore WordPress.DB
-            $this->wpdb->prepare($sql, ...$args),
+            $this->wpdb->prepare('SELECT * FROM %i WHERE id = %d AND status = %d', $parent, $ref->id, TranslationStatus::SOURCE_DISCOVERED),
             ARRAY_A
         );
         // phpcs:enable
@@ -937,7 +928,7 @@ final class WpDbSourceRepository
 
         $parent = $this->parent('meta');
         $child  = $parent . '_translation';
-        $keySet = implode(', ', array_fill(0, count($metaKeys), '%s'));
+        $placeholders = implode(', ', array_fill(0, count($metaKeys), '%s'));
 
         $sql = "SELECT p.meta_key AS meta_key, p.original_text AS original_text,
                        t.translated_text AS translated_text
@@ -945,7 +936,7 @@ final class WpDbSourceRepository
                 LEFT JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s
                 WHERE p.post_id = %d AND p.status = %d
                   AND p.context_hash = UNHEX(%s)
-                  AND p.meta_key IN ({$keySet})";
+                  AND p.meta_key IN ({$placeholders})";
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
@@ -985,8 +976,32 @@ final class WpDbSourceRepository
      */
     public function hasAnyTranslation(int $postId, string $langCode): bool
     {
-        return $this->existsTranslatedChild('post', false, $postId, $langCode)
-            || $this->existsTranslatedChild('meta', true, $postId, $langCode);
+        $postParent = $this->parent('post');
+        $metaParent = $this->parent('meta');
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        return (bool) $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT EXISTS(
+                 SELECT 1 FROM %i p
+                 JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s AND t.translated_text IS NOT NULL
+                 WHERE p.post_id = %d AND p.status = %d
+             ) OR EXISTS(
+                 SELECT 1 FROM %i p
+                 JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s AND t.translated_text IS NOT NULL
+                 WHERE p.post_id = %d AND p.status = %d
+             )",
+            $postParent,
+            $postParent . '_translation',
+            $langCode,
+            $postId,
+            TranslationStatus::SOURCE_DISCOVERED,
+            $metaParent,
+            $metaParent . '_translation',
+            $langCode,
+            $postId,
+            TranslationStatus::SOURCE_DISCOVERED
+        ));
+        // phpcs:enable
     }
 
     /**
@@ -998,51 +1013,37 @@ final class WpDbSourceRepository
      */
     public function translatedPostIds(string $langCode): array
     {
+        $postParent = $this->parent('post');
+        $metaParent = $this->parent('meta');
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        $postIds = (array) $this->wpdb->get_col($this->wpdb->prepare(
+            "SELECT DISTINCT p.post_id FROM %i p
+             JOIN %i t ON t.original_hash = p.original_hash AND t.lang_code = %s AND t.translated_text IS NOT NULL
+             WHERE p.status = %d",
+            $postParent,
+            $postParent . '_translation',
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ));
+        $metaIds = (array) $this->wpdb->get_col($this->wpdb->prepare(
+            "SELECT DISTINCT p.post_id FROM %i p
+             JOIN %i t ON t.parent_id = p.id AND t.lang_code = %s AND t.translated_text IS NOT NULL
+             WHERE p.status = %d",
+            $metaParent,
+            $metaParent . '_translation',
+            $langCode,
+            TranslationStatus::SOURCE_DISCOVERED
+        ));
+        // phpcs:enable
+
         $ids = [];
-        foreach (['post' => false, 'meta' => true] as $tableKey => $parentId) {
-            $parent = $this->parent($tableKey);
-            $child  = $parent . '_translation';
-            $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
-
-            $sql = "SELECT DISTINCT p.post_id FROM %i p
-                    JOIN %i t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
-                    WHERE p.status = %d";
-
-            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, $parent, $child, $langCode, TranslationStatus::SOURCE_DISCOVERED)) as $id) {
-            // phpcs:enable
-                $ids[(int) $id] = (int) $id;
-            }
+        foreach (array_merge($postIds, $metaIds) as $id) {
+            $ids[(int) $id] = (int) $id;
         }
 
         return array_values($ids);
     }
-
-    /** Cheap EXISTS check: does $postId have at least one translated child row in $langCode for this table? */
-    private function existsTranslatedChild(string $tableKey, bool $parentId, int $postId, string $langCode): bool
-    {
-        $parent = $this->parent($tableKey);
-        $child  = $parent . '_translation';
-        $join   = $parentId ? 't.parent_id = p.id' : 't.original_hash = p.original_hash';
-
-        $sql = "SELECT EXISTS(
-                    SELECT 1 FROM %i p
-                    JOIN %i t ON {$join} AND t.lang_code = %s AND t.translated_text IS NOT NULL
-                    WHERE p.post_id = %d AND p.status = %d
-                )";
-
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        return (bool) $this->wpdb->get_var($this->wpdb->prepare(
-            $sql,
-            $parent,
-            $child,
-            $langCode,
-            $postId,
-            TranslationStatus::SOURCE_DISCOVERED
-        ));
-        // phpcs:enable
-    }
-
 
     // ── translation writes ─────────────────────────────────────────────────────
 
@@ -1074,28 +1075,28 @@ final class WpDbSourceRepository
         // Clearing ai_pending_since/ai_error here means a successful AI apply
         // (queue delivery) and a manual save both land on the same "this
         // unit is settled, nothing pending" state in one statement.
-        $update = 'ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
-                       status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at),
-                       ai_pending_since = NULL, ai_error = NULL';
-
-        // parent_id: INSERT … SELECT guards against a missing parent.
-        $providerExpr = $provider === null ? 'NULL' : '%s';
-        $args         = [$child, $langCode, $text, $status];
-        if ($provider !== null) {
-            $args[] = $provider;
-        }
-        $args[] = $now;
-        $args[] = $now;
-        $args[] = $this->parent($tableKey);
-        $args[] = $ref->id;
-
-        $sql = "INSERT INTO %i
-                    (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
-                SELECT p.id, %s, %s, %d, {$providerExpr}, %s, %s
-                FROM %i p WHERE p.id = %d {$update}";
-
-        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        return $this->wpdb->query($this->wpdb->prepare($sql, ...$args)) !== false;
+        // INSERT … SELECT guards against a missing parent. A null provider
+        // (a manual save) is stored as NULL through NULLIF(): prepare()
+        // cannot bind a NULL.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        return $this->wpdb->query($this->wpdb->prepare(
+            "INSERT INTO %i
+                 (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
+             SELECT p.id, %s, %s, %d, NULLIF(%s, ''), %s, %s
+             FROM %i p WHERE p.id = %d
+             ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
+                 status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at),
+                 ai_pending_since = NULL, ai_error = NULL",
+            $child,
+            $langCode,
+            $text,
+            $status,
+            (string) $provider,
+            $now,
+            $now,
+            $this->parent($tableKey),
+            $ref->id
+        )) !== false;
         // phpcs:enable
     }
 
@@ -1107,17 +1108,12 @@ final class WpDbSourceRepository
         $child = $this->parent($tableKey) . '_translation';
         $now   = current_time('mysql');
 
-        $providerExpr = $provider === null ? 'NULL' : '%s';
-        $args         = [$child, $hashHex, $langCode, $text, $status];
-        if ($provider !== null) {
-            $args[] = $provider;
-        }
-        $args[] = $now;
-        $args[] = $now;
+        $args = [$child, $hashHex, $langCode, $text, $status, (string) $provider, $now, $now];
 
+        // A null provider (a manual save) is stored as NULL through NULLIF().
         $sql = "INSERT INTO %i
                     (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
-                VALUES (UNHEX(%s), %s, %s, %d, {$providerExpr}, %s, %s)
+                VALUES (UNHEX(%s), %s, %s, %d, NULLIF(%s, ''), %s, %s)
                 ON DUPLICATE KEY UPDATE translated_text = VALUES(translated_text),
                     status = VALUES(status), provider = VALUES(provider), updated_at = VALUES(updated_at),
                     ai_pending_since = NULL, ai_error = NULL";
@@ -1843,8 +1839,8 @@ final class WpDbSourceRepository
     public function reconcilePost(int $postId, array $records): void
     {
         $byTable = $this->groupByTable($records);
-        $this->reconcileScope('post', 'post_id = %d', [$postId], $byTable['post'] ?? []);
-        $this->reconcileScope('meta', 'post_id = %d', [$postId], $byTable['meta'] ?? []);
+        $this->reconcileScope('post', 'post_id', $postId, null, $byTable['post'] ?? []);
+        $this->reconcileScope('meta', 'post_id', $postId, null, $byTable['meta'] ?? []);
     }
 
     /**
@@ -1854,12 +1850,7 @@ final class WpDbSourceRepository
      */
     public function reconcilePostMetaKey(int $postId, string $metaKey, array $records): void
     {
-        $this->reconcileScope(
-            'meta',
-            'post_id = %d AND meta_key_hash = UNHEX(%s)',
-            [$postId, bin2hex(hash('sha256', $metaKey, true))],
-            $records
-        );
+        $this->reconcileScope('meta', 'post_id', $postId, $metaKey, $records);
     }
 
     /**
@@ -1869,7 +1860,7 @@ final class WpDbSourceRepository
      */
     public function reconcileTerm(int $termTaxonomyId, array $records): void
     {
-        $this->reconcileScope('term', 'term_taxonomy_id = %d', [$termTaxonomyId], $records);
+        $this->reconcileScope('term', 'term_taxonomy_id', $termTaxonomyId, null, $records);
     }
 
     /**
@@ -1881,7 +1872,7 @@ final class WpDbSourceRepository
      */
     public function reconcileTermMeta(int $termId, array $records): void
     {
-        $this->reconcileScope('term_meta', 'term_id = %d', [$termId], $records);
+        $this->reconcileScope('term_meta', 'term_id', $termId, null, $records);
     }
 
     /**
@@ -1896,12 +1887,7 @@ final class WpDbSourceRepository
      */
     public function reconcileTermMetaKey(int $termId, string $metaKey, array $records): void
     {
-        $this->reconcileScope(
-            'term_meta',
-            'term_id = %d AND meta_key_hash = UNHEX(%s)',
-            [$termId, bin2hex(hash('sha256', $metaKey, true))],
-            $records
-        );
+        $this->reconcileScope('term_meta', 'term_id', $termId, $metaKey, $records);
     }
 
     /**
@@ -1913,7 +1899,7 @@ final class WpDbSourceRepository
      */
     public function reconcileOption(int $optionId, array $records): void
     {
-        $this->reconcileScope('option', 'option_id = %d', [$optionId], $records);
+        $this->reconcileScope('option', 'option_id', $optionId, null, $records);
     }
 
     /**
@@ -1925,7 +1911,7 @@ final class WpDbSourceRepository
      */
     public function reconcileUser(int $userId, array $records): void
     {
-        $this->reconcileScope('user', 'user_id = %d', [$userId], $records);
+        $this->reconcileScope('user', 'user_id', $userId, null, $records);
     }
 
     /**
@@ -1953,18 +1939,35 @@ final class WpDbSourceRepository
      * hash-link orphan children are reclaimed by the sweep, parent_id children
      * cascade.
      *
-     * @param array<int, string|int> $scopeArgs
-     * @param SourceRecord[]         $records
+     * The scope is one owner (the $ownerColumn = $ownerId rows of the table),
+     * narrowed to one meta key when $metaKey is given (meta and term_meta only).
+     *
+     * @param SourceRecord[] $records
      */
-    private function reconcileScope(string $tableKey, string $scopeSql, array $scopeArgs, array $records): void
+    private function reconcileScope(string $tableKey, string $ownerColumn, int $ownerId, ?string $metaKey, array $records): void
     {
         $parent = $this->parent($tableKey);
 
         if ($records === []) {
-            $sql  = "DELETE FROM %i WHERE {$scopeSql} AND status = %d";
-            $args = array_merge([$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED]);
-            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-            $this->wpdb->query($this->wpdb->prepare($sql, ...$args));
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+            if ($metaKey === null) {
+                $this->wpdb->query($this->wpdb->prepare(
+                    'DELETE FROM %i WHERE %i = %d AND status = %d',
+                    $parent,
+                    $ownerColumn,
+                    $ownerId,
+                    TranslationStatus::SOURCE_DISCOVERED
+                ));
+            } else {
+                $this->wpdb->query($this->wpdb->prepare(
+                    'DELETE FROM %i WHERE %i = %d AND meta_key_hash = UNHEX(%s) AND status = %d',
+                    $parent,
+                    $ownerColumn,
+                    $ownerId,
+                    bin2hex(hash('sha256', $metaKey, true)),
+                    TranslationStatus::SOURCE_DISCOVERED
+                ));
+            }
             // phpcs:enable
             return;
         }
@@ -1974,7 +1977,10 @@ final class WpDbSourceRepository
 
         // Snapshot what is already here BEFORE inserting, so a row can be
         // recognised as this pass's insertion rather than a pre-existing sibling.
-        $preExisting = $this->existingIdentityKeys($tableKey, $scopeSql, $scopeArgs, $identityCols);
+        $preExisting = [];
+        foreach ($this->scopeRows($parent, $ownerColumn, $ownerId, $metaKey) as $row) {
+            $preExisting[IdentityKey::of($this->pick($row, $identityCols))] = true;
+        }
 
         $this->insertParents($tableKey, $records);
 
@@ -1983,26 +1989,17 @@ final class WpDbSourceRepository
             $current[IdentityKey::of($record->identity())] = true;
         }
 
-        [$select, $selectArgs] = $this->identityColumns(array_merge(['id'], $identityCols));
-        $sql = "SELECT {$select} FROM %i WHERE {$scopeSql} AND status = %d";
-
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $rows = (array) $this->wpdb->get_results(
-            $this->wpdb->prepare($sql, ...array_merge($selectArgs, [$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])),
-            ARRAY_A
-        );
-        // phpcs:enable
+        $rows = $this->scopeRows($parent, $ownerColumn, $ownerId, $metaKey);
 
         $currentByLocation = [];
         $staleByLocation   = [];
         $staleIds          = [];
 
         foreach ($rows as $row) {
-            $row      = (array) $row;
-            $identity = $this->decodeIdentity($identityCols, $row);
+            $identity = $this->pick($row, $identityCols);
             $idKey    = IdentityKey::of($identity);
             $locKey   = IdentityKey::of($this->only($identity, $locationCols));
-            $entry    = ['id' => (int) $row['id'], 'hash' => strtolower((string) $row['original_hash'])];
+            $entry    = ['id' => (int) $row['id'], 'hash' => bin2hex((string) $row['original_hash'])];
 
             if (isset($current[$idKey])) {
                 $entry['isNew']               = !isset($preExisting[$idKey]);
@@ -2035,35 +2032,38 @@ final class WpDbSourceRepository
     }
 
     /**
-     * Identity keys already present in a scope. Captured before insertParents()
-     * so reconcileScope() can tell a row it just inserted from one that was
-     * already there — the difference between "this is the edit's replacement"
-     * and "this is an untouched sibling".
+     * Every still-discovered row in a reconcile scope, whole (binary columns
+     * raw, as stored). Read twice by reconcileScope(): before its insert, to
+     * tell a row it just inserted from one that was already there — the
+     * difference between "this is the edit's replacement" and "this is an
+     * untouched sibling" — and after it.
      *
-     * @param array<int, string|int> $scopeArgs
-     * @param string[]               $identityCols
-     * @return array<string, true>
+     * @return array<int, array<string, mixed>>
      */
-    private function existingIdentityKeys(string $tableKey, string $scopeSql, array $scopeArgs, array $identityCols): array
+    private function scopeRows(string $parent, string $ownerColumn, int $ownerId, ?string $metaKey): array
     {
-        $parent = $this->parent($tableKey);
-
-        [$select, $selectArgs] = $this->identityColumns($identityCols);
-        $sql = "SELECT {$select} FROM %i WHERE {$scopeSql} AND status = %d";
-
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
-        $rows = (array) $this->wpdb->get_results(
-            $this->wpdb->prepare($sql, ...array_merge($selectArgs, [$parent], $scopeArgs, [TranslationStatus::SOURCE_DISCOVERED])),
-            ARRAY_A
-        );
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
+        if ($metaKey === null) {
+            $rows = $this->wpdb->get_results($this->wpdb->prepare(
+                'SELECT * FROM %i WHERE %i = %d AND status = %d',
+                $parent,
+                $ownerColumn,
+                $ownerId,
+                TranslationStatus::SOURCE_DISCOVERED
+            ), ARRAY_A);
+        } else {
+            $rows = $this->wpdb->get_results($this->wpdb->prepare(
+                'SELECT * FROM %i WHERE %i = %d AND meta_key_hash = UNHEX(%s) AND status = %d',
+                $parent,
+                $ownerColumn,
+                $ownerId,
+                bin2hex(hash('sha256', $metaKey, true)),
+                TranslationStatus::SOURCE_DISCOVERED
+            ), ARRAY_A);
+        }
         // phpcs:enable
 
-        $keys = [];
-        foreach ($rows as $row) {
-            $keys[IdentityKey::of($this->decodeIdentity($identityCols, (array) $row))] = true;
-        }
-
-        return $keys;
+        return array_map(static fn ($row): array => (array) $row, (array) $rows);
     }
 
     /**
@@ -2153,79 +2153,19 @@ final class WpDbSourceRepository
     }
 
     /**
-     * Append one cell's placeholder + arg; binary (*_hash) uses UNHEX, NULL is literal.
+     * $row's values for $columns, in $columns' order — IdentityKey::of() is
+     * order-sensitive, and a row comes back in the table's column order.
      *
-     * @param mixed $value
+     * @param string[] $columns
      */
-    private function cell(string $column, $value, array &$args): string
+    private function pick(array $row, array $columns): array
     {
-        if ($value === null) {
-            return 'NULL';
-        }
-        if ($this->isBinaryColumn($column)) {
-            $args[] = bin2hex((string) $value);
-            return 'UNHEX(%s)';
-        }
-        $args[] = $value;
-        return '%s';
-    }
-
-    /**
-     * SELECT clause returning each identity column (HEX for binary), p-qualified,
-     * with every column name as a %i placeholder.
-     *
-     * @return array{0: string, 1: string[]} [SQL fragment, its identifier arguments in order]
-     */
-    private function selectIdentity(array $columns): array
-    {
-        $parts = [];
-        $args  = [];
+        $out = [];
         foreach ($columns as $column) {
-            $parts[] = $this->isBinaryColumn($column) ? 'HEX(p.%i) AS %i' : 'p.%i AS %i';
-            array_push($args, $column, $column);
+            $out[$column] = $row[$column];
         }
 
-        return [implode(', ', $parts), $args];
-    }
-
-    /**
-     * Unqualified column list (HEX for binary) with every name as a %i placeholder.
-     *
-     * @return array{0: string, 1: string[]} [SQL fragment, its identifier arguments in order]
-     */
-    private function identityColumns(array $columns): array
-    {
-        $parts = [];
-        $args  = [];
-        foreach ($columns as $column) {
-            if ($this->isBinaryColumn($column)) {
-                $parts[] = 'HEX(%i) AS %i';
-                array_push($args, $column, $column);
-            } else {
-                $parts[] = '%i';
-                $args[]  = $column;
-            }
-        }
-
-        return [implode(', ', $parts), $args];
-    }
-
-    /** Rebuild IdentityKey::of() for a returned row, decoding HEX binary columns. */
-    private function rowIdentityKey(array $columns, array $row): string
-    {
-        return IdentityKey::of($this->decodeIdentity($columns, $row));
-    }
-
-    /** Decode a returned parent row into its identity map (HEX → raw binary). */
-    private function decodeIdentity(array $columns, array $row): array
-    {
-        $identity = [];
-        foreach ($columns as $column) {
-            $value             = (string) $row[$column];
-            $identity[$column] = $this->isBinaryColumn($column) ? (hex2bin(strtolower($value)) ?: '') : $value;
-        }
-
-        return $identity;
+        return $out;
     }
 
     /** @param string[] $keys */

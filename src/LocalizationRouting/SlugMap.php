@@ -477,7 +477,7 @@ final class SlugMap
         if ($postTypes !== []) {
             $postParent = $parents['post'];
             $postChild  = $postParent . '_translation';
-            $statuses   = ScannablePostStatuses::ALL;
+            $placeholders = implode(', ', array_fill(0, count($postTypes), '%s'));
 
             $sql = "SELECT wp.ID AS owner_id, wp.post_name AS src, wp.post_title AS owner_text,
                            p.original_text AS original_text, c.translated_text AS dst
@@ -487,11 +487,11 @@ final class SlugMap
                     LEFT JOIN %i c
                            ON c.original_hash = p.original_hash AND c.lang_code = %s
                     WHERE wp.post_name <> ''
-                      AND wp.post_status IN (" . $this->placeholders($statuses) . ")
-                      AND wp.post_type IN (" . $this->placeholders($postTypes) . ')
-                    ORDER BY wp.ID';
+                      AND FIND_IN_SET(wp.post_status, %s)
+                      AND wp.post_type IN ({$placeholders})
+                    ORDER BY wp.ID";
 
-            $args = array_merge([$this->wpdb->posts, $postParent, $postChild, $lang], $statuses, $postTypes);
+            $args = array_merge([$this->wpdb->posts, $postParent, $postChild, $lang, ScannablePostStatuses::csv()], $postTypes);
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $postRows = (array) $this->wpdb->get_results($this->wpdb->prepare($sql, ...$args), ARRAY_A); // nosemgrep: wpdb-interpolated-sql -- table names from TranslationMemorySchema::parentTables()/$wpdb; every value is a placeholder
@@ -504,6 +504,7 @@ final class SlugMap
         if ($taxonomies !== []) {
             $termParent = $parents['term'];
             $termChild  = $termParent . '_translation';
+            $placeholders = implode(', ', array_fill(0, count($taxonomies), '%s'));
 
             $sql = "SELECT t.term_id AS owner_id, t.slug AS src, t.name AS owner_text,
                            p.original_text AS original_text, c.translated_text AS dst
@@ -514,8 +515,8 @@ final class SlugMap
                     LEFT JOIN %i c
                            ON c.original_hash = p.original_hash AND c.lang_code = %s
                     WHERE t.slug <> ''
-                      AND tt.taxonomy IN (" . $this->placeholders($taxonomies) . ')
-                    ORDER BY t.term_id';
+                      AND tt.taxonomy IN ({$placeholders})
+                    ORDER BY t.term_id";
 
             $args = array_merge([$this->wpdb->terms, $this->wpdb->term_taxonomy, $termParent, $termChild, $lang], $taxonomies);
 
@@ -644,10 +645,11 @@ final class SlugMap
         $slugs = [];
 
         if ($types !== []) {
+            $placeholders = implode(', ', array_fill(0, count($types), '%s'));
             $sql = "SELECT post_name FROM %i
                      WHERE post_name <> ''
                        AND post_status NOT IN ('auto-draft', 'trash')
-                       AND post_type IN (" . $this->placeholders($types) . ')';
+                       AND post_type IN ({$placeholders})";
 
             // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             foreach ((array) $this->wpdb->get_col($this->wpdb->prepare($sql, $this->wpdb->posts, ...$types)) as $slug) { // nosemgrep: wpdb-interpolated-sql -- $wpdb table name; every value is a placeholder
@@ -686,13 +688,5 @@ final class SlugMap
         }
 
         return $this->realSlugsCache[$version] = $slugs;
-    }
-
-    /**
-     * @param array<int, string> $values
-     */
-    private function placeholders(array $values): string
-    {
-        return implode(', ', array_fill(0, count($values), '%s'));
     }
 }
