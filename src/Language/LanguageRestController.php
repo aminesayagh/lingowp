@@ -87,10 +87,12 @@ final class LanguageRestController
             // itself while this is non-zero, so progress keeps moving for every
             // language -- not only whichever one the board happens to show.
             $entry['pending_texts']      = $progress['pending'];
-            // No content yet ⇒ nothing left to translate ⇒ 100% (hides "Translate All").
+            // No texts yet (scan not finished, or nothing to translate) ⇒ null,
+            // shown as "—". Used to be 100, which made a brand-new language
+            // look finished before the scan had found anything (#12).
             $entry['translated_percent'] = $progress['total'] > 0
                 ? (int) round($progress['translated'] / $progress['total'] * 100)
-                : 100;
+                : null;
 
             // Backs the rail's "Use fallback translation" button: only ready when
             // the fallback shares the base language (cheap check first) AND it

@@ -308,7 +308,9 @@ export function LanguageRow( {
 											tone="subdued"
 											variant="bodySm"
 										>
-											{ percent }%
+											{ percent === null
+												? '—'
+												: `${ percent }%` }
 										</Text>
 									</span>
 								) }
@@ -375,7 +377,7 @@ export default function LanguageList( {
 						key={ lang.code }
 						lang={ lang }
 						selected={ lang.code === selectedCode }
-						percent={ lang.translated_percent ?? 0 }
+						percent={ lang.translated_percent ?? null }
 						showProgress={ showProgress }
 						flagGrayscale={ flagGrayscale }
 						onSelect={
