@@ -349,7 +349,17 @@ export default function Dashboard( {
 	} )
 	const connectionQ = useConnectionStatus( { verify: true } )
 	const connected = !! connectionQ.data?.connected
-	const entitlementsQ = useEntitlements( { enabled: connected } )
+	// While AI translations are still queued, words are being used: re-read
+	// the plan on the rail's own rhythm, past the 60s server cache, so the
+	// word counter moves during Translate All instead of only at the end (#13).
+	const translationsQueued = ( languagesQ.data?.languages ?? [] ).some(
+		( l ) => ( l.pending_texts ?? 0 ) > 0
+	)
+	const entitlementsQ = useEntitlements( {
+		enabled: connected,
+		fresh: translationsQueued,
+		refetchInterval: translationsQueued ? LANGUAGE_POLL_MS : false,
+	} )
 	const providerKeysQ = useProviderKeys( { enabled: connected } )
 	const confirmConnectionMut = useConfirmConnection()
 	const patchLangMut = usePatchLanguage()
