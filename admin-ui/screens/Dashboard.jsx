@@ -1274,11 +1274,16 @@ export default function Dashboard( {
 			// Falling edge only: the rail polls its own percentages while the
 			// queue drains (see anyLanguagePending), so this exists for the
 			// quota rail, which only settles once the last row lands.
-			if ( pendingCountRef.current > 0 && now === 0 ) {
+			const wasPending = pendingCountRef.current > 0
+			// Recorded BEFORE refetching: a refetch notifies this same
+			// subscriber synchronously, and with the old count still in the
+			// ref it saw the falling edge again — endless recursion
+			// ("Maximum call stack size exceeded") when a queue drained.
+			pendingCountRef.current = now
+			if ( wasPending && now === 0 ) {
 				refetchEntitlements()
 				refreshLanguages()
 			}
-			pendingCountRef.current = now
 		} )
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient/refetchEntitlements stable; refreshLanguages is a stable declaration
 	}, [] )
