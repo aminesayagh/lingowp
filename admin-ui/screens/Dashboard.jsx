@@ -4078,7 +4078,7 @@ function TextUnitRow( {
 						e.currentTarget.blur()
 					}
 				} }
-				placeholder={ unit.fallback || '' }
+				placeholder={ decodeEntities( unit.fallback || '' ) }
 				animate={ { opacity: showShimmer ? 0 : 1 } }
 				transition={ { duration: 0.15 } }
 				style={ {
