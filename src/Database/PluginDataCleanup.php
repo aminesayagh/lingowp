@@ -32,6 +32,7 @@ class PluginDataCleanup
     private const OPTIONS = [
         // Schema + rewrite/scan bookkeeping.
         'lingowp_db_version',
+        'lingowp_foreign_keys',
         'lingowp_url_structure_initialized',
         'lingowp_rewrite_rules_version',
         'lingowp_age_out_last_run',
@@ -140,7 +141,8 @@ class PluginDataCleanup
             // phpcs:disable WordPress.DB.DirectDatabaseQuery -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $wpdb->query(
                 $wpdb->prepare(
-                    "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+                    'DELETE FROM %i WHERE option_name LIKE %s OR option_name LIKE %s',
+                    $wpdb->options,
                     $likeValue,
                     $likeTimeout
                 )

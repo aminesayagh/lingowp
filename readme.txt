@@ -4,7 +4,7 @@ Tags: multilingual, translation, localization, ai translation
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.6
+Stable tag: 1.6.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,10 @@ The plugin ships two compiled bundles. The human-readable JavaScript and CSS sou
 * `assets/switcher/build/` (the front-end language switcher, `switcher.js` and `switcher.css`) is built with Vite from the `assets/switcher/src/` directory, using `vite.config.mjs`. It bundles the third-party library Floating UI (`@floating-ui/dom` 1.8.0, MIT license, https://github.com/floating-ui/floating-ui) to position the dropdown.
 
 `package.json` and `package-lock.json` list every build tool and dependency with its exact version.
+
+= Bundled PHP libraries =
+
+`vendor/` holds the PHP libraries the plugin runs with, installed by Composer from `composer.json` and `composer.lock`: Action Scheduler (background jobs), and Masterminds HTML5 (HTML parsing). Their licenses are listed in `THIRD-PARTY-NOTICES.txt`.
 
 To reproduce both bundles from that source, with Node.js 20 or newer, run from the plugin directory:
 
@@ -128,6 +132,18 @@ Language-prefixed URLs require pretty permalinks (Settings → Permalinks).
 Linvara adds suggested disclosure text to WordPress's Privacy Policy Guide. Site owners remain responsible for adapting that text to their configuration and publishing an accurate privacy policy.
 
 == Changelog ==
+
+= 1.6.8 =
+
+* Network Activate on a multisite network now sets up the current site only; every other site sets itself up on its first load, so activation no longer loops over the whole network in one request.
+* The Plugins & Themes board finds translatable strings with PHP's own tokenizer. PHP Parser and the Gettext libraries are no longer bundled, and scanning is about 13 times faster.
+* Every database query is written out in full, with values only through placeholders. Tables are created with dbDelta().
+
+= 1.6.7 =
+
+* Linvara now activates on every supported database. Where foreign keys are not available (WordPress tables on MyISAM, or a host that refuses them), it runs without them; the only difference is that deleting a post, term, option or user then leaves its translations in place. Site Health explains this when it applies.
+* Database queries pass every table and column name through WordPress's identifier placeholder.
+* The release archive no longer includes command-line scripts from bundled libraries.
 
 = 1.6.6 =
 

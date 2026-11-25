@@ -17,4 +17,13 @@ final class ScannablePostStatuses
     public const ALL = ['publish', 'inherit'];
 
     private function __construct() {}
+
+    /**
+     * The list as one comma-separated value, for `FIND_IN_SET(post_status, %s)`:
+     * a single placeholder instead of a variable-length IN list.
+     */
+    public static function csv(): string
+    {
+        return implode(',', self::ALL);
+    }
 }

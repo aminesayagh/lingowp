@@ -67,10 +67,11 @@ echo "==> Installing production Composer dependencies"
 composer install --no-dev --optimize-autoloader --no-interaction \
   --working-dir="$BUILD_DIR" >/dev/null
 
-# Composer's bin proxies (php-parse, export-plural-rules, import-cldr-data) are
-# command-line tools nothing in WordPress ever loads. Executables in a plugin
-# archive draw questions from reviewers for no benefit.
-rm -rf "$BUILD_DIR"/vendor/bin
+# Composer's bin proxies (vendor/bin/) and each package's own bin/ folder
+# (html5's entities.php generator) are
+# command-line tools nothing in WordPress ever loads. WordPress.org rejects
+# them as "not permitted files" (review of 1.6.6).
+rm -rf "$BUILD_DIR"/vendor/bin "$BUILD_DIR"/vendor/*/*/bin
 
 echo "==> Removing development-only files"
 rm -rf "$BUILD_DIR"/.[!.]* "$BUILD_DIR"/..?*
@@ -102,7 +103,7 @@ rm -rf \
 # travels inside the archive and depends on no URL.
 #
 # composer.json and composer.lock stay too. They describe vendor/, so a tree
-# carrying nikic/, mck89/ and gettext/ with no manifest saying why is exactly
+# carrying third-party packages with no manifest saying why is exactly
 # what a reader objects to.
 REQUIRED=(
   lingowp.php
@@ -141,7 +142,14 @@ done
 
 # node_modules is created by the npm build above rather than by git archive, so
 # nothing upstream fails when it is left behind — it just silently adds ~827 MB.
-FORBIDDEN=(node_modules tests templates src/Admin/ResetPageController.php)
+FORBIDDEN=(node_modules tests templates src/Admin/ResetPageController.php vendor/bin)
+# Any package's bin/ folder, whatever Composer installs next.
+for vendor_bin in "$BUILD_DIR"/vendor/*/*/bin; do
+  if [[ -e "$vendor_bin" ]]; then
+    echo "Release still contains a vendor command-line folder: ${vendor_bin#"$BUILD_DIR"/}" >&2
+    exit 1
+  fi
+done
 
 for forbidden in "${FORBIDDEN[@]}"; do
   if [[ -e "$BUILD_DIR/$forbidden" ]]; then

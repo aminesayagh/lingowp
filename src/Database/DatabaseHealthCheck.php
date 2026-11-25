@@ -25,6 +25,7 @@ final class DatabaseHealthCheck
      * @return array{
      *     posts_engine: ?string,
      *     tt_engine: ?string,
+     *     foreign_keys: bool,
      *     missing_fks: string[],
      *     translation_rows: int,
      *     deferred_indexes_suggested: bool,
@@ -33,20 +34,24 @@ final class DatabaseHealthCheck
      */
     public function gather(): array
     {
-        $missing = (new ConstraintVerifier($this->wpdb))->findMissing(
+        // A site installed without foreign keys (its database refused them) has
+        // none to miss; see TranslationMemorySchema::install().
+        $foreignKeys = TranslationMemorySchema::usesForeignKeys();
+        $missing     = !$foreignKeys ? [] : (new ConstraintVerifier($this->wpdb))->findMissing(
             TranslationMemorySchema::expectedForeignKeys()
         );
 
         $rows = 0;
         foreach (TranslationMemorySchema::childTables() as $table) {
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
-            $rows += (int) $this->wpdb->get_var('SELECT COUNT(*) FROM ' . $table); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
+            $rows += (int) $this->wpdb->get_var($this->wpdb->prepare('SELECT COUNT(*) FROM %i', $table)); // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
             // phpcs:enable
         }
 
         return [
             'posts_engine'               => $this->engineOf($this->wpdb->posts),
             'tt_engine'                  => $this->engineOf($this->wpdb->term_taxonomy),
+            'foreign_keys'               => $foreignKeys,
             'missing_fks'                => $missing,
             'translation_rows'           => $rows,
             'deferred_indexes_suggested' => $rows > self::DEFERRED_INDEX_ROW_THRESHOLD,

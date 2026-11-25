@@ -3,19 +3,17 @@
 namespace LingoWP\GettextDomains;
 
 use FilesystemIterator;
-use Gettext\Translations;
 use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use LingoWP\GettextDomains\Scanner\WordPressPhpScanner;
+use LingoWP\GettextDomains\Scanner\PhpGettextScanner;
 use Throwable;
 
 /**
- * Scans a plugin/theme's own PHP source for gettext calls with a real
- * AST-based scanner (vendored from `10quality/gettext-wp-scanner`, wrapping
- * `nikic/php-parser` — the same parser family WP-CLI's own i18n tooling uses).
- * No WP-CLI dependency, no shell-exec.
+ * Scans a plugin/theme's own PHP source for gettext calls with PHP's own
+ * tokenizer (PhpGettextScanner — the approach of WP-CLI's `wp i18n make-pot`).
+ * No WP-CLI dependency, no shell-exec, no bundled parser library.
  *
  * Reached whenever the in-app translation editor needs the full list of a
  * component's strings (see GettextTranslationUnitsService) — not just as a
@@ -39,15 +37,9 @@ class GettextTemplateGenerator
             return null;
         }
 
-        $translations = Translations::create($domain);
-
-        $scanner = new WordPressPhpScanner($translations);
-        $scanner->setDefaultDomain($domain);
-        // A single malformed call site (e.g. a dynamic domain argument) must
-        // not abort the whole scan.
-        $scanner->ignoreInvalidFunctions(true);
-
-        $count = 0;
+        $scanner = new PhpGettextScanner();
+        $entries = [];
+        $count   = 0;
         foreach ($this->phpFiles($path) as $file) {
             if (++$count > self::MAX_FILES) {
                 break;
@@ -58,27 +50,30 @@ class GettextTemplateGenerator
                 continue;
             }
 
-            try {
-                $scanner->scanFile($file);
-            } catch (Throwable $e) {
+            $code = @file_get_contents($file);
+            if ($code === false) {
                 continue;
+            }
+
+            try {
+                foreach ($scanner->scan($code, $domain) as $entry) {
+                    $entries[($entry['context'] === null ? '' : $entry['context'] . "\x04") . $entry['msgid']] = $entry;
+                }
+            } catch (Throwable $e) {
+                continue; // one unreadable file must not abort the whole scan
             }
         }
 
-        $entries = [];
-        foreach ($translations as $translation) {
-            $entries[] = ['msgid' => $translation->getOriginal(), 'context' => $translation->getContext()];
-        }
-
-        return $entries;
+        return array_values($entries);
     }
 
     /**
      * Whether the scanner can find strings at all in this request — checked
      * on a one-line snippet before an empty scan result is trusted. A broken
-     * parser setup (another plugin's older php-parser loaded first, see
-     * WordPressPhpScanner) looks exactly like "this component has no
-     * strings", and that must never be cached as a finished scan.
+     * scanner looks exactly like "this component has no strings", and that
+     * must never be cached as a finished scan. (1.6.5 shipped a parser
+     * library another plugin could replace at runtime; the tokenizer
+     * scanner has no such dependency, the check stays as a cheap guard.)
      * Memoized per instance (one per request, see Plugin.php). Not final so
      * a test can stand in a broken scanner.
      */
@@ -88,16 +83,13 @@ class GettextTemplateGenerator
             return $this->working;
         }
 
-        $translations = Translations::create('lingowp-selfcheck');
         try {
-            $scanner = new WordPressPhpScanner($translations);
-            $scanner->setDefaultDomain('lingowp-selfcheck');
-            $scanner->scanString("<?php __('Self check');", 'selfcheck.php');
+            $found = (new PhpGettextScanner())->scan("<?php __('Self check', 'lingowp-selfcheck');", 'lingowp-selfcheck');
         } catch (Throwable $e) {
             return $this->working = false;
         }
 
-        return $this->working = count($translations) === 1;
+        return $this->working = $found === [['msgid' => 'Self check', 'context' => null]];
     }
 
     /** @return \Generator<string> */

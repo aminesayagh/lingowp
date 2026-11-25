@@ -81,6 +81,7 @@ import { flagIconUrl, FlagIcon } from './FlagIcon'
 import QuotaCard from './QuotaCard'
 import { hasMarkers, stripMarkers } from './TranslationUnitEditor'
 import { lengthWarningMessage } from './lengthWarning.mjs'
+import { decodeEntities } from './htmlEntities.mjs'
 
 // Split out of the main bundle: each is a modal/screen opened only by an
 // explicit action, never needed for first paint — GettextBoard behind the
@@ -348,7 +349,22 @@ export default function Dashboard( {
 	} )
 	const connectionQ = useConnectionStatus( { verify: true } )
 	const connected = !! connectionQ.data?.connected
-	const entitlementsQ = useEntitlements( { enabled: connected } )
+	// While AI translations are still queued, words are being used: re-read
+	// the plan on the rail's own rhythm, past the 60s server cache, so the
+	// word counter moves during Translate All instead of only at the end (#13).
+	const translationsQueued = ( languagesQ.data?.languages ?? [] ).some(
+		( l ) => ( l.pending_texts ?? 0 ) > 0
+	)
+	const entitlementsQ = useEntitlements( {
+		enabled: connected,
+		fresh: translationsQueued,
+		refetchInterval: translationsQueued ? LANGUAGE_POLL_MS : false,
+		// A plan can change outside this page (support grant, renewal,
+		// purchase for another site): re-read it whenever the admin comes
+		// back to this tab, not only on reload (#14). The server still
+		// caches it 60s, so a change shows within a minute at worst.
+		refetchOnWindowFocus: 'always',
+	} )
 	const providerKeysQ = useProviderKeys( { enabled: connected } )
 	const confirmConnectionMut = useConfirmConnection()
 	const patchLangMut = usePatchLanguage()
@@ -451,6 +467,11 @@ export default function Dashboard( {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
+	// Set by the two sync effects below, in the same update as the state
+	// they copy, so the quota card leaves its skeleton only once `ai` and
+	// `quota` hold real answers — never one render early (#15).
+	const [ connectionSynced, setConnectionSynced ] = useState( false )
+	const [ entitlementsSynced, setEntitlementsSynced ] = useState( false )
 	// Stored BYOK keys (GET /provider-keys), fetched once when the connection
 	// checks out. Drives the "Use your <provider> key" items in the settings
 	// popover; empty until loaded or when the user has none.
@@ -719,6 +740,7 @@ export default function Dashboard( {
 	useEffect( () => {
 		if ( entitlementsQ.isError ) {
 			setQuota( null )
+			setEntitlementsSynced( true )
 			return
 		}
 		const ent = entitlementsQ.data
@@ -726,6 +748,7 @@ export default function Dashboard( {
 			return
 		}
 		setQuota( ent )
+		setEntitlementsSynced( true )
 		const subscribed = !! ent?.active
 		const overSlotNow = !! ent?.over_slot
 		setOverSlot( overSlotNow )
@@ -741,6 +764,7 @@ export default function Dashboard( {
 			return
 		}
 		setAi( { available: status.available, error: status.error } )
+		setConnectionSynced( true )
 		if (
 			status.connected &&
 			! status.available &&
@@ -1250,11 +1274,16 @@ export default function Dashboard( {
 			// Falling edge only: the rail polls its own percentages while the
 			// queue drains (see anyLanguagePending), so this exists for the
 			// quota rail, which only settles once the last row lands.
-			if ( pendingCountRef.current > 0 && now === 0 ) {
+			const wasPending = pendingCountRef.current > 0
+			// Recorded BEFORE refetching: a refetch notifies this same
+			// subscriber synchronously, and with the old count still in the
+			// ref it saw the falling edge again — endless recursion
+			// ("Maximum call stack size exceeded") when a queue drained.
+			pendingCountRef.current = now
+			if ( wasPending && now === 0 ) {
 				refetchEntitlements()
 				refreshLanguages()
 			}
-			pendingCountRef.current = now
 		} )
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient/refetchEntitlements stable; refreshLanguages is a stable declaration
 	}, [] )
@@ -2485,6 +2514,14 @@ export default function Dashboard( {
 					<div className="pt-4">
 						<QuotaCard
 							quota={ quota }
+							// #15: until the connection check (and, when
+							// connected, the plan) answers, the card must not
+							// guess "Free plan · AI is off".
+							loading={
+								( ! connectionSynced &&
+									! connectionQ.isError ) ||
+								( connected && ! entitlementsSynced )
+							}
 							aiAvailable={ ai.available }
 							aiError={ ai.error }
 							billingBlocked={ billingBlocked }
@@ -3863,10 +3900,13 @@ function TextUnitRow( {
 	// A composed unit carries codec markers ({1}…{/1}); it must edit in the
 	// overlay's chip editor, never the plain inline input.
 	const isComposed = hasMarkers( unit.original || '' )
-	const originalText = isComposed
-		? stripMarkers( unit.original )
-		: unit.original
-	const shownText = isComposed ? stripMarkers( shown ) : shown
+	// Decoded for display only (#11): the stored text keeps its HTML codes.
+	const originalText = decodeEntities(
+		isComposed ? stripMarkers( unit.original ) : unit.original
+	)
+	const shownText = decodeEntities(
+		isComposed ? stripMarkers( shown ) : shown
+	)
 	const originalRef = useRef( null )
 	const [ isLong, setIsLong ] = useState( false )
 	useLayoutEffect( () => {
@@ -4043,7 +4083,7 @@ function TextUnitRow( {
 						e.currentTarget.blur()
 					}
 				} }
-				placeholder={ unit.fallback || '' }
+				placeholder={ decodeEntities( unit.fallback || '' ) }
 				animate={ { opacity: showShimmer ? 0 : 1 } }
 				transition={ { duration: 0.15 } }
 				style={ {

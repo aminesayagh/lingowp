@@ -141,7 +141,11 @@ final class OptionSourceScanner
     {
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names only, from $wpdb and the plugin's schema map; no values in the SQL.
         $names = $this->wpdb->get_col( // nosemgrep: wpdb-interpolated-sql -- table name only, from the TranslationMemorySchema map / $wpdb prefix; no values interpolated
-            "SELECT option_name FROM {$this->wpdb->options} WHERE option_name LIKE 'widget\\_%'"
+            $this->wpdb->prepare(
+                'SELECT option_name FROM %i WHERE option_name LIKE %s',
+                $this->wpdb->options,
+                $this->wpdb->esc_like('widget_') . '%'
+            )
         );
         // phpcs:enable
 
@@ -153,7 +157,8 @@ final class OptionSourceScanner
         // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
         $id = $this->wpdb->get_var( // phpcs:ignore WordPress.DB
             $this->wpdb->prepare(
-                "SELECT option_id FROM {$this->wpdb->options} WHERE option_name = %s",
+                'SELECT option_id FROM %i WHERE option_name = %s',
+                $this->wpdb->options,
                 $optionName
             )
         );

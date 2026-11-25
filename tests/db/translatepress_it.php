@@ -474,7 +474,8 @@ test_ok('a failed read of the dictionary stops the import', $stopped);
 $resetTrp();
 $unit('ZQTRPIT context read');
 $trp('ZQTRPIT context read', 'ZQ lecture du contexte');
-$stopped = $withFailingQuery("SELECT original_text FROM {$HP} WHERE id", static function () use ($import): bool {
+// The repository names tables and columns through %i, which backtick-quotes them.
+$stopped = $withFailingQuery("FROM `{$HP}` WHERE id = ", static function () use ($import): bool {
     try {
         $import();
     } catch (ImportStopped $e) {
@@ -1024,6 +1025,23 @@ $matcher = new AddonSiteMatcher();
 test_ok('core: a migration add-on is relevant when its plugin is installed but inactive', $matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN])
     && !$matcher->isRelevant([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
 test_ok('core: a plugin that is not on the site is not present', !$matcher->isPresent(['zq-trpit-missing/zq.php']));
+
+// #16: installed but never used = nothing to migrate = no notice. Savepoint,
+// so the sections below see the dictionaries exactly as they were.
+$wpdb->query('SAVEPOINT trp_relevance'); // phpcs:ignore WordPress.DB
+foreach ($wpdb->get_col($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($wpdb->prefix . 'trp_dictionary_') . '%')) as $dictTable) { // phpcs:ignore WordPress.DB
+    $wpdb->query($wpdb->prepare('DELETE FROM %i', $dictTable)); // phpcs:ignore WordPress.DB
+}
+test_ok('core: TranslatePress installed but holding no translations is not relevant (#16)', !$matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
+$trp('ZQ relevance untranslated', '', 0);
+test_ok('…an untranslated dictionary row alone does not count', !$matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
+$trp('ZQ relevance', 'ZQ pertinence', 2);
+test_ok('…one real translation makes it relevant again', $matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
+$trpSettings = get_option('trp_settings');
+delete_option('trp_settings');
+test_ok('…and without TranslatePress settings it is not relevant', !$matcher->isPresent([\LingoWPTranslatePress\Importer::TRANSLATEPRESS_PLUGIN]));
+update_option('trp_settings', $trpSettings);
+$wpdb->query('ROLLBACK TO SAVEPOINT trp_relevance'); // phpcs:ignore WordPress.DB
 wp_set_current_user(0);
 
 test_section('checks before anything is written (README §3, step 1):');

@@ -33,13 +33,15 @@ final class SourceLanguageSnapshot
             if (in_array($parentKey, TranslationMemorySchema::HASH_LINK_CHILDREN, true)) {
                 // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
                 $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
-                    "INSERT IGNORE INTO {$child}
+                    "INSERT IGNORE INTO %i
                         (original_hash, lang_code, translated_text, status, provider, created_at, updated_at)
                      SELECT original_hash, %s, original_text, 2, NULL, %s, %s
-                     FROM {$parent}",
+                     FROM %i",
+                    $child,
                     $langCode,
                     $now,
-                    $now
+                    $now,
+                    $parent
                 ));
                 // phpcs:enable
 
@@ -49,13 +51,15 @@ final class SourceLanguageSnapshot
             // Parent-id child (meta): keyed (parent_id, lang_code).
             // phpcs:disable PluginCheck.Security.DirectDB, WordPress.DB.PreparedSQL -- table names come from $wpdb and the plugin's schema map; every value goes through a placeholder.
             $this->wpdb->query($this->wpdb->prepare( // phpcs:ignore WordPress.DB
-                "INSERT IGNORE INTO {$child}
+                "INSERT IGNORE INTO %i
                     (parent_id, lang_code, translated_text, status, provider, created_at, updated_at)
                  SELECT id, %s, original_text, 2, NULL, %s, %s
-                 FROM {$parent}",
+                 FROM %i",
+                $child,
                 $langCode,
                 $now,
-                $now
+                $now,
+                $parent
             ));
             // phpcs:enable
         }

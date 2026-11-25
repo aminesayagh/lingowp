@@ -1,4 +1,11 @@
-import { BlockStack, Button, Card, ProgressBar, Text } from '@shopify/polaris'
+import {
+	BlockStack,
+	Button,
+	Card,
+	ProgressBar,
+	SkeletonBodyText,
+	Text,
+} from '@shopify/polaris'
 import { errorMessage } from '../errors'
 import { formatPlanKey } from '../planFormat'
 
@@ -15,11 +22,23 @@ function unavailableCopy() {
 
 export default function QuotaCard( {
 	quota,
+	loading,
 	aiAvailable,
 	aiError,
 	billingBlocked,
 	overSlot,
 } ) {
+	// Connection check or plan still loading: grey skeleton lines, never
+	// "Free plan · AI is off" — on a connected Pro site that flashed on every
+	// page load (#15).
+	if ( loading ) {
+		return (
+			<Card>
+				<SkeletonBodyText lines={ 2 } />
+			</Card>
+		)
+	}
+
 	// Never connected: render nothing at all.
 	//
 	// Connecting is onboarding's question to ask (Configuration.jsx offers

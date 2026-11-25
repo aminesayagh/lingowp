@@ -30,6 +30,7 @@ import {
 } from './TranslationUnitEditor'
 import { errorMessage } from '../errors'
 import { lengthWarningMessage } from './lengthWarning.mjs'
+import { decodeEntities } from './htmlEntities.mjs'
 
 /*
  * Text-editor overlay (DSL: overlay#text_editor) — one shell for both variants:
@@ -310,7 +311,7 @@ export default function CompareOverlay( {
 	// displays (the in-progress draft, or its fallback), never a loading label.
 	const shimmerText = composed
 		? stripMarkers( text || unit.original || '' )
-		: text || unit.fallback || unit.original || ''
+		: decodeEntities( text || unit.fallback || unit.original || '' )
 	let copyTooltipContent = 'Copy the original into the translation'
 	if ( matchesOriginal ) {
 		copyTooltipContent = 'Translation already matches the original'
@@ -563,12 +564,14 @@ export default function CompareOverlay( {
 							{ /* Same original, tags stripped — a quick, noise-free
 							read of the plain copy alongside the tagged one. */ }
 							<div style={ textareaStyle( true ) }>
-								{ stripMarkers( unit.original ) }
+								{ decodeEntities(
+									stripMarkers( unit.original )
+								) }
 							</div>
 						</div>
 					) : (
 						<div style={ textareaStyle( false ) }>
-							{ unit.original }
+							{ decodeEntities( unit.original ) }
 						</div>
 					) }
 				</div>
@@ -674,9 +677,9 @@ export default function CompareOverlay( {
 								value={ text }
 								onChange={ ( e ) => setDraft( e.target.value ) }
 								onBlur={ flush }
-								placeholder={
+								placeholder={ decodeEntities(
 									unit.fallback || unit.original || ''
-								}
+								) }
 								aria-label="Translation"
 								animate={ {
 									opacity: translating ? 0 : 1,

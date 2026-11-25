@@ -254,8 +254,8 @@ test_ok('a NEEDS_REVIEW/REVIEWED child renders identically',
     ($map[$fourthHash] ?? null) === 'Hallo', 'map=' . json_encode($map));
 
 $repo->ignoreSource(SourceRef::make('meta', $newMetaId));
-$lookups = [['post_id' => $postId, 'meta_key_hash' => hash('sha256', $metaKey, true), 'context_hash' => hash('sha256', '', true)]];
-$metaMap = $repo->fetchParentTranslations('meta', $lookups, 'fr');
+$lookups = [['post_id' => $postId, 'meta_key_hash' => hash('sha256', $metaKey, true)]];
+$metaMap = $repo->fetchMetaLeafTranslations('meta', $lookups, 'fr');
 test_ok('an IGNORED parent returns nothing (parent_id path filters status = 0)',
     $metaMap === [], 'got ' . json_encode($metaMap));
 
