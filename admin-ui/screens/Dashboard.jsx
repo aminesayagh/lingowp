@@ -467,6 +467,11 @@ export default function Dashboard( {
 	const [ confirm, setConfirm ] = useState( null )
 	const [ ai, setAi ] = useState( { available: false, error: '' } )
 	const [ quota, setQuota ] = useState( null )
+	// Set by the two sync effects below, in the same update as the state
+	// they copy, so the quota card leaves its skeleton only once `ai` and
+	// `quota` hold real answers — never one render early (#15).
+	const [ connectionSynced, setConnectionSynced ] = useState( false )
+	const [ entitlementsSynced, setEntitlementsSynced ] = useState( false )
 	// Stored BYOK keys (GET /provider-keys), fetched once when the connection
 	// checks out. Drives the "Use your <provider> key" items in the settings
 	// popover; empty until loaded or when the user has none.
@@ -735,6 +740,7 @@ export default function Dashboard( {
 	useEffect( () => {
 		if ( entitlementsQ.isError ) {
 			setQuota( null )
+			setEntitlementsSynced( true )
 			return
 		}
 		const ent = entitlementsQ.data
@@ -742,6 +748,7 @@ export default function Dashboard( {
 			return
 		}
 		setQuota( ent )
+		setEntitlementsSynced( true )
 		const subscribed = !! ent?.active
 		const overSlotNow = !! ent?.over_slot
 		setOverSlot( overSlotNow )
@@ -757,6 +764,7 @@ export default function Dashboard( {
 			return
 		}
 		setAi( { available: status.available, error: status.error } )
+		setConnectionSynced( true )
 		if (
 			status.connected &&
 			! status.available &&
@@ -2505,10 +2513,9 @@ export default function Dashboard( {
 							// connected, the plan) answers, the card must not
 							// guess "Free plan · AI is off".
 							loading={
-								connectionQ.isPending ||
-								( connected &&
-									entitlementsQ.data === undefined &&
-									! entitlementsQ.isError )
+								( ! connectionSynced &&
+									! connectionQ.isError ) ||
+								( connected && ! entitlementsSynced )
 							}
 							aiAvailable={ ai.available }
 							aiError={ ai.error }
