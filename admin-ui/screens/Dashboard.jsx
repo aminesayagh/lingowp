@@ -81,6 +81,7 @@ import { flagIconUrl, FlagIcon } from './FlagIcon'
 import QuotaCard from './QuotaCard'
 import { hasMarkers, stripMarkers } from './TranslationUnitEditor'
 import { lengthWarningMessage } from './lengthWarning.mjs'
+import { decodeEntities } from './htmlEntities.mjs'
 
 // Split out of the main bundle: each is a modal/screen opened only by an
 // explicit action, never needed for first paint — GettextBoard behind the
@@ -3863,10 +3864,13 @@ function TextUnitRow( {
 	// A composed unit carries codec markers ({1}…{/1}); it must edit in the
 	// overlay's chip editor, never the plain inline input.
 	const isComposed = hasMarkers( unit.original || '' )
-	const originalText = isComposed
-		? stripMarkers( unit.original )
-		: unit.original
-	const shownText = isComposed ? stripMarkers( shown ) : shown
+	// Decoded for display only (#11): the stored text keeps its HTML codes.
+	const originalText = decodeEntities(
+		isComposed ? stripMarkers( unit.original ) : unit.original
+	)
+	const shownText = decodeEntities(
+		isComposed ? stripMarkers( shown ) : shown
+	)
 	const originalRef = useRef( null )
 	const [ isLong, setIsLong ] = useState( false )
 	useLayoutEffect( () => {
