@@ -2486,6 +2486,15 @@ export default function Dashboard( {
 					<div className="pt-4">
 						<QuotaCard
 							quota={ quota }
+							// #15: until the connection check (and, when
+							// connected, the plan) answers, the card must not
+							// guess "Free plan · AI is off".
+							loading={
+								connectionQ.isPending ||
+								( connected &&
+									entitlementsQ.data === undefined &&
+									! entitlementsQ.isError )
+							}
 							aiAvailable={ ai.available }
 							aiError={ ai.error }
 							billingBlocked={ billingBlocked }
