@@ -58,6 +58,9 @@ final class AddonSiteMatcher
      * Relevance for a migration add-on: the plugin it migrates from only has
      * to be on the site, active or not — the migration reads the data that
      * plugin left behind, and owners often deactivate it before switching.
+     * For TranslatePress it must also have left translations behind: installed
+     * but never used means nothing to migrate, so no "migration available"
+     * notice (#16).
      */
     public function isPresent(array $detects): bool
     {
@@ -70,6 +73,36 @@ final class AddonSiteMatcher
                 continue;
             }
             if (validate_file($detect) === 0 && file_exists(WP_PLUGIN_DIR . '/' . $detect)) {
+                if (strpos($detect, 'translatepress-multilingual/') === 0 && !$this->hasTranslatePressTranslations()) {
+                    continue;
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Does TranslatePress hold at least one translation the migration would
+     * import? It keeps one dictionary table per language pair
+     * ({prefix}trp_dictionary_<from>_<to>); the filter is the importer's own
+     * (lingowp-translatepress DictionaryImport): a reviewed or machine
+     * translation with text in it.
+     */
+    private function hasTranslatePressTranslations(): bool
+    {
+        global $wpdb;
+
+        if (!is_array(get_option('trp_settings'))) {
+            return false;
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        $tables = $wpdb->get_col($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($wpdb->prefix . 'trp_dictionary_') . '%'));
+        foreach ($tables as $table) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            if ($wpdb->get_var($wpdb->prepare("SELECT 1 FROM %i WHERE status IN (1, 2, 3) AND translated <> '' LIMIT 1", $table)) !== null) {
                 return true;
             }
         }
