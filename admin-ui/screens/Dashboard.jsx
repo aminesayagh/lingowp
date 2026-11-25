@@ -359,6 +359,11 @@ export default function Dashboard( {
 		enabled: connected,
 		fresh: translationsQueued,
 		refetchInterval: translationsQueued ? LANGUAGE_POLL_MS : false,
+		// A plan can change outside this page (support grant, renewal,
+		// purchase for another site): re-read it whenever the admin comes
+		// back to this tab, not only on reload (#14). The server still
+		// caches it 60s, so a change shows within a minute at worst.
+		refetchOnWindowFocus: 'always',
 	} )
 	const providerKeysQ = useProviderKeys( { enabled: connected } )
 	const confirmConnectionMut = useConfirmConnection()
